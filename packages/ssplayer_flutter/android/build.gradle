@@ -1,0 +1,45 @@
+// ssplayer_flutter — Android FFI plugin.
+//
+// Bundles the PREBUILT dynamic Brain (libssruntime.so) produced by
+// `scripts/build-runtime.sh platform=android` under
+// ../native/libs/android/<abi>/. Gradle packages any .so under a jniLibs
+// source dir into the APK's lib/<abi>/, from where
+// DynamicLibrary.open('libssruntime.so') loads it by soname.
+group 'jp.co.cri_mw.ssplayer_flutter'
+version '0.1.0'
+
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'com.android.tools.build:gradle:8.1.0'
+    }
+}
+
+rootProject.allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+apply plugin: 'com.android.library'
+
+android {
+    namespace 'jp.co.cri_mw.ssplayer_flutter'
+    compileSdk 34
+
+    defaultConfig {
+        minSdk 21
+    }
+
+    // ABI folders (arm64-v8a / armeabi-v7a / x86_64) live directly under
+    // native/libs/android, matching build-runtime.sh's placement.
+    sourceSets {
+        main {
+            jniLibs.srcDirs = ['../native/libs/android']
+        }
+    }
+}

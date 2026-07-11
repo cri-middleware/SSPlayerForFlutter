@@ -1,0 +1,45 @@
+name: ssplayer_flutter
+description: >-
+  SpriteStudio 7 animation player for Flutter. A dart:ffi "Body" over the
+  SpriteStudio-SDK Rust "Brain" (libssruntime): loads .ssab, drives playback,
+  and renders DrawBatch plans with Canvas.drawVertices.
+version: 0.1.0-dev.1
+repository: https://github.com/cri-middleware/SSPlayerForFlutter
+publish_to: none # not yet published to pub.dev
+
+environment:
+  sdk: ">=3.3.0 <4.0.0"
+  flutter: ">=3.19.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  # dart:ffi helpers (Utf8, malloc/calloc, NativeFinalizer helpers).
+  ffi: ^2.1.0
+  # Dart FlatBuffers runtime used by the flatc-generated lib/src/ssab/*.g.dart.
+  # Match the flatc used by scripts/generate-runtime-code.sh.
+  flat_buffers: ^25.9.23
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+  # Regenerates lib/src/bindings/ssruntime_bindings.g.dart from the C header.
+  # Run via scripts/generate-runtime-code.sh (which calls `dart run ffigen`).
+  ffigen: ^13.0.0
+
+flutter:
+  plugin:
+    platforms:
+      # FFI plugins: no Dart platform-interface, the native lib is bundled and
+      # loaded via dart:ffi. Each platform's build glue lives under its folder.
+      android:
+        ffiPlugin: true
+      ios:
+        ffiPlugin: true
+      macos:
+        ffiPlugin: true
+      linux:
+        ffiPlugin: true
+      windows:
+        ffiPlugin: true
