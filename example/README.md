@@ -44,9 +44,11 @@ flutter build macos      # .app をビルド
 
 ## トラブルシュート
 
-- **`The sandbox is not in sync with the Podfile.lock`**（`flutter build macos`）:
-  macOS プロジェクトに旧プラグイン時代の CocoaPods 統合が残っているだけです。一度
-  `cd macos && pod install` で再同期すれば解消します（プラグイン Pod は 0 個で綺麗に通ります）。
+- **CocoaPods は使いません。** プラグイン無し＋ネイティブは Native Assets 同梱なので、新規生成した
+  `macos/` に `Podfile` は作られず、ビルドは pod なしで通ります（`.app` には
+  `App` / `FlutterMacOS` / `ssruntime` framework のみ）。もし旧チェックアウトに移行前の
+  `macos/Podfile` が残って `The sandbox is not in sync with the Podfile.lock` が出たら、runner を
+  作り直してください: `rm -rf macos && flutter create --platforms=macos .`。
 - **`Could not find bin/ssconvert.dart`**（`prepare-example-assets.sh`）: `ssconverter_dart` の
   CLI 未取得。リポジトリを最新化（`git pull`）してください。
 - アセット未生成でウィンドウが `loading…` のまま: 先に `bash scripts/prepare-example-assets.sh` を実行。
