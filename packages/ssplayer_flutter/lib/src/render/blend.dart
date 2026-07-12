@@ -1,6 +1,6 @@
 import 'dart:ui' as ui;
 
-import '../ssab/framedata.g.dart' as fbs;
+import 'package:ssruntime_dart/framedata.dart' as fbs;
 
 /// Framebuffer blend mapping (design §7B): the `Paint.blendMode` used for a
 /// batch's `drawVertices`.

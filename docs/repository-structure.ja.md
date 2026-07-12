@@ -31,12 +31,11 @@ SSPlayerForFlutter/
 │   ├── generate-fbs-code.{sh,ps1}        # flatc（.ssab/FrameData の Dart アクセサ）。.fbs 変更時のみ
 │   ├── download-sdk.{sh,ps1}             # GitHub Releases のプリビルドを DL/展開（SDK_VERSION.txt 準拠）
 │   └── prepare-example-assets.sh         # overall.sspj → .ssab（Dart ssconvert 経由・Rust 不要）
-├── packages/ssplayer_flutter/            # 【ランタイム描画】配布 pub パッケージ（FFI plugin・全プラットフォーム）
+├── packages/ssplayer_flutter/            # 【L2–4 描画】Flutter プラグイン（全プラットフォーム・ssruntime_dart 依存）
 │   ├── lib/
-│   │   ├── ssplayer_flutter.dart         # 公開 API
+│   │   ├── ssplayer_flutter.dart         # 公開 API（L1 は ssruntime_dart から re-export）
 │   │   └── src/
-│   │       ├── bindings/                 # Layer 1（ffigen 生成 *.g.dart=gitignore + 手書きローダ）
-│   │       ├── ssab/*.g.dart             # [flatc 生成] .ssab / FrameData / EffectDrawPlan
+│   │       ├── ssab/*.g.dart             # [flatc 生成・コミット] .ssab / .ssqb アセット形式アクセサ
 │   │       ├── internal_player.dart      # Layer 2（描画エンジン・SoA ベイク・paint）
 │   │       ├── texture_registry.dart     # Layer 2（hash→Image・blend マッピング）
 │   │       ├── texture_loader.dart       # reference/embedded テクスチャ読込（§16C）
@@ -44,9 +43,16 @@ SSPlayerForFlutter/
 │   │       ├── player.dart               # Layer 3
 │   │       └── render/sprite_studio_view.dart  # Layer 4
 │   ├── test/                             # スモーク＋実描画テスト（要 SSRUNTIME_LIBRARY_PATH）
-│   ├── native/                           # [生成物] include/ssruntime.h + libs/<platform>/<arch>/（gitignore）
-│   ├── macos/Frameworks/                 # [生成物] native/libs/macos/libssruntime.framework へのシンボリックリンク（gitignore）
+│   ├── native/libs/                      # [生成物] libssruntime.framework 等（gitignore）
+│   ├── macos/Frameworks/                 # [生成物] framework へのシンボリックリンク（gitignore）
 │   ├── {android,ios,macos,linux,windows}/  # 各プラットフォームのビルド接続
+│   └── pubspec.yaml
+├── packages/ssruntime_dart/              # 【Layer 1】ランタイム FFI バインディング（純 Dart・renderer 非依存）
+│   ├── lib/ssruntime_dart.dart           # 公開 API（SsRuntime / SsRuntimeBindings）
+│   ├── lib/framedata.dart                # ランタイム出力 FrameData の公開ライブラリ
+│   ├── lib/src/ssruntime_bindings.g.dart # [ffigen 生成] 全 C-API（gitignore）
+│   ├── lib/src/fbs/*.g.dart              # [flatc 生成・コミット] framedata / effect_draw_plan
+│   ├── native/                           # [生成物] include/ssruntime.h（gitignore）
 │   ├── ffigen.yaml
 │   └── pubspec.yaml
 ├── packages/ssconverter_dart/            # 【変換ツール】ホスト用 .sspj→.ssab（純 Dart・desktop 専用）

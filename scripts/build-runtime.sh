@@ -42,6 +42,8 @@ LIBS_DIR="$LIB_ROOT/libs"
 # The host converter (libssconverter) lives in its own desktop-only package.
 CONV_PKG_DIR="$ROOT_DIR/packages/ssconverter_dart"
 CONV_LIBS_DIR="$CONV_PKG_DIR/native/libs"
+# The Layer-1 runtime bindings live in their own pure-Dart package.
+RT_PKG_DIR="$ROOT_DIR/packages/ssruntime_dart"
 
 usage() { sed -n '/^# Usage:/,/^# SDK location/p' "$0" | sed 's/^# \{0,1\}//'; }
 
@@ -208,11 +210,11 @@ esac
 # --- C headers (ffigen input): consume the plain-C headers the SDK build.rs
 # emitted (Language::C, <crate>.h; .hpp is the C++ twin). The SDK is the single
 # source of truth for the C-API surface — no local cbindgen. Each crate's header
-# goes to its OWN package: ssruntime → ssplayer_flutter, ssconverter →
+# goes to its OWN binding package: ssruntime → ssruntime_dart, ssconverter →
 # ssconverter_dart (copied only when that crate was part of this build).
-mkdir -p "$LIB_ROOT/include" "$CONV_PKG_DIR/native/include"
+mkdir -p "$RT_PKG_DIR/native/include" "$CONV_PKG_DIR/native/include"
 rh="$SDK_DIR/libs/ssruntime/target/ssruntime.h"
-[ -f "$rh" ] && { cp "$rh" "$LIB_ROOT/include/ssruntime.h"; echo "   -> ssplayer_flutter native/include/ssruntime.h"; }
+[ -f "$rh" ] && { cp "$rh" "$RT_PKG_DIR/native/include/ssruntime.h"; echo "   -> ssruntime_dart native/include/ssruntime.h"; }
 ch="$SDK_DIR/libs/ssconverter/target/ssconverter.h"
 [ -f "$ch" ] && { cp "$ch" "$CONV_PKG_DIR/native/include/ssconverter.h"; echo "   -> ssconverter_dart native/include/ssconverter.h"; }
 

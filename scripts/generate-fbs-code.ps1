@@ -1,8 +1,9 @@
 #!/usr/bin/env pwsh
 #
-# Generate the Dart FlatBuffers accessors (flatc --dart) for the .ssab metadata +
-# runtime FrameData / EffectDrawPlan schemas
-#   (SpriteStudio-SDK/libs/**/fbs/*.fbs -> lib/src/ssab/<schema>.g.dart).
+# Generate the Dart FlatBuffers accessors (flatc --dart), routing each schema to
+# the package that owns it:
+#   libs/ssab/fbs/{ssab,ssqb}.fbs                -> ssplayer_flutter/lib/src/ssab/
+#   libs/ssruntime/fbs/{framedata,effect_draw_plan}.fbs -> ssruntime_dart/lib/src/fbs/
 # PowerShell counterpart of scripts/generate-fbs-code.sh. These track the .fbs
 # SCHEMAS (not the native library), so run only when a schema changes — it is
 # deliberately NOT part of build-runtime / download-sdk. Output IS committed.
@@ -13,9 +14,9 @@
 
 $ErrorActionPreference = "Stop"
 
-$RootDir    = Split-Path -Parent (Split-Path -Parent $PSCommandPath)
-$PkgDir     = Join-Path $RootDir "packages/ssplayer_flutter"
-$SsabOutDir = Join-Path $PkgDir "lib/src/ssab"
+$RootDir     = Split-Path -Parent (Split-Path -Parent $PSCommandPath)
+$SsabOutDir  = Join-Path $RootDir "packages/ssplayer_flutter/lib/src/ssab"   # asset format (Player)
+$RtFbsOutDir = Join-Path $RootDir "packages/ssruntime_dart/lib/src/fbs"      # runtime output
 
 # --- locate the SDK -------------------------------------------------------
 $SdkDir = $env:SSSDK
@@ -31,7 +32,7 @@ if (-not (Get-Command flatc -ErrorAction SilentlyContinue)) {
     Write-Error "generate-fbs-code.ps1: flatc not found — install Google FlatBuffers"
 }
 
-New-Item -ItemType Directory -Force -Path $SsabOutDir | Out-Null
+New-Item -ItemType Directory -Force -Path $SsabOutDir, $RtFbsOutDir | Out-Null
 Write-Host "Generating Dart FlatBuffers (flatc --dart)..."
 $tmpFb = Join-Path ([System.IO.Path]::GetTempPath()) ([System.Guid]::NewGuid().ToString())
 New-Item -ItemType Directory -Force -Path $tmpFb | Out-Null
@@ -43,13 +44,15 @@ try {
         "$SdkDir/libs/ssruntime/fbs/effect_draw_plan.fbs")) {
         if (-not (Test-Path $f)) { continue }
         $name = [System.IO.Path]::GetFileNameWithoutExtension($f)
+        # Route by schema origin: runtime output -> ssruntime_dart, asset format -> Player.
+        $out = if ($name -in @("framedata", "effect_draw_plan")) { $RtFbsOutDir } else { $SsabOutDir }
         & flatc --dart -o $tmpFb $f
         if ($LASTEXITCODE) { throw "flatc failed for $f" }
         # flatc emits <name>_<namespace>_generated.dart; normalise to <name>.g.dart
         $gen = Get-ChildItem -Path $tmpFb -Filter "${name}_*_generated.dart" -ErrorAction SilentlyContinue | Select-Object -First 1
         if ($gen) {
-            Move-Item $gen.FullName (Join-Path $SsabOutDir "$name.g.dart") -Force
-            Write-Host "   -> lib/src/ssab/$name.g.dart"
+            Move-Item $gen.FullName (Join-Path $out "$name.g.dart") -Force
+            Write-Host "   -> $out/$name.g.dart"
         }
     }
 } finally { Remove-Item -Recurse -Force $tmpFb -ErrorAction SilentlyContinue }

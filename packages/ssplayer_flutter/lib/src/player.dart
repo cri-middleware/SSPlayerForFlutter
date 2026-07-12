@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart' show AssetBundle;
 
-import 'bindings/ssruntime_library.dart';
+import 'package:ssruntime_dart/ssruntime_dart.dart';
 import 'internal_player.dart';
 import 'texture_loader.dart';
 import 'texture_registry.dart';

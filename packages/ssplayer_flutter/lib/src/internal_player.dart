@@ -4,12 +4,11 @@ import 'dart:ui' as ui;
 
 import 'package:ffi/ffi.dart';
 
-import 'bindings/ssruntime_bindings.g.dart';
-import 'bindings/ssruntime_library.dart';
+import 'package:ssruntime_dart/ssruntime_dart.dart';
 import 'render/blend.dart';
 import 'render/geometry_builder.dart';
 import 'render/part_color.dart';
-import 'ssab/framedata.g.dart' as fbs;
+import 'package:ssruntime_dart/framedata.dart' as fbs;
 import 'texture_registry.dart';
 
 /// Coordinate-system orientation passed to `ss_context_set_coordinate_system`.

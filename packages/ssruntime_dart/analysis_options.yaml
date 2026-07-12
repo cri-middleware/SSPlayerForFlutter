@@ -1,0 +1,7 @@
+include: package:lints/recommended.yaml
+
+analyzer:
+  exclude:
+    # Machine-generated: flatc FlatBuffers accessors + ffigen bindings.
+    - lib/src/fbs/**
+    - lib/src/ssruntime_bindings.g.dart

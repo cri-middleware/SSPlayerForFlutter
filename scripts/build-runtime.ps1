@@ -45,6 +45,8 @@ $LibsDir = Join-Path $LibRoot "libs"
 # The host converter (libssconverter) lives in its own desktop-only package.
 $ConvPkgDir  = Join-Path $RootDir "packages/ssconverter_dart"
 $ConvLibsDir = Join-Path $ConvPkgDir "native/libs"
+# The Layer-1 runtime bindings live in their own pure-Dart package.
+$RtPkgDir = Join-Path $RootDir "packages/ssruntime_dart"
 
 # --- detect the host platform / arch (pwsh runs on win/mac/linux) ----------
 if ($null -eq $IsWindows -or $IsWindows) { $HOST_PLATFORM = "windows" }  # $IsWindows is $null on Windows PowerShell 5.1
@@ -276,11 +278,11 @@ switch ($PLATFORM) {
 # emitted (Language::C, <crate>.h; .hpp is the C++ twin). Single source of truth
 # = the SDK; no local cbindgen. Each crate's header goes to its OWN package:
 # ssruntime → ssplayer_flutter, ssconverter → ssconverter_dart.
-$IncludeDir = Join-Path $LibRoot "include"
+$RtIncludeDir = Join-Path $RtPkgDir "native/include"
 $ConvIncludeDir = Join-Path $ConvPkgDir "native/include"
-New-Item -ItemType Directory -Force -Path $IncludeDir, $ConvIncludeDir | Out-Null
+New-Item -ItemType Directory -Force -Path $RtIncludeDir, $ConvIncludeDir | Out-Null
 $rh = Join-Path $SdkDir "libs/ssruntime/target/ssruntime.h"
-if (Test-Path $rh) { Copy-Item $rh (Join-Path $IncludeDir "ssruntime.h") -Force; Write-Host "   -> ssplayer_flutter native/include/ssruntime.h" }
+if (Test-Path $rh) { Copy-Item $rh (Join-Path $RtIncludeDir "ssruntime.h") -Force; Write-Host "   -> ssruntime_dart native/include/ssruntime.h" }
 $ch = Join-Path $SdkDir "libs/ssconverter/target/ssconverter.h"
 if (Test-Path $ch) { Copy-Item $ch (Join-Path $ConvIncludeDir "ssconverter.h") -Force; Write-Host "   -> ssconverter_dart native/include/ssconverter.h" }
 

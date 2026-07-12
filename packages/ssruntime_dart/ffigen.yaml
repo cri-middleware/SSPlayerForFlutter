@@ -2,14 +2,11 @@
 # header the SDK build.rs emits (native/include/ssruntime.h, copied in by
 # build-runtime / download-sdk). No cbindgen here.
 #
-#   Input : native/include/ssruntime.h   (the SpriteStudio-SDK Brain C-API)
-#   Output: lib/src/bindings/ssruntime_bindings.g.dart
-#
-# Regenerate with:  scripts/generate-ffigen-code.sh  (or: dart run ffigen --config ffigen.yaml).
-# The output is gitignored — build-runtime / download-sdk regenerate it.
+# Regenerate with:  scripts/generate-ffigen-code.sh  (globs packages/*/ffigen*.yaml;
+# also invoked by build-runtime / download-sdk). The output is gitignored.
 name: SsRuntimeBindings
 description: Low-level dart:ffi bindings for the SpriteStudio-SDK Brain (libssruntime).
-output: "lib/src/bindings/ssruntime_bindings.g.dart"
+output: "lib/src/ssruntime_bindings.g.dart"
 headers:
   entry-points:
     - "native/include/ssruntime.h"

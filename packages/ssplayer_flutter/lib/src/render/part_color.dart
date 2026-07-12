@@ -1,4 +1,4 @@
-import '../ssab/framedata.g.dart' as fbs;
+import 'package:ssruntime_dart/framedata.dart' as fbs;
 import 'blend.dart' show partColorCoef;
 
 /// One corner's PartColor sample (parts_color §1-3): a straight-alpha colour in

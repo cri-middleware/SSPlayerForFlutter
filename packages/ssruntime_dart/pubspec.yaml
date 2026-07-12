@@ -1,0 +1,27 @@
+name: ssruntime_dart
+description: >-
+  Pure-Dart dart:ffi bindings + loader for the SpriteStudio-SDK runtime
+  (libssruntime): loads .ssab, advances time, and emits per-frame SoA buffers +
+  DrawBatch plans. Layer 1 — the renderer-agnostic core beneath ssplayer_flutter
+  (also usable from Flame / flutter_gpu / headless Dart). No Flutter dependency.
+version: 0.1.0-dev.1
+repository: https://github.com/cri-middleware/SSPlayerForFlutter
+publish_to: none # not yet published to pub.dev
+
+environment:
+  sdk: ">=3.3.0 <4.0.0"
+
+dependencies:
+  # dart:ffi helpers (Utf8, malloc/calloc, NativeFinalizer helpers).
+  ffi: ^2.1.0
+  # Dart FlatBuffers runtime for the flatc-generated runtime accessors
+  # (lib/src/fbs/framedata.g.dart, effect_draw_plan.g.dart).
+  flat_buffers: ^25.9.23
+
+dev_dependencies:
+  test: ^1.24.0
+  lints: ^4.0.0
+  # Regenerates lib/src/ssruntime_bindings.g.dart from native/include/ssruntime.h
+  # (gitignored). Run via scripts/generate-ffigen-code.sh (auto-invoked by
+  # build-runtime / download-sdk).
+  ffigen: ^13.0.0

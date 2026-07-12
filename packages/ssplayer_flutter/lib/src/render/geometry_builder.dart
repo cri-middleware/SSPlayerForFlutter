@@ -1,7 +1,7 @@
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
-import '../ssab/framedata.g.dart' as fbs;
+import 'package:ssruntime_dart/framedata.dart' as fbs;
 
 /// Per-frame draw inputs bundled for the geometry builders (design §7).
 ///

@@ -10,7 +10,7 @@ import 'ssruntime_bindings.g.dart';
 /// hides that so callers never hard-code `.dylib`/`.dll`/`.so`:
 ///
 ///   * Windows        → `ssruntime.dll`
-///   * macOS          → `libssruntime.dylib`
+///   * macOS          → `libssruntime.dylib`/framework
 ///   * Linux/Android  → `libssruntime.so`
 ///   * iOS            → symbols in the app image (`DynamicLibrary.process()`),
 ///                      or `libssruntime.framework/libssruntime` when embedded
@@ -19,9 +19,9 @@ import 'ssruntime_bindings.g.dart';
 /// Resolution order:
 ///  1. An explicit path ([SsRuntime.open]'s `libraryPath`) or the
 ///     `SSRUNTIME_LIBRARY_PATH` env var — handy for `dart test` and desktop
-///     runs that load `native/libs/<platform>/...` directly.
+///     runs that load a built artifact directly.
 ///  2. The platform default name ([defaultLibraryName]), resolved by the OS
-///     loader once the Flutter FFI plugin has bundled the library.
+///     loader once the native library has been bundled with the app.
 ///  3. On iOS, `DynamicLibrary.process()` for a statically-linked Brain.
 class SsRuntime {
   final ffi.DynamicLibrary dynamicLibrary;

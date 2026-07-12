@@ -13,8 +13,7 @@ import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ssplayer_flutter/ssplayer_flutter.dart';
-// ignore: implementation_imports
-import 'package:ssplayer_flutter/src/ssab/framedata.g.dart' as fbs;
+import 'package:ssruntime_dart/framedata.dart' as fbs;
 
 void main() {
   group('partColorCoef', () {

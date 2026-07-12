@@ -33,11 +33,12 @@
 
 ## 📦 パッケージ
 
-このリポジトリは 2 つのパッケージを含みます。
+このリポジトリは 3 つのパッケージを含みます。
 
 | 目的 | パッケージ | 種別 |
 |---|---|---|
-| アニメ再生（ランタイム描画） | [`ssplayer_flutter`](./packages/ssplayer_flutter) | Flutter プラグイン（全プラットフォーム） |
+| アニメ再生（ランタイム描画） | [`ssplayer_flutter`](./packages/ssplayer_flutter) | Flutter プラグイン（全プラットフォーム・`ssruntime_dart` に依存） |
+| ランタイム FFI バインディング（Layer 1） | [`ssruntime_dart`](./packages/ssruntime_dart) | 純 Dart（renderer 非依存コア） |
 | `.sspj` → `.ssab` 変換（CLI / ライブラリ） | [`ssconverter_dart`](./packages/ssconverter_dart) | 純 Dart（デスクトップ専用のホストツール） |
 
 ---

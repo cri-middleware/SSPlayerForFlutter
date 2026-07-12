@@ -19,6 +19,9 @@ dependencies:
   # Dart FlatBuffers runtime used by the flatc-generated lib/src/ssab/*.g.dart.
   # Match the flatc used by scripts/generate-fbs-code.sh.
   flat_buffers: ^25.9.23
+  # Layer 1: libssruntime dart:ffi bindings + loader (pure Dart, no Flutter).
+  ssruntime_dart:
+    path: ../ssruntime_dart
 
 dev_dependencies:
   flutter_test:

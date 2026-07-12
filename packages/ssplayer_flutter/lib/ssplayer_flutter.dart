@@ -29,7 +29,8 @@ export 'src/render/geometry_builder.dart'
 export 'src/render/blend.dart' show blendModeFor, partColorCoef;
 export 'src/render/part_color.dart' show PartColor, PartColorCorner;
 
-// Layer 1 — raw dart:ffi bindings (the "escape hatch"; use with care).
-export 'src/bindings/ssruntime_library.dart' show SsRuntime;
-export 'src/bindings/ssruntime_bindings.g.dart'
-    show SsRuntimeBindings, SS_RUNTIME_INVALID_HANDLE;
+// Layer 1 — raw dart:ffi bindings (the "escape hatch"; use with care). These
+// live in the pure-Dart `ssruntime_dart` package and are re-exported here for
+// convenience.
+export 'package:ssruntime_dart/ssruntime_dart.dart'
+    show SsRuntime, SsRuntimeBindings, SS_RUNTIME_INVALID_HANDLE;

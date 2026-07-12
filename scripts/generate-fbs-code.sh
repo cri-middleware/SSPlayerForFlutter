@@ -1,9 +1,13 @@
 #!/usr/bin/env bash
 #
-# Generate the Dart FlatBuffers accessors (flatc --dart) for the .ssab metadata +
-# runtime FrameData / EffectDrawPlan schemas:
+# Generate the Dart FlatBuffers accessors (flatc --dart) for the .ssab/.ssqb
+# asset formats and the runtime's per-frame FrameData / EffectDrawPlan, routing
+# each schema to the package that owns it:
 #
-#   SpriteStudio-SDK/libs/**/fbs/*.fbs   ->   lib/src/ssab/<schema>.g.dart
+#   libs/ssab/fbs/{ssab,ssqb}.fbs                -> ssplayer_flutter/lib/src/ssab/
+#     (the .ssab / .ssqb asset FILE format — parsed on the Player side)
+#   libs/ssruntime/fbs/{framedata,effect_draw_plan}.fbs -> ssruntime_dart/lib/src/fbs/
+#     (the runtime's OUTPUT read back over dart:ffi — owned by the bindings pkg)
 #
 # These track the .fbs SCHEMAS (not the native library), so run this only when a
 # schema changes — it is deliberately NOT part of build-runtime / download-sdk.
@@ -16,8 +20,8 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-PKG_DIR="$ROOT_DIR/packages/ssplayer_flutter"
-SSAB_OUT_DIR="$PKG_DIR/lib/src/ssab"
+SSAB_OUT_DIR="$ROOT_DIR/packages/ssplayer_flutter/lib/src/ssab"   # asset format (Player)
+RT_FBS_OUT_DIR="$ROOT_DIR/packages/ssruntime_dart/lib/src/fbs"    # runtime output
 
 # --- locate the SDK -------------------------------------------------------
 SDK_DIR="${SSSDK:-}"
@@ -36,7 +40,7 @@ if ! command -v flatc >/dev/null; then
   exit 1
 fi
 
-mkdir -p "$SSAB_OUT_DIR"
+mkdir -p "$SSAB_OUT_DIR" "$RT_FBS_OUT_DIR"
 echo "Generating Dart FlatBuffers (flatc --dart)..."
 TMP_FB="$(mktemp -d)"; trap 'rm -rf "$TMP_FB"' EXIT
 for f in \
@@ -46,12 +50,17 @@ for f in \
   "$SDK_DIR/libs/ssruntime/fbs/effect_draw_plan.fbs"; do
   [ -f "$f" ] || continue
   name="$(basename "$f" .fbs)"
+  # Route by schema origin: runtime output -> ssruntime_dart, asset format -> Player.
+  case "$name" in
+    framedata|effect_draw_plan) out="$RT_FBS_OUT_DIR" ;;
+    *)                          out="$SSAB_OUT_DIR" ;;
+  esac
   flatc --dart -o "$TMP_FB" "$f"
   # flatc emits <name>_<namespace>_generated.dart; normalise to <name>.g.dart
   gen="$(ls "$TMP_FB/${name}"_*_generated.dart 2>/dev/null | head -n1)"
   if [ -n "$gen" ]; then
-    mv "$gen" "$SSAB_OUT_DIR/${name}.g.dart"
-    echo "   -> lib/src/ssab/${name}.g.dart"
+    mv "$gen" "$out/${name}.g.dart"
+    echo "   -> ${out#"$ROOT_DIR"/}/${name}.g.dart"
   fi
 done
 
