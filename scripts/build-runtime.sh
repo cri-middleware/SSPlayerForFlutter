@@ -22,7 +22,9 @@
 #   native/libs/LICENSE.md
 #   native/VERSION
 #
-# C headers for ffigen are produced separately by scripts/generate-runtime-code.sh.
+# After building, this copies the SDK build.rs-emitted plain-C headers into
+# native/include/ and regenerates the ffigen bindings (scripts/generate-ffigen-code.sh).
+# The .fbs FlatBuffers accessors are a separate concern (scripts/generate-fbs-code.sh).
 #
 # Usage: scripts/build-runtime.sh [platform=<p>] [arch=<a>] [build=<m>] [hostbuild=<auto|false>]
 #   platform : windows macos linux android ios web   (default: host)
@@ -193,5 +195,21 @@ case "$PLATFORM" in
 
   *) echo "build-runtime.sh: unknown platform '$PLATFORM'" >&2; exit 2 ;;
 esac
+
+# --- C headers (ffigen input): consume the plain-C headers the SDK build.rs
+# emitted (Language::C) into native/include/. The SDK is the single source of
+# truth for the C-API surface — no local cbindgen. ssconverter.h is copied only
+# when that crate was part of this build (host/desktop tool).
+INCLUDE_DIR="$LIB_ROOT/include"
+mkdir -p "$INCLUDE_DIR"
+for crate in ssruntime ssconverter; do
+  h="$SDK_DIR/libs/$crate/target/$crate.h"   # plain-C header (build.rs; .hpp is the C++ twin)
+  [ -f "$h" ] && { cp "$h" "$INCLUDE_DIR/$crate.h"; echo "   -> native/include/$crate.h"; }
+done
+
+# --- Layer-1 ffigen bindings: regenerate now that the headers are fresh. ffigen
+# is Flutter-specific; folding it in here keeps the dev-facing script count the
+# same as the sibling players. No-op without the Dart SDK.
+bash "$ROOT_DIR/scripts/generate-ffigen-code.sh" || true
 
 echo "build-runtime.sh: done."

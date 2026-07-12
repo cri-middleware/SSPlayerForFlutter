@@ -34,14 +34,15 @@ SSPlayerForFlutter/
 ├── scripts/
 │   ├── SDK_VERSION.txt                   # download-sdk が参照するリリースタグ
 │   ├── build-runtime.{sh,ps1}            # Rust をソースビルド → native/libs/<platform>/<arch>/ へ配置
-│   ├── generate-runtime-code.{sh,ps1}    # cbindgen(C ヘッダ) + flatc(Dart) + ffigen
+│   ├── generate-ffigen-code.{sh,ps1}     # ffigen（Dart FFI）。build-runtime/download-sdk が自動実行
+│   ├── generate-fbs-code.{sh,ps1}        # flatc（.ssab/FrameData の Dart アクセサ）。.fbs 変更時のみ
 │   ├── download-sdk.{sh,ps1}             # GitHub Releases のプリビルドを DL/展開（SDK_VERSION.txt 準拠）
 │   └── prepare-example-assets.sh         # overall.sspj → .ssab を example/assets へ
 ├── packages/ssplayer_flutter/            # 配布する pub パッケージ（FFI plugin）
 │   ├── lib/
 │   │   ├── ssplayer_flutter.dart         # 公開 API
 │   │   └── src/
-│   │       ├── bindings/                 # Layer 1（ffigen 生成 + ローダ）
+│   │       ├── bindings/                 # Layer 1（ffigen 生成 *.g.dart=gitignore + 手書きローダ）
 │   │       ├── ssab/*.g.dart             # [flatc 生成] .ssab / FrameData / EffectDrawPlan
 │   │       ├── internal_player.dart      # Layer 2（描画エンジン・SoA ベイク・paint）
 │   │       ├── texture_registry.dart     # Layer 2（hash→Image・blend マッピング）
@@ -60,28 +61,28 @@ SSPlayerForFlutter/
 
 ## セットアップ
 
-前提: Rust ツールチェーン（`rustup`）、`flatc`、`cbindgen`（`cargo install cbindgen`）、
-Flutter 3.19+ / Dart 3、CocoaPods（macOS/iOS ビルド時。`brew install cocoapods`）。
+前提: Rust ツールチェーン（`rustup`）、Flutter 3.19+ / Dart 3、CocoaPods（macOS/iOS
+ビルド時。`brew install cocoapods`）。（`flatc` は `.fbs` を再生成するときだけ必要。
+cbindgen は SDK の `build.rs` が build-dependency として使うので個別インストール不要。）
 
 ```bash
 # 1. サブモジュール取得
 git submodule update --init --recursive
 
-# 2. ネイティブ Brain をソースビルド（ホスト向け。macOS は framework、他は so/dll を native/libs へ配置）
+# 2. ネイティブ Brain をソースビルド（C ヘッダのコピー＋ffigen バインディング生成まで自動）
+#    macOS は framework、他は so/dll を native/libs へ配置
 scripts/build-runtime.sh                 # 例: build-runtime.sh platform=macos build=release
-#    ※ プリビルドを使う場合: scripts/download-sdk.sh
+#    ※ プリビルドを使う場合: scripts/download-sdk.sh（こちらも ffigen まで実行）
 
-# 3. C ヘッダ + Dart FlatBuffers + ffigen バインディングを生成
-scripts/generate-runtime-code.sh
-
-# 4. example 用アセット（.ssab）を用意
+# 3. example 用アセット（.ssab）を用意
 scripts/prepare-example-assets.sh
 
-# 5. example を起動
+# 4. example を起動
 cd example && flutter run
+#    （.fbs スキーマを更新したときだけ scripts/generate-fbs-code.sh）
 ```
 
-`build-runtime` / `generate-runtime-code` / `download-sdk` は Windows では `.ps1` を使います。
+`build-runtime` / `download-sdk` / `generate-fbs-code` / `generate-ffigen-code` は Windows では `.ps1` を使います。
 クロスビルド（android/ios/web）は `SpriteStudio-SDK/scripts/release-*` に委譲します。
 
 ### macOS デスクトップで動かす（検証済み）
@@ -185,7 +186,7 @@ SSRUNTIME_LIBRARY_PATH="$PWD/native/libs/macos/libssruntime.framework/libssrunti
 - BlendMode: Mix→srcOver / Add→plus / Mul→multiply / Sub→(近似) / 他→srcOver。
 - テクスチャキー = `cellmap.name_hash` = `DrawBatch.texture_hash`（再ハッシュしない）。
 
-> `ssruntime_bindings.g.dart`（Layer 1）は `scripts/generate-runtime-code.sh` の
+> `ssruntime_bindings.g.dart`（Layer 1・gitignore）は `build-runtime` / `generate-ffigen-code` の
 > ffigen で生成された全 C-API バインディング（111 メソッド）です。C の
 > `unsigned char*` / `uintptr_t*` は `Pointer<UnsignedChar>` / `Pointer<UintPtr>`
 > になるため、Layer 2 は境界で `.cast()` して受けています。

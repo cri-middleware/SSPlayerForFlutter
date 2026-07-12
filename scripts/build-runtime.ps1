@@ -24,7 +24,9 @@
 #   native/libs/LICENSE.md
 #   native/VERSION
 #
-# C headers for ffigen are produced separately by scripts/generate-runtime-code.ps1.
+# After building, this copies the SDK build.rs-emitted plain-C headers into
+# native/include/ and regenerates the ffigen bindings (scripts/generate-ffigen-code.ps1).
+# The .fbs FlatBuffers accessors are a separate concern (scripts/generate-fbs-code.ps1).
 #
 # Usage: scripts\build-runtime.ps1 [platform=<p>] [arch=<a>] [build=<m>] [hostbuild=<auto|false>]
 #   platform : windows macos linux android ios web   (default: host)
@@ -254,5 +256,20 @@ switch ($PLATFORM) {
 
     default { Write-Error "build-runtime.ps1: unknown platform '$PLATFORM'" }
 }
+
+# --- C headers (ffigen input): consume the plain-C headers the SDK build.rs
+# emitted (Language::C) into native/include/. Single source of truth = the SDK;
+# no local cbindgen. ssconverter.h is copied only when that crate was built.
+$IncludeDir = Join-Path $LibRoot "include"
+New-Item -ItemType Directory -Force -Path $IncludeDir | Out-Null
+foreach ($crate in @("ssruntime", "ssconverter")) {
+    $h = Join-Path $SdkDir "libs/$crate/target/$crate.h"   # plain-C header (.hpp is the C++ twin)
+    if (Test-Path $h) { Copy-Item $h (Join-Path $IncludeDir "$crate.h") -Force; Write-Host "   -> native/include/$crate.h" }
+}
+
+# --- Layer-1 ffigen bindings: regenerate now that the headers are fresh. ffigen
+# is Flutter-specific; folding it in here keeps the dev-facing script count the
+# same as the sibling players. No-op without the Dart SDK.
+& (Join-Path $RootDir "scripts/generate-ffigen-code.ps1")
 
 Write-Host "build-runtime.ps1: done."

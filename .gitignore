@@ -2,6 +2,11 @@ packages/ssplayer_flutter/native
 # Symlink into native/libs/macos, created by build-runtime.sh so CocoaPods embeds it
 packages/ssplayer_flutter/macos/Frameworks/
 
+# ffigen-generated Layer-1 bindings — regenerated from the native C-API by
+# build-runtime / download-sdk (like native/ above). The .fbs FlatBuffers
+# accessors under lib/src/ssab/ stay committed (schema-driven; generate-fbs-code).
+packages/ssplayer_flutter/lib/src/bindings/*.g.dart
+
 # Example assets are derived from the SDK test projects (scripts/prepare-example-assets.sh)
 example/assets/overall/
 

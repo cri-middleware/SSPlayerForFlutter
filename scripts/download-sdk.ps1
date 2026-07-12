@@ -64,4 +64,9 @@ if (Test-Path (Join-Path $NativeDir "libs/macos/libssruntime.framework")) {
 # stamp the cache with the version we just unpacked
 Set-Content -Path $CurrentVersionFile -Value $TargetVersion
 
+# Regenerate the Layer-1 ffigen bindings from the unpacked C headers
+# (native/include/*.h). Flutter-specific; folded in so `download-sdk` alone
+# suffices (matches build-runtime). No-op without the Dart SDK.
+& (Join-Path $ScriptDir "generate-ffigen-code.ps1")
+
 Write-Host "Done."

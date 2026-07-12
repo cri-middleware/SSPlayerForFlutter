@@ -137,7 +137,8 @@ Brain    libssruntime (Rust Native / 計算・SIMD・DrawBatch)
 ```
 （実際の構成は README.md「リポジトリ構成」を参照）
 scripts/build-runtime.{sh,ps1}         # Rust ビルド ＋ 配置
-scripts/generate-runtime-code.{sh,ps1} # ffigen ＋ flatc 生成
+scripts/generate-ffigen-code.{sh,ps1}  # ffigen（build-runtime/download-sdk が自動実行）
+scripts/generate-fbs-code.{sh,ps1}     # flatc（.fbs 変更時のみ）
 packages/ssplayer_flutter/             # 配布 pub パッケージ (FFI plugin)
 example/                               # overall.sspj 検証用 Flutter アプリ
 ```

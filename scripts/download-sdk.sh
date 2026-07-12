@@ -61,4 +61,9 @@ fi
 # stamp the cache with the version we just unpacked
 echo "$TARGET_VERSION" > "$CURRENT_VERSION_FILE"
 
+# Regenerate the Layer-1 ffigen bindings from the unpacked C headers
+# (native/include/*.h). Flutter-specific; folded in so `download-sdk` alone
+# suffices (matches build-runtime). No-op without the Dart SDK.
+bash "$SCRIPT_DIR/generate-ffigen-code.sh" || true
+
 echo "Done."
