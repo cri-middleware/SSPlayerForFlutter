@@ -1,121 +1,50 @@
-# SSPlayerForFlutter
+# SpriteStudioPlayer for Flutter
 
-OPTPiX **SpriteStudio 7** の Flutter 向けプレイヤー（`ssplayer_flutter`）。
+**OPTPiX SpriteStudio 7 のアニメーション（`.ssab`）を Flutter でそのまま再生。**
 
 [SpriteStudio-SDK](https://github.com/cri-middleware/SpriteStudio-SDK) の Rust ランタイム
-（**Brain** = `libssruntime`）を `dart:ffi` 経由で駆動し、`.ssab` を読み込んで
-`Canvas.drawVertices` で描画する **Body**（描画・リソース・座標変換）を実装します。
-設計は「SpriteStudio-SDK v7 Flutter Player アーキテクチャ設計書」
-および SDK 公式の移植ガイド（`SpriteStudio-SDK/libs/ssruntime/docs/`）に準拠します。
+（**Brain** = `libssruntime`）を `dart:ffi` で駆動し、`.ssab` を読み込んで `Canvas.drawVertices`
+で描画する **Body**（`ssplayer_flutter`）を提供します。ボーン・メッシュ変形・エフェクトを専用
+エディタで作り、完成アニメを Flutter アプリに載せるだけ。
 
-## アーキテクチャ（Brain / Body）
+## ✨ Why SpriteStudio × Flutter?
 
-```
-Layer 4  SpriteStudioView (RenderBox) / Flame / CustomPaint   ← 描画アダプタ
-Layer 3  SpriteStudioPlayer (ChangeNotifier + Ticker)         ← ユーザー向け制御
-Layer 2  SpriteStudioInternalPlayer (Resource/Context, SoA→Vertices, paint)  ← 描画特化エンジン(Pure Dart)
-Layer 1  SsRuntimeBindings (dart:ffi) + SsRuntime (loader)    ← C-API バインディング
---------------------------------------------------------------------------
-Brain    libssruntime (Rust, no_std, SIMD)                    ← 計算・DrawBatch 生成
-```
+- **絵を動かす。** 呼吸・まばたき、髪や服の揺れ、派手な斬撃・魔法エフェクト — モーションは専用
+  エディタ（SpriteStudio 7）で視覚的に作り、プレイヤーは再生するだけ。手書きのアニメーション不要。
+- **動画より軽い代替。** 固定 fps の `.webm`/`.mp4` に頼る場面を、実行時に自由スケール・シームレス
+  ループ・ゲームに反応する軽量ネイティブ再生で置き換えます。
+- **フレームレート非依存の滑らかさ。** サブフレーム補間で表示タイミングちょうどに各フレームを描画。
+- **Widget として自然に合成。** `SpriteStudioView` は普通の `RenderBox` ウィジェット。
 
-- **Brain（Rust）** … 時間管理・補間・属性計算・サブフレーム管理・`DrawBatch` プラン生成。ステートレスな計算機。
-- **Body（Flutter）** … 本リポジトリ。`.ssab` メタデータの FlatBuffers パース、リソース検証、
-  テクスチャ／音声ロード、ワールド座標変換（`M·v` ベイク）、描画実行、イベント処理。
+## 📚 ドキュメント
 
-> 実装者向けの規約・要注意点（FFI 寿命、macOS framework 同梱、UV ピクセル座標、
-> `updateFlag` の罠 など）は [AGENTS.md](./AGENTS.md) に集約しています。
+- [アーキテクチャ設計（`docs/architecture.ja.md`）](./docs/architecture.ja.md) — 設計意図の一次情報
+- [リポジトリ構成・アーキテクチャ図（`docs/repository-structure.ja.md`）](./docs/repository-structure.ja.md)
+- [実装ロードマップ・現状（`docs/status.ja.md`）](./docs/status.ja.md)
+- [実装者向け規約・要注意点（`AGENTS.md`）](./AGENTS.md) — FFI 寿命 / macOS framework 同梱 / UV ピクセル座標 / `updateFlag` の罠 ほか
 
-## リポジトリ構成
+### 目的別ガイド（読む範囲は目的まででOK）
 
-```
-SSPlayerForFlutter/
-├── SpriteStudio-SDK/                     # [submodule] Brain (libssruntime / libssconverter / .fbs)
-├── scripts/
-│   ├── SDK_VERSION.txt                   # download-sdk が参照するリリースタグ
-│   ├── build-runtime.{sh,ps1}            # Rust をソースビルド → native/libs/<platform>/<arch>/ へ配置
-│   ├── generate-ffigen-code.{sh,ps1}     # ffigen（Dart FFI）。build-runtime/download-sdk が自動実行
-│   ├── generate-fbs-code.{sh,ps1}        # flatc（.ssab/FrameData の Dart アクセサ）。.fbs 変更時のみ
-│   ├── download-sdk.{sh,ps1}             # GitHub Releases のプリビルドを DL/展開（SDK_VERSION.txt 準拠）
-│   └── prepare-example-assets.sh         # overall.sspj → .ssab（Dart ssconvert 経由・Rust 不要）
-├── packages/ssplayer_flutter/            # 配布する pub パッケージ（FFI plugin）
-│   ├── lib/
-│   │   ├── ssplayer_flutter.dart         # 公開 API
-│   │   └── src/
-│   │       ├── bindings/                 # Layer 1（ffigen 生成 *.g.dart=gitignore + 手書きローダ）
-│   │       ├── ssab/*.g.dart             # [flatc 生成] .ssab / FrameData / EffectDrawPlan
-│   │       ├── internal_player.dart      # Layer 2（描画エンジン・SoA ベイク・paint）
-│   │       ├── texture_registry.dart     # Layer 2（hash→Image・blend マッピング）
-│   │       ├── texture_loader.dart       # reference/embedded テクスチャ読込（§16C）
-│   │       ├── ssab_info.dart            # アニメ／セルマップ名の列挙
-│   │       ├── player.dart               # Layer 3
-│   │       └── render/sprite_studio_view.dart  # Layer 4
-│   ├── test/                             # スモーク＋実描画テスト（要 SSRUNTIME_LIBRARY_PATH）
-│   ├── native/                           # [生成物] include/ + libs/<platform>/<arch>/（gitignore）
-│   ├── macos/Frameworks/                 # [生成物] native/libs/macos/libssruntime.framework へのシンボリックリンク（gitignore）
-│   ├── {android,ios,macos,linux,windows}/  # 各プラットフォームのビルド接続
-│   ├── ffigen.yaml
-│   └── pubspec.yaml
-├── packages/ssconverter_dart/            # ホスト変換ツール（純 Dart・desktop 専用）
-│   ├── lib/ssconverter_dart.dart         # 公開 API（SsConverter / SsConverterLibrary）
-│   ├── lib/src/                          # converter.dart・ローダ・ffigen 生成物（gitignore）
-│   ├── bin/ssconvert.dart                # dart run ssconverter_dart:ssconvert
-│   ├── native/                           # [生成物] include/ssconverter.h + libs/<platform>/（gitignore）
-│   ├── ffigen.yaml
-│   └── pubspec.yaml
-└── example/                              # overall.ssab 検証用の Flutter アプリ
-```
+| あなたは… | 目的 | 読む範囲 |
+|---|---|---|
+| **利用者** | アプリでアニメを動かすだけ | 下の **1. Quick Start** |
+| **カスタマー** | 自分の環境でビルド／アセットを差し替え | **1 + 2** 章 |
+| **SDK / Player 開発者** | コア（Rust ランタイム / Player）を拡張・貢献 | 全章 + [AGENTS.md](./AGENTS.md) + [docs/](./docs/) |
 
-## セットアップ
+## 📦 パッケージ
 
-前提: Rust ツールチェーン（`rustup`）、Flutter 3.19+ / Dart 3、CocoaPods（macOS/iOS
-ビルド時。`brew install cocoapods`）。（`flatc` は `.fbs` を再生成するときだけ必要。
-cbindgen は SDK の `build.rs` が build-dependency として使うので個別インストール不要。）
+このリポジトリは 2 つのパッケージを含みます。
 
-```bash
-# 1. サブモジュール取得
-git submodule update --init --recursive
+| 目的 | パッケージ | 種別 |
+|---|---|---|
+| アニメ再生（ランタイム描画） | [`ssplayer_flutter`](./packages/ssplayer_flutter) | Flutter プラグイン（全プラットフォーム） |
+| `.sspj` → `.ssab` 変換（CLI / ライブラリ） | [`ssconverter_dart`](./packages/ssconverter_dart) | 純 Dart（デスクトップ専用のホストツール） |
 
-# 2. ネイティブ Brain をソースビルド（C ヘッダのコピー＋ffigen バインディング生成まで自動）
-#    macOS は framework、他は so/dll を native/libs へ配置
-scripts/build-runtime.sh                 # 例: build-runtime.sh platform=macos build=release
-#    ※ プリビルドを使う場合: scripts/download-sdk.sh（こちらも ffigen まで実行）
+---
 
-# 3. example 用アセット（.ssab）を用意
-scripts/prepare-example-assets.sh
+## 🚀 1. Quick Start（利用者）
 
-# 4. example を起動
-cd example && flutter run
-#    （.fbs スキーマを更新したときだけ scripts/generate-fbs-code.sh）
-```
-
-`build-runtime` / `download-sdk` / `generate-fbs-code` / `generate-ffigen-code` は Windows では `.ps1` を使います。
-クロスビルド（android/ios/web）は `SpriteStudio-SDK/scripts/release-*` に委譲します。
-
-### macOS デスクトップで動かす（検証済み）
-
-```bash
-brew install cocoapods                 # macOS/iOS プラグイン統合に必須
-scripts/build-runtime.sh               # libssruntime.framework を生成
-cd example && flutter create --platforms=macos .   # 初回のみ macOS ランナー生成
-flutter run -d macos                   # -> [ssplayer] OK — playing "anime_1"
-```
-
-**ネイティブ同梱の要点**: macOS では動的ライブラリを `vendored_libraries` で渡しても
-アプリに埋め込まれません。Brain は versioned な **`libssruntime.framework`**（`@rpath` id）で配布します。
-framework の生成は SDK の共有スクリプト `scripts/make-macos-framework.sh`（Unity の
-`make-macos-bundle.sh` に相当する single source of truth）が担い、リリース（universal）では
-`release-macos.sh` がそれを呼んで生成 → `build-runtime.sh` が `native/libs/macos/` へコピー、
-ホスト（debug）では `build-runtime.sh` が同じ helper を呼んで cargo の dylib をラップします。
-framework の実体は `native/libs/macos/` の 1 つだけです。CocoaPods は podspec ディレクトリ配下の
-vendored framework しか *埋め込まない*（`../native/...` を指定しても記録はされるが `.app` には同梱
-されない）ため、`build-runtime.sh` は `macos/Frameworks/libssruntime.framework` を
-`../../native/libs/macos/...` への **シンボリックリンク**として張り、podspec は
-`Frameworks/libssruntime.framework` を `vendored_frameworks` で埋め込み＋署名します
-（`install_framework` が embed 時にリンクを解決）。実行時は
-`DynamicLibrary.open('libssruntime.framework/libssruntime')` が `@rpath` で解決します。
-
-## 使い方（Dart API）
+アプリに組み込むときの最小コードです。`.ssab` は事前に用意します（[2 章](#-2-リポジトリで試すカスタマー)の `ssconvert` で生成）。
 
 ```dart
 class _MyState extends State<MyWidget> with SingleTickerProviderStateMixin {
@@ -145,61 +74,82 @@ class _MyState extends State<MyWidget> with SingleTickerProviderStateMixin {
 }
 ```
 
-## テスト
+> ⚠️ FFI プラグインのため、ネイティブ Brain（`libssruntime`）が必要です。当面はこのリポジトリを
+> git 依存で参照し、`scripts/download-sdk.*`（Rust 不要）または `scripts/build-runtime.*` で
+> ネイティブを配置してください（[2 章](#-2-リポジトリで試すカスタマー)）。pub.dev 公開は今後。
 
-ネイティブ Brain を先にビルドし、`SSRUNTIME_LIBRARY_PATH` に framework 内のバイナリを指定します。
+## 🛠 2. リポジトリで試す（カスタマー）
+
+サンプル起動と、自分の `.sspj` の変換まで。**Rust ツールチェーンは不要**（プリビルドを取得）。
 
 ```bash
-cd packages/ssplayer_flutter
-SSRUNTIME_LIBRARY_PATH="$PWD/native/libs/macos/libssruntime.framework/libssruntime" flutter test
+# クローン + サブモジュール
+git clone https://github.com/cri-middleware/SSPlayerForFlutter.git
+cd SSPlayerForFlutter
+git submodule update --init --recursive
+
+# ネイティブ Brain / Converter を取得（プリビルド。Rust 不要）
+scripts/download-sdk.sh              # ※ソースからビルドする場合は 3 章の build-runtime.sh
+
+# example 用アセット（.ssab）を Dart の ssconvert で生成（Rust 不要）
+scripts/prepare-example-assets.sh
+
+# example を起動
+cd example && flutter run
 ```
 
-- `test/internal_player_smoke_test.dart` — FFI パイプライン（load→update→FrameData→SoA）。
-- `test/render_test.dart` — 実描画（テクスチャ付き非空フレームのラスタライズ）。
+Windows は各スクリプトの `.ps1` を使います。
 
-## 実装ロードマップ（公式検証方針: `tests/overall/overall.sspj` がエディタと一致すれば合格）
+### 自分の `.sspj` を変換する
 
-- **Phase 1** — Basic（位置/回転/スケール/α の親子継承）→ BlendMode。`SpriteStudioView` で 1 体表示。
-- **Phase 2** — PartsColor / Mask / Mesh / Instance / Effect、Flame 対応、配布整備、Web。
+`ssconverter_dart` の CLI で `.sspj` → `.ssab`（`-e` で自己完結の embedded 出力。配布向け）。
 
-## 現状（このコミット時点）
+```bash
+dart run ssconverter_dart:ssconvert    -o out/     path/to/project.sspj  # 参照テクスチャ形式
+dart run ssconverter_dart:ssconvert -e -o out_emb/ path/to/project.sspj  # embedded（配布向け）
+```
 
-**足場 ＋ Layer 1〜4 ＋ Phase 1 Basic 実描画**（フラグシップ SSPlayerForGodot の
-`ss_internal_player.cpp` レシピに準拠）。
+## ⚙️ 3. フル開発環境（SDK / Player 開発者）
 
-| 項目 | 状態 |
-|------|------|
-| `scripts/*`（build / generate / download / assets）| ✅ 作成・ホスト(macOS)で実行検証済み |
-| ネイティブビルド（`libssruntime.framework` 生成・配置）| ✅ 検証済み |
-| C ヘッダ生成（cbindgen）・Dart FlatBuffers 生成（flatc）| ✅ 検証済み |
-| Layer 1 `SsRuntimeBindings`（ffigen 生成・全 C-API 111 メソッド）| ✅ |
-| Layer 2 `SpriteStudioInternalPlayer`（ライフサイクル / SoA / update）| ✅ |
-| **Phase 1 Basic 描画**（Normal バッチ・親子継承・α・テクスチャ・BlendMode）| ✅ 実装（実機検証は下記） |
-| Layer 3/4（`SpriteStudioPlayer` / `SpriteStudioView`）| ✅ |
-| テクスチャ（reference＝兄弟PNG / embedded 両対応、§16C ルーティング）| ✅ |
-| サブフレーム補間（既定 ON）| ✅ |
-| **実機検証**（Flutter 3.44 / `flutter analyze` 0 件、`flutter test` 2件 PASS）| ✅ |
-| ↳ FFI パイプライン（load→update→FrameData→SoA）スモークテスト | ✅ PASS |
-| ↳ 実描画テスト（テクスチャ付き非空フレームをラスタライズ）| ✅ PASS（目視でも overall/Basic がエディタ相当に描画） |
-| **macOS デスクトップ example 起動**（`flutter run -d macos`、framework ロード＆再生）| ✅ `[ssplayer] OK — playing "anime_1"` |
-| PartColor / Mask / Mesh / Effect / Instance、BoxFit スケール | ⏳ TODO（Phase 1 後半〜2）|
+コア（Rust ランタイム / Player）を開発する場合。
 
-**Phase 1 Basic 描画の実装要点**（Godot flagship 準拠。詳細は `docs/30_core/30_render_loop.ja.md`）:
-- RenderMode=Direct（既定）、`coordinate_system=1`（Y-Down）。原点/単位は既定のまま。
-- SoA: world(parts×16 列優先)、local_vertices(×10)、**local_uvs(×10・テクスチャピクセル座標)**。
-- 頂点ベイク: `x' = m0·x + m4·y + m12`, `y' = m1·x + m5·y + m13`。
-- 4 隅クアッド `{0,1,2, 1,3,2}`。UV はピクセルのまま `ImageShader`(identity) へ（Flutterは正規化不要）。
-- α: `PartState.alpha` を白×α 頂点カラー＋`drawVertices(v, modulate, paint)` で乗算。
-- BlendMode: Mix→srcOver / Add→plus / Mul→multiply / Sub→(近似) / 他→srcOver。
-- テクスチャキー = `cellmap.name_hash` = `DrawBatch.texture_hash`（再ハッシュしない）。
+**前提**: Rust（`rustup`）、Flutter 3.19+ / Dart 3、CocoaPods（macOS/iOS。`brew install cocoapods`）。
+`flatc` は `.fbs` を再生成するときだけ。cbindgen は SDK の `build.rs` が build-dependency として使うため個別導入不要。
 
-> `ssruntime_bindings.g.dart`（Layer 1・gitignore）は `build-runtime` / `generate-ffigen-code` の
-> ffigen で生成された全 C-API バインディング（111 メソッド）です。C の
-> `unsigned char*` / `uintptr_t*` は `Pointer<UnsignedChar>` / `Pointer<UintPtr>`
-> になるため、Layer 2 は境界で `.cast()` して受けています。
+```bash
+git submodule update --init --recursive
 
-詳細な API 対応表は設計書と `SpriteStudio-SDK/libs/ssruntime/docs/` を参照してください。
+# ネイティブをソースからビルド（C ヘッダのコピー＋ffigen 生成まで自動）
+scripts/build-runtime.sh             # 例: build-runtime.sh platform=macos build=release
 
-## ライセンス
+# アセット生成 → example 起動
+scripts/prepare-example-assets.sh
+cd example && flutter run
+#   （初回の macOS ランナー生成: cd example && flutter create --platforms=macos . ）
+```
 
-`SpriteStudio-SDK` のライセンスに従います（`SpriteStudio-SDK/LICENSE.md`）。
+- **コード生成**: `build-runtime` / `download-sdk` の末尾で ffigen（`generate-ffigen-code.*`）が
+  `packages/*/ffigen*.yaml` を走査して自動実行。`.fbs` スキーマを変えたときだけ
+  `generate-fbs-code.*`（flatc）を手動実行。クロスビルド（android/ios/web）は
+  `SpriteStudio-SDK/scripts/release-*` に委譲します。
+- **テスト**（`packages/ssplayer_flutter/`）:
+  ```bash
+  SSRUNTIME_LIBRARY_PATH="$PWD/native/libs/macos/libssruntime.framework/libssruntime" flutter test
+  ```
+  `ssconverter_dart` は `dart test`（`SsConverter.openForHost()` がパッケージ内の dylib を解決）。
+- **規約・設計**: [AGENTS.md](./AGENTS.md)（実装規約・要注意点） /
+  [docs/architecture.ja.md](./docs/architecture.ja.md)（設計） /
+  [docs/repository-structure.ja.md](./docs/repository-structure.ja.md)（構成図・macOS 同梱の要点） /
+  [docs/status.ja.md](./docs/status.ja.md)（進捗）。
+
+## 🔗 関連リポジトリ
+
+- [SpriteStudio-SDK](https://github.com/cri-middleware/SpriteStudio-SDK) — Rust ランタイム / コンバータ / `.fbs` スキーマ（Brain）
+- 兄弟プレイヤー: [Godot](https://github.com/cri-middleware/SSPlayerForGodot) ／
+  [Unity](https://github.com/cri-middleware/SSPlayerForUnity) ／
+  [Web](https://github.com/cri-middleware/SSPlayerForWeb) ／
+  [Ren'Py](https://github.com/cri-middleware/SSPlayerForRenPy)
+
+## 📄 ライセンス
+
+`SpriteStudio-SDK` のライセンスに従います（[`SpriteStudio-SDK/LICENSE.md`](./SpriteStudio-SDK/LICENSE.md)）。
