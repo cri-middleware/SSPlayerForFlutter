@@ -1,23 +1,19 @@
-import 'dart:io';
+import 'dart:ffi' as ffi;
 
 import 'package:test/test.dart';
 import 'package:ssruntime_dart/ssruntime_dart.dart';
 
-/// Smoke test for the Layer-1 runtime loader/bindings.
+/// Smoke test for the native-assets `@Native` bindings.
 ///
-/// Loading `libssruntime` needs the native library: set
-/// `SSRUNTIME_LIBRARY_PATH` (e.g. the framework binary built by
-/// scripts/build-runtime.sh). When unset, the loading test skips — the
-/// rendering pipeline is exercised end-to-end by ssplayer_flutter's tests.
+/// `dart test` runs `hook/build.dart`, which bundles the prebuilt `libssruntime`
+/// (from `native/libs/`, produced by scripts/build-runtime.sh) as a code asset;
+/// the `@Native(assetId: 'package:ssruntime_dart/ssruntime')` functions resolve
+/// it — no `SSRUNTIME_LIBRARY_PATH` / `DynamicLibrary.open`.
 void main() {
-  test('SsRuntime.open loads the Brain when SSRUNTIME_LIBRARY_PATH is set', () {
-    final path = Platform.environment['SSRUNTIME_LIBRARY_PATH'];
-    if (path == null || path.isEmpty) {
-      markTestSkipped('set SSRUNTIME_LIBRARY_PATH to exercise the loader');
-      return;
-    }
-    final rt = SsRuntime.open();
-    expect(rt.bindings, isA<SsRuntimeBindings>());
-    expect(rt.dynamicLibrary.providesSymbol('ss_runtime_create'), isTrue);
+  test('@Native ss_runtime_create/destroy resolve the bundled libssruntime', () {
+    final ctx = ss_runtime_create();
+    expect(ctx, isNot(equals(ffi.nullptr)),
+        reason: 'ss_runtime_create via the bundled code asset');
+    ss_runtime_destroy(ctx);
   });
 }

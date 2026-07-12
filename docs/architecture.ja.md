@@ -14,10 +14,10 @@
   `flutter analyze` 0 件、`flutter test` 2 件 PASS、`flutter run -d macos` で
   `[ssplayer] OK — playing "anime_1"`（実描画確認済み）。
 - **まず読むもの**:
-  - [`../AGENTS.md`](../AGENTS.md) — 実装規約・要注意点（FFI 寿命 / macOS framework 同梱 / `updateFlag` の罠 / UV ピクセル座標 / 再ハッシュ禁止）。
+  - [`../AGENTS.md`](../AGENTS.md) — 実装規約・要注意点（FFI 寿命 / ネイティブ同梱（Native Assets）/ `updateFlag` の罠 / UV ピクセル座標 / 再ハッシュ禁止）。
   - [`../README.md`](../README.md) — 構成・セットアップ・テスト・Dart API 使い方。
   - `SpriteStudio-SDK/libs/ssruntime/docs/30_core/30_render_loop.ja.md` — レンダリング契約（一次情報）。
-- **主要ファイル**: `packages/ssplayer_flutter/lib/src/{internal_player,player,texture_registry,texture_loader,ssab_info}.dart`、`render/{sprite_studio_view,geometry_builder,blend}.dart`、`bindings/`。
+- **主要ファイル**: `packages/ssplayer_flutter/lib/src/{internal_player,player,texture_registry,texture_loader,ssab_info}.dart`、`render/{sprite_studio_view,geometry_builder,blend}.dart`。L1 バインディングは `packages/ssruntime_dart/lib/src/ssruntime_bindings.g.dart`（`@Native`）。
 - **描画の分割（リファクタ済み）**: L2 は「FFI ライフサイクル＋トランスポート＋ kind 別ディスパッチ」を持ち、頂点ベイクは純粋（Widget/FFI 非依存）な `GeometryBuilder`（`DrawFrame` バンドルを消費）へ、ブレンド写像は `render/blend.dart` へ切り出し済み。兄弟移植（Web `GeometryBuilder` / Unity `SpriteStudioGeometryBuilder` / Godot `_build_*`・`_emit_*`）に倣う。`paint()` の `switch (batch.kind)` は全 kind を列挙し、未移植 kind は Phase-2 の差し込み口として明示的にスキップする。
 - **次の作業（Phase 1 後半〜2）**: PartColor（§10, `FragmentProgram`）→ Mask（§9, カバレッジビットマップ）→ Mesh / Effect / Instance（§8）→ BoxFit スケール配置 → 各プラットフォーム同梱の実機検証（Linux/Windows/iOS/Android）。各 kind の実装は `GeometryBuilder` に build メソッドを足し、`paint()` の対応 case を埋める形で追加する。
 
@@ -106,12 +106,14 @@ Layer 2  描画特化エンジン (Pure Dart)
   ├─ GeometryBuilder + DrawFrame (DrawBatch + SoA → ui.Vertices ベイク・純粋)
   ├─ blend.dart (BlendType → ui.BlendMode 写像)
   └─ TextureRegistry (texture_hash → ui.Image / ImageShader)
-Layer 1  dart:ffi Bindings
-  └─ ssruntime_bindings.g.dart (ffigen) + SsRuntime ローダ
+Layer 1  dart:ffi @Native Bindings（Native Assets）
+  └─ ssruntime_bindings.g.dart (ffigen @Native / トップレベル関数・ローダ無し)
 Brain    libssruntime (Rust Native / 計算・SIMD・DrawBatch)
 ```
 
-- **Layer 1**: cbindgen 出力の C ヘッダを入力に `package:ffigen` で `ssruntime_bindings.g.dart` を生成。
+- **Layer 1**（`ssruntime_dart` パッケージ）: SDK `build.rs` が出力する C ヘッダを入力に `package:ffigen` で
+  `ssruntime_bindings.g.dart`（`@Native` トップレベル関数）を生成。ネイティブ `libssruntime` は **Native Assets**
+  （`hook/build.dart` が `CodeAsset` として同梱し `@ffi.DefaultAsset` で解決）で届くため、`DynamicLibrary` ローダは無い。
   `Pointer<Void>`（Resource/Context ハンドル）、`Pointer<Uint8>`（.ssab）、SoA バッファポインタを扱う薄い層。生 API も public 公開。
 - **Layer 2** (`SpriteStudioInternalPlayer` ＝ Pure Dart): 移植元の `SSInternalPlayer` 相当。FFI の Resource/Context 管理、
   `FrameData` ＋ SoA の取得、テクスチャ解決、イベント取り出し、`paint(Canvas, {Rect dst, BoxFit fit})`。
@@ -132,14 +134,15 @@ Brain    libssruntime (Rust Native / 計算・SIMD・DrawBatch)
 
 - **事前確認**: ① Rust ツールチェーン、② `flatc` ＋ Dart `flat_buffers` パッケージ、③ 変換済み `.ssab` とテクスチャ。
 - **リポジトリ構成**: 専用リポジトリ（pub パッケージ）に SpriteStudio-SDK を Git サブモジュールとして組み込む。
-  FFI プラグイン規約（Android: CMake/NDK、iOS/macOS: podspec、Windows/Linux: CMake）でネイティブをビルド。
+  ネイティブは各バインディングパッケージの **build hook**（`hook/build.dart`）がプリビルド dylib を `CodeAsset` として
+  同梱する Native Assets 方式。プラットフォーム別のプラグインネイティブビルド（podspec / CMake）は不要。
 
 ```
 （実際の構成は README.md「リポジトリ構成」を参照）
 scripts/build-runtime.{sh,ps1}         # Rust ビルド ＋ 配置
 scripts/generate-ffigen-code.{sh,ps1}  # ffigen（build-runtime/download-sdk が自動実行）
 scripts/generate-fbs-code.{sh,ps1}     # flatc（.fbs 変更時のみ）
-packages/ssplayer_flutter/             # 配布 pub パッケージ (FFI plugin)
+packages/ssplayer_flutter/             # 配布 pub パッケージ（Flutter・ssruntime_dart 依存）
 example/                               # overall.sspj 検証用 Flutter アプリ
 ```
 
@@ -365,12 +368,16 @@ Flutter としては **Phase 1**（Basic〜BlendMode を `SpriteStudioView` で�
 
 ## 17. 配布形式と対応バージョン
 
-- **配布**: pub.dev。ネイティブバイナリは原則コミットせず、① cargokit / corrosion / 自前スクリプトでユーザーの `flutter build` 時にソースビルド（Rust 必要）、
-  または ② SS7-SDK 側 CI が GitHub Releases に publish したプリビルドを build hook が配置（Rust 不要、`download-sdk.*`）。
+- **配布**: pub.dev。ネイティブバイナリは原則コミットせず、`ssruntime_dart` / `ssconverter_dart` の
+  **build hook**（`hook/build.dart`）が Native Assets の `CodeAsset` として同梱する。プリビルドは SS7-SDK 側 CI が
+  GitHub Releases に publish（Rust 不要、`download-sdk.*`）するか、`build-runtime.*` でソースビルド（Rust 必要）。
 - **Web**: `dart:ffi` 不可のため別配布。`web` フィーチャの WASM ＋ JS グルーを web アセット同梱し `dart:js_interop` でロード。
-- **対応バージョン**: Flutter 3.x 安定版 / Dart 3 / **Impeller 前提**（Skia 分岐は持たない）。`dart:ffi` / `ffigen` / `NativeFinalizer` を前提に最新 API を活用。
-- **Apple ネイティブ同梱（実装メモ）**: macOS は素の dylib を `vendored_libraries` で渡してもアプリに埋め込まれない。`.framework`（`@rpath` id）に
-  ラップし podspec の `vendored_frameworks` で同梱する（framework は podspec ディレクトリ配下必須）。iOS は SDK の dynamic `xcframework` を使う。詳細は AGENTS.md。
+- **対応バージョン**: Flutter 3.38+ / Dart 3.10+（**Native Assets 標準対応**）/ **Impeller 前提**（Skia 分岐は持たない）。`dart:ffi` `@Native` / `ffigen` / `NativeFinalizer` を前提に最新 API を活用。
+- **ネイティブ同梱（実装メモ）**: Flutter 側は **Native Assets** に一本化。`hook/build.dart` が素の dylib を
+  `CodeAsset(linkMode: DynamicLoadingBundled())` として登録し、`flutter build` が macOS では
+  `Contents/Frameworks/ssruntime.framework` に再ラップして `NativeAssetsManifest.json` に写像を記録する
+  （`flutter build macos` で埋め込み確認済み）。podspec の `vendored_frameworks` や `macos/Frameworks/`
+  シンボリックリンクは廃止。SDK が生成する `libssruntime.framework` は他プレイヤー（Godot/Unity/RenPy）向けに残る。詳細は AGENTS.md。
 
 ## 18. 既知の制限・トレードオフ
 

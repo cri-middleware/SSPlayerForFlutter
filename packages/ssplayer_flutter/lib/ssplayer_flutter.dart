@@ -4,7 +4,7 @@
 /// Layering (design §2, top → bottom): [SpriteStudioView] (L4 adapter) →
 /// [SpriteStudioPlayer] (L3 control) → [SpriteStudioInternalPlayer] (L2 draw
 /// engine) → [SsRuntimeBindings] (L1 dart:ffi).
-library ssplayer_flutter;
+library;
 
 // Layer 4 — drawing adapters.
 export 'src/render/sprite_studio_view.dart';
@@ -29,8 +29,6 @@ export 'src/render/geometry_builder.dart'
 export 'src/render/blend.dart' show blendModeFor, partColorCoef;
 export 'src/render/part_color.dart' show PartColor, PartColorCorner;
 
-// Layer 1 — raw dart:ffi bindings (the "escape hatch"; use with care). These
-// live in the pure-Dart `ssruntime_dart` package and are re-exported here for
-// convenience.
-export 'package:ssruntime_dart/ssruntime_dart.dart'
-    show SsRuntime, SsRuntimeBindings, SS_RUNTIME_INVALID_HANDLE;
+// Layer 1 — the raw dart:ffi C-API (the "escape hatch") lives in the pure-Dart
+// `ssruntime_dart` package as native-assets `@Native` functions. Import it
+// directly for low-level access: `package:ssruntime_dart/ssruntime_dart.dart`.

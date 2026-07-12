@@ -4,7 +4,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart' show AssetBundle;
 
-import 'package:ssruntime_dart/ssruntime_dart.dart';
 import 'internal_player.dart';
 import 'texture_loader.dart';
 import 'texture_registry.dart';
@@ -24,12 +23,10 @@ typedef SsEventCallback = void Function(List<int> passedEventIndices);
 class SpriteStudioPlayer extends ChangeNotifier {
   SpriteStudioPlayer({
     required TickerProvider vsync,
-    SsRuntime? runtime,
-  })  : _runtime = runtime ?? SsRuntime.open() {
+  }) {
     _ticker = vsync.createTicker(_onTick);
   }
 
-  final SsRuntime _runtime;
   late final Ticker _ticker;
 
   SpriteStudioInternalPlayer? _internal;
@@ -84,7 +81,6 @@ class SpriteStudioPlayer extends ChangeNotifier {
     _lastTextureReport = null;
     final internal = SpriteStudioInternalPlayer.load(
       ssab,
-      runtime: _runtime,
       textures: textures,
       coordinateSystem: coordinateSystem,
       origin: origin,

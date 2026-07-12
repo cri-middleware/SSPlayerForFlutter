@@ -10,7 +10,7 @@
 Layer 4  SpriteStudioView (RenderBox) / Flame / CustomPaint   ← 描画アダプタ
 Layer 3  SpriteStudioPlayer (ChangeNotifier + Ticker)         ← ユーザー向け制御
 Layer 2  SpriteStudioInternalPlayer (Resource/Context, SoA→Vertices, paint)  ← 描画特化エンジン(Pure Dart)
-Layer 1  SsRuntimeBindings (dart:ffi) + SsRuntime (loader)    ← C-API バインディング
+Layer 1  @Native C-API バインディング (dart:ffi, Native Assets)  ← ローダ無し
 --------------------------------------------------------------------------
 Brain    libssruntime (Rust, no_std, SIMD)                    ← 計算・DrawBatch 生成
 ```
@@ -31,9 +31,9 @@ SSPlayerForFlutter/
 │   ├── generate-fbs-code.{sh,ps1}        # flatc（.ssab/FrameData の Dart アクセサ）。.fbs 変更時のみ
 │   ├── download-sdk.{sh,ps1}             # GitHub Releases のプリビルドを DL/展開（SDK_VERSION.txt 準拠）
 │   └── prepare-example-assets.sh         # overall.sspj → .ssab（Dart ssconvert 経由・Rust 不要）
-├── packages/ssplayer_flutter/            # 【L2–4 描画】Flutter プラグイン（全プラットフォーム・ssruntime_dart 依存）
+├── packages/ssplayer_flutter/            # 【L2–4 描画】Flutter パッケージ（全プラットフォーム・ssruntime_dart 依存）
 │   ├── lib/
-│   │   ├── ssplayer_flutter.dart         # 公開 API（L1 は ssruntime_dart から re-export）
+│   │   ├── ssplayer_flutter.dart         # 公開 API（L2–4。L1 は ssruntime_dart から直接 import）
 │   │   └── src/
 │   │       ├── ssab/*.g.dart             # [flatc 生成・コミット] .ssab / .ssqb アセット形式アクセサ
 │   │       ├── internal_player.dart      # Layer 2（描画エンジン・SoA ベイク・paint）
@@ -42,44 +42,45 @@ SSPlayerForFlutter/
 │   │       ├── ssab_info.dart            # アニメ／セルマップ名の列挙
 │   │       ├── player.dart               # Layer 3
 │   │       └── render/sprite_studio_view.dart  # Layer 4
-│   ├── test/                             # スモーク＋実描画テスト（要 SSRUNTIME_LIBRARY_PATH）
-│   ├── native/libs/                      # [生成物] libssruntime.framework 等（gitignore）
-│   ├── macos/Frameworks/                 # [生成物] framework へのシンボリックリンク（gitignore）
-│   ├── {android,ios,macos,linux,windows}/  # 各プラットフォームのビルド接続
-│   └── pubspec.yaml
+│   ├── test/                             # スモーク＋実描画テスト（Native Assets 経由・env 変数不要）
+│   └── pubspec.yaml                       # ※プラグインではない（native は ssruntime_dart が同梱）
 ├── packages/ssruntime_dart/              # 【Layer 1】ランタイム FFI バインディング（純 Dart・renderer 非依存）
-│   ├── lib/ssruntime_dart.dart           # 公開 API（SsRuntime / SsRuntimeBindings）
+│   ├── lib/ssruntime_dart.dart           # 公開 API（@Native トップレベル C-API 関数・ローダ無し）
 │   ├── lib/framedata.dart                # ランタイム出力 FrameData の公開ライブラリ
-│   ├── lib/src/ssruntime_bindings.g.dart # [ffigen 生成] 全 C-API（gitignore）
+│   ├── lib/src/ssruntime_bindings.g.dart # [ffigen 生成・@Native] 全 C-API（gitignore）
 │   ├── lib/src/fbs/*.g.dart              # [flatc 生成・コミット] framedata / effect_draw_plan
-│   ├── native/                           # [生成物] include/ssruntime.h（gitignore）
+│   ├── hook/build.dart                   # Native Assets: 素の dylib を CodeAsset として同梱
+│   ├── native/                           # [生成物] include/ssruntime.h + libs/<platform>/（gitignore）
 │   ├── ffigen.yaml
 │   └── pubspec.yaml
 ├── packages/ssconverter_dart/            # 【変換ツール】ホスト用 .sspj→.ssab（純 Dart・desktop 専用）
-│   ├── lib/ssconverter_dart.dart         # 公開 API（SsConverter / SsConverterLibrary）
-│   ├── lib/src/                          # converter.dart・ローダ・ffigen 生成物（gitignore）
+│   ├── lib/ssconverter_dart.dart         # 公開 API（SsConverter）
+│   ├── lib/src/                          # converter.dart・ffigen 生成物（gitignore）
 │   ├── bin/ssconvert.dart                # dart run ssconverter_dart:ssconvert
+│   ├── hook/build.dart                   # Native Assets: libssconverter を CodeAsset として同梱
 │   ├── native/                           # [生成物] include/ssconverter.h + libs/<platform>/（gitignore）
 │   ├── ffigen.yaml
 │   └── pubspec.yaml
 └── example/                              # overall.ssab 検証用の Flutter アプリ
 ```
 
-## ネイティブ同梱の要点（macOS）
+## ネイティブ同梱の要点（Native Assets）
 
-macOS では動的ライブラリを `vendored_libraries` で渡してもアプリに埋め込まれません。Brain は
-versioned な **`libssruntime.framework`**（`@rpath` id）で配布します。framework の生成は SDK の共有
-スクリプト `scripts/make-macos-framework.sh`（Unity の `make-macos-bundle.sh` に相当する single
-source of truth）が担い、リリース（universal）では `release-macos.sh` がそれを呼んで生成 →
-`build-runtime.sh` が `native/libs/macos/` へコピー、ホスト（debug）では `build-runtime.sh` が同じ
-helper を呼んで cargo の dylib をラップします。framework の実体は `native/libs/macos/` の 1 つだけです。
+Flutter 側は **Native Assets（build hooks）** に一本化しました（Flutter 3.38 / Dart 3.10 以降で標準・
+デフォルト有効）。`ssruntime_dart/hook/build.dart` が `native/libs/<platform>/<arch>/` の**素の dylib**を
+`CodeAsset(package: 'ssruntime_dart', name: 'ssruntime', linkMode: DynamicLoadingBundled())` として登録し、
+ffigen 生成バインディングの `@ffi.DefaultAsset('package:ssruntime_dart/ssruntime')` がそれを解決します。
+`dart` / `flutter test` と `flutter build` が hook を自動実行するため、`DynamicLibrary.open` も
+`SSRUNTIME_LIBRARY_PATH` も要りません。
 
-CocoaPods は podspec ディレクトリ配下の vendored framework しか *埋め込まない*（`../native/...` を
-指定しても記録はされるが `.app` には同梱されない）ため、`build-runtime.sh` は
-`macos/Frameworks/libssruntime.framework` を `../../native/libs/macos/...` への **シンボリックリンク**
-として張り、podspec は `Frameworks/libssruntime.framework` を `vendored_frameworks` で埋め込み＋署名
-します（`install_framework` が embed 時にリンクを解決）。実行時は
-`DynamicLibrary.open('libssruntime.framework/libssruntime')` が `@rpath` で解決します。
+macOS では `flutter build` が同梱 dylib を `Contents/Frameworks/ssruntime.framework` に再ラップし、
+`flutter_assets/NativeAssetsManifest.json` に `package:ssruntime_dart/ssruntime` → `ssruntime.framework/ssruntime`
+の写像を記録します（`flutter build macos` で `.app` への埋め込みを確認済み）。podspec の `vendored_frameworks`
+や `macos/Frameworks/` シンボリックリンクは廃止し、`ssplayer_flutter` はプラグインではなくなりました。
 
-ホストツール `libssconverter` は別パッケージ `ssconverter_dart` の `native/libs/<platform>/` に
-配置されます（アプリには同梱しない bare dylib。詳細は [AGENTS.md](../AGENTS.md)）。
+なお SDK は universal リリースおよび他プレイヤー（Godot / Unity / RenPy）向けに、共有スクリプト
+`scripts/make-macos-framework.sh` で versioned な `libssruntime.framework` を引き続き生成します——
+**Flutter の「消費」だけ** Native Assets へ移行した形です。
+
+ホストツール `libssconverter` は別パッケージ `ssconverter_dart` が同じ仕組み（`hook/build.dart`）で
+同梱します（desktop 専用。詳細は [AGENTS.md](../AGENTS.md)）。

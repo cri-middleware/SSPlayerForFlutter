@@ -16,15 +16,10 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   test('paints a non-blank, textured frame', () async {
-    final libPath = Platform.environment['SSRUNTIME_LIBRARY_PATH'];
     final ssabPath = _firstExisting([
       'example/assets/overall/Basic.ssab',
       '../../example/assets/overall/Basic.ssab',
     ]);
-    if (libPath == null || !File(libPath).existsSync()) {
-      markTestSkipped('SSRUNTIME_LIBRARY_PATH not set — run build-runtime.sh');
-      return;
-    }
     if (ssabPath == null) {
       markTestSkipped('Basic.ssab missing — run prepare-example-assets.sh');
       return;
@@ -32,9 +27,8 @@ void main() {
     final assetDir = ssabPath.substring(0, ssabPath.lastIndexOf('/'));
     final bytes = Uint8List.fromList(File(ssabPath).readAsBytesSync());
 
-    final runtime = SsRuntime.open(libraryPath: libPath);
-    final player =
-        SpriteStudioInternalPlayer.load(bytes, runtime: runtime);
+    // Native assets: hook/build.dart bundles libssruntime; @Native resolves it.
+    final player = SpriteStudioInternalPlayer.load(bytes);
     addTearDown(player.dispose);
 
     // Register the reference (sibling PNG) textures straight from disk, keyed

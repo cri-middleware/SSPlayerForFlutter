@@ -2,15 +2,19 @@ include: package:flutter_lints/flutter.yaml
 
 analyzer:
   exclude:
-    # Machine-generated: flatc FlatBuffers accessors and ffigen bindings.
+    # Machine-generated: flatc FlatBuffers .ssab/.ssqb accessors. (The ffigen
+    # @Native bindings live in the ssruntime_dart package, not here.)
     - lib/src/ssab/**
-    - lib/src/bindings/*.g.dart
   errors:
-    # The generated FlatBuffers/ffigen code trips a few lints; keep them quiet
-    # here rather than editing generated output.
+    # The generated FlatBuffers code trips a few lints; keep them quiet here
+    # rather than editing generated output.
     unused_import: ignore
 
 linter:
   rules:
     prefer_const_constructors: true
     avoid_print: false
+    # RenderObjects here expose public named params (`player`/`width`/`height`)
+    # backed by private fields (`_player` …); an initializing formal would rename
+    # the param to the private field, breaking the public constructor API.
+    prefer_initializing_formals: false

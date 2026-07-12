@@ -47,6 +47,7 @@ $ConvPkgDir  = Join-Path $RootDir "packages/ssconverter_dart"
 $ConvLibsDir = Join-Path $ConvPkgDir "native/libs"
 # The Layer-1 runtime bindings live in their own pure-Dart package.
 $RtPkgDir = Join-Path $RootDir "packages/ssruntime_dart"
+$RtLibsDir = Join-Path $RtPkgDir "native/libs"
 
 # --- detect the host platform / arch (pwsh runs on win/mac/linux) ----------
 if ($null -eq $IsWindows -or $IsWindows) { $HOST_PLATFORM = "windows" }  # $IsWindows is $null on Windows PowerShell 5.1
@@ -128,6 +129,14 @@ function Place-Conv($sub, $src, $name) {
     Copy-Item $src (Join-Path $d $name) -Force
     Write-Host "   -> ssconverter_dart native/libs/$sub/$name"
 }
+# Same, but into the ssruntime_dart package (the runtime's native-assets home).
+function Place-Rt($sub, $src, $name) {
+    if (-not $name) { $name = Split-Path $src -Leaf }
+    $d = Join-Path $RtLibsDir $sub
+    New-Item -ItemType Directory -Force -Path $d | Out-Null
+    Copy-Item $src (Join-Path $d $name) -Force
+    Write-Host "   -> ssruntime_dart native/libs/$sub/$name"
+}
 # Read the SDK workspace version (for the framework Info.plist on the host path).
 function Get-SdkVersion() {
     $m = (Get-Content (Join-Path $SdkDir "Cargo.toml") |
@@ -163,50 +172,28 @@ if (Test-Path "$RootDir/scripts/SDK_VERSION.txt") { Copy-Item "$RootDir/scripts/
 $T = Join-Path $SdkDir "target"
 switch ($PLATFORM) {
     "macos" {
-        New-Item -ItemType Directory -Force -Path (Join-Path $LibsDir "macos") | Out-Null
-        # Runtime ships ONLY as libssruntime.framework (single copy in native/libs/macos;
-        # a symlink under the plugin's macos/Frameworks/ below is what the podspec embeds).
-        # libssconverter stays a bare dylib (host tool, never embedded).
+        # Native assets: ship BARE dylibs (@rpath install id). ssruntime_dart's and
+        # ssconverter_dart's hook/build.dart bundle them as code assets — no
+        # CocoaPods framework, no macos/Frameworks symlink, no ffiPlugin.
         if ($IS_HOST_BUILD -and $ARCH -ne "universal") {
-            # Fast host/debug path: plain cargo build, then wrap into a .framework via
-            # the SDK's shared packaging helper (single source of truth; needs the
-            # macOS toolchain, so reachable only under pwsh-on-macOS where bash exists).
             Build-Ss; Build-Converter
-            $mkfw = Join-Path $SdkDir "scripts/make-macos-framework.sh"
-            $minOs = if ($env:MACOSX_DEPLOYMENT_TARGET) { $env:MACOSX_DEPLOYMENT_TARGET } else { "11.0" }
-            & bash $mkfw `
-                "$T/$BUILD_MODE/libssruntime.dylib" `
-                (Join-Path $LibsDir "macos/libssruntime.framework") `
-                (Get-SdkVersion) `
-                "jp.co.cri-mw.optpix.ssruntime" `
-                $minOs `
-                (Join-Path $SdkDir "libs/ssruntime/target/ssruntime.h")
-            Write-Host "   -> native/libs/macos/libssruntime.framework"
+            Place-Rt "macos" "$T/$BUILD_MODE/libssruntime.dylib"
+            & install_name_tool -id "@rpath/libssruntime.dylib" (Join-Path $RtLibsDir "macos/libssruntime.dylib") 2>$null
             Place-Conv "macos" "$T/$BUILD_MODE/libssconverter.dylib"
             & install_name_tool -id "@rpath/libssconverter.dylib" (Join-Path $ConvLibsDir "macos/libssconverter.dylib") 2>$null
         } else {
-            # Universal (arm64 + x86_64): the SDK release script now BUILDS the versioned
-            # libssruntime.framework itself, so consume it directly (cp -R to keep the
-            # version symlinks + code signature).
+            # Universal (arm64 + x86_64): release-macos.sh lipos the universal dylibs
+            # (it also builds a .framework we no longer consume — native assets embeds
+            # the bare dylib itself).
             Invoke-Release "release-macos" $BUILD_MODE
             $uni = "$T/universal-apple-darwin/$BUILD_MODE"
-            $fwDest = Join-Path $LibsDir "macos/libssruntime.framework"
-            if (Test-Path $fwDest) { Remove-Item -Recurse -Force $fwDest }
-            & cp -R "$uni/libssruntime.framework" (Join-Path $LibsDir "macos/")
-            Write-Host "   -> native/libs/macos/libssruntime.framework"
+            Place-Rt "macos" "$uni/libssruntime.dylib"
+            & install_name_tool -id "@rpath/libssruntime.dylib" (Join-Path $RtLibsDir "macos/libssruntime.dylib") 2>$null
             if (Test-Path "$uni/libssconverter.dylib") {
                 Place-Conv "macos" "$uni/libssconverter.dylib"
                 & install_name_tool -id "@rpath/libssconverter.dylib" (Join-Path $ConvLibsDir "macos/libssconverter.dylib") 2>$null
             }
         }
-        # Symlink the single framework under the plugin's macos/Frameworks/ so CocoaPods
-        # embeds it (no second copy; install_framework resolves the symlink). gitignored.
-        $podFwDir = Join-Path $PkgDir "macos/Frameworks"
-        New-Item -ItemType Directory -Force -Path $podFwDir | Out-Null
-        $podFwLink = Join-Path $podFwDir "libssruntime.framework"
-        if (Test-Path $podFwLink) { Remove-Item -Recurse -Force $podFwLink }
-        New-Item -ItemType SymbolicLink -Path $podFwLink -Target "../../native/libs/macos/libssruntime.framework" -Force | Out-Null
-        Write-Host "   -> macos/Frameworks/libssruntime.framework -> ../../native/libs/macos/libssruntime.framework"
     }
 
     "linux" {
@@ -216,12 +203,12 @@ switch ($PLATFORM) {
         $larch = if ($ARCH -eq "arm64" -or $ARCH -eq "aarch64") { "aarch64" } else { $ARCH }
         if ($IS_HOST_BUILD) {
             Build-Ss; Build-Converter
-            Place "linux/$larch" "$T/$BUILD_MODE/libssruntime.so"
+            Place-Rt "linux/$larch" "$T/$BUILD_MODE/libssruntime.so"
             Place-Conv "linux/$larch" "$T/$BUILD_MODE/libssconverter.so"
         } else {
             $triple = if ($larch -eq "aarch64") { "aarch64-unknown-linux-gnu" } else { "x86_64-unknown-linux-gnu" }
             Build-Ss @("--target", $triple); Build-Converter @("--target", $triple)
-            Place "linux/$larch" "$T/$triple/$BUILD_MODE/libssruntime.so"
+            Place-Rt "linux/$larch" "$T/$triple/$BUILD_MODE/libssruntime.so"
             Place-Conv "linux/$larch" "$T/$triple/$BUILD_MODE/libssconverter.so"
         }
     }
@@ -229,12 +216,12 @@ switch ($PLATFORM) {
     "windows" {
         if ($IS_HOST_BUILD) {
             Build-Ss; Build-Converter
-            Place "windows/$ARCH" "$T/$BUILD_MODE/ssruntime.dll"
+            Place-Rt "windows/$ARCH" "$T/$BUILD_MODE/ssruntime.dll"
             Place-Conv "windows/$ARCH" "$T/$BUILD_MODE/ssconverter.dll"
         } else {
             $triple = if ($ARCH -eq "arm64") { "aarch64-pc-windows-msvc" } else { "x86_64-pc-windows-msvc" }
             Build-Ss @("--target", $triple); Build-Converter @("--target", $triple)
-            Place "windows/$ARCH" "$T/$triple/$BUILD_MODE/ssruntime.dll"
+            Place-Rt "windows/$ARCH" "$T/$triple/$BUILD_MODE/ssruntime.dll"
             Place-Conv "windows/$ARCH" "$T/$triple/$BUILD_MODE/ssconverter.dll"
         }
     }

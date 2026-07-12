@@ -19,24 +19,19 @@ import 'package:ssplayer_flutter/ssplayer_flutter.dart';
 import 'package:ssplayer_flutter/src/ssab/ssab.g.dart' as ssab;
 
 void main() {
-  // Resolve the host dylib + a sample .ssab relative to the package.
-  final libPath = Platform.environment['SSRUNTIME_LIBRARY_PATH'];
+  // Resolve a sample .ssab relative to the package (the native library is
+  // bundled by ssruntime_dart's native-assets hook — no path needed).
   final ssabPath = _firstExisting([
     'example/assets/overall/Basic.ssab',
     '../../example/assets/overall/Basic.ssab',
   ]);
 
   test('load → update → frame data → SoA returns geometry', () {
-    if (libPath == null || !File(libPath).existsSync()) {
-      markTestSkipped('SSRUNTIME_LIBRARY_PATH not set / missing — run build-runtime.sh');
-      return;
-    }
     if (ssabPath == null) {
       markTestSkipped('Basic.ssab missing — run prepare-example-assets.sh');
       return;
     }
 
-    final runtime = SsRuntime.open(libraryPath: libPath);
     final bytes = File(ssabPath).readAsBytesSync();
     // Sanity: the FlatBuffers file identifier lives at bytes 4..8.
     expect(String.fromCharCodes(bytes.sublist(4, 8)), 'SSAB');
@@ -47,7 +42,6 @@ void main() {
 
     final player = SpriteStudioInternalPlayer.load(
       Uint8List.fromList(bytes),
-      runtime: runtime,
     );
     addTearDown(player.dispose);
 

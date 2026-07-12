@@ -92,6 +92,10 @@ build_converter() { ( cd "$SDK_DIR" && cargo build $CARGO_FLAGS "$@" -p ssconver
 place() { mkdir -p "$LIBS_DIR/$1"; cp "$2" "$LIBS_DIR/$1/${3:-$(basename "$2")}"; echo "   -> native/libs/$1/${3:-$(basename "$2")}"; }
 # Same, but into the ssconverter_dart package (the host converter's home).
 place_conv() { mkdir -p "$CONV_LIBS_DIR/$1"; cp "$2" "$CONV_LIBS_DIR/$1/${3:-$(basename "$2")}"; echo "   -> ssconverter_dart native/libs/$1/${3:-$(basename "$2")}"; }
+# The runtime (libssruntime) lives in ssruntime_dart — its native-assets
+# hook/build.dart bundles this bare dylib/.so/.dll as a code asset (no framework).
+RT_LIBS_DIR="$RT_PKG_DIR/native/libs"
+place_rt() { mkdir -p "$RT_LIBS_DIR/$1"; cp "$2" "$RT_LIBS_DIR/$1/${3:-$(basename "$2")}"; echo "   -> ssruntime_dart native/libs/$1/${3:-$(basename "$2")}"; }
 
 # Read the SDK workspace version (for the framework Info.plist on the host path).
 sdk_version() { sed -n 's/^version = "\(.*\)"/\1/p' "$SDK_DIR/Cargo.toml" | head -1; }
@@ -107,52 +111,29 @@ mkdir -p "$LIBS_DIR"
 T="$SDK_DIR/target"
 case "$PLATFORM" in
   macos)
-    mkdir -p "$LIBS_DIR/macos"
-    # The runtime ships ONLY as libssruntime.framework: a bare .dylib is not
-    # embeddable via CocoaPods vendored_frameworks and the SDK no longer ships one.
-    # The single copy lives here in native/libs/macos/; a symlink under the plugin's
-    # macos/Frameworks/ (below) is what the podspec embeds (CocoaPods only embeds a
-    # vendored framework at/below the podspec dir). libssconverter stays a bare dylib
-    # — a host tool (prepare-example-assets.sh), never embedded in the app.
+    # Native assets: ship BARE dylibs (@rpath install id). ssruntime_dart's and
+    # ssconverter_dart's hook/build.dart bundle them as code assets — no
+    # CocoaPods framework, no macos/Frameworks symlink, no ffiPlugin.
     if [ "$IS_HOST_BUILD" = true ] && [ "$ARCH" != universal ]; then
-      # Fast host/debug path: plain `cargo build` (single arch, honours build=debug),
-      # then wrap the fresh dylib into a .framework via the SDK's shared packaging
-      # helper (single source of truth — release-macos.sh uses the same one, like
-      # SSPlayerForUnity does with make-macos-bundle.sh). We skip release-macos.sh
-      # here because it is a slow universal cross-build.
+      # Fast host/debug path: plain single-arch `cargo build` (honours build=debug).
       build_ss; build_converter
-      bash "$SDK_DIR/scripts/make-macos-framework.sh" \
-        "$T/$BUILD_MODE/libssruntime.dylib" \
-        "$LIBS_DIR/macos/libssruntime.framework" \
-        "$(sdk_version)" \
-        "jp.co.cri-mw.optpix.ssruntime" \
-        "${MACOSX_DEPLOYMENT_TARGET:-11.0}" \
-        "$SDK_DIR/libs/ssruntime/target/ssruntime.h"
-      echo "   -> native/libs/macos/libssruntime.framework"
+      place_rt   macos "$T/$BUILD_MODE/libssruntime.dylib"
+      install_name_tool -id "@rpath/libssruntime.dylib" "$RT_LIBS_DIR/macos/libssruntime.dylib" 2>/dev/null || true
       place_conv macos "$T/$BUILD_MODE/libssconverter.dylib"
       install_name_tool -id "@rpath/libssconverter.dylib" "$CONV_LIBS_DIR/macos/libssconverter.dylib" 2>/dev/null || true
     else
-      # Universal (arm64 + x86_64): the SDK release script now BUILDS the versioned
-      # libssruntime.framework itself (correct Info.plist, Headers/Modules, and code
-      # signature), so consume it directly instead of re-wrapping a bare dylib.
+      # Universal (arm64 + x86_64): release-macos.sh lipos the universal dylibs
+      # (it also builds a .framework we no longer consume — native assets embeds
+      # the bare dylib itself).
       bash "$SDK_DIR/scripts/release-macos.sh" "$BUILD_MODE"
       UNI="$T/universal-apple-darwin/$BUILD_MODE"
-      rm -rf "$LIBS_DIR/macos/libssruntime.framework"
-      cp -R "$UNI/libssruntime.framework" "$LIBS_DIR/macos/"
-      echo "   -> native/libs/macos/libssruntime.framework"
+      place_rt macos "$UNI/libssruntime.dylib"
+      install_name_tool -id "@rpath/libssruntime.dylib" "$RT_LIBS_DIR/macos/libssruntime.dylib" 2>/dev/null || true
       if [ -f "$UNI/libssconverter.dylib" ]; then
         place_conv macos "$UNI/libssconverter.dylib"
         install_name_tool -id "@rpath/libssconverter.dylib" "$CONV_LIBS_DIR/macos/libssconverter.dylib" 2>/dev/null || true
       fi
-    fi
-    # Symlink the single framework under the plugin's macos/Frameworks/ so CocoaPods
-    # embeds it (a relative symlink keeps it inside the podspec dir with no second
-    # copy; `install_framework` resolves it at embed time). gitignored.
-    POD_FW_DIR="$PKG_DIR/macos/Frameworks"
-    mkdir -p "$POD_FW_DIR"
-    rm -rf "$POD_FW_DIR/libssruntime.framework"
-    ln -sfn ../../native/libs/macos/libssruntime.framework "$POD_FW_DIR/libssruntime.framework"
-    echo "   -> macos/Frameworks/libssruntime.framework -> ../../native/libs/macos/libssruntime.framework" ;;
+    fi ;;
 
   linux)
     # Linux arch dir uses the kernel/Rust spelling: aarch64 (not arm64), x86_64 —
@@ -161,24 +142,24 @@ case "$PLATFORM" in
     case "$ARCH" in arm64|aarch64) larch=aarch64 ;; *) larch="$ARCH" ;; esac
     if [ "$IS_HOST_BUILD" = true ]; then
       build_ss; build_converter
-      place "linux/$larch" "$T/$BUILD_MODE/libssruntime.so"
+      place_rt "linux/$larch" "$T/$BUILD_MODE/libssruntime.so"
       place_conv "linux/$larch" "$T/$BUILD_MODE/libssconverter.so"
     else
       triple=$([ "$larch" = aarch64 ] && echo aarch64-unknown-linux-gnu || echo x86_64-unknown-linux-gnu)
       build_ss --target "$triple"; build_converter --target "$triple"
-      place "linux/$larch" "$T/$triple/$BUILD_MODE/libssruntime.so"
+      place_rt "linux/$larch" "$T/$triple/$BUILD_MODE/libssruntime.so"
       place_conv "linux/$larch" "$T/$triple/$BUILD_MODE/libssconverter.so"
     fi ;;
 
   windows)
     if [ "$IS_HOST_BUILD" = true ]; then
       build_ss; build_converter
-      place "windows/$ARCH" "$T/$BUILD_MODE/ssruntime.dll"
+      place_rt "windows/$ARCH" "$T/$BUILD_MODE/ssruntime.dll"
       place_conv "windows/$ARCH" "$T/$BUILD_MODE/ssconverter.dll"
     else
       triple=$([ "$ARCH" = arm64 ] && echo aarch64-pc-windows-msvc || echo x86_64-pc-windows-msvc)
       build_ss --target "$triple"; build_converter --target "$triple"
-      place "windows/$ARCH" "$T/$triple/$BUILD_MODE/ssruntime.dll"
+      place_rt "windows/$ARCH" "$T/$triple/$BUILD_MODE/ssruntime.dll"
       place_conv "windows/$ARCH" "$T/$triple/$BUILD_MODE/ssconverter.dll"
     fi ;;
 
@@ -219,7 +200,7 @@ ch="$SDK_DIR/libs/ssconverter/target/ssconverter.h"
 [ -f "$ch" ] && { cp "$ch" "$CONV_PKG_DIR/native/include/ssconverter.h"; echo "   -> ssconverter_dart native/include/ssconverter.h"; }
 
 # --- Layer-1 ffigen bindings: regenerate now that the headers are fresh. ffigen
-# is Flutter-specific; folding it in here keeps the dev-facing script count the
+# is Dart/FFI-specific; folding it in here keeps the dev-facing script count the
 # same as the sibling players. No-op without the Dart SDK.
 bash "$ROOT_DIR/scripts/generate-ffigen-code.sh" || true
 

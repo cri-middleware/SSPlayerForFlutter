@@ -6,8 +6,7 @@
 /// convert on the host, push the `.ssab` to devices, and reload it via the
 /// `ssplayer_flutter` runtime. `embedded` produces a single self-contained
 /// `.ssab` (recommended for device / OTA distribution).
-library ssconverter_dart;
+library;
 
 export 'src/converter.dart'
     show SsConverter, SsConverterException, CConverterError;
-export 'src/ssconverter_library.dart' show SsConverterLibrary;

@@ -7,6 +7,11 @@
 name: SsRuntimeBindings
 description: Low-level dart:ffi bindings for the SpriteStudio-SDK Brain (libssruntime).
 output: "lib/src/ssruntime_bindings.g.dart"
+# Native assets: generate top-level `@Native(assetId: ...)` functions that resolve
+# the code asset bundled by hook/build.dart (no DynamicLibrary). The asset id MUST
+# match the hook's CodeAsset(package: 'ssruntime_dart', name: 'ssruntime').
+ffi-native:
+  asset-id: "package:ssruntime_dart/ssruntime"
 headers:
   entry-points:
     - "native/include/ssruntime.h"

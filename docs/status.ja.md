@@ -19,9 +19,10 @@
 | 項目 | 状態 |
 |------|------|
 | `scripts/*`（build / generate / download / assets）| ✅ 作成・ホスト(macOS)で実行検証済み |
-| ネイティブビルド（`libssruntime.framework` 生成・配置）| ✅ 検証済み |
-| C ヘッダ生成（SDK build.rs / cbindgen）・Dart FlatBuffers 生成（flatc）| ✅ 検証済み |
-| Layer 1 `SsRuntimeBindings`（ffigen 生成・全 C-API 111 メソッド）| ✅ |
+| ネイティブビルド（bare dylib 生成・各バインディングパッケージ `native/libs/` へ配置）| ✅ 検証済み |
+| ネイティブ同梱（Native Assets: `hook/build.dart` が `CodeAsset` として同梱）| ✅ dart/flutter test・`flutter build macos` で検証済み |
+| C ヘッダ生成（SDK build.rs）・Dart FlatBuffers 生成（flatc）| ✅ 検証済み |
+| Layer 1 `@Native` バインディング（`ssruntime_dart`・ffigen 生成・トップレベル C-API）| ✅ |
 | Layer 2 `SpriteStudioInternalPlayer`（ライフサイクル / SoA / update）| ✅ |
 | **Phase 1 Basic 描画**（Normal バッチ・親子継承・α・テクスチャ・BlendMode）| ✅ 実装（実機検証は下記） |
 | Layer 3/4（`SpriteStudioPlayer` / `SpriteStudioView`）| ✅ |
@@ -31,7 +32,8 @@
 | **実機検証**（Flutter / `flutter analyze` 0 件、`flutter test` PASS）| ✅ |
 | ↳ FFI パイプライン（load→update→FrameData→SoA）スモークテスト | ✅ PASS |
 | ↳ 実描画テスト（テクスチャ付き非空フレームをラスタライズ）| ✅ PASS（目視でも overall/Basic がエディタ相当に描画） |
-| **macOS デスクトップ example 起動**（`flutter run -d macos`、framework ロード＆再生）| ✅ `[ssplayer] OK — playing "anime_1"` |
+| **macOS デスクトップ example 起動**（`flutter run -d macos`、Native Assets 同梱＆再生）| ✅ `[ssplayer] OK — playing "anime_1"` |
+| ↳ 埋め込み検証（`flutter build macos` → `.app/Contents/Frameworks/ssruntime.framework`）| ✅ NativeAssetsManifest.json 写像確認済み |
 | PartColor / Mask / Mesh / Effect / Instance、BoxFit スケール | ⏳ TODO（Phase 1 後半〜2）|
 
 ## Phase 1 Basic 描画の実装要点

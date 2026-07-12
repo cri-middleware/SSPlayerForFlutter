@@ -3,33 +3,19 @@ import 'dart:io';
 import 'package:test/test.dart';
 import 'package:ssconverter_dart/ssconverter_dart.dart';
 
-/// Smoke test for the host converter (libssconverter over dart:ffi).
+/// Smoke test for the host converter (native assets @Native bindings).
 ///
-/// libssconverter is resolved from the package's native/libs (built by
-/// scripts/build-runtime.sh) via [SsConverter.openForHost] — no env var needed —
-/// or from `SSCONVERTER_LIBRARY_PATH`. When neither is available the tests skip.
+/// `dart test` runs `hook/build.dart`, which bundles the prebuilt
+/// `libssconverter` (from `native/libs/`, produced by scripts/build-runtime.sh)
+/// as a code asset; the `@Native` bindings resolve it — no
+/// `SSCONVERTER_LIBRARY_PATH` / `DynamicLibrary.open`.
 void main() {
-  SsConverter? converter;
-
-  setUpAll(() async {
-    try {
-      final c = await SsConverter.openForHost();
-      c.version; // force a symbol lookup so a bad library fails here
-      converter = c;
-    } catch (_) {
-      converter = null; // leave null → tests skip
-    }
-  });
+  const conv = SsConverter();
 
   // The SDK sample project, relative to the package dir (test cwd).
   final sspj = File('../../SpriteStudio-SDK/tests/overall/overall.sspj');
 
   test('converts overall.sspj → .ssab (normal + embedded)', () async {
-    final conv = converter;
-    if (conv == null) {
-      markTestSkipped('libssconverter not available (run build-runtime.sh)');
-      return;
-    }
     if (!sspj.existsSync()) {
       markTestSkipped('overall.sspj not found at ${sspj.path}');
       return;
@@ -63,11 +49,6 @@ void main() {
   });
 
   test('throws SsConverterException for a missing .sspj', () async {
-    final conv = converter;
-    if (conv == null) {
-      markTestSkipped('libssconverter not available');
-      return;
-    }
     await expectLater(
       conv.convert('/no/such/project.sspj',
           outputDir: '${Directory.systemTemp.path}/ssconvert_missing'),

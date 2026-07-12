@@ -26,11 +26,15 @@ is a strict 4-layer downward dependency: **L4** drawing adapters
 (`SpriteStudioView` = `RenderBox`; Flame/CustomPaint optional) → **L3**
 `SpriteStudioPlayer` (`ChangeNotifier` + `Ticker`, transport/events) → **L2**
 `SpriteStudioInternalPlayer` (Widget-agnostic: FFI Resource/Context lifecycle,
-SoA→`ui.Vertices` bake, `paint`) → **L1** `SsRuntimeBindings` (`dart:ffi`) +
-`SsRuntime` loader, which live in the sibling **pure-Dart `ssruntime_dart`**
-package (runtime bindings + loader + the `framedata`/`effect_draw_plan`
-FlatBuffers; `ssplayer_flutter` depends on it). Layers below are nearer the
-Brain; keep L2 Widget-free so it is reusable headless / from Flame / flutter_gpu.
+SoA→`ui.Vertices` bake, `paint`) → **L1** ffigen `@Native` C-API bindings
+(`dart:ffi`), which live in the sibling **pure-Dart `ssruntime_dart`** package
+(top-level bindings + the `framedata`/`effect_draw_plan` FlatBuffers;
+`ssplayer_flutter` depends on it). The native `libssruntime` is delivered via
+**native assets** (`ssruntime_dart/hook/build.dart` bundles the prebuilt dylib as
+a code asset; the `@Native` bindings resolve it by asset id) — there is no
+`DynamicLibrary` loader, no `SSRUNTIME_LIBRARY_PATH`, and (on Flutter) no
+CocoaPods framework. Layers below are nearer the Brain; keep L2 Widget-free so it
+is reusable headless / from Flame / flutter_gpu.
 The host `.sspj`→`.ssab` converter is a third pure-Dart package,
 **`ssconverter_dart`** (desktop CLI + lib).
 
@@ -41,8 +45,8 @@ The host `.sspj`→`.ssab` converter is a third pure-Dart package,
 Paths are under `packages/ssplayer_flutter/` unless noted; **L1** now lives in the
 sibling `../ssruntime_dart/` package.
 
-| `lib/ssplayer_flutter.dart` | Public API barrel (re-exports L1 from `ssruntime_dart`). |
-| `../ssruntime_dart/` | **L1** pure-Dart pkg: `SsRuntimeBindings` (ffigen C-API) + `SsRuntime` loader + runtime FlatBuffers `lib/src/fbs/{framedata,effect_draw_plan}.g.dart` (imported as `package:ssruntime_dart/framedata.dart`). |
+| `lib/ssplayer_flutter.dart` | Public API barrel (L2–L4; import L1 from `ssruntime_dart` directly). |
+| `../ssruntime_dart/` | **L1** pure-Dart pkg: ffigen `@Native` top-level C-API bindings (`lib/src/ssruntime_bindings.g.dart`; native lib bundled by `hook/build.dart`) + runtime FlatBuffers `lib/src/fbs/{framedata,effect_draw_plan}.g.dart` (imported as `package:ssruntime_dart/framedata.dart`). |
 | `../ssconverter_dart/` | Host `.sspj`→`.ssab` converter — pure-Dart `ssconvert` CLI + `SsConverter` lib (desktop only). |
 | `lib/src/internal_player.dart` | **L2** engine — FFI lifecycle, SoA getters, `paint` = `DrawBatch.kind` dispatch (`_emitNormalBatch`). |
 | `lib/src/render/geometry_builder.dart` | **L2** — `GeometryBuilder` (pure SoA→`ui.Vertices` bake) + `DrawFrame` (per-frame SoA bundle). New kinds add build methods here. |
@@ -63,8 +67,8 @@ All mirror the sibling players (`../SSPlayerFor{Godot,Unity,Web,RenPy}`).
 
 | Script | Does | When |
 |---|---|---|
-| `scripts/build-runtime.{sh,ps1}` | Builds `ssruntime`/`ssconverter` (host direct; cross via `SpriteStudio-SDK/scripts/release-*`) and places dynamic libs into each package's `native/libs/<platform>/[<arch>]` — `libssruntime` → `ssplayer_flutter`, the host `libssconverter` → `ssconverter_dart`. macOS ships the runtime as `libssruntime.framework` (SDK-built on the universal path; wrapped locally on the host/debug path); no `macos/Frameworks/` mirror. Then copies the SDK `build.rs`-emitted plain-C headers (`<crate>.h`) into each package's `native/include/` and regenerates the ffigen bindings for both (calls `generate-ffigen-code`). | After changing Rust / first setup. |
-| `scripts/generate-ffigen-code.{sh,ps1}` | `dart run ffigen` → `lib/src/bindings/*.g.dart` from `native/include/*.h`. **No cbindgen** — the SDK `build.rs` emits the C header. Auto-invoked at the end of `build-runtime` / `download-sdk`; run directly only when an `ffigen*.yaml` changed. | After a native / C-API change (usually automatic). |
+| `scripts/build-runtime.{sh,ps1}` | Builds `ssruntime`/`ssconverter` (host direct; cross via `SpriteStudio-SDK/scripts/release-*`) and places the **bare** dynamic libs into each binding package's `native/libs/<platform>/[<arch>]` — `libssruntime` → `ssruntime_dart`, the host `libssconverter` → `ssconverter_dart`. No framework wrapping / `macos/Frameworks/` symlink on the Flutter side: each package's `hook/build.dart` bundles the dylib as a **native-assets code asset** (Flutter re-wraps it into `ssruntime.framework` inside the `.app` automatically). Then copies the SDK `build.rs`-emitted plain-C headers (`<crate>.h`) into each package's `native/include/` and regenerates the ffigen bindings for both (calls `generate-ffigen-code`). | After changing Rust / first setup. |
+| `scripts/generate-ffigen-code.{sh,ps1}` | `dart run ffigen` → each package's `lib/src/*_bindings.g.dart` (`@Native` top-level bindings) from `native/include/*.h`. **No cbindgen** — the SDK `build.rs` emits the C header. Auto-invoked at the end of `build-runtime` / `download-sdk`; run directly only when an `ffigen*.yaml` changed. | After a native / C-API change (usually automatic). |
 | `scripts/generate-fbs-code.{sh,ps1}` | `flatc --dart` → `lib/src/ssab/*.g.dart` from the SDK `.fbs`. Standalone (deliberately NOT part of `build-runtime`). | After changing a `.fbs` schema. |
 | `scripts/download-sdk.{sh,ps1}` | Downloads a prebuilt SDK release (`SDK_VERSION.txt`) instead of building, then regenerates the ffigen bindings (calls `generate-ffigen-code`). | Rust-less setup (reserved; artifact name/layout may need updating). |
 | `scripts/prepare-example-assets.sh` | Converts `tests/overall/overall.sspj` → `.ssab` into `example/assets/overall/`. | Refreshing example assets. |
@@ -98,21 +102,24 @@ These were learned the hard way — respect them.
 * **ffigen types.** ffigen maps `const unsigned char *` → `Pointer<UnsignedChar>`
   and `uintptr_t *` → `Pointer<UintPtr>`. L2 keeps ergonomic `Uint8`/`Size`
   scratch cells and `.cast()`s at the FFI boundary.
-* **macOS native packaging.** A bare `.dylib` via `vendored_libraries` is NOT
-  embedded for runtime `dlopen`. Ship the Brain as a versioned `libssruntime.framework`
-  (`@rpath` install id) built by the SDK's shared `scripts/make-macos-framework.sh`
-  (single source of truth, the framework twin of `make-macos-bundle.sh`): the SDK's
-  `release-macos.sh` calls it for the universal release (with `Headers/`+`Modules/`
-  and a code signature) and `build-runtime.sh` copies that in; on the fast host/debug
-  path `build-runtime.sh` calls the SAME helper to wrap the cargo dylib. There is one
-  physical copy, in `native/libs/macos/`. CocoaPods only *embeds* a vendored framework
-  located at/below the podspec dir — a `../native/...` path is recorded but the app
-  ships without it (verified: no `libssruntime` in the built `.app`) — so
-  `build-runtime.sh` puts a **symlink** at `macos/Frameworks/libssruntime.framework`
-  → `../../native/libs/macos/...` and the podspec vendors `Frameworks/libssruntime.framework`
-  (`install_framework` resolves the symlink at embed time). (The iOS podspec vendors
-  `../native/libs/ios/libssruntime.xcframework`; iOS embedding isn't verified here.)
-  CocoaPods must be installed (`brew install cocoapods`).
+* **Native packaging = native assets (no CocoaPods framework on Flutter).** The
+  Brain reaches the app through Dart's **build hooks**: `ssruntime_dart/hook/build.dart`
+  emits a `CodeAsset(package: 'ssruntime_dart', name: 'ssruntime', file: <bare dylib
+  from native/libs/<platform>/<arch>>, linkMode: DynamicLoadingBundled())`, and the
+  generated `@Native` bindings carry a matching `@ffi.DefaultAsset('package:ssruntime_dart/ssruntime')`.
+  `dart`/`flutter test` and `flutter build` run the hook automatically (native assets
+  is stable & default-on since Flutter 3.38 / Dart 3.10). On macOS, Flutter re-wraps
+  the bundled dylib into `Contents/Frameworks/ssruntime.framework` and records the
+  mapping in `flutter_assets/NativeAssetsManifest.json` (`package:ssruntime_dart/ssruntime`
+  → `ssruntime.framework/ssruntime`) — verified: the runtime *is* embedded, dlopen-resolved
+  at runtime, no `@rpath` link-time dependency on the main binary. So there is **no**
+  vendored podspec, `macos/Frameworks/` symlink, or `SSRUNTIME_LIBRARY_PATH`; the
+  example's `macos/` needs no CocoaPods plugin integration (`pod install` re-syncs
+  cleanly with zero plugin pods). `ssconverter_dart` bundles the host `libssconverter`
+  the same way. NB: the SDK still builds the versioned `libssruntime.framework` via
+  `scripts/make-macos-framework.sh` for the universal release + the other players
+  (Godot/Unity/RenPy consume it directly) — only Flutter's *consumption* moved to
+  native assets. (iOS goes through the same hook path but isn't verified here.)
 * **Generated code is never hand-edited.** The flatc FlatBuffers accessors are
   **committed** — asset format in `ssplayer_flutter/lib/src/ssab/`, runtime output
   in `ssruntime_dart/lib/src/fbs/` (schema-driven; regenerate with
@@ -130,19 +137,25 @@ These were learned the hard way — respect them.
 
 ## Verification
 
-Native libs must be built first (`scripts/build-runtime.sh`). The tests load the
-host Brain via `SSRUNTIME_LIBRARY_PATH` (the framework binary on macOS).
+Native libs must be built first (`scripts/build-runtime.sh`). The tests pick up
+the Brain automatically via **native assets** — `dart`/`flutter test` runs the
+binding package's `hook/build.dart`, which bundles the prebuilt dylib; there is
+no `SSRUNTIME_LIBRARY_PATH` / `DynamicLibrary.open` and no framework to point at.
 
 | Check | Command (run in `packages/ssplayer_flutter/`) |
 |---|---|
 | Analyze | `flutter analyze lib test` |
-| Unit + render tests | `SSRUNTIME_LIBRARY_PATH="$PWD/native/libs/macos/libssruntime.framework/libssruntime" flutter test` |
+| Unit + render tests | `flutter test` |
+| L1 bindings smoke (in `../ssruntime_dart/`) | `dart test` |
+| Converter smoke + CLI (in `../ssconverter_dart/`) | `dart test` / `dart run ssconverter_dart:ssconvert -o <out> <sspj>` |
 | Native host build (also copies C headers + regenerates ffigen) | `bash ../../scripts/build-runtime.sh` |
 | ffigen bindings only | `bash ../../scripts/generate-ffigen-code.sh` |
 | FlatBuffers (on `.fbs` change) | `bash ../../scripts/generate-fbs-code.sh` |
 | macOS desktop run | (in `example/`) `flutter run -d macos` → expect `[ssplayer] OK` |
+| macOS embedding check | (in `example/`) `flutter build macos` → `ssruntime.framework` under `*.app/Contents/Frameworks/` |
 
-`example/` is analyzed as its own package (path dependency on the plugin).
+`example/` is analyzed as its own package (path dependency on the `ssplayer_flutter`
+package; no longer a Flutter plugin — native assets replace the plugin/podspec).
 
 ## Render recipe (Phase 1 Basic)
 

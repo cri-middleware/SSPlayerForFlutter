@@ -109,23 +109,17 @@ void main() {
   });
 
   test('PartColor.read resolves real PartsColor.ssab part colours', () async {
-    final libPath = Platform.environment['SSRUNTIME_LIBRARY_PATH'];
     final ssabPath = _firstExisting([
       'example/assets/overall/PartsColor.ssab',
       '../../example/assets/overall/PartsColor.ssab',
     ]);
-    if (libPath == null || !File(libPath).existsSync()) {
-      markTestSkipped('SSRUNTIME_LIBRARY_PATH not set — run build-runtime.sh');
-      return;
-    }
     if (ssabPath == null) {
       markTestSkipped('PartsColor.ssab missing — run prepare-example-assets.sh');
       return;
     }
 
     final bytes = Uint8List.fromList(File(ssabPath).readAsBytesSync());
-    final runtime = SsRuntime.open(libraryPath: libPath);
-    final player = SpriteStudioInternalPlayer.load(bytes, runtime: runtime);
+    final player = SpriteStudioInternalPlayer.load(bytes);
     addTearDown(player.dispose);
 
     final info = SsAnimeInfo(bytes);

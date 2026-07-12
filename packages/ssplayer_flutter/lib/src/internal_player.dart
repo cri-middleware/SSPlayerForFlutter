@@ -58,7 +58,6 @@ enum SsResourceMode { borrow, copy }
 /// reusable from higher layers (Player) or headless tests.
 class SpriteStudioInternalPlayer implements ffi.Finalizable {
   SpriteStudioInternalPlayer._(
-    this._runtime,
     this._context,
     this._resource,
     this._ssabBuffer,
@@ -73,9 +72,6 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable {
     _contextFinalizer.attach(this, _context.cast(), detach: this);
     _resourceFinalizer.attach(this, _resource.cast(), detach: this);
   }
-
-  final SsRuntime _runtime;
-  SsRuntimeBindings get _b => _runtime.bindings;
 
   ffi.Pointer<ffi.Void> _context;
   ffi.Pointer<ffi.Void> _resource;
@@ -150,12 +146,12 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable {
       calloc<ffi.Pointer<ffi.Uint8>>();
   final ffi.Pointer<ffi.Size> _outLen = calloc<ffi.Size>();
 
-  late final ffi.NativeFinalizer _contextFinalizer = ffi.NativeFinalizer(
-      _runtime.dynamicLibrary
-          .lookup<ffi.NativeFinalizerFunction>('ss_runtime_destroy'));
-  late final ffi.NativeFinalizer _resourceFinalizer = ffi.NativeFinalizer(
-      _runtime.dynamicLibrary
-          .lookup<ffi.NativeFinalizerFunction>('ss_resource_destroy'));
+  // Native-assets: the finalizer function pointers come from the @Native
+  // bindings (no DynamicLibrary). Constant, so shared statically.
+  static final ffi.NativeFinalizer _contextFinalizer = ffi.NativeFinalizer(
+      ffi.Native.addressOf<ffi.NativeFinalizerFunction>(ss_runtime_destroy));
+  static final ffi.NativeFinalizer _resourceFinalizer = ffi.NativeFinalizer(
+      ffi.Native.addressOf<ffi.NativeFinalizerFunction>(ss_resource_destroy));
 
   /// Loads `ssab` into a fresh Context and binds it.
   ///
@@ -164,16 +160,12 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable {
   /// validated by the Brain; validate untrusted input before calling this.
   factory SpriteStudioInternalPlayer.load(
     Uint8List ssab, {
-    SsRuntime? runtime,
     TextureRegistry? textures,
     SsResourceMode mode = SsResourceMode.borrow,
     SsCoordinateSystem coordinateSystem = SsCoordinateSystem.yDown,
     SsOrigin? origin,
     SsUnit? unit,
   }) {
-    final rt = runtime ?? SsRuntime.open();
-    final b = rt.bindings;
-
     // Copy the ssab bytes into native memory. For borrow the Brain references
     // this block directly, so it must outlive the resource.
     final buf = malloc<ffi.Uint8>(ssab.length);
@@ -181,8 +173,8 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable {
 
     // ffigen types the C `const unsigned char *` as Pointer<UnsignedChar>.
     final resource = mode == SsResourceMode.borrow
-        ? b.ss_resource_create_borrow(buf.cast(), ssab.length)
-        : b.ss_resource_create_copy(buf.cast(), ssab.length);
+        ? ss_resource_create_borrow(buf.cast(), ssab.length)
+        : ss_resource_create_copy(buf.cast(), ssab.length);
     if (resource == ffi.nullptr) {
       malloc.free(buf);
       throw StateError('ss_resource_create_* returned null (bad .ssab?)');
@@ -194,15 +186,15 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable {
       keepBuf = ffi.nullptr;
     }
 
-    final context = b.ss_runtime_create();
+    final context = ss_runtime_create();
     if (context == ffi.nullptr) {
-      b.ss_resource_destroy(resource);
+      ss_resource_destroy(resource);
       if (keepBuf != ffi.nullptr) malloc.free(keepBuf);
       throw StateError('ss_runtime_create returned null');
     }
-    if (!b.ss_runtime_bind_resource(context, resource)) {
-      b.ss_runtime_destroy(context);
-      b.ss_resource_destroy(resource);
+    if (!ss_runtime_bind_resource(context, resource)) {
+      ss_runtime_destroy(context);
+      ss_resource_destroy(resource);
       if (keepBuf != ffi.nullptr) malloc.free(keepBuf);
       throw StateError('ss_runtime_bind_resource failed');
     }
@@ -210,15 +202,14 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable {
     // Direct render mode (the default): the Brain fills the SoA buffers this
     // Body reads and skips redundant FrameData vertices/cells/deforms
     // (render_loop §2). The Godot flagship relies on the same default.
-    b.ss_runtime_set_render_mode(context, 0);
+    ss_runtime_set_render_mode(context, 0);
     // Y-Down like the flagship; origin/unit are left at the runtime defaults
     // (the flagship sets neither) unless the caller opts in.
-    b.ss_context_set_coordinate_system(context, coordinateSystem.value);
-    if (origin != null) b.ss_context_set_origin(context, origin.value);
-    if (unit != null) b.ss_context_set_unit(context, unit.value);
+    ss_context_set_coordinate_system(context, coordinateSystem.value);
+    if (origin != null) ss_context_set_origin(context, origin.value);
+    if (unit != null) ss_context_set_unit(context, unit.value);
 
     return SpriteStudioInternalPlayer._(
-      rt,
       context,
       resource,
       keepBuf,
@@ -239,7 +230,7 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable {
     _ensureAlive();
     final cName = name.toNativeUtf8();
     try {
-      return _b.ss_runtime_setup_animation(_context, cName.cast());
+      return ss_runtime_setup_animation(_context, cName.cast());
     } finally {
       malloc.free(cName);
     }
@@ -249,7 +240,7 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable {
   int hashString(String name) {
     final cName = name.toNativeUtf8();
     try {
-      return _b.ss_runtime_hash_string(cName.cast());
+      return ss_runtime_hash_string(cName.cast());
     } finally {
       malloc.free(cName);
     }
@@ -257,31 +248,31 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable {
 
   void play() {
     _ensureAlive();
-    _b.ss_runtime_play(_context);
+    ss_runtime_play(_context);
   }
 
   void pause() {
     _ensureAlive();
-    _b.ss_runtime_pause(_context);
+    ss_runtime_pause(_context);
   }
 
   void stop() {
     _ensureAlive();
-    _b.ss_runtime_stop(_context);
+    ss_runtime_stop(_context);
   }
 
-  bool get isPlaying => _b.ss_runtime_is_playing(_context);
-  bool get isEndFrameReached => _b.ss_runtime_is_end_frame_reached(_context);
-  bool get isLooped => _b.ss_runtime_is_looped(_context);
-  double get frameNo => _b.ss_runtime_get_frame_no(_context);
-  int get startFrame => _b.ss_runtime_get_start_frame(_context);
-  int get endFrame => _b.ss_runtime_get_end_frame(_context);
-  int get fps => _b.ss_runtime_get_fps(_context);
+  bool get isPlaying => ss_runtime_is_playing(_context);
+  bool get isEndFrameReached => ss_runtime_is_end_frame_reached(_context);
+  bool get isLooped => ss_runtime_is_looped(_context);
+  double get frameNo => ss_runtime_get_frame_no(_context);
+  int get startFrame => ss_runtime_get_start_frame(_context);
+  int get endFrame => ss_runtime_get_end_frame(_context);
+  int get fps => ss_runtime_get_fps(_context);
 
-  set loop(int count) => _b.ss_runtime_set_loop(_context, count);
-  set speed(double rate) => _b.ss_runtime_set_animation_speed(_context, rate);
-  set frameRate(int fps) => _b.ss_runtime_set_frame_rate(_context, fps);
-  void seek(double frame) => _b.ss_runtime_set_frame_no(_context, frame);
+  set loop(int count) => ss_runtime_set_loop(_context, count);
+  set speed(double rate) => ss_runtime_set_animation_speed(_context, rate);
+  set frameRate(int fps) => ss_runtime_set_frame_rate(_context, fps);
+  void seek(double frame) => ss_runtime_set_frame_no(_context, frame);
 
   // --- Per-frame update ----------------------------------------------------
 
@@ -294,7 +285,7 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable {
 
   double updateMs(double deltaMs) {
     _ensureAlive();
-    return _b.ss_runtime_update(_context, deltaMs);
+    return ss_runtime_update(_context, deltaMs);
   }
 
   /// Parses the FlatBuffers `FrameData` for [frameNo]. The returned view aliases
@@ -306,7 +297,7 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable {
     _outLen.value = 0;
     // ffigen out-params are Pointer<Pointer<UnsignedChar>> / Pointer<UintPtr>;
     // cast our ergonomic Uint8/Size scratch cells at the boundary.
-    _b.ss_runtime_get_frame_data(
+    ss_runtime_get_frame_data(
         _context, frameNo, _outBytePtr.cast(), _outLen.cast());
     final data = _outBytePtr.value;
     final len = _outLen.value;
@@ -331,16 +322,16 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable {
   }
 
   /// Per-part 4×4 world matrices (parts × 16 floats).
-  Float32List worldMatrices() => _soaFloats(_b.ss_runtime_get_world_matrices);
+  Float32List worldMatrices() => _soaFloats(ss_runtime_get_world_matrices);
 
   /// Per-part local vertices (parts × 10 floats: lt,rt,lb,rb,center).
-  Float32List localVertices() => _soaFloats(_b.ss_runtime_get_local_vertices);
+  Float32List localVertices() => _soaFloats(ss_runtime_get_local_vertices);
 
   /// Per-part local UVs (parts × 10 floats: lt,rt,lb,rb,center in texture pixels).
-  Float32List localUvs() => _soaFloats(_b.ss_runtime_get_local_uvs);
+  Float32List localUvs() => _soaFloats(ss_runtime_get_local_uvs);
 
   /// Per-part cell meta (parts × 6: pivot_x,pivot_y,w,h,rect_left,rect_top).
-  Float32List cellMeta() => _soaFloats(_b.ss_runtime_get_cell_meta);
+  Float32List cellMeta() => _soaFloats(ss_runtime_get_cell_meta);
 
   // --- Events (polling) ----------------------------------------------------
 
@@ -348,10 +339,10 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable {
   /// update. The caller resolves user data / signals / audio from the ssab.
   List<int> passedEventIndices() {
     _ensureAlive();
-    final count = _b.ss_runtime_get_passed_event_count(_context);
+    final count = ss_runtime_get_passed_event_count(_context);
     if (count <= 0) return const [];
     return List<int>.generate(
-        count, (i) => _b.ss_runtime_get_passed_event_index(_context, i));
+        count, (i) => ss_runtime_get_passed_event_index(_context, i));
   }
 
   // --- Rendering -----------------------------------------------------------
@@ -553,11 +544,11 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable {
     _resourceFinalizer.detach(this);
 
     if (_context != ffi.nullptr) {
-      _b.ss_runtime_destroy(_context);
+      ss_runtime_destroy(_context);
       _context = ffi.nullptr;
     }
     if (_resource != ffi.nullptr) {
-      _b.ss_resource_destroy(_resource);
+      ss_resource_destroy(_resource);
       _resource = ffi.nullptr;
     }
     if (_ssabBuffer != ffi.nullptr) {

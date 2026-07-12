@@ -8,6 +8,10 @@
 name: SsConverterBindings
 description: Low-level dart:ffi bindings for the SpriteStudio-SDK converter (libssconverter).
 output: "lib/src/ssconverter_bindings.g.dart"
+# Native assets: generate top-level `@Native(assetId: ...)` functions that resolve
+# the code asset bundled by hook/build.dart. Must match CodeAsset(name: 'ssconverter').
+ffi-native:
+  asset-id: "package:ssconverter_dart/ssconverter"
 headers:
   entry-points:
     - "native/include/ssconverter.h"

@@ -8,8 +8,10 @@ repository: https://github.com/cri-middleware/SSPlayerForFlutter
 publish_to: none # not yet published to pub.dev
 
 environment:
-  sdk: ">=3.3.0 <4.0.0"
-  flutter: ">=3.19.0"
+  # Native assets (build hooks) are stable & default-on since Flutter 3.38 /
+  # Dart 3.10; pinned to the current stable toolchain (Flutter 3.44.6 / Dart 3.12.2).
+  sdk: ">=3.12.2 <4.0.0"
+  flutter: ">=3.44.6"
 
 dependencies:
   flutter:
@@ -19,33 +21,20 @@ dependencies:
   # Dart FlatBuffers runtime used by the flatc-generated lib/src/ssab/*.g.dart.
   # Match the flatc used by scripts/generate-fbs-code.sh.
   flat_buffers: ^25.9.23
-  # Layer 1: libssruntime dart:ffi bindings + loader (pure Dart, no Flutter).
+  # Layer 1: libssruntime dart:ffi `@Native` bindings via native assets (pure
+  # Dart). Provides the runtime code asset (hook/build.dart) + FrameData FlatBuffers.
   ssruntime_dart:
     path: ../ssruntime_dart
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^4.0.0
-  # Regenerates lib/src/bindings/*.g.dart from the native C header (gitignored).
-  # Run via scripts/generate-ffigen-code.sh (auto-invoked by build-runtime / download-sdk).
-  ffigen: ^13.0.0
+  flutter_lints: ^6.0.0
 
 flutter:
-  plugin:
-    platforms:
-      # FFI plugins: no Dart platform-interface, the native lib is bundled and
-      # loaded via dart:ffi. Each platform's build glue lives under its folder.
-      android:
-        ffiPlugin: true
-      ios:
-        ffiPlugin: true
-      macos:
-        ffiPlugin: true
-      linux:
-        ffiPlugin: true
-      windows:
-        ffiPlugin: true
+  # NOT an FFI plugin: the native libssruntime is delivered by the ssruntime_dart
+  # dependency via native assets (its hook/build.dart bundles the code asset), so
+  # there is no vendored framework / podspec / platform glue here.
 
   # PartColor (§10) fragment shader. Consumers get it as
   # `packages/ssplayer_flutter/shaders/partcolor.frag`; the plugin loads it
