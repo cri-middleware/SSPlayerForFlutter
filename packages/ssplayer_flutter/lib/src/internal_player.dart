@@ -11,15 +11,6 @@ import 'render/part_color.dart';
 import 'package:ssruntime_dart/framedata.dart' as fbs;
 import 'texture_registry.dart';
 
-/// How the `.ssab` bytes are handed to the Brain.
-///
-///  * [borrow] — the Body owns the bytes (zero-copy). We keep a native copy of
-///    the bytes alive for the resource's whole lifetime. This is the native
-///    (dart:ffi) default.
-///  * [copy] — the Brain copies the bytes onto its own heap; ours can be freed
-///    immediately. Required for the Web (WASM) path where memory spaces differ.
-enum SsResourceMode { borrow, copy }
-
 /// Layer 2 — the Widget-agnostic drawing engine (ports the SDK's
 /// `SSInternalPlayer`).
 ///
@@ -31,22 +22,19 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable {
   SpriteStudioInternalPlayer._(
     this._context,
     this._resource,
-    this._ssabBuffer,
     this.textures,
   ) {
     // Backstop finalizers: if the caller forgets dispose(), the Brain-side
     // Context/Resource are still reclaimed on GC. The Arc refcount inside the
-    // runtime makes destroy order irrelevant. (The borrowed ssab buffer is not
-    // freed by a finalizer to avoid a use-after-free race with the resource;
-    // it is only freed by the explicit dispose() below — a minor leak on the
-    // GC-only path, which the docs accept.)
+    // runtime makes destroy order irrelevant. The Brain owns its own copy of
+    // the `.ssab` bytes (copy mode), so there is no Body-side buffer to keep
+    // alive or leak on the GC-only path.
     _contextFinalizer.attach(this, _context.cast(), detach: this);
     _resourceFinalizer.attach(this, _resource.cast(), detach: this);
   }
 
   ffi.Pointer<ffi.Void> _context;
   ffi.Pointer<ffi.Void> _resource;
-  ffi.Pointer<ffi.Uint8> _ssabBuffer; // native copy kept alive for borrow
 
   /// texture_hash → decoded image / shader. Populated by the caller.
   final TextureRegistry textures;
@@ -132,38 +120,35 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable {
   factory SpriteStudioInternalPlayer.load(
     Uint8List ssab, {
     TextureRegistry? textures,
-    SsResourceMode mode = SsResourceMode.borrow,
   }) {
-    // Copy the ssab bytes into native memory. For borrow the Brain references
-    // this block directly, so it must outlive the resource.
-    final buf = malloc<ffi.Uint8>(ssab.length);
-    buf.asTypedList(ssab.length).setAll(0, ssab);
-
-    // ffigen types the C `const unsigned char *` as Pointer<UnsignedChar>.
-    final resource = mode == SsResourceMode.borrow
-        ? ss_resource_create_borrow(buf.cast(), ssab.length)
-        : ss_resource_create_copy(buf.cast(), ssab.length);
-    if (resource == ffi.nullptr) {
-      malloc.free(buf);
-      throw StateError('ss_resource_create_* returned null (bad .ssab?)');
+    // `TypedData.address` gives a pointer straight into `ssab`'s Dart-heap
+    // backing store; it is only valid as the argument of a *leaf* @Native call
+    // (`ss_resource_create_copy` is marked leaf in ffigen.yaml). It requires a
+    // non-empty list.
+    if (ssab.isEmpty) {
+      throw ArgumentError.value(ssab, 'ssab', 'must not be empty');
     }
-    // For copy the Brain has its own duplicate; release ours right away.
-    var keepBuf = buf;
-    if (mode == SsResourceMode.copy) {
-      malloc.free(buf);
-      keepBuf = ffi.nullptr;
+
+    // Zero-copy hand-off: the Brain copies the bytes onto its own heap inside
+    // this call and never retains the pointer, so we pass `ssab` directly — no
+    // Body-side malloc/memcpy. A leaf call reaches no safepoint, so the GC can
+    // not move the list mid-call and the pointer stays valid for the whole
+    // call. (Copy is also the only mode that works on the Web/WASM path, where
+    // the Body's and Brain's memory spaces differ.) ffigen types the C
+    // `const unsigned char *` as Pointer<UnsignedChar>, hence the .cast().
+    final resource = ss_resource_create_copy(ssab.address.cast(), ssab.length);
+    if (resource == ffi.nullptr) {
+      throw StateError('ss_resource_create_copy returned null (bad .ssab?)');
     }
 
     final context = ss_runtime_create();
     if (context == ffi.nullptr) {
       ss_resource_destroy(resource);
-      if (keepBuf != ffi.nullptr) malloc.free(keepBuf);
       throw StateError('ss_runtime_create returned null');
     }
     if (!ss_runtime_bind_resource(context, resource)) {
       ss_runtime_destroy(context);
       ss_resource_destroy(resource);
-      if (keepBuf != ffi.nullptr) malloc.free(keepBuf);
       throw StateError('ss_runtime_bind_resource failed');
     }
 
@@ -179,7 +164,6 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable {
     return SpriteStudioInternalPlayer._(
       context,
       resource,
-      keepBuf,
       textures ?? TextureRegistry(),
     );
   }
@@ -517,10 +501,6 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable {
     if (_resource != ffi.nullptr) {
       ss_resource_destroy(_resource);
       _resource = ffi.nullptr;
-    }
-    if (_ssabBuffer != ffi.nullptr) {
-      malloc.free(_ssabBuffer);
-      _ssabBuffer = ffi.nullptr;
     }
     calloc.free(_outFloatPtr);
     calloc.free(_outBytePtr);

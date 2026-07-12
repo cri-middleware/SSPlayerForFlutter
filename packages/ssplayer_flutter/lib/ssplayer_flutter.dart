@@ -13,10 +13,7 @@ export 'src/render/sprite_studio_view.dart';
 export 'src/player.dart' show SpriteStudioPlayer, SsEventCallback;
 
 // Layer 2 — Widget-agnostic draw engine (reusable headless / Flame / GPU).
-export 'src/internal_player.dart'
-    show
-        SpriteStudioInternalPlayer,
-        SsResourceMode;
+export 'src/internal_player.dart' show SpriteStudioInternalPlayer;
 export 'src/texture_registry.dart' show TextureRegistry;
 export 'src/texture_loader.dart' show SsTextureLoader, TextureLoadReport;
 export 'src/ssab_info.dart' show SsAnimeInfo;

@@ -20,6 +20,14 @@ headers:
 functions:
   include:
     - "ss_.*"
+  # Mark as a leaf call so the Body can pass a `Uint8List.address` (a pointer
+  # straight into the Dart-heap backing store) instead of malloc'ing a native
+  # scratch copy: `ss_resource_create_copy` copies the bytes onto the Brain's
+  # own heap synchronously and never retains the pointer, and a leaf call has no
+  # safepoint so the GC cannot move the list mid-call. See internal_player.load.
+  leaf:
+    include:
+      - "ss_resource_create_copy"
 structs:
   include:
     - "ss_.*"
