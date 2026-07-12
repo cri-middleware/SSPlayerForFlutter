@@ -43,3 +43,10 @@ flutter:
         ffiPlugin: true
       windows:
         ffiPlugin: true
+
+  # PartColor (§10) fragment shader. Consumers get it as
+  # `packages/ssplayer_flutter/shaders/partcolor.frag`; the plugin loads it
+  # lazily (only when a part actually carries a PartColor), so animations that
+  # never use PartColor pay nothing and keep the stock textured path.
+  shaders:
+    - shaders/partcolor.frag

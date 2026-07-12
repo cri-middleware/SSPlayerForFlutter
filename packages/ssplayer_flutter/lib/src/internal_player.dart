@@ -8,6 +8,7 @@ import 'bindings/ssruntime_bindings.g.dart';
 import 'bindings/ssruntime_library.dart';
 import 'render/blend.dart';
 import 'render/geometry_builder.dart';
+import 'render/part_color.dart';
 import 'ssab/framedata.g.dart' as fbs;
 import 'texture_registry.dart';
 
@@ -87,6 +88,53 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable {
   /// Pure SoA→`ui.Vertices` baker (Widget/FFI-free); the per-kind builders grow
   /// here as Phase-2 kinds are ported.
   final GeometryBuilder _geometry = GeometryBuilder();
+
+  /// PartColor (§10) fragment program, compiled once and shared across players.
+  /// Loading is async but `paint` is synchronous, so it is kicked off lazily the
+  /// first time a PartColored part is seen; until it resolves those parts fall
+  /// back to the plain textured draw (visible, just un-tinted for a frame or two).
+  /// A load failure (e.g. no asset bundle in a headless test) latches
+  /// [_partColorProgramFailed] so we stop retrying and keep the fallback.
+  static ui.FragmentProgram? _partColorProgram;
+  static bool _partColorProgramLoading = false;
+  static bool _partColorProgramFailed = false;
+
+  static const String _partColorShaderAsset =
+      'packages/ssplayer_flutter/shaders/partcolor.frag';
+
+  /// Reused `FragmentShader` instances (one per PartColored part in a frame).
+  /// Each draw in a Picture reads its shader's uniforms at raster time, so parts
+  /// in the SAME frame need DISTINCT shader objects; across frames the pool is
+  /// re-set (the documented, allocation-free reuse pattern). [_pcShaderCursor] is
+  /// rewound each [paint].
+  final List<ui.FragmentShader> _partColorShaders = <ui.FragmentShader>[];
+  int _pcShaderCursor = 0;
+
+  ui.FragmentShader _nextPartColorShader(ui.FragmentProgram program) {
+    if (_pcShaderCursor < _partColorShaders.length) {
+      return _partColorShaders[_pcShaderCursor++];
+    }
+    final shader = program.fragmentShader();
+    _partColorShaders.add(shader);
+    _pcShaderCursor++;
+    return shader;
+  }
+
+  /// Ensures the PartColor program is loading/loaded. Returns it if ready, else
+  /// null (caller uses the plain fallback this frame).
+  static ui.FragmentProgram? _ensurePartColorProgram() {
+    if (_partColorProgram != null) return _partColorProgram;
+    if (_partColorProgramFailed || _partColorProgramLoading) return null;
+    _partColorProgramLoading = true;
+    ui.FragmentProgram.fromAsset(_partColorShaderAsset).then((p) {
+      _partColorProgram = p;
+      _partColorProgramLoading = false;
+    }, onError: (Object _) {
+      _partColorProgramFailed = true;
+      _partColorProgramLoading = false;
+    });
+    return null;
+  }
 
   /// When true (default), rendering samples the Brain's fractional (sub-frame)
   /// frame number, giving smooth playback beyond the source FPS on high-refresh
@@ -314,9 +362,10 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable {
   /// [DrawFrame], centers the animation's world origin in [dst], then dispatches
   /// each `DrawBatch` on its `kind`.
   ///
-  /// Phase 1 draws the **Normal** batch path (see [_emitNormalBatch]); the other
-  /// kinds are pre-cut seams for Phase 2 (§8–§11) and skipped for now. BoxFit /
-  /// scale placement into [dst] is also Phase 2.
+  /// The **Normal** batch path (see [_emitNormalBatch]) covers plain textured
+  /// parts and PartColor (§10); the other kinds are pre-cut seams for Phase 2
+  /// (§8–§11) and skipped for now. BoxFit / scale placement into [dst] is also
+  /// Phase 2.
   void paint(ui.Canvas canvas, {ui.Rect? dst, ui.Size? sourceSize}) {
     _ensureAlive();
     // Sub-frame ON (default): sample the fractional frame for smooth playback;
@@ -339,6 +388,9 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable {
     final origin = dst?.center ??
         ui.Offset((sourceSize?.width ?? 0) / 2, (sourceSize?.height ?? 0) / 2);
 
+    // Rewind the per-frame PartColor shader pool (reused across frames).
+    _pcShaderCursor = 0;
+
     canvas.save();
     canvas.translate(origin.dx, origin.dy);
     for (final batch in batches) {
@@ -358,14 +410,133 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable {
     canvas.restore();
   }
 
-  /// Emits one Normal batch: bakes its geometry via [GeometryBuilder] and
-  /// composites it with the batch's texture shader and framebuffer blend.
+  /// Emits one Normal batch, preserving draw order.
+  ///
+  /// Walks `draw_order[start_rank .. +count)` and splits it into runs of plain
+  /// (non-PartColor) parts — baked together via [GeometryBuilder] and drawn with
+  /// the texture shader + framebuffer blend (the Phase-1 fast path) — with each
+  /// PartColored part (§10) peeled onto its own [_drawPartColorPart] shader draw
+  /// in between, so overlap order is unchanged. An animation with no PartColor
+  /// (e.g. Basic) collapses to a single run == the whole batch.
   void _emitNormalBatch(ui.Canvas canvas, fbs.DrawBatch batch, DrawFrame frame) {
-    final vertices = _geometry.buildNormalBatch(batch, frame);
-    if (vertices == null) return;
-    // 2nd arg modulates the vertex color (white × alpha) with the texture
-    // shader; paint.blendMode is the framebuffer composite (Mix/Add/Mul/Sub).
-    canvas.drawVertices(vertices, ui.BlendMode.modulate, _paintForBatch(batch));
+    final start = batch.startRank;
+    final count = batch.count;
+    if (count == 0) return;
+    final drawOrder = frame.drawOrder;
+    final paint = _paintForBatch(batch);
+    final blend = blendModeFor(batch.blendType);
+
+    final run = <int>[];
+    void flushRun() {
+      if (run.isEmpty) return;
+      // 2nd arg modulates the vertex color (white × alpha) with the texture
+      // shader; paint.blendMode is the framebuffer composite.
+      final vertices = _geometry.buildNormalParts(run, frame);
+      if (vertices != null) {
+        canvas.drawVertices(vertices, ui.BlendMode.modulate, paint);
+      }
+      run.clear();
+    }
+
+    for (var k = 0; k < count; k++) {
+      final orderIdx = start + k;
+      if (orderIdx >= drawOrder.length) break;
+      final p = drawOrder[orderIdx];
+      final part = frame.partByIndex[p];
+      final pc = part == null ? null : PartColor.read(frame.frameData, part);
+      if (pc == null) {
+        run.add(p);
+      } else {
+        flushRun();
+        _drawPartColorPart(canvas, p, pc, frame, batch, blend);
+      }
+    }
+    flushRun();
+  }
+
+  /// Draws one PartColored Normal part (§10) via `shaders/partcolor.frag`.
+  ///
+  /// The shader can take no per-vertex varyings, so the part is drawn on its own
+  /// quad and the per-corner colour/rate/UV gradient is reconstructed inside the
+  /// shader from a CPU-supplied affine ([GeometryBuilder.buildPartColorQuad]).
+  /// Falls back to the plain textured draw when the program isn't compiled yet or
+  /// the texture/quad is unavailable.
+  void _drawPartColorPart(ui.Canvas canvas, int part, PartColor pc,
+      DrawFrame frame, fbs.DrawBatch batch, ui.BlendMode blend) {
+    final program = _ensurePartColorProgram();
+    final image = textures.imageFor(batch.textureHash);
+    final quad = _geometry.buildPartColorQuad(part, frame);
+    if (program == null || image == null || quad == null) {
+      // Fallback: plain textured draw so the part stays visible (un-tinted).
+      final v = _geometry.buildNormalParts(<int>[part], frame);
+      if (v != null) {
+        canvas.drawVertices(v, ui.BlendMode.modulate, _paintForBatch(batch));
+      }
+      return;
+    }
+
+    final shader = _nextPartColorShader(program);
+    _setPartColorUniforms(shader, pc, quad,
+        texWidth: image.width.toDouble(), texHeight: image.height.toDouble());
+    shader.setImageSampler(0, image);
+
+    final c = quad.corners;
+    final path = ui.Path()
+      ..moveTo(c[0], c[1]) // lt
+      ..lineTo(c[2], c[3]) // rt
+      ..lineTo(c[6], c[7]) // rb
+      ..lineTo(c[4], c[5]) // lb
+      ..close();
+    canvas.drawPath(path, ui.Paint()..blendMode = blend..shader = shader);
+  }
+
+  /// Writes the [pc]/[quad] values into the fragment shader's float uniforms in
+  /// the exact declaration order of `shaders/partcolor.frag` (the sampler is set
+  /// separately by the caller and does not consume a float index).
+  static void _setPartColorUniforms(
+    ui.FragmentShader shader,
+    PartColor pc,
+    PartColorQuad quad, {
+    required double texWidth,
+    required double texHeight,
+  }) {
+    var i = 0;
+    void f(double v) => shader.setFloat(i++, v);
+    void corner(PartColorCorner c) {
+      f(c.r);
+      f(c.g);
+      f(c.b);
+      f(c.a);
+    }
+
+    f(quad.originX); // uOrigin
+    f(quad.originY);
+    f(quad.inv[0]); // uInv
+    f(quad.inv[1]);
+    f(quad.inv[2]);
+    f(quad.inv[3]);
+    f(texWidth); // uTexSize
+    f(texHeight);
+    f(pc.coef[0]); // uCoef
+    f(pc.coef[1]);
+    f(pc.coef[2]);
+    f(pc.coef[3]);
+    f(pc.lt.rate); // uRate (lt,rt,lb,rb)
+    f(pc.rt.rate);
+    f(pc.lb.rate);
+    f(pc.rb.rate);
+    corner(pc.lt); // uColLT..uColRB
+    corner(pc.rt);
+    corner(pc.lb);
+    corner(pc.rb);
+    f(quad.uvA[0]); // uUvA (lt.uv, rt.uv)
+    f(quad.uvA[1]);
+    f(quad.uvA[2]);
+    f(quad.uvA[3]);
+    f(quad.uvB[0]); // uUvB (lb.uv, rb.uv)
+    f(quad.uvB[1]);
+    f(quad.uvB[2]);
+    f(quad.uvB[3]);
   }
 
   /// Builds the [ui.Paint] for a batch: framebuffer blend (`render/blend.dart`)
@@ -397,5 +568,10 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable {
     calloc.free(_outFloatPtr);
     calloc.free(_outBytePtr);
     calloc.free(_outLen);
+
+    for (final shader in _partColorShaders) {
+      shader.dispose();
+    }
+    _partColorShaders.clear();
   }
 }

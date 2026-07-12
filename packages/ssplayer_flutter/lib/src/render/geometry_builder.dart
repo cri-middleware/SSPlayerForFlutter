@@ -70,6 +70,38 @@ class DrawFrame {
       (partByIndex[partIndex]?.alpha ?? 1.0).clamp(0.0, 1.0);
 }
 
+/// Per-part quad + affine map for the PartColor shader path (parts_color §1).
+///
+/// The four world-transformed corners drive a fill path; `origin` + `inv` map a
+/// fragment position back to quad-local `(s,t)` inside `shaders/partcolor.frag`
+/// (`s = inv[0]·dx + inv[1]·dy`, `t = inv[2]·dx + inv[3]·dy`, `d = frag - origin`),
+/// and `uvA`/`uvB` carry the corner UVs (texture pixels) the shader bilinearly
+/// samples. Built by [GeometryBuilder.buildPartColorQuad].
+class PartColorQuad {
+  const PartColorQuad({
+    required this.corners,
+    required this.originX,
+    required this.originY,
+    required this.inv,
+    required this.uvA,
+    required this.uvB,
+  });
+
+  /// World corners, 8 floats: `ltx,lty, rtx,rty, lbx,lby, rbx,rby`.
+  final Float32List corners;
+
+  /// LT world corner — the affine's frag-space origin (shader `uOrigin`).
+  final double originX;
+  final double originY;
+
+  /// 2×2 inverse affine `[m00,m01,m10,m11]` mapping `frag - origin` → `(s,t)`.
+  final Float32List inv;
+
+  /// `(LT.u,LT.v, RT.u,RT.v)` and `(LB.u,LB.v, RB.u,RB.v)` in texture pixels.
+  final Float32List uvA;
+  final Float32List uvB;
+}
+
 /// Bakes the Brain's SoA buffers into `ui.Vertices` for `Canvas.drawVertices`
 /// (design §7C).
 ///
@@ -88,18 +120,20 @@ class GeometryBuilder {
   /// Two triangles per quad: `lt,rt,lb,rb` → `{lt,rt,lb, rt,rb,lb}`.
   static const List<int> _quad = [0, 1, 2, 1, 3, 2];
 
-  /// Bakes one Normal batch into a single indexed [ui.Vertices]: for each part
-  /// in `draw_order[start_rank .. start_rank+count)`, transforms its 4 local
-  /// corners (lt,rt,lb,rb) by the world matrix (`x'=m0·x+m4·y+m12`,
-  /// `y'=m1·x+m5·y+m13`), copies the texture-pixel UVs as-is, sets each vertex
-  /// color to white × part alpha, and appends the quad indices. Returns null
-  /// when nothing was emitted.
-  ui.Vertices? buildNormalBatch(fbs.DrawBatch batch, DrawFrame frame) {
-    final count = batch.count;
+  /// Bakes the given [parts] (part indices, already in draw order) into a single
+  /// indexed [ui.Vertices]: for each part transforms its 4 local corners
+  /// (lt,rt,lb,rb) by the world matrix (`x'=m0·x+m4·y+m12`, `y'=m1·x+m5·y+m13`),
+  /// copies the texture-pixel UVs as-is, sets each vertex color to white × part
+  /// alpha, and appends the quad indices. Returns null when nothing was emitted.
+  ///
+  /// The caller (internal player) passes a *run* of consecutive plain (non-
+  /// PartColor) parts so PartColored parts can be peeled onto their own shader
+  /// draw without disturbing z-order; an all-plain batch is one run == the whole
+  /// batch (identical to the old single-bake path).
+  ui.Vertices? buildNormalParts(List<int> parts, DrawFrame frame) {
+    final count = parts.length;
     if (count == 0) return null;
 
-    final start = batch.startRank;
-    final drawOrder = frame.drawOrder;
     final world = frame.world;
     final local = frame.local;
     final uv = frame.uv;
@@ -115,9 +149,7 @@ class GeometryBuilder {
     var iPos = 0; // index cursor
 
     for (var k = 0; k < count; k++) {
-      final orderIdx = start + k;
-      if (orderIdx >= drawOrder.length) break;
-      final p = drawOrder[orderIdx];
+      final p = parts[k];
 
       final m = p * DrawFrame.worldStride;
       final v = p * DrawFrame.vertexStride; // local vertices & UVs share stride
@@ -157,6 +189,68 @@ class GeometryBuilder {
       textureCoordinates: texCoords.sublist(0, fPos),
       colors: colors.sublist(0, cPos),
       indices: indices.sublist(0, iPos),
+    );
+  }
+
+  /// Builds the world quad + frag→`(s,t)` affine for part [part]'s PartColor
+  /// shader draw (parts_color §1). Transforms the four local corners
+  /// (`lt,rt,lb,rb`) by the world matrix, takes `du = rt-lt`, `dv = lb-lt`, and
+  /// inverts `[du dv]` so the shader can recover quad-local coordinates from a
+  /// fragment position.
+  ///
+  /// Returns null when the SoA is out of range or the quad is degenerate
+  /// (`|det| ~ 0`, e.g. a zero-size part) — nothing visible to draw. Assumes a
+  /// non-deformed (affine) quad, which holds for a Normal sprite; vertex-deform
+  /// (`AttributeVertex`) breaks the affine assumption and is handled with the
+  /// Mesh/deform path.
+  PartColorQuad? buildPartColorQuad(int part, DrawFrame frame) {
+    final world = frame.world;
+    final local = frame.local;
+    final uv = frame.uv;
+    final m = part * DrawFrame.worldStride;
+    final v = part * DrawFrame.vertexStride;
+    if (m + 16 > world.length || v + 8 > local.length || v + 8 > uv.length) {
+      return null;
+    }
+
+    final m0 = world[m], m1 = world[m + 1];
+    final m4 = world[m + 4], m5 = world[m + 5];
+    final m12 = world[m + 12], m13 = world[m + 13];
+
+    // World corners: lt=(0,1) rt=(2,3) lb=(4,5) rb=(6,7).
+    final corners = Float32List(8);
+    for (var c = 0; c < 4; c++) {
+      final lx = local[v + c * 2];
+      final ly = local[v + c * 2 + 1];
+      corners[c * 2] = m0 * lx + m4 * ly + m12;
+      corners[c * 2 + 1] = m1 * lx + m5 * ly + m13;
+    }
+
+    final ltx = corners[0], lty = corners[1];
+    // du = rt - lt (s-axis), dv = lb - lt (t-axis).
+    final dux = corners[2] - ltx, duy = corners[3] - lty;
+    final dvx = corners[4] - ltx, dvy = corners[5] - lty;
+    final det = dux * dvy - dvx * duy;
+    if (det.abs() < 1e-6) return null; // degenerate quad — nothing to draw
+
+    final invDet = 1.0 / det;
+    // [s;t] = inv([du dv]) · (frag - lt).
+    final inv = Float32List.fromList(<double>[
+      dvy * invDet, // m00
+      -dvx * invDet, // m01
+      -duy * invDet, // m10
+      dux * invDet, // m11
+    ]);
+
+    return PartColorQuad(
+      corners: corners,
+      originX: ltx,
+      originY: lty,
+      inv: inv,
+      uvA: Float32List.fromList(
+          <double>[uv[v], uv[v + 1], uv[v + 2], uv[v + 3]]),
+      uvB: Float32List.fromList(
+          <double>[uv[v + 4], uv[v + 5], uv[v + 6], uv[v + 7]]),
     );
   }
 }

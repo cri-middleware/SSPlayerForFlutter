@@ -14,8 +14,9 @@ import '../ssab/framedata.g.dart' as fbs;
 ///   approximated), everything else → srcOver.
 ///
 /// The 4-mode **PartColor** blend (§10) is a *shader-side* concern, unrelated to
-/// this framebuffer mapping; its coefficient table (`_PartColorCoef`) will live
-/// alongside this mapping once the `FragmentProgram` path lands (Phase 2).
+/// this framebuffer mapping; its coefficient table ([partColorCoef]) lives
+/// alongside this mapping (the `FragmentProgram` path — `render/part_color.dart`
+/// + `shaders/partcolor.frag`).
 ui.BlendMode blendModeFor(fbs.BlendType type) {
   switch (type) {
     case fbs.BlendType.Add:
@@ -29,5 +30,29 @@ ui.BlendMode blendModeFor(fbs.BlendType type) {
     case fbs.BlendType.Mix:
     default:
       return ui.BlendMode.srcOver;
+  }
+}
+
+/// Shader-side PartColor coefficient row for [type] (parts_color §1-4): the
+/// `_PartColorCoef` table `(fSrc, fDst, fDstSrc/mulFlag, 0)`. The `partcolor.frag`
+/// shader combines it with the per-fragment `rate` into
+/// `varg = (1 + fSrc·rate, fDst·rate, fDstSrc, pma)` and evaluates
+/// `pixel·varg.x + mix(1, pixel, varg.z)·color·varg.y`.
+///
+/// Only **Mix / Mul / Add / Sub** are valid PartColor modes; every other
+/// `BlendType` (those are framebuffer-composite modes) clamps to **Mix** (§1-1).
+/// Passing this row as a per-part uniform keeps the shader branch- and
+/// index-free (no dynamic array lookup in GLSL).
+List<double> partColorCoef(fbs.BlendType type) {
+  switch (type) {
+    case fbs.BlendType.Mul:
+      return const [-1.0, 1.0, 1.0, 0.0];
+    case fbs.BlendType.Add:
+      return const [0.0, 1.0, 0.0, 0.0];
+    case fbs.BlendType.Sub:
+      return const [0.0, -1.0, 0.0, 0.0];
+    case fbs.BlendType.Mix:
+    default:
+      return const [-1.0, 1.0, 0.0, 0.0];
   }
 }

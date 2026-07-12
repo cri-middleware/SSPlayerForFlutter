@@ -31,21 +31,34 @@ class _PlayerPageState extends State<PlayerPage>
   late final SpriteStudioPlayer _player;
   String _status = 'loading…';
 
-  // The Phase-1 validation target from the SDK roadmap: play overall.sspj's
-  // Basic pack and compare against the editor.
   static const _assetDir = 'assets/overall';
-  static const _ssabAsset = '$_assetDir/Basic.ssab';
+
+  // overall.sspj packs, switchable from the dropdown to eyeball each feature
+  // against the SS7 editor. PartsColor (§10, roadmap step 2) is the default so a
+  // bare `flutter run` lands on the current verification target.
+  static const _packs = <String>[
+    'PartsColor',
+    'Basic',
+    'BlendMode',
+    'Interpolation',
+  ];
+  String _pack = 'PartsColor';
 
   @override
   void initState() {
     super.initState();
     _player = SpriteStudioPlayer(vsync: this);
-    _load();
+    _load(_pack);
   }
 
-  Future<void> _load() async {
+  Future<void> _load(String pack) async {
+    setState(() {
+      _pack = pack;
+      _status = 'loading "$pack"…';
+    });
     try {
-      final ByteData data = await rootBundle.load(_ssabAsset);
+      final asset = '$_assetDir/$pack.ssab';
+      final ByteData data = await rootBundle.load(asset);
       final Uint8List bytes = data.buffer.asUint8List();
       // Pick the first animation in the pack (name comes from the .ssab).
       final animName = SsAnimeInfo(bytes).animationNames.first;
@@ -55,6 +68,8 @@ class _PlayerPageState extends State<PlayerPage>
         animationName: animName,
         baseAssetDir: _assetDir,
       );
+      // Guard against a newer selection winning the race while we awaited.
+      if (!mounted || _pack != pack) return;
       _player
         ..loop = -1
         ..play();
@@ -68,7 +83,7 @@ class _PlayerPageState extends State<PlayerPage>
     } catch (e, st) {
       // ignore: avoid_print
       print('[ssplayer] FAILED: $e\n$st');
-      setState(() => _status = 'failed: $e');
+      if (mounted) setState(() => _status = 'failed: $e');
     }
   }
 
@@ -81,7 +96,24 @@ class _PlayerPageState extends State<PlayerPage>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('ssplayer_flutter')),
+      appBar: AppBar(
+        title: const Text('ssplayer_flutter'),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: DropdownButton<String>(
+              value: _pack,
+              onChanged: (v) {
+                if (v != null && v != _pack) _load(v);
+              },
+              items: [
+                for (final p in _packs)
+                  DropdownMenuItem<String>(value: p, child: Text(p)),
+              ],
+            ),
+          ),
+        ],
+      ),
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
