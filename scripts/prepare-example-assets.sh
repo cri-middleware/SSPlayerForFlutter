@@ -33,8 +33,9 @@ command -v dart >/dev/null || {
 
 # The non-embedded converter writes the .ssab files AND copies the referenced
 # textures/fonts/sounds into OUT_DIR, so this single call produces the complete
-# example asset tree. libssconverter is resolved from the package's native/libs
-# (build-runtime.sh / download-sdk.sh) or $SSCONVERTER_LIBRARY_PATH.
+# example asset tree. libssconverter is delivered via native assets — the
+# package's hook/build.dart bundles the prebuilt dylib (build-runtime.sh /
+# download-sdk.sh produce it); no SSCONVERTER_LIBRARY_PATH needed.
 echo "Converting tests/overall/overall.sspj via ssconvert (Dart) ..."
 mkdir -p "$OUT_DIR"
 ( cd "$CONV_PKG" && dart pub get >/dev/null 2>&1 && \

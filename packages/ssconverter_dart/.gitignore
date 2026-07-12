@@ -1,0 +1,6 @@
+# The repo-root .gitignore carries a .NET/Visual-Studio rule (`**/[Bb]in/*`,
+# "Build results on 'Bin' directories") that would ignore this package's CLI
+# source. `bin/` here holds a committed Dart executable (bin/ssconvert.dart, the
+# `ssconvert` entry point), so re-include it.
+!bin/
+!bin/*.dart
