@@ -11,16 +11,17 @@
 # (fast). android / ios / web are toolchain-heavy cross builds and delegate to
 # the SDK's own release scripts (SpriteStudio-SDK/scripts/release-*).
 #
-# Output layout (LIB_ROOT = packages/ssplayer_flutter/native):
-#   native/libs/macos/libssruntime.framework        (universal on build=release; runtime, embedded)
-#   (libssconverter → packages/ssconverter_dart/native/libs/<platform>/; host tool)
-#   native/libs/windows/<arch>/ssruntime.dll
-#   native/libs/linux/<arch>/libssruntime.so
-#   native/libs/android/<abi>/libssruntime.so
-#   native/libs/ios/libssruntime.xcframework
-#   native/libs/web/...                              (wasm bundle)
-#   native/libs/LICENSE.md
-#   native/VERSION
+# Output layout — each library lands in the binding package that bundles it as a
+# native-assets code asset (hook/build.dart), NOT in ssplayer_flutter:
+#   libssruntime   → packages/ssruntime_dart/native/libs/<platform>/[<arch>]/   (bare dylib/.so/.dll)
+#   libssconverter → packages/ssconverter_dart/native/libs/<platform>/[<arch>]/ (host tool)
+#   packages/ssruntime_dart/native/libs/LICENSE.md, THIRD-PARTY-LICENSES.ssruntime.md
+#   packages/ssruntime_dart/native/VERSION            (SDK release stamp; download-sdk cache check)
+#   packages/ssconverter_dart/native/libs/LICENSE.md
+# No macos framework / macos/Frameworks symlink: native assets replace the
+# CocoaPods framework path (Flutter re-wraps the bare dylib at build time).
+# (NB: ios/web outputs still land under ssplayer_flutter/native/libs pending a
+# follow-up migration; host desktop platforms use the layout above.)
 #
 # After building, this copies the SDK build.rs-emitted plain-C headers into
 # native/include/ and regenerates the ffigen bindings (scripts/generate-ffigen-code.sh).
@@ -100,13 +101,21 @@ place_rt() { mkdir -p "$RT_LIBS_DIR/$1"; cp "$2" "$RT_LIBS_DIR/$1/${3:-$(basenam
 # Read the SDK workspace version (for the framework Info.plist on the host path).
 sdk_version() { sed -n 's/^version = "\(.*\)"/\1/p' "$SDK_DIR/Cargo.toml" | head -1; }
 
-mkdir -p "$LIBS_DIR"
-# licenses
-[ -f "$SDK_DIR/LICENSE.md" ] && cp "$SDK_DIR/LICENSE.md" "$LIBS_DIR/"
+# Licenses ship next to the library they cover: the SDK LICENSE.md with BOTH
+# binding packages (each ships a CRI dylib), the ssruntime third-party notices
+# with ssruntime_dart (and the ssconverter notices with ssconverter_dart, if any).
+mkdir -p "$RT_LIBS_DIR" "$CONV_LIBS_DIR"
+if [ -f "$SDK_DIR/LICENSE.md" ]; then
+  cp "$SDK_DIR/LICENSE.md" "$RT_LIBS_DIR/"
+  cp "$SDK_DIR/LICENSE.md" "$CONV_LIBS_DIR/"
+fi
 [ -f "$SDK_DIR/target/licenses/THIRD-PARTY-LICENSES.ssruntime.md" ] && \
-  cp "$SDK_DIR/target/licenses/THIRD-PARTY-LICENSES.ssruntime.md" "$LIBS_DIR/"
-# record the version we built from (used by download-sdk.sh cache check too)
-[ -f "$ROOT_DIR/scripts/SDK_VERSION.txt" ] && cp "$ROOT_DIR/scripts/SDK_VERSION.txt" "$LIB_ROOT/VERSION"
+  cp "$SDK_DIR/target/licenses/THIRD-PARTY-LICENSES.ssruntime.md" "$RT_LIBS_DIR/"
+[ -f "$SDK_DIR/target/licenses/THIRD-PARTY-LICENSES.ssconverter.md" ] && \
+  cp "$SDK_DIR/target/licenses/THIRD-PARTY-LICENSES.ssconverter.md" "$CONV_LIBS_DIR/"
+# record the version we built from — the SDK release stamp lives with the runtime
+# package (download-sdk.sh reads it as its cache check).
+[ -f "$ROOT_DIR/scripts/SDK_VERSION.txt" ] && cp "$ROOT_DIR/scripts/SDK_VERSION.txt" "$RT_PKG_DIR/native/VERSION"
 
 T="$SDK_DIR/target"
 case "$PLATFORM" in

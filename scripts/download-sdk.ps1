@@ -4,19 +4,23 @@
 # them into the Flutter package so the app can be built without a Rust toolchain.
 # PowerShell counterpart of scripts/download-sdk.sh:
 #   - target version comes from scripts/SDK_VERSION.txt
-#   - the cache stamp lives at packages/ssplayer_flutter/native/VERSION
+#   - the cache stamp lives at packages/ssruntime_dart/native/VERSION
 #     (build-runtime.ps1 writes the same file), so a matching version skips the
 #     download.
-#   - artifacts land in packages/ssplayer_flutter/native/ (libs/<platform>/...,
-#     include/, VERSION).
+#   - artifacts currently unpack into packages/ssplayer_flutter/native/; splitting
+#     them across ssruntime_dart / ssconverter_dart (to match build-runtime's
+#     native-assets layout) is a pending follow-up — see NOTE at the Artifact line.
 
 $ErrorActionPreference = "Stop"
 
 $RootDir            = Split-Path -Parent (Split-Path -Parent $PSCommandPath)
 $ScriptDir          = Split-Path -Parent $PSCommandPath
+# Unpack destination (pending migration to the ssruntime_dart / ssconverter_dart
+# native-assets layout — see NOTE below); the SDK-version cache stamp, however,
+# lives with the runtime package to match build-runtime.ps1's writer.
 $NativeDir          = Join-Path $RootDir "packages/ssplayer_flutter/native"
 $VersionFile        = Join-Path $ScriptDir "SDK_VERSION.txt"
-$CurrentVersionFile = Join-Path $NativeDir "VERSION"
+$CurrentVersionFile = Join-Path $RootDir "packages/ssruntime_dart/native/VERSION"
 
 $TargetVersion = (Get-Content $VersionFile).Trim()
 
@@ -49,19 +53,12 @@ Write-Host "Extracting SDK..."
 Expand-Archive -Path $ZipFile -DestinationPath $NativeDir -Force
 Remove-Item $ZipFile
 
-# CocoaPods only embeds a vendored framework at/below the podspec dir, so symlink
-# the unpacked macOS framework under the plugin's macos/Frameworks/ (same as
-# build-runtime.ps1). No-op when the artifact has no macOS framework.
-if (Test-Path (Join-Path $NativeDir "libs/macos/libssruntime.framework")) {
-    $podFwDir = Join-Path $RootDir "packages/ssplayer_flutter/macos/Frameworks"
-    New-Item -ItemType Directory -Force -Path $podFwDir | Out-Null
-    $podFwLink = Join-Path $podFwDir "libssruntime.framework"
-    if (Test-Path $podFwLink) { Remove-Item -Recurse -Force $podFwLink }
-    New-Item -ItemType SymbolicLink -Path $podFwLink -Target "../../native/libs/macos/libssruntime.framework" -Force | Out-Null
-    Write-Host "   -> macos/Frameworks/libssruntime.framework -> ../../native/libs/macos/libssruntime.framework"
-}
+# No macos/Frameworks symlink: the Brain is delivered as a native-assets code
+# asset (ssruntime_dart/hook/build.dart), so Flutter embeds it automatically —
+# there is no vendored CocoaPods framework to link.
 
-# stamp the cache with the version we just unpacked
+# stamp the cache with the version we just unpacked (next to the runtime package)
+New-Item -ItemType Directory -Force -Path (Split-Path -Parent $CurrentVersionFile) | Out-Null
 Set-Content -Path $CurrentVersionFile -Value $TargetVersion
 
 # Regenerate the Layer-1 ffigen bindings from the unpacked C headers
