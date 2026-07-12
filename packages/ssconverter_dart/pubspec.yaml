@@ -1,0 +1,31 @@
+name: ssconverter_dart
+description: >-
+  Host-side SpriteStudio 7 converter for the Flutter ecosystem. A dart:ffi CLI +
+  library over the SpriteStudio-SDK "ssconverter" that turns .sspj projects into
+  optimized .ssab binaries (optionally self-contained / embedded). Desktop only
+  (Windows / macOS / Linux); pure Dart, no Flutter dependency — the companion of
+  the ssplayer_flutter runtime.
+version: 0.1.0-dev.1
+repository: https://github.com/cri-middleware/SSPlayerForFlutter
+publish_to: none # not yet published to pub.dev
+
+# Host CLI: `dart run ssconverter_dart:ssconvert <sspj>` (.sspj → .ssab).
+executables:
+  ssconvert:
+
+environment:
+  sdk: ">=3.3.0 <4.0.0"
+
+dependencies:
+  # dart:ffi helpers (Utf8, malloc/calloc).
+  ffi: ^2.1.0
+  # CLI arg parsing for bin/ssconvert.dart.
+  args: ^2.4.0
+
+dev_dependencies:
+  test: ^1.24.0
+  lints: ^4.0.0
+  # Regenerates lib/src/ssconverter_bindings.g.dart from native/include/ssconverter.h
+  # (gitignored). Run via scripts/generate-ffigen-code.sh (auto-invoked by
+  # build-runtime / download-sdk).
+  ffigen: ^13.0.0

@@ -37,7 +37,7 @@ SSPlayerForFlutter/
 │   ├── generate-ffigen-code.{sh,ps1}     # ffigen（Dart FFI）。build-runtime/download-sdk が自動実行
 │   ├── generate-fbs-code.{sh,ps1}        # flatc（.ssab/FrameData の Dart アクセサ）。.fbs 変更時のみ
 │   ├── download-sdk.{sh,ps1}             # GitHub Releases のプリビルドを DL/展開（SDK_VERSION.txt 準拠）
-│   └── prepare-example-assets.sh         # overall.sspj → .ssab を example/assets へ
+│   └── prepare-example-assets.sh         # overall.sspj → .ssab（Dart ssconvert 経由・Rust 不要）
 ├── packages/ssplayer_flutter/            # 配布する pub パッケージ（FFI plugin）
 │   ├── lib/
 │   │   ├── ssplayer_flutter.dart         # 公開 API
@@ -54,6 +54,13 @@ SSPlayerForFlutter/
 │   ├── native/                           # [生成物] include/ + libs/<platform>/<arch>/（gitignore）
 │   ├── macos/Frameworks/                 # [生成物] native/libs/macos/libssruntime.framework へのシンボリックリンク（gitignore）
 │   ├── {android,ios,macos,linux,windows}/  # 各プラットフォームのビルド接続
+│   ├── ffigen.yaml
+│   └── pubspec.yaml
+├── packages/ssconverter_dart/            # ホスト変換ツール（純 Dart・desktop 専用）
+│   ├── lib/ssconverter_dart.dart         # 公開 API（SsConverter / SsConverterLibrary）
+│   ├── lib/src/                          # converter.dart・ローダ・ffigen 生成物（gitignore）
+│   ├── bin/ssconvert.dart                # dart run ssconverter_dart:ssconvert
+│   ├── native/                           # [生成物] include/ssconverter.h + libs/<platform>/（gitignore）
 │   ├── ffigen.yaml
 │   └── pubspec.yaml
 └── example/                              # overall.ssab 検証用の Flutter アプリ

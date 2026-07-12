@@ -1,14 +1,19 @@
 #!/usr/bin/env bash
 #
-# Convert the SDK's bundled test project (tests/overall/overall.sspj) into
-# .ssab assets for the example app, using ssconverter-cli. Output lands in
-# example/assets/overall/ (referenced by example/pubspec.yaml).
+# Convert the SDK's bundled test project (tests/overall/overall.sspj) into .ssab
+# assets for the example app, using the Dart `ssconvert` CLI (ssconverter_dart).
+# It loads the PREBUILT libssconverter over dart:ffi, so this needs NO Rust
+# toolchain — get the native libs via scripts/download-sdk.sh (or build-runtime.sh).
+# All the sibling players share this "Rust-free for customizers" philosophy.
+# Output lands in example/assets/overall/ (referenced by example/pubspec.yaml).
 #
-# SDK location: $SSSDK, else ./SpriteStudio-SDK, else ../SpriteStudio-SDK.
+# SDK location (for the source .sspj): $SSSDK, else ./SpriteStudio-SDK, else
+# ../SpriteStudio-SDK.
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 OUT_DIR="$ROOT_DIR/example/assets/overall"
+CONV_PKG="$ROOT_DIR/packages/ssconverter_dart"
 
 SDK_DIR="${SSSDK:-}"
 if [ -z "$SDK_DIR" ]; then
@@ -16,19 +21,23 @@ if [ -z "$SDK_DIR" ]; then
     if [ -f "$cand/Cargo.toml" ]; then SDK_DIR="$(cd "$cand" && pwd)"; break; fi
   done
 fi
-[ -n "$SDK_DIR" ] && [ -f "$SDK_DIR/Cargo.toml" ] || {
-  echo "prepare-example-assets.sh: SpriteStudio-SDK not found" >&2; exit 1; }
+[ -n "$SDK_DIR" ] && [ -f "$SDK_DIR/tests/overall/overall.sspj" ] || {
+  echo "prepare-example-assets.sh: overall.sspj not found (init the SpriteStudio-SDK submodule or set SSSDK)" >&2
+  exit 1
+}
 
-echo "Building ssconverter-cli (release)..."
-( cd "$SDK_DIR" && cargo build --release -p ssconverter-cli )
-CLI="$SDK_DIR/target/release/ssconverter-cli"
+command -v dart >/dev/null || {
+  echo "prepare-example-assets.sh: dart not found (install the Dart/Flutter SDK)" >&2
+  exit 1
+}
 
-echo "Converting tests/overall/overall.sspj ..."
-( cd "$SDK_DIR" && "$CLI" tests/overall/overall.sspj )
-
+# The non-embedded converter writes the .ssab files AND copies the referenced
+# textures/fonts/sounds into OUT_DIR, so this single call produces the complete
+# example asset tree. libssconverter is resolved from the package's native/libs
+# (build-runtime.sh / download-sdk.sh) or $SSCONVERTER_LIBRARY_PATH.
+echo "Converting tests/overall/overall.sspj via ssconvert (Dart) ..."
 mkdir -p "$OUT_DIR"
-# The converter writes .ssab (and copies textures) next to the project under
-# tests/overall/overall/. Mirror that tree into the example assets.
-cp -R "$SDK_DIR/tests/overall/overall/." "$OUT_DIR/"
+( cd "$CONV_PKG" && dart pub get >/dev/null 2>&1 && \
+  dart run ssconverter_dart:ssconvert -o "$OUT_DIR" "$SDK_DIR/tests/overall/overall.sspj" )
 echo "   -> example/assets/overall/"
 echo "prepare-example-assets.sh: done."

@@ -7,6 +7,10 @@ packages/ssplayer_flutter/macos/Frameworks/
 # accessors under lib/src/ssab/ stay committed (schema-driven; generate-fbs-code).
 packages/ssplayer_flutter/lib/src/bindings/*.g.dart
 
+# ssconverter_dart (host converter package): native libs + headers + ffigen output.
+packages/ssconverter_dart/native
+packages/ssconverter_dart/lib/src/ssconverter_bindings.g.dart
+
 # Example assets are derived from the SDK test projects (scripts/prepare-example-assets.sh)
 example/assets/overall/
 
