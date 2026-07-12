@@ -17,8 +17,9 @@
   - [`../AGENTS.md`](../AGENTS.md) — 実装規約・要注意点（FFI 寿命 / macOS framework 同梱 / `updateFlag` の罠 / UV ピクセル座標 / 再ハッシュ禁止）。
   - [`../README.md`](../README.md) — 構成・セットアップ・テスト・Dart API 使い方。
   - `SpriteStudio-SDK/libs/ssruntime/docs/30_core/30_render_loop.ja.md` — レンダリング契約（一次情報）。
-- **主要ファイル**: `packages/ssplayer_flutter/lib/src/{internal_player,player,texture_registry,texture_loader,ssab_info}.dart`、`render/sprite_studio_view.dart`、`bindings/`。
-- **次の作業（Phase 1 後半〜2）**: PartColor（§10, `FragmentProgram`）→ Mask（§9, カバレッジビットマップ）→ Mesh / Effect / Instance（§8）→ BoxFit スケール配置 → 各プラットフォーム同梱の実機検証（Linux/Windows/iOS/Android）。
+- **主要ファイル**: `packages/ssplayer_flutter/lib/src/{internal_player,player,texture_registry,texture_loader,ssab_info}.dart`、`render/{sprite_studio_view,geometry_builder,blend}.dart`、`bindings/`。
+- **描画の分割（リファクタ済み）**: L2 は「FFI ライフサイクル＋トランスポート＋ kind 別ディスパッチ」を持ち、頂点ベイクは純粋（Widget/FFI 非依存）な `GeometryBuilder`（`DrawFrame` バンドルを消費）へ、ブレンド写像は `render/blend.dart` へ切り出し済み。兄弟移植（Web `GeometryBuilder` / Unity `SpriteStudioGeometryBuilder` / Godot `_build_*`・`_emit_*`）に倣う。`paint()` の `switch (batch.kind)` は全 kind を列挙し、未移植 kind は Phase-2 の差し込み口として明示的にスキップする。
+- **次の作業（Phase 1 後半〜2）**: PartColor（§10, `FragmentProgram`）→ Mask（§9, カバレッジビットマップ）→ Mesh / Effect / Instance（§8）→ BoxFit スケール配置 → 各プラットフォーム同梱の実機検証（Linux/Windows/iOS/Android）。各 kind の実装は `GeometryBuilder` に build メソッドを足し、`paint()` の対応 case を埋める形で追加する。
 
 ### 実装と設計の差分（重要・設計書本文の訂正）
 
@@ -100,9 +101,10 @@ Layer 4  描画アダプタ Widget/Painter
 Layer 3  ユーザー向け制御
   └─ SpriteStudioPlayer (ChangeNotifier / Ticker / play・seek・events)
 Layer 2  描画特化エンジン (Pure Dart)
-  ├─ SpriteStudioInternalPlayer (Resource・Context / SoA→Vertices / paint)
+  ├─ SpriteStudioInternalPlayer (Resource・Context / paint = kind 別ディスパッチ)
   ├─ ssab メタデータ (Dart FlatBuffers パース)
-  ├─ DrawBatch + SoA → ui.Vertices ベイク
+  ├─ GeometryBuilder + DrawFrame (DrawBatch + SoA → ui.Vertices ベイク・純粋)
+  ├─ blend.dart (BlendType → ui.BlendMode 写像)
   └─ TextureRegistry (texture_hash → ui.Image / ImageShader)
 Layer 1  dart:ffi Bindings
   └─ ssruntime_bindings.g.dart (ffigen) + SsRuntime ローダ
@@ -112,8 +114,11 @@ Brain    libssruntime (Rust Native / 計算・SIMD・DrawBatch)
 - **Layer 1**: cbindgen 出力の C ヘッダを入力に `package:ffigen` で `ssruntime_bindings.g.dart` を生成。
   `Pointer<Void>`（Resource/Context ハンドル）、`Pointer<Uint8>`（.ssab）、SoA バッファポインタを扱う薄い層。生 API も public 公開。
 - **Layer 2** (`SpriteStudioInternalPlayer` ＝ Pure Dart): 移植元の `SSInternalPlayer` 相当。FFI の Resource/Context 管理、
-  `FrameData` ＋ SoA の取得、DrawBatch → `ui.Vertices` ベイク、テクスチャ解決、イベント取り出し、
-  `paint(Canvas, {Rect dst, BoxFit fit})`。Widget 非依存・`dispose` 可能で上位やヘッドレステストから再利用。
+  `FrameData` ＋ SoA の取得、テクスチャ解決、イベント取り出し、`paint(Canvas, {Rect dst, BoxFit fit})`。
+  `paint` は 1 フレーム分の `FrameData` ＋ SoA を `DrawFrame` に束ね（フラグシップの `DrawFrame` 構造体に相当）、
+  `DrawBatch.kind` で分岐する。頂点ベイク自体は純粋な `GeometryBuilder`（`ui.Vertices` を返す・Canvas/FFI 非依存）に委譲し、
+  ブレンド写像は `render/blend.dart` に分離する（兄弟移植の `GeometryBuilder` / blend テーブルに対応）。
+  Widget 非依存・`dispose` 可能で上位やヘッドレステストから再利用。
   セルマップ・パーツ構造・親子・イベント定義は Body が `.ssab` を Dart の FlatBuffers バインディングで直接パースして得る。
 - **Layer 3** (`SpriteStudioPlayer`): 移植元の `SSPlayer` 相当。InternalPlayer を 1 つ内包し、play/pause/seek/アニメ切替・
   イベント購読を公開する `ChangeNotifier`。`SpriteStudioPlayer({required TickerProvider vsync})` が `Ticker` を保持して時間を進める。
@@ -354,7 +359,8 @@ Flutter としては **Phase 1**（Basic〜BlendMode を `SpriteStudioView` で�
 - `EmbeddedTextureProvider`: `.ssab` 内の画像バイト列（`embedded_assets`）を取り出しデコード。単一ファイル自己完結。
 - `AssetTextureProvider` / `NetworkTextureProvider`: セル名・パス（`cellmap.image_path`）を `rootBundle` / `File` / HTTP で解決しデコード。アトラス共有・実行時差し替え・解像度バリアントに適合。
 - ルーティング: `texture_id`（＝`cellmap.name_hash`）ごとに解決方式を判定し `TextureRegistry` が適切な Provider に振り分け（同一 `.ssab` 内の混在も許容）。
-  （※ 実装は `SsTextureLoader` に統合。cellmap 毎に embedded 優先→reference へフォールバック。）
+  （※ 実装は `SsTextureLoader`（ルーティング）＋ `TextureRegistry`（hash→`ui.Image`/`ImageShader` の格納）に統合。cellmap 毎に embedded 優先→reference へフォールバック。
+  **上記の `EmbeddedTextureProvider` / `AssetTextureProvider` / `NetworkTextureProvider` という Provider クラス階層は設けない**——兄弟移植（Web の単一 `IResourceManager` ＋任意 `loadTextureFromBytes`、Unity のインポート時ベイク、Godot の `_loadTextures`）のいずれもクラス階層は持たず、hash キーの単一ストア＋cellmap 毎ルーティングで両モードを扱う。ネットワーク差し替え等が要る時に `SsTextureLoader` を注入点として拡張する。）
 
 ## 17. 配布形式と対応バージョン
 

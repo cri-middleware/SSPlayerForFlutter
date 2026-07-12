@@ -23,6 +23,9 @@ export 'src/internal_player.dart'
 export 'src/texture_registry.dart' show TextureRegistry;
 export 'src/texture_loader.dart' show SsTextureLoader, TextureLoadReport;
 export 'src/ssab_info.dart' show SsAnimeInfo;
+// Render helpers — reusable SoA→Vertices bake + blend mapping.
+export 'src/render/geometry_builder.dart' show GeometryBuilder, DrawFrame;
+export 'src/render/blend.dart' show blendModeFor;
 
 // Layer 1 — raw dart:ffi bindings (the "escape hatch"; use with care).
 export 'src/bindings/ssruntime_library.dart' show SsRuntime;

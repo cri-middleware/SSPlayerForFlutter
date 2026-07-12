@@ -6,6 +6,8 @@ import 'package:ffi/ffi.dart';
 
 import 'bindings/ssruntime_bindings.g.dart';
 import 'bindings/ssruntime_library.dart';
+import 'render/blend.dart';
+import 'render/geometry_builder.dart';
 import 'ssab/framedata.g.dart' as fbs;
 import 'texture_registry.dart';
 
@@ -79,8 +81,12 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable {
   ffi.Pointer<ffi.Void> _resource;
   ffi.Pointer<ffi.Uint8> _ssabBuffer; // native copy kept alive for borrow
 
-  /// texture_hash → decoded image / paint. Populated by the caller.
+  /// texture_hash → decoded image / shader. Populated by the caller.
   final TextureRegistry textures;
+
+  /// Pure SoA→`ui.Vertices` baker (Widget/FFI-free); the per-kind builders grow
+  /// here as Phase-2 kinds are ported.
+  final GeometryBuilder _geometry = GeometryBuilder();
 
   /// When true (default), rendering samples the Brain's fractional (sub-frame)
   /// frame number, giving smooth playback beyond the source FPS on high-refresh
@@ -303,36 +309,31 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable {
 
   // --- Rendering -----------------------------------------------------------
 
-  /// Draws the current frame into [canvas] (design §7; ported from the Godot
-  /// flagship `_drawAnimation` / `_emit_normal_batch`).
+  /// Draws the current frame into [canvas] (design §7; ports the Godot flagship
+  /// `_drawAnimation`). Gathers the FlatBuffers `FrameData` + SoA views into one
+  /// [DrawFrame], centers the animation's world origin in [dst], then dispatches
+  /// each `DrawBatch` on its `kind`.
   ///
-  /// Phase 1 implements the **Normal** batch path: per part, applies the world
-  /// matrix to its 4 local corners, feeds the texture-pixel UVs straight to an
-  /// `ImageShader`, and modulates the texture by the part's alpha via white ×
-  /// alpha vertex colors — one `drawVertices` call per batch. The animation's
-  /// world origin is centered in [dst] (BoxFit/scale is Phase-1+). Mesh / Shape
-  /// / Instance / Effect / Mask kinds and per-corner PartColor are Phase-1+.
+  /// Phase 1 draws the **Normal** batch path (see [_emitNormalBatch]); the other
+  /// kinds are pre-cut seams for Phase 2 (§8–§11) and skipped for now. BoxFit /
+  /// scale placement into [dst] is also Phase 2.
   void paint(ui.Canvas canvas, {ui.Rect? dst, ui.Size? sourceSize}) {
     _ensureAlive();
     // Sub-frame ON (default): sample the fractional frame for smooth playback;
     // OFF: snap to the integer frame.
-    final frame = getFrameData(subFrame ? frameNo : frameNo.floorToDouble());
+    final frameData = getFrameData(subFrame ? frameNo : frameNo.floorToDouble());
+    final batches = frameData?.drawBatches;
+    if (frameData == null || batches == null) return;
+
+    // One zero-copy SoA gather per frame (mirrors the flagship's single-block
+    // fetch); the views are valid only until the next update.
+    final frame = DrawFrame.build(
+      frameData: frameData,
+      world: worldMatrices(), // parts × 16
+      local: localVertices(), // parts × 10
+      uv: localUvs(), // parts × 10 (texture-pixel space)
+    );
     if (frame == null) return;
-
-    final batches = frame.drawBatches;
-    final drawOrder = frame.drawOrder;
-    final parts = frame.parts;
-    if (batches == null || drawOrder == null || parts == null) return;
-
-    final world = worldMatrices(); // parts × 16
-    final local = localVertices(); // parts × 10
-    final uv = localUvs(); // parts × 10 (texture-pixel space)
-
-    // parts vector is not guaranteed to be part_index-ordered → build a map.
-    final partByIndex = <int, fbs.PartState>{};
-    for (final p in parts) {
-      partByIndex[p.partIndex] = p;
-    }
 
     // Place the animation's world origin at the center of the destination box.
     final origin = dst?.center ??
@@ -341,92 +342,37 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable {
     canvas.save();
     canvas.translate(origin.dx, origin.dy);
     for (final batch in batches) {
-      // Phase 1: only Normal batches. Other kinds are skipped (not yet ported).
-      if (batch.kind != fbs.DrawBatchKind.Normal) continue;
-      final vertices =
-          _bakeNormalBatch(batch, drawOrder, partByIndex, world, local, uv);
-      if (vertices == null) continue;
-      final paint = textures.paintForBatch(batch);
-      // 2nd arg modulates vertex color (white × alpha) with the texture shader;
-      // paint.blendMode is the framebuffer composite (Mix/Add/Mul/Sub).
-      canvas.drawVertices(vertices, ui.BlendMode.modulate, paint);
+      switch (batch.kind) {
+        case fbs.DrawBatchKind.Normal:
+          _emitNormalBatch(canvas, batch, frame);
+        case fbs.DrawBatchKind.Shape: // TODO(phase 2): §11 shape SoA
+        case fbs.DrawBatchKind.Mesh: // TODO(phase 2): §8 mesh SoA
+        case fbs.DrawBatchKind.Instance: // TODO(phase 2): §8 instance slot
+        case fbs.DrawBatchKind.Effect: // TODO(phase 2): §8 effect slot
+        case fbs.DrawBatchKind.Mask: // TODO(phase 2): §9 coverage bitmap
+        case fbs.DrawBatchKind.Nines: // TODO(phase 2): §11 9-slice
+        case fbs.DrawBatchKind.Text: // no SDK render path
+          break; // kinds not yet ported are skipped
+      }
     }
     canvas.restore();
   }
 
-  /// Bakes one Normal batch into a single indexed [ui.Vertices]: for each part
-  /// in `draw_order[start_rank .. start_rank+count)`, transforms its 4 local
-  /// corners (lt,rt,lb,rb) by the world matrix, copies the texture-pixel UVs
-  /// as-is, sets each vertex color to white × part alpha, and appends the quad
-  /// indices `{0,1,2, 1,3,2}`. Returns null when nothing was emitted.
-  ui.Vertices? _bakeNormalBatch(
-    fbs.DrawBatch batch,
-    List<int> drawOrder,
-    Map<int, fbs.PartState> partByIndex,
-    Float32List world,
-    Float32List local,
-    Float32List uv,
-  ) {
-    final start = batch.startRank;
-    final count = batch.count;
-    if (count == 0) return null;
-
-    final positions = Float32List(count * 4 * 2); // 4 corners × (x,y)
-    final texCoords = Float32List(count * 4 * 2);
-    final colors = Int32List(count * 4);
-    final indices = Uint16List(count * 6); // 2 triangles per quad
-
-    var vBase = 0; // vertices emitted so far
-    var fPos = 0; // float cursor into positions/texCoords
-    var cPos = 0; // color cursor
-    var iPos = 0; // index cursor
-
-    const quad = [0, 1, 2, 1, 3, 2];
-
-    for (var k = 0; k < count; k++) {
-      final orderIdx = start + k;
-      if (orderIdx >= drawOrder.length) break;
-      final p = drawOrder[orderIdx];
-
-      final m = p * 16;
-      final v = p * 10; // both local vertices and UVs share stride 10
-      if (m + 16 > world.length || v + 8 > local.length || v + 8 > uv.length) {
-        continue;
-      }
-
-      final alpha = (partByIndex[p]?.alpha ?? 1.0).clamp(0.0, 1.0);
-      final color = ((alpha * 255).round() & 0xFF) << 24 | 0x00FFFFFF;
-
-      final m0 = world[m], m1 = world[m + 1];
-      final m4 = world[m + 4], m5 = world[m + 5];
-      final m12 = world[m + 12], m13 = world[m + 13];
-
-      // Corners: lt=(0,1) rt=(2,3) lb=(4,5) rb=(6,7).
-      for (var c = 0; c < 4; c++) {
-        final lx = local[v + c * 2];
-        final ly = local[v + c * 2 + 1];
-        positions[fPos] = m0 * lx + m4 * ly + m12;
-        positions[fPos + 1] = m1 * lx + m5 * ly + m13;
-        texCoords[fPos] = uv[v + c * 2]; // texture-pixel UV, used as-is
-        texCoords[fPos + 1] = uv[v + c * 2 + 1];
-        fPos += 2;
-        colors[cPos++] = color;
-      }
-      for (final q in quad) {
-        indices[iPos++] = vBase + q;
-      }
-      vBase += 4;
-    }
-
-    if (vBase == 0) return null;
-    return ui.Vertices.raw(
-      ui.VertexMode.triangles,
-      positions.sublist(0, fPos),
-      textureCoordinates: texCoords.sublist(0, fPos),
-      colors: colors.sublist(0, cPos),
-      indices: indices.sublist(0, iPos),
-    );
+  /// Emits one Normal batch: bakes its geometry via [GeometryBuilder] and
+  /// composites it with the batch's texture shader and framebuffer blend.
+  void _emitNormalBatch(ui.Canvas canvas, fbs.DrawBatch batch, DrawFrame frame) {
+    final vertices = _geometry.buildNormalBatch(batch, frame);
+    if (vertices == null) return;
+    // 2nd arg modulates the vertex color (white × alpha) with the texture
+    // shader; paint.blendMode is the framebuffer composite (Mix/Add/Mul/Sub).
+    canvas.drawVertices(vertices, ui.BlendMode.modulate, _paintForBatch(batch));
   }
+
+  /// Builds the [ui.Paint] for a batch: framebuffer blend (`render/blend.dart`)
+  /// plus the resolved texture's identity [ui.ImageShader] (design §7B/§7C).
+  ui.Paint _paintForBatch(fbs.DrawBatch batch) => ui.Paint()
+    ..blendMode = blendModeFor(batch.blendType)
+    ..shader = textures.shaderFor(batch.textureHash);
 
   // --- Teardown ------------------------------------------------------------
 

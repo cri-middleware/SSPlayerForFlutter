@@ -37,9 +37,11 @@ is reusable headless / from Flame / flutter_gpu.
 | `lib/ssplayer_flutter.dart` | Public API barrel. |
 | `lib/src/bindings/ssruntime_bindings.g.dart` | **L1**, ffigen-generated full C-API (do not hand-edit). |
 | `lib/src/bindings/ssruntime_library.dart` | `SsRuntime` — DynamicLibrary loader (per-platform name). |
-| `lib/src/internal_player.dart` | **L2** engine — lifecycle, SoA, `paint`, `_bakeNormalBatch`. |
-| `lib/src/texture_registry.dart` | **L2** — hash→`ui.Image`, `paintForBatch` (blend mapping). |
-| `lib/src/texture_loader.dart` | `SsTextureLoader` — reference + embedded texture loading (§16C). |
+| `lib/src/internal_player.dart` | **L2** engine — FFI lifecycle, SoA getters, `paint` = `DrawBatch.kind` dispatch (`_emitNormalBatch`). |
+| `lib/src/render/geometry_builder.dart` | **L2** — `GeometryBuilder` (pure SoA→`ui.Vertices` bake) + `DrawFrame` (per-frame SoA bundle). New kinds add build methods here. |
+| `lib/src/render/blend.dart` | **L2** — `blendModeFor` (`BlendType`→`ui.BlendMode`); future PartColor coef table. |
+| `lib/src/texture_registry.dart` | **L2** — pure texture store: hash→`ui.Image` + cached `shaderFor` (`ImageShader`). No blend/Paint logic. |
+| `lib/src/texture_loader.dart` | `SsTextureLoader` — reference + embedded texture loading + per-cellmap routing (§16C). |
 | `lib/src/ssab_info.dart` | `SsAnimeInfo` — enumerate animation/cellmap names from bytes. |
 | `lib/src/player.dart` | **L3** `SpriteStudioPlayer`. |
 | `lib/src/render/sprite_studio_view.dart` | **L4** `SpriteStudioView` / `SpriteStudioRenderBox`. |
