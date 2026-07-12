@@ -9,9 +9,9 @@ cmake_minimum_required(VERSION 3.10)
 set(PROJECT_NAME "ssplayer_flutter")
 project(${PROJECT_NAME} LANGUAGES CXX)
 
-# Detect the host arch subfolder produced by build-runtime.sh (x86_64 / arm64).
+# Detect the host arch subfolder produced by build-runtime.sh (x86_64 / aarch64).
 if(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|arm64")
-  set(SS_ARCH "arm64")
+  set(SS_ARCH "aarch64")
 else()
   set(SS_ARCH "x86_64")
 endif()

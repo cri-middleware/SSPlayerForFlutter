@@ -39,7 +39,7 @@
 
 ## 前提
 
-SpriteStudio7-SDK は本 Flutter リポジトリに Git サブモジュールとして組み込まれ、`libssruntime`（Brain）と
+SpriteStudio-SDK は本 Flutter リポジトリに Git サブモジュールとして組み込まれ、`libssruntime`（Brain）と
 `libssconverter` の C-API・FlatBuffers スキーマ（`.fbs`）を参照します。Flutter Player は移植ガイドにおける
 **Body（描画・リソース・座標変換）**の実装です。描画バックエンドは **Impeller** を前提とします。
 
@@ -131,7 +131,7 @@ Brain    libssruntime (Rust Native / 計算・SIMD・DrawBatch)
 準拠: `20_design/10_preparation`。
 
 - **事前確認**: ① Rust ツールチェーン、② `flatc` ＋ Dart `flat_buffers` パッケージ、③ 変換済み `.ssab` とテクスチャ。
-- **リポジトリ構成**: 専用リポジトリ（pub パッケージ）に SpriteStudio7-SDK を Git サブモジュールとして組み込む。
+- **リポジトリ構成**: 専用リポジトリ（pub パッケージ）に SpriteStudio-SDK を Git サブモジュールとして組み込む。
   FFI プラグイン規約（Android: CMake/NDK、iOS/macOS: podspec、Windows/Linux: CMake）でネイティブをビルド。
 
 ```

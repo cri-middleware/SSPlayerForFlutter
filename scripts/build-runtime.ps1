@@ -15,7 +15,7 @@
 #
 # Output layout (LibRoot = packages/ssplayer_flutter/native):
 #   native/libs/macos/libssruntime.framework        (universal on cross build; runtime, embedded)
-#   native/libs/macos/libssconverter.dylib          (host converter tool; not embedded)
+#   (libssconverter → packages/ssconverter_dart/native/libs/<platform>/; host tool)
 #   native/libs/windows/<arch>/ssruntime.dll
 #   native/libs/linux/<arch>/libssruntime.so
 #   native/libs/android/<abi>/libssruntime.so
@@ -42,6 +42,9 @@ $RootDir = Split-Path -Parent (Split-Path -Parent $PSCommandPath)
 $PkgDir  = Join-Path $RootDir "packages/ssplayer_flutter"
 $LibRoot = Join-Path $PkgDir "native"
 $LibsDir = Join-Path $LibRoot "libs"
+# The host converter (libssconverter) lives in its own desktop-only package.
+$ConvPkgDir  = Join-Path $RootDir "packages/ssconverter_dart"
+$ConvLibsDir = Join-Path $ConvPkgDir "native/libs"
 
 # --- detect the host platform / arch (pwsh runs on win/mac/linux) ----------
 if ($null -eq $IsWindows -or $IsWindows) { $HOST_PLATFORM = "windows" }  # $IsWindows is $null on Windows PowerShell 5.1
@@ -115,6 +118,14 @@ function Place($sub, $src, $name) {
     Copy-Item $src (Join-Path $d $name) -Force
     Write-Host "   -> native/libs/$sub/$name"
 }
+# Same, but into the ssconverter_dart package (the host converter's home).
+function Place-Conv($sub, $src, $name) {
+    if (-not $name) { $name = Split-Path $src -Leaf }
+    $d = Join-Path $ConvLibsDir $sub
+    New-Item -ItemType Directory -Force -Path $d | Out-Null
+    Copy-Item $src (Join-Path $d $name) -Force
+    Write-Host "   -> ssconverter_dart native/libs/$sub/$name"
+}
 # Read the SDK workspace version (for the framework Info.plist on the host path).
 function Get-SdkVersion() {
     $m = (Get-Content (Join-Path $SdkDir "Cargo.toml") |
@@ -169,8 +180,8 @@ switch ($PLATFORM) {
                 $minOs `
                 (Join-Path $SdkDir "libs/ssruntime/target/ssruntime.h")
             Write-Host "   -> native/libs/macos/libssruntime.framework"
-            Place "macos" "$T/$BUILD_MODE/libssconverter.dylib"
-            & install_name_tool -id "@rpath/libssconverter.dylib" (Join-Path $LibsDir "macos/libssconverter.dylib") 2>$null
+            Place-Conv "macos" "$T/$BUILD_MODE/libssconverter.dylib"
+            & install_name_tool -id "@rpath/libssconverter.dylib" (Join-Path $ConvLibsDir "macos/libssconverter.dylib") 2>$null
         } else {
             # Universal (arm64 + x86_64): the SDK release script now BUILDS the versioned
             # libssruntime.framework itself, so consume it directly (cp -R to keep the
@@ -182,8 +193,8 @@ switch ($PLATFORM) {
             & cp -R "$uni/libssruntime.framework" (Join-Path $LibsDir "macos/")
             Write-Host "   -> native/libs/macos/libssruntime.framework"
             if (Test-Path "$uni/libssconverter.dylib") {
-                Place "macos" "$uni/libssconverter.dylib"
-                & install_name_tool -id "@rpath/libssconverter.dylib" (Join-Path $LibsDir "macos/libssconverter.dylib") 2>$null
+                Place-Conv "macos" "$uni/libssconverter.dylib"
+                & install_name_tool -id "@rpath/libssconverter.dylib" (Join-Path $ConvLibsDir "macos/libssconverter.dylib") 2>$null
             }
         }
         # Symlink the single framework under the plugin's macos/Frameworks/ so CocoaPods
@@ -197,15 +208,19 @@ switch ($PLATFORM) {
     }
 
     "linux" {
+        # Linux arch dir uses the kernel/Rust spelling: aarch64 (not arm64),
+        # x86_64 — matching the SDK release layout native/libs/linux/aarch64.
+        # Accept arm64 as an alias for ergonomics but always emit aarch64.
+        $larch = if ($ARCH -eq "arm64" -or $ARCH -eq "aarch64") { "aarch64" } else { $ARCH }
         if ($IS_HOST_BUILD) {
             Build-Ss; Build-Converter
-            Place "linux/$ARCH" "$T/$BUILD_MODE/libssruntime.so"
-            Place "linux/$ARCH" "$T/$BUILD_MODE/libssconverter.so"
+            Place "linux/$larch" "$T/$BUILD_MODE/libssruntime.so"
+            Place-Conv "linux/$larch" "$T/$BUILD_MODE/libssconverter.so"
         } else {
-            $triple = if ($ARCH -eq "arm64") { "aarch64-unknown-linux-gnu" } else { "x86_64-unknown-linux-gnu" }
+            $triple = if ($larch -eq "aarch64") { "aarch64-unknown-linux-gnu" } else { "x86_64-unknown-linux-gnu" }
             Build-Ss @("--target", $triple); Build-Converter @("--target", $triple)
-            Place "linux/$ARCH" "$T/$triple/$BUILD_MODE/libssruntime.so"
-            Place "linux/$ARCH" "$T/$triple/$BUILD_MODE/libssconverter.so"
+            Place "linux/$larch" "$T/$triple/$BUILD_MODE/libssruntime.so"
+            Place-Conv "linux/$larch" "$T/$triple/$BUILD_MODE/libssconverter.so"
         }
     }
 
@@ -213,12 +228,12 @@ switch ($PLATFORM) {
         if ($IS_HOST_BUILD) {
             Build-Ss; Build-Converter
             Place "windows/$ARCH" "$T/$BUILD_MODE/ssruntime.dll"
-            Place "windows/$ARCH" "$T/$BUILD_MODE/ssconverter.dll"
+            Place-Conv "windows/$ARCH" "$T/$BUILD_MODE/ssconverter.dll"
         } else {
             $triple = if ($ARCH -eq "arm64") { "aarch64-pc-windows-msvc" } else { "x86_64-pc-windows-msvc" }
             Build-Ss @("--target", $triple); Build-Converter @("--target", $triple)
             Place "windows/$ARCH" "$T/$triple/$BUILD_MODE/ssruntime.dll"
-            Place "windows/$ARCH" "$T/$triple/$BUILD_MODE/ssconverter.dll"
+            Place-Conv "windows/$ARCH" "$T/$triple/$BUILD_MODE/ssconverter.dll"
         }
     }
 
@@ -258,14 +273,16 @@ switch ($PLATFORM) {
 }
 
 # --- C headers (ffigen input): consume the plain-C headers the SDK build.rs
-# emitted (Language::C) into native/include/. Single source of truth = the SDK;
-# no local cbindgen. ssconverter.h is copied only when that crate was built.
+# emitted (Language::C, <crate>.h; .hpp is the C++ twin). Single source of truth
+# = the SDK; no local cbindgen. Each crate's header goes to its OWN package:
+# ssruntime → ssplayer_flutter, ssconverter → ssconverter_dart.
 $IncludeDir = Join-Path $LibRoot "include"
-New-Item -ItemType Directory -Force -Path $IncludeDir | Out-Null
-foreach ($crate in @("ssruntime", "ssconverter")) {
-    $h = Join-Path $SdkDir "libs/$crate/target/$crate.h"   # plain-C header (.hpp is the C++ twin)
-    if (Test-Path $h) { Copy-Item $h (Join-Path $IncludeDir "$crate.h") -Force; Write-Host "   -> native/include/$crate.h" }
-}
+$ConvIncludeDir = Join-Path $ConvPkgDir "native/include"
+New-Item -ItemType Directory -Force -Path $IncludeDir, $ConvIncludeDir | Out-Null
+$rh = Join-Path $SdkDir "libs/ssruntime/target/ssruntime.h"
+if (Test-Path $rh) { Copy-Item $rh (Join-Path $IncludeDir "ssruntime.h") -Force; Write-Host "   -> ssplayer_flutter native/include/ssruntime.h" }
+$ch = Join-Path $SdkDir "libs/ssconverter/target/ssconverter.h"
+if (Test-Path $ch) { Copy-Item $ch (Join-Path $ConvIncludeDir "ssconverter.h") -Force; Write-Host "   -> ssconverter_dart native/include/ssconverter.h" }
 
 # --- Layer-1 ffigen bindings: regenerate now that the headers are fresh. ffigen
 # is Flutter-specific; folding it in here keeps the dev-facing script count the

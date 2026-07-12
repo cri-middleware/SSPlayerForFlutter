@@ -33,7 +33,7 @@ if (Test-Path $CurrentVersionFile) {
 # the same one SSPlayerForRenPy uses. NOTE: the exact zip name must match what is
 # actually published on the SpriteStudio-SDK releases; adjust here (and in
 # download-sdk.sh) once the release pipeline publishes Flutter/dynamic artifacts.
-$Artifact = "spritestudio7-sdk-dynamic-libs.zip"
+$Artifact = "spritestudio-sdk-dynamic-libs.zip"
 $Url = "https://github.com/cri-middleware/SpriteStudio-SDK/releases/download/$TargetVersion/$Artifact"
 $ZipFile = Join-Path $NativeDir "sdk.zip"
 

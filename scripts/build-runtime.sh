@@ -13,7 +13,7 @@
 #
 # Output layout (LIB_ROOT = packages/ssplayer_flutter/native):
 #   native/libs/macos/libssruntime.framework        (universal on build=release; runtime, embedded)
-#   native/libs/macos/libssconverter.dylib          (host converter tool; not embedded)
+#   (libssconverter → packages/ssconverter_dart/native/libs/<platform>/; host tool)
 #   native/libs/windows/<arch>/ssruntime.dll
 #   native/libs/linux/<arch>/libssruntime.so
 #   native/libs/android/<abi>/libssruntime.so
@@ -39,6 +39,9 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 PKG_DIR="$ROOT_DIR/packages/ssplayer_flutter"
 LIB_ROOT="$PKG_DIR/native"
 LIBS_DIR="$LIB_ROOT/libs"
+# The host converter (libssconverter) lives in its own desktop-only package.
+CONV_PKG_DIR="$ROOT_DIR/packages/ssconverter_dart"
+CONV_LIBS_DIR="$CONV_PKG_DIR/native/libs"
 
 usage() { sed -n '/^# Usage:/,/^# SDK location/p' "$0" | sed 's/^# \{0,1\}//'; }
 
@@ -85,6 +88,8 @@ CARGO_FLAGS=""; [ "$BUILD_MODE" = "release" ] && CARGO_FLAGS="--release"
 build_ss()        { ( cd "$SDK_DIR" && cargo build $CARGO_FLAGS "$@" -p ssruntime --features libc_alloc,panic-handler ); }
 build_converter() { ( cd "$SDK_DIR" && cargo build $CARGO_FLAGS "$@" -p ssconverter ); }
 place() { mkdir -p "$LIBS_DIR/$1"; cp "$2" "$LIBS_DIR/$1/${3:-$(basename "$2")}"; echo "   -> native/libs/$1/${3:-$(basename "$2")}"; }
+# Same, but into the ssconverter_dart package (the host converter's home).
+place_conv() { mkdir -p "$CONV_LIBS_DIR/$1"; cp "$2" "$CONV_LIBS_DIR/$1/${3:-$(basename "$2")}"; echo "   -> ssconverter_dart native/libs/$1/${3:-$(basename "$2")}"; }
 
 # Read the SDK workspace version (for the framework Info.plist on the host path).
 sdk_version() { sed -n 's/^version = "\(.*\)"/\1/p' "$SDK_DIR/Cargo.toml" | head -1; }
@@ -122,8 +127,8 @@ case "$PLATFORM" in
         "${MACOSX_DEPLOYMENT_TARGET:-11.0}" \
         "$SDK_DIR/libs/ssruntime/target/ssruntime.h"
       echo "   -> native/libs/macos/libssruntime.framework"
-      place macos "$T/$BUILD_MODE/libssconverter.dylib"
-      install_name_tool -id "@rpath/libssconverter.dylib" "$LIBS_DIR/macos/libssconverter.dylib" 2>/dev/null || true
+      place_conv macos "$T/$BUILD_MODE/libssconverter.dylib"
+      install_name_tool -id "@rpath/libssconverter.dylib" "$CONV_LIBS_DIR/macos/libssconverter.dylib" 2>/dev/null || true
     else
       # Universal (arm64 + x86_64): the SDK release script now BUILDS the versioned
       # libssruntime.framework itself (correct Info.plist, Headers/Modules, and code
@@ -134,8 +139,8 @@ case "$PLATFORM" in
       cp -R "$UNI/libssruntime.framework" "$LIBS_DIR/macos/"
       echo "   -> native/libs/macos/libssruntime.framework"
       if [ -f "$UNI/libssconverter.dylib" ]; then
-        place macos "$UNI/libssconverter.dylib"
-        install_name_tool -id "@rpath/libssconverter.dylib" "$LIBS_DIR/macos/libssconverter.dylib" 2>/dev/null || true
+        place_conv macos "$UNI/libssconverter.dylib"
+        install_name_tool -id "@rpath/libssconverter.dylib" "$CONV_LIBS_DIR/macos/libssconverter.dylib" 2>/dev/null || true
       fi
     fi
     # Symlink the single framework under the plugin's macos/Frameworks/ so CocoaPods
@@ -148,27 +153,31 @@ case "$PLATFORM" in
     echo "   -> macos/Frameworks/libssruntime.framework -> ../../native/libs/macos/libssruntime.framework" ;;
 
   linux)
+    # Linux arch dir uses the kernel/Rust spelling: aarch64 (not arm64), x86_64 —
+    # matching the SDK release layout native/libs/linux/aarch64. Accept arm64 as
+    # an alias for ergonomics but always emit aarch64.
+    case "$ARCH" in arm64|aarch64) larch=aarch64 ;; *) larch="$ARCH" ;; esac
     if [ "$IS_HOST_BUILD" = true ]; then
       build_ss; build_converter
-      place "linux/$ARCH" "$T/$BUILD_MODE/libssruntime.so"
-      place "linux/$ARCH" "$T/$BUILD_MODE/libssconverter.so"
+      place "linux/$larch" "$T/$BUILD_MODE/libssruntime.so"
+      place_conv "linux/$larch" "$T/$BUILD_MODE/libssconverter.so"
     else
-      triple=$([ "$ARCH" = arm64 ] && echo aarch64-unknown-linux-gnu || echo x86_64-unknown-linux-gnu)
+      triple=$([ "$larch" = aarch64 ] && echo aarch64-unknown-linux-gnu || echo x86_64-unknown-linux-gnu)
       build_ss --target "$triple"; build_converter --target "$triple"
-      place "linux/$ARCH" "$T/$triple/$BUILD_MODE/libssruntime.so"
-      place "linux/$ARCH" "$T/$triple/$BUILD_MODE/libssconverter.so"
+      place "linux/$larch" "$T/$triple/$BUILD_MODE/libssruntime.so"
+      place_conv "linux/$larch" "$T/$triple/$BUILD_MODE/libssconverter.so"
     fi ;;
 
   windows)
     if [ "$IS_HOST_BUILD" = true ]; then
       build_ss; build_converter
       place "windows/$ARCH" "$T/$BUILD_MODE/ssruntime.dll"
-      place "windows/$ARCH" "$T/$BUILD_MODE/ssconverter.dll"
+      place_conv "windows/$ARCH" "$T/$BUILD_MODE/ssconverter.dll"
     else
       triple=$([ "$ARCH" = arm64 ] && echo aarch64-pc-windows-msvc || echo x86_64-pc-windows-msvc)
       build_ss --target "$triple"; build_converter --target "$triple"
       place "windows/$ARCH" "$T/$triple/$BUILD_MODE/ssruntime.dll"
-      place "windows/$ARCH" "$T/$triple/$BUILD_MODE/ssconverter.dll"
+      place_conv "windows/$ARCH" "$T/$triple/$BUILD_MODE/ssconverter.dll"
     fi ;;
 
   # --- toolchain-heavy cross builds: delegate to the SDK release scripts ---
@@ -197,15 +206,15 @@ case "$PLATFORM" in
 esac
 
 # --- C headers (ffigen input): consume the plain-C headers the SDK build.rs
-# emitted (Language::C) into native/include/. The SDK is the single source of
-# truth for the C-API surface — no local cbindgen. ssconverter.h is copied only
-# when that crate was part of this build (host/desktop tool).
-INCLUDE_DIR="$LIB_ROOT/include"
-mkdir -p "$INCLUDE_DIR"
-for crate in ssruntime ssconverter; do
-  h="$SDK_DIR/libs/$crate/target/$crate.h"   # plain-C header (build.rs; .hpp is the C++ twin)
-  [ -f "$h" ] && { cp "$h" "$INCLUDE_DIR/$crate.h"; echo "   -> native/include/$crate.h"; }
-done
+# emitted (Language::C, <crate>.h; .hpp is the C++ twin). The SDK is the single
+# source of truth for the C-API surface — no local cbindgen. Each crate's header
+# goes to its OWN package: ssruntime → ssplayer_flutter, ssconverter →
+# ssconverter_dart (copied only when that crate was part of this build).
+mkdir -p "$LIB_ROOT/include" "$CONV_PKG_DIR/native/include"
+rh="$SDK_DIR/libs/ssruntime/target/ssruntime.h"
+[ -f "$rh" ] && { cp "$rh" "$LIB_ROOT/include/ssruntime.h"; echo "   -> ssplayer_flutter native/include/ssruntime.h"; }
+ch="$SDK_DIR/libs/ssconverter/target/ssconverter.h"
+[ -f "$ch" ] && { cp "$ch" "$CONV_PKG_DIR/native/include/ssconverter.h"; echo "   -> ssconverter_dart native/include/ssconverter.h"; }
 
 # --- Layer-1 ffigen bindings: regenerate now that the headers are fresh. ffigen
 # is Flutter-specific; folding it in here keeps the dev-facing script count the

@@ -33,7 +33,7 @@ fi
 # the same one SSPlayerForRenPy uses. NOTE: the exact zip name must match what is
 # actually published on the SpriteStudio-SDK releases; adjust here (and in
 # download-sdk.ps1) once the release pipeline publishes Flutter/dynamic artifacts.
-ARTIFACT="spritestudio7-sdk-dynamic-libs.zip"
+ARTIFACT="spritestudio-sdk-dynamic-libs.zip"
 URL="https://github.com/cri-middleware/SpriteStudio-SDK/releases/download/${TARGET_VERSION}/${ARTIFACT}"
 ZIP_FILE="$NATIVE_DIR/sdk.zip"
 
