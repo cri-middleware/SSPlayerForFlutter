@@ -14,7 +14,8 @@
 # falling back to the .sh (via bash/sh) when only a shell script is published.
 #
 # Output layout (LibRoot = packages/ssplayer_flutter/native):
-#   native/libs/macos/libssruntime.dylib            (universal on cross build)
+#   native/libs/macos/libssruntime.framework        (universal on cross build; runtime, embedded)
+#   native/libs/macos/libssconverter.dylib          (host converter tool; not embedded)
 #   native/libs/windows/<arch>/ssruntime.dll
 #   native/libs/linux/<arch>/libssruntime.so
 #   native/libs/android/<abi>/libssruntime.so
@@ -112,6 +113,13 @@ function Place($sub, $src, $name) {
     Copy-Item $src (Join-Path $d $name) -Force
     Write-Host "   -> native/libs/$sub/$name"
 }
+# Read the SDK workspace version (for the framework Info.plist on the host path).
+function Get-SdkVersion() {
+    $m = (Get-Content (Join-Path $SdkDir "Cargo.toml") |
+          Select-String -Pattern '^version = "(.*)"' | Select-Object -First 1)
+    if ($m) { return $m.Matches.Groups[1].Value } else { return "0.0.0" }
+}
+
 # Run an SDK release script, preferring the .ps1 variant and falling back to the
 # .sh (via bash, else sh) when only a shell script is published.
 function Invoke-Release($name, $mode) {
@@ -135,22 +143,55 @@ if (Test-Path "$SdkDir/target/licenses/THIRD-PARTY-LICENSES.ssruntime.md") {
     Copy-Item "$SdkDir/target/licenses/THIRD-PARTY-LICENSES.ssruntime.md" "$LibsDir/" -Force
 }
 # record the version we built from (used by download-sdk.ps1 cache check too)
-if (Test-Path "$RootDir/SDK_VERSION.txt") { Copy-Item "$RootDir/SDK_VERSION.txt" "$LibRoot/VERSION" -Force }
+if (Test-Path "$RootDir/scripts/SDK_VERSION.txt") { Copy-Item "$RootDir/scripts/SDK_VERSION.txt" "$LibRoot/VERSION" -Force }
 
 $T = Join-Path $SdkDir "target"
 switch ($PLATFORM) {
     "macos" {
+        New-Item -ItemType Directory -Force -Path (Join-Path $LibsDir "macos") | Out-Null
+        # Runtime ships ONLY as libssruntime.framework (single copy in native/libs/macos;
+        # a symlink under the plugin's macos/Frameworks/ below is what the podspec embeds).
+        # libssconverter stays a bare dylib (host tool, never embedded).
         if ($IS_HOST_BUILD -and $ARCH -ne "universal") {
+            # Fast host/debug path: plain cargo build, then wrap into a .framework via
+            # the SDK's shared packaging helper (single source of truth; needs the
+            # macOS toolchain, so reachable only under pwsh-on-macOS where bash exists).
             Build-Ss; Build-Converter
-            Place "macos" "$T/$BUILD_MODE/libssruntime.dylib"
+            $mkfw = Join-Path $SdkDir "scripts/make-macos-framework.sh"
+            $minOs = if ($env:MACOSX_DEPLOYMENT_TARGET) { $env:MACOSX_DEPLOYMENT_TARGET } else { "11.0" }
+            & bash $mkfw `
+                "$T/$BUILD_MODE/libssruntime.dylib" `
+                (Join-Path $LibsDir "macos/libssruntime.framework") `
+                (Get-SdkVersion) `
+                "jp.co.cri-mw.optpix.ssruntime" `
+                $minOs `
+                (Join-Path $SdkDir "libs/ssruntime/target/ssruntime.h")
+            Write-Host "   -> native/libs/macos/libssruntime.framework"
             Place "macos" "$T/$BUILD_MODE/libssconverter.dylib"
+            & install_name_tool -id "@rpath/libssconverter.dylib" (Join-Path $LibsDir "macos/libssconverter.dylib") 2>$null
         } else {
-            # universal (arm64 + x86_64): delegate to the SDK release script + lipo
+            # Universal (arm64 + x86_64): the SDK release script now BUILDS the versioned
+            # libssruntime.framework itself, so consume it directly (cp -R to keep the
+            # version symlinks + code signature).
             Invoke-Release "release-macos" $BUILD_MODE
             $uni = "$T/universal-apple-darwin/$BUILD_MODE"
-            Place "macos" "$uni/libssruntime.dylib"
-            if (Test-Path "$uni/libssconverter.dylib") { Place "macos" "$uni/libssconverter.dylib" }
+            $fwDest = Join-Path $LibsDir "macos/libssruntime.framework"
+            if (Test-Path $fwDest) { Remove-Item -Recurse -Force $fwDest }
+            & cp -R "$uni/libssruntime.framework" (Join-Path $LibsDir "macos/")
+            Write-Host "   -> native/libs/macos/libssruntime.framework"
+            if (Test-Path "$uni/libssconverter.dylib") {
+                Place "macos" "$uni/libssconverter.dylib"
+                & install_name_tool -id "@rpath/libssconverter.dylib" (Join-Path $LibsDir "macos/libssconverter.dylib") 2>$null
+            }
         }
+        # Symlink the single framework under the plugin's macos/Frameworks/ so CocoaPods
+        # embeds it (no second copy; install_framework resolves the symlink). gitignored.
+        $podFwDir = Join-Path $PkgDir "macos/Frameworks"
+        New-Item -ItemType Directory -Force -Path $podFwDir | Out-Null
+        $podFwLink = Join-Path $podFwDir "libssruntime.framework"
+        if (Test-Path $podFwLink) { Remove-Item -Recurse -Force $podFwLink }
+        New-Item -ItemType SymbolicLink -Path $podFwLink -Target "../../native/libs/macos/libssruntime.framework" -Force | Out-Null
+        Write-Host "   -> macos/Frameworks/libssruntime.framework -> ../../native/libs/macos/libssruntime.framework"
     }
 
     "linux" {

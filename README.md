@@ -31,8 +31,8 @@ Brain    libssruntime (Rust, no_std, SIMD)                    ← 計算・DrawB
 ```
 SSPlayerForFlutter/
 ├── SpriteStudio-SDK/                     # [submodule] Brain (libssruntime / libssconverter / .fbs)
-├── SDK_VERSION.txt                       # download-sdk が参照するリリースタグ
 ├── scripts/
+│   ├── SDK_VERSION.txt                   # download-sdk が参照するリリースタグ
 │   ├── build-runtime.{sh,ps1}            # Rust をソースビルド → native/libs/<platform>/<arch>/ へ配置
 │   ├── generate-runtime-code.{sh,ps1}    # cbindgen(C ヘッダ) + flatc(Dart) + ffigen
 │   ├── download-sdk.{sh,ps1}             # GitHub Releases のプリビルドを DL/展開（SDK_VERSION.txt 準拠）
@@ -51,7 +51,7 @@ SSPlayerForFlutter/
 │   │       └── render/sprite_studio_view.dart  # Layer 4
 │   ├── test/                             # スモーク＋実描画テスト（要 SSRUNTIME_LIBRARY_PATH）
 │   ├── native/                           # [生成物] include/ + libs/<platform>/<arch>/（gitignore）
-│   ├── macos/Frameworks/                 # [生成物] libssruntime.framework（gitignore）
+│   ├── macos/Frameworks/                 # [生成物] native/libs/macos/libssruntime.framework へのシンボリックリンク（gitignore）
 │   ├── {android,ios,macos,linux,windows}/  # 各プラットフォームのビルド接続
 │   ├── ffigen.yaml
 │   └── pubspec.yaml
@@ -67,7 +67,7 @@ Flutter 3.19+ / Dart 3、CocoaPods（macOS/iOS ビルド時。`brew install coco
 # 1. サブモジュール取得
 git submodule update --init --recursive
 
-# 2. ネイティブ Brain をソースビルド（ホスト向け。dylib/so/dll を native/libs へ配置）
+# 2. ネイティブ Brain をソースビルド（ホスト向け。macOS は framework、他は so/dll を native/libs へ配置）
 scripts/build-runtime.sh                 # 例: build-runtime.sh platform=macos build=release
 #    ※ プリビルドを使う場合: scripts/download-sdk.sh
 
@@ -94,9 +94,17 @@ flutter run -d macos                   # -> [ssplayer] OK — playing "anime_1"
 ```
 
 **ネイティブ同梱の要点**: macOS では動的ライブラリを `vendored_libraries` で渡しても
-アプリに埋め込まれません。`build-runtime.sh` は `libssruntime.dylib` を **`libssruntime.framework`**
-（`@rpath` id・versioned 構造）にラップし、CocoaPods が globできるよう **プラグインの
-`macos/Frameworks/` 配下**へ配置します。podspec は `vendored_frameworks` でこれを埋め込み＋署名し、
+アプリに埋め込まれません。Brain は versioned な **`libssruntime.framework`**（`@rpath` id）で配布します。
+framework の生成は SDK の共有スクリプト `scripts/make-macos-framework.sh`（Unity の
+`make-macos-bundle.sh` に相当する single source of truth）が担い、リリース（universal）では
+`release-macos.sh` がそれを呼んで生成 → `build-runtime.sh` が `native/libs/macos/` へコピー、
+ホスト（debug）では `build-runtime.sh` が同じ helper を呼んで cargo の dylib をラップします。
+framework の実体は `native/libs/macos/` の 1 つだけです。CocoaPods は podspec ディレクトリ配下の
+vendored framework しか *埋め込まない*（`../native/...` を指定しても記録はされるが `.app` には同梱
+されない）ため、`build-runtime.sh` は `macos/Frameworks/libssruntime.framework` を
+`../../native/libs/macos/...` への **シンボリックリンク**として張り、podspec は
+`Frameworks/libssruntime.framework` を `vendored_frameworks` で埋め込み＋署名します
+（`install_framework` が embed 時にリンクを解決）。実行時は
 `DynamicLibrary.open('libssruntime.framework/libssruntime')` が `@rpath` で解決します。
 
 ## 使い方（Dart API）
@@ -131,11 +139,11 @@ class _MyState extends State<MyWidget> with SingleTickerProviderStateMixin {
 
 ## テスト
 
-ネイティブ Brain を先にビルドし、`SSRUNTIME_LIBRARY_PATH` にホスト dylib を指定します。
+ネイティブ Brain を先にビルドし、`SSRUNTIME_LIBRARY_PATH` に framework 内のバイナリを指定します。
 
 ```bash
 cd packages/ssplayer_flutter
-SSRUNTIME_LIBRARY_PATH="$PWD/native/libs/macos/libssruntime.dylib" flutter test
+SSRUNTIME_LIBRARY_PATH="$PWD/native/libs/macos/libssruntime.framework/libssruntime" flutter test
 ```
 
 - `test/internal_player_smoke_test.dart` — FFI パイプライン（load→update→FrameData→SoA）。
@@ -154,7 +162,7 @@ SSRUNTIME_LIBRARY_PATH="$PWD/native/libs/macos/libssruntime.dylib" flutter test
 | 項目 | 状態 |
 |------|------|
 | `scripts/*`（build / generate / download / assets）| ✅ 作成・ホスト(macOS)で実行検証済み |
-| ネイティブビルド（`libssruntime.dylib` 生成・配置）| ✅ 検証済み |
+| ネイティブビルド（`libssruntime.framework` 生成・配置）| ✅ 検証済み |
 | C ヘッダ生成（cbindgen）・Dart FlatBuffers 生成（flatc）| ✅ 検証済み |
 | Layer 1 `SsRuntimeBindings`（ffigen 生成・全 C-API 111 メソッド）| ✅ |
 | Layer 2 `SpriteStudioInternalPlayer`（ライフサイクル / SoA / update）| ✅ |

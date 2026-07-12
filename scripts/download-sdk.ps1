@@ -3,7 +3,7 @@
 # Download the prebuilt SpriteStudio-SDK native libraries + headers and unpack
 # them into the Flutter package so the app can be built without a Rust toolchain.
 # PowerShell counterpart of scripts/download-sdk.sh:
-#   - target version comes from the repo-root SDK_VERSION.txt
+#   - target version comes from scripts/SDK_VERSION.txt
 #   - the cache stamp lives at packages/ssplayer_flutter/native/VERSION
 #     (build-runtime.ps1 writes the same file), so a matching version skips the
 #     download.
@@ -13,8 +13,9 @@
 $ErrorActionPreference = "Stop"
 
 $RootDir            = Split-Path -Parent (Split-Path -Parent $PSCommandPath)
+$ScriptDir          = Split-Path -Parent $PSCommandPath
 $NativeDir          = Join-Path $RootDir "packages/ssplayer_flutter/native"
-$VersionFile        = Join-Path $RootDir "SDK_VERSION.txt"
+$VersionFile        = Join-Path $ScriptDir "SDK_VERSION.txt"
 $CurrentVersionFile = Join-Path $NativeDir "VERSION"
 
 $TargetVersion = (Get-Content $VersionFile).Trim()
@@ -47,6 +48,18 @@ $ProgressPreference = 'Continue'
 Write-Host "Extracting SDK..."
 Expand-Archive -Path $ZipFile -DestinationPath $NativeDir -Force
 Remove-Item $ZipFile
+
+# CocoaPods only embeds a vendored framework at/below the podspec dir, so symlink
+# the unpacked macOS framework under the plugin's macos/Frameworks/ (same as
+# build-runtime.ps1). No-op when the artifact has no macOS framework.
+if (Test-Path (Join-Path $NativeDir "libs/macos/libssruntime.framework")) {
+    $podFwDir = Join-Path $RootDir "packages/ssplayer_flutter/macos/Frameworks"
+    New-Item -ItemType Directory -Force -Path $podFwDir | Out-Null
+    $podFwLink = Join-Path $podFwDir "libssruntime.framework"
+    if (Test-Path $podFwLink) { Remove-Item -Recurse -Force $podFwLink }
+    New-Item -ItemType SymbolicLink -Path $podFwLink -Target "../../native/libs/macos/libssruntime.framework" -Force | Out-Null
+    Write-Host "   -> macos/Frameworks/libssruntime.framework -> ../../native/libs/macos/libssruntime.framework"
+}
 
 # stamp the cache with the version we just unpacked
 Set-Content -Path $CurrentVersionFile -Value $TargetVersion

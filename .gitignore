@@ -1,5 +1,5 @@
 packages/ssplayer_flutter/native
-# Prebuilt Brain framework mirrored under the macOS plugin dir by build-runtime.sh
+# Symlink into native/libs/macos, created by build-runtime.sh so CocoaPods embeds it
 packages/ssplayer_flutter/macos/Frameworks/
 
 # Example assets are derived from the SDK test projects (scripts/prepare-example-assets.sh)

@@ -5,7 +5,7 @@
 //   * scripts/prepare-example-assets.sh (produces example/assets/overall/*.ssab)
 //   * SSRUNTIME_LIBRARY_PATH pointing at the built dylib, e.g.:
 //
-//   SSRUNTIME_LIBRARY_PATH=$PWD/native/libs/macos/libssruntime.dylib \
+//   SSRUNTIME_LIBRARY_PATH=$PWD/native/libs/macos/libssruntime.framework/libssruntime \
 //     flutter test test/internal_player_smoke_test.dart
 //
 // It drives load → setup → update → getFrameData → SoA and asserts the Brain

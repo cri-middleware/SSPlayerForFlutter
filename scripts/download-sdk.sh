@@ -3,7 +3,7 @@
 # Download the prebuilt SpriteStudio-SDK native libraries + headers and unpack
 # them into the Flutter package so the app can be built without a Rust toolchain.
 # Mirrors SSPlayerForGodot/scripts/download-sdk.sh, adapted to THIS repo:
-#   - target version comes from the repo-root SDK_VERSION.txt
+#   - target version comes from scripts/SDK_VERSION.txt
 #   - the cache stamp lives at packages/ssplayer_flutter/native/VERSION
 #     (build-runtime.sh writes the same file), so a matching version skips the
 #     download; a fresh checkout / bumped version re-fetches.
@@ -11,9 +11,10 @@
 #     build-runtime.sh produces locally: libs/<platform>/..., include/, VERSION).
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 NATIVE_DIR="$ROOT_DIR/packages/ssplayer_flutter/native"
-VERSION_FILE="$ROOT_DIR/SDK_VERSION.txt"
+VERSION_FILE="$SCRIPT_DIR/SDK_VERSION.txt"
 CURRENT_VERSION_FILE="$NATIVE_DIR/VERSION"
 
 TARGET_VERSION="$(tr -d '\r\n' < "$VERSION_FILE")"
@@ -45,6 +46,17 @@ curl -fL -o "$ZIP_FILE" "$URL"
 echo "Extracting SDK..."
 unzip -q -o "$ZIP_FILE" -d "$NATIVE_DIR/"
 rm -f "$ZIP_FILE"
+
+# CocoaPods only embeds a vendored framework at/below the podspec dir, so symlink
+# the unpacked macOS framework under the plugin's macos/Frameworks/ (same as
+# build-runtime.sh). No-op when the artifact has no macOS framework.
+if [ -d "$NATIVE_DIR/libs/macos/libssruntime.framework" ]; then
+  POD_FW_DIR="$ROOT_DIR/packages/ssplayer_flutter/macos/Frameworks"
+  mkdir -p "$POD_FW_DIR"
+  rm -rf "$POD_FW_DIR/libssruntime.framework"
+  ln -sfn ../../native/libs/macos/libssruntime.framework "$POD_FW_DIR/libssruntime.framework"
+  echo "   -> macos/Frameworks/libssruntime.framework -> ../../native/libs/macos/libssruntime.framework"
+fi
 
 # stamp the cache with the version we just unpacked
 echo "$TARGET_VERSION" > "$CURRENT_VERSION_FILE"

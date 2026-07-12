@@ -1,12 +1,13 @@
 #
 # ssplayer_flutter — macOS plugin podspec.
 #
-# Ships the PREBUILT dynamic Brain wrapped as libssruntime.framework, produced
-# by `scripts/build-runtime.sh platform=macos` under ../native/libs/macos/.
-# CocoaPods embeds + codesigns it via `vendored_frameworks` into the app's
-# Frameworks, so DynamicLibrary.open('libssruntime.framework/libssruntime')
-# resolves it at runtime via @rpath. (A bare .dylib via vendored_libraries is
-# linked but NOT embedded for runtime dlopen — hence the framework wrapper.)
+# Ships the PREBUILT dynamic Brain as a versioned libssruntime.framework, built by
+# SpriteStudio-SDK's release-macos.sh (universal) — or wrapped from a host dylib by
+# `scripts/build-runtime.sh platform=macos` (fast debug) — under ../native/libs/macos/.
+# CocoaPods embeds + codesigns it via `vendored_frameworks` into the app's Frameworks,
+# so DynamicLibrary.open('libssruntime.framework/libssruntime') resolves it at runtime
+# via @rpath. (A bare .dylib via vendored_libraries is linked but NOT embedded for
+# runtime dlopen — hence the framework.)
 #
 # NOTE: this is an FFI plugin (no Dart platform-interface, no Swift/ObjC).
 #
@@ -27,7 +28,10 @@ Pod::Spec.new do |s|
   s.pod_target_xcconfig = { 'DEFINES_MODULE' => 'YES' }
   s.swift_version = '5.0'
 
-  # Bundle the prebuilt Brain framework (must live at/below this podspec dir so
-  # CocoaPods globs it). scripts/build-runtime.sh mirrors it into macos/Frameworks.
+  # Bundle the prebuilt Brain framework. CocoaPods only EMBEDS a vendored framework
+  # that lives at/below the podspec dir (a `../native/...` path is recorded but not
+  # copied into the app's Frameworks — verified: the app then has no libssruntime),
+  # so build-runtime.sh / download-sdk.sh symlink the single native/libs/macos copy
+  # in here. `install_framework` resolves the symlink at embed time.
   s.vendored_frameworks = 'Frameworks/libssruntime.framework'
 end

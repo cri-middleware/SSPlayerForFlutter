@@ -54,7 +54,7 @@ All mirror the sibling players (`../SSPlayerFor{Godot,Unity,Web,RenPy}`).
 
 | Script | Does | When |
 |---|---|---|
-| `scripts/build-runtime.{sh,ps1}` | Builds `ssruntime`/`ssconverter` (host direct; cross via `SpriteStudio-SDK/scripts/release-*`) and places dynamic libs into `packages/ssplayer_flutter/native/libs/<platform>/[<arch>]`. macOS also emits `libssruntime.framework` and mirrors it to `macos/Frameworks/`. | After changing Rust / first setup. |
+| `scripts/build-runtime.{sh,ps1}` | Builds `ssruntime`/`ssconverter` (host direct; cross via `SpriteStudio-SDK/scripts/release-*`) and places dynamic libs into `packages/ssplayer_flutter/native/libs/<platform>/[<arch>]`. macOS ships the runtime as `libssruntime.framework` (SDK-built on the universal path; wrapped locally on the host/debug path); no `macos/Frameworks/` mirror. | After changing Rust / first setup. |
 | `scripts/generate-runtime-code.{sh,ps1}` | `cbindgen --lang c` → `native/include/*.h`; `flatc --dart` → `lib/src/ssab/*.g.dart`; `dart run ffigen` → `lib/src/bindings/ssruntime_bindings.g.dart`. | After changing `.fbs` / C-API / regenerating bindings. |
 | `scripts/download-sdk.{sh,ps1}` | Downloads a prebuilt SDK release (`SDK_VERSION.txt`) instead of building. | Rust-less setup (reserved; artifact name may need updating). |
 | `scripts/prepare-example-assets.sh` | Converts `tests/overall/overall.sspj` → `.ssab` into `example/assets/overall/`. | Refreshing example assets. |
@@ -88,14 +88,24 @@ These were learned the hard way — respect them.
 * **ffigen types.** ffigen maps `const unsigned char *` → `Pointer<UnsignedChar>`
   and `uintptr_t *` → `Pointer<UintPtr>`. L2 keeps ergonomic `Uint8`/`Size`
   scratch cells and `.cast()`s at the FFI boundary.
-* **macOS/iOS native packaging.** A bare `.dylib` via `vendored_libraries` is NOT
-  embedded for runtime `dlopen`. Ship the Brain as a versioned `.framework`
-  (`@rpath` install id) via `vendored_frameworks`, and it must live at/below the
-  podspec dir (`macos/Frameworks/`, gitignored) — CocoaPods won't glob `../`.
+* **macOS native packaging.** A bare `.dylib` via `vendored_libraries` is NOT
+  embedded for runtime `dlopen`. Ship the Brain as a versioned `libssruntime.framework`
+  (`@rpath` install id) built by the SDK's shared `scripts/make-macos-framework.sh`
+  (single source of truth, the framework twin of `make-macos-bundle.sh`): the SDK's
+  `release-macos.sh` calls it for the universal release (with `Headers/`+`Modules/`
+  and a code signature) and `build-runtime.sh` copies that in; on the fast host/debug
+  path `build-runtime.sh` calls the SAME helper to wrap the cargo dylib. There is one
+  physical copy, in `native/libs/macos/`. CocoaPods only *embeds* a vendored framework
+  located at/below the podspec dir — a `../native/...` path is recorded but the app
+  ships without it (verified: no `libssruntime` in the built `.app`) — so
+  `build-runtime.sh` puts a **symlink** at `macos/Frameworks/libssruntime.framework`
+  → `../../native/libs/macos/...` and the podspec vendors `Frameworks/libssruntime.framework`
+  (`install_framework` resolves the symlink at embed time). (The iOS podspec vendors
+  `../native/libs/ios/libssruntime.xcframework`; iOS embedding isn't verified here.)
   CocoaPods must be installed (`brew install cocoapods`).
 * **Generated code is committed but never hand-edited.** Regenerate
   `lib/src/ssab/*.g.dart` and `lib/src/bindings/ssruntime_bindings.g.dart` via
-  `generate-runtime-code.sh`. `native/` and `macos/Frameworks/` are gitignored.
+  `generate-runtime-code.sh`. `native/` is gitignored.
 * **Blend types**: only Mix/Add/Mul/Sub are honored (others → Mix), matching the
   flagship; straight (non-premultiplied) alpha. `PartColor` needs a
   `FragmentProgram` (Phase-1+), not stock `BlendMode`.
@@ -103,12 +113,12 @@ These were learned the hard way — respect them.
 ## Verification
 
 Native libs must be built first (`scripts/build-runtime.sh`). The tests load the
-host dylib via `SSRUNTIME_LIBRARY_PATH`.
+host Brain via `SSRUNTIME_LIBRARY_PATH` (the framework binary on macOS).
 
 | Check | Command (run in `packages/ssplayer_flutter/`) |
 |---|---|
 | Analyze | `flutter analyze lib test` |
-| Unit + render tests | `SSRUNTIME_LIBRARY_PATH="$PWD/native/libs/macos/libssruntime.dylib" flutter test` |
+| Unit + render tests | `SSRUNTIME_LIBRARY_PATH="$PWD/native/libs/macos/libssruntime.framework/libssruntime" flutter test` |
 | Native host build | `bash ../../scripts/build-runtime.sh` |
 | Codegen | `bash ../../scripts/generate-runtime-code.sh` |
 | macOS desktop run | (in `example/`) `flutter run -d macos` → expect `[ssplayer] OK` |
