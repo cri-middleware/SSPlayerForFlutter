@@ -16,10 +16,7 @@ export 'src/player.dart' show SpriteStudioPlayer, SsEventCallback;
 export 'src/internal_player.dart'
     show
         SpriteStudioInternalPlayer,
-        SsResourceMode,
-        SsCoordinateSystem,
-        SsOrigin,
-        SsUnit;
+        SsResourceMode;
 export 'src/texture_registry.dart' show TextureRegistry;
 export 'src/texture_loader.dart' show SsTextureLoader, TextureLoadReport;
 export 'src/ssab_info.dart' show SsAnimeInfo;

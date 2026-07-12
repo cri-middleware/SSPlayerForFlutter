@@ -73,18 +73,12 @@ class SpriteStudioPlayer extends ChangeNotifier {
     String? baseAssetDir,
     AssetBundle? bundle,
     bool loadTextures = true,
-    SsCoordinateSystem coordinateSystem = SsCoordinateSystem.yDown,
-    SsOrigin? origin,
-    SsUnit? unit,
   }) async {
     _internal?.dispose();
     _lastTextureReport = null;
     final internal = SpriteStudioInternalPlayer.load(
       ssab,
       textures: textures,
-      coordinateSystem: coordinateSystem,
-      origin: origin,
-      unit: unit,
     );
     _internal = internal;
     internal.subFrame = _subFrame;

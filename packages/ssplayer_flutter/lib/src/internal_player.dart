@@ -11,35 +11,6 @@ import 'render/part_color.dart';
 import 'package:ssruntime_dart/framedata.dart' as fbs;
 import 'texture_registry.dart';
 
-/// Coordinate-system orientation passed to `ss_context_set_coordinate_system`.
-/// Flutter's canvas is Y-Down; the Brain applies the flip once, so the Body
-/// must NOT flip again.
-enum SsCoordinateSystem {
-  yUp(0),
-  yDown(1);
-
-  const SsCoordinateSystem(this.value);
-  final int value;
-}
-
-/// Origin placement passed to `ss_context_set_origin`.
-enum SsOrigin {
-  center(0),
-  topLeft(1);
-
-  const SsOrigin(this.value);
-  final int value;
-}
-
-/// Coordinate unit passed to `ss_context_set_unit`.
-enum SsUnit {
-  pixel(0),
-  normalized(1);
-
-  const SsUnit(this.value);
-  final int value;
-}
-
 /// How the `.ssab` bytes are handed to the Brain.
 ///
 ///  * [borrow] — the Body owns the bytes (zero-copy). We keep a native copy of
@@ -156,15 +127,12 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable {
   /// Loads `ssab` into a fresh Context and binds it.
   ///
   /// Steps mirror docs/30_core/10_initialization: create resource → create
-  /// context → bind → set coordinate system/origin/unit. The `.ssab` is NOT
+  /// context → bind → set coordinate system. The `.ssab` is NOT
   /// validated by the Brain; validate untrusted input before calling this.
   factory SpriteStudioInternalPlayer.load(
     Uint8List ssab, {
     TextureRegistry? textures,
     SsResourceMode mode = SsResourceMode.borrow,
-    SsCoordinateSystem coordinateSystem = SsCoordinateSystem.yDown,
-    SsOrigin? origin,
-    SsUnit? unit,
   }) {
     // Copy the ssab bytes into native memory. For borrow the Brain references
     // this block directly, so it must outlive the resource.
@@ -203,11 +171,10 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable {
     // Body reads and skips redundant FrameData vertices/cells/deforms
     // (render_loop §2). The Godot flagship relies on the same default.
     ss_runtime_set_render_mode(context, 0);
-    // Y-Down like the flagship; origin/unit are left at the runtime defaults
-    // (the flagship sets neither) unless the caller opts in.
-    ss_context_set_coordinate_system(context, coordinateSystem.value);
-    if (origin != null) ss_context_set_origin(context, origin.value);
-    if (unit != null) ss_context_set_unit(context, unit.value);
+    // Coordinate system = 1 (Y-Down) like the flagship: the Brain applies the
+    // flip once, so the Body must NOT flip again. Origin/unit are left at the
+    // runtime defaults (Center / Pixel) — the flagship sets neither.
+    ss_context_set_coordinate_system(context, 1); // 1 = Y-Down
 
     return SpriteStudioInternalPlayer._(
       context,
