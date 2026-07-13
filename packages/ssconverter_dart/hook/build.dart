@@ -159,6 +159,15 @@ Future<Uri> _download(BuildInput input, _Target target) async {
     return outUri; // cache hit
   }
 
+  // install_name_tool / codesign are macOS-only; assert the host so a violation
+  // fails clearly rather than with a cryptic "command not found".
+  if (target.macOsId && !Platform.isMacOS) {
+    throw StateError(
+      'ssconverter_dart: preparing the macOS library requires a macOS host — '
+      'install_name_tool / codesign are macOS-only.',
+    );
+  }
+
   final zipFile = await _ensureZip(cacheDir);
 
   final archive = ZipDecoder().decodeBytes(zipFile.readAsBytesSync());
