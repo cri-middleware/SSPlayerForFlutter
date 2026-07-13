@@ -5,7 +5,7 @@ description: >-
   optimized .ssab binaries (optionally self-contained / embedded). Desktop only
   (Windows / macOS / Linux); pure Dart, no Flutter dependency — the companion of
   the ssplayer_flutter runtime.
-version: 0.1.0-dev.1
+version: 7.0.0-dev.1
 repository: https://github.com/cri-middleware/SSPlayerForFlutter
 publish_to: none # not yet published to pub.dev
 
