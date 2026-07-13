@@ -5,6 +5,7 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart' show AssetBundle;
 
 import 'internal_player.dart';
+import 'ssab_info.dart';
 import 'texture_loader.dart';
 import 'texture_registry.dart';
 
@@ -56,6 +57,17 @@ class SpriteStudioPlayer extends ChangeNotifier {
   TextureRegistry get textures =>
       _internal?.textures ?? (throw StateError('load() first'));
 
+  /// Read-only metadata for the most recently [load]ed `.ssab` (null before the
+  /// first load). Structural names (animations, cellmaps) live in the `.ssab`,
+  /// not the Brain, so they are parsed from the bytes.
+  SsAnimeInfo? _animeInfo;
+
+  /// Names of the animations contained in the currently-loaded `.ssab`, in pack
+  /// order (empty before [load]). Feed any of these to [setupAnimation] to
+  /// switch animation without reloading the resource or its textures.
+  List<String> getAnimations() =>
+      _animeInfo?.animationNames ?? const <String>[];
+
   /// The unresolved textures from the most recent [load] (empty on success).
   TextureLoadReport? get lastTextureReport => _lastTextureReport;
   TextureLoadReport? _lastTextureReport;
@@ -76,6 +88,7 @@ class SpriteStudioPlayer extends ChangeNotifier {
   }) async {
     _internal?.dispose();
     _lastTextureReport = null;
+    _animeInfo = SsAnimeInfo(ssab);
     final internal = SpriteStudioInternalPlayer.load(
       ssab,
       textures: textures,
@@ -174,6 +187,7 @@ class SpriteStudioPlayer extends ChangeNotifier {
     _ticker.dispose();
     _internal?.dispose();
     _internal = null;
+    _animeInfo = null;
     super.dispose();
   }
 }
