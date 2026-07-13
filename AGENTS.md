@@ -27,16 +27,18 @@ is a strict 4-layer downward dependency: **L4** drawing adapters
 `SpriteStudioPlayer` (`ChangeNotifier` + `Ticker`, transport/events) → **L2**
 `SpriteStudioInternalPlayer` (Widget-agnostic: FFI Resource/Context lifecycle,
 SoA→`ui.Vertices` bake, `paint`) → **L1** ffigen `@Native` C-API bindings
-(`dart:ffi`), which live in the sibling **pure-Dart `ssruntime_dart`** package
-(top-level bindings + the `framedata`/`effect_draw_plan` FlatBuffers;
-`ssplayer_flutter` depends on it). The native `libssruntime` is delivered via
+(`dart:ffi`), which live in the sibling **`ssruntime_dart`** binding package
+(a plain Dart, non-Flutter package — top-level bindings + the
+`framedata`/`effect_draw_plan` FlatBuffers; `ssplayer_flutter` depends on it). The native `libssruntime` is delivered via
 **native assets** (`ssruntime_dart/hook/build.dart` bundles the prebuilt dylib as
 a code asset; the `@Native` bindings resolve it by asset id) — there is no
 `DynamicLibrary` loader, no `SSRUNTIME_LIBRARY_PATH`, and (on Flutter) no
 CocoaPods framework. Layers below are nearer the Brain; keep L2 Widget-free so it
 is reusable headless / from Flame / flutter_gpu.
-The host `.sspj`→`.ssab` converter is a third pure-Dart package,
-**`ssconverter_dart`** (desktop CLI + lib).
+The host `.sspj`→`.ssab` converter is a third binding package,
+**`ssconverter_dart`** — ffigen `@Native` bindings to the host `libssconverter`
+dylib behind a `ssconvert` CLI + `SsConverter` lib (desktop only); the conversion
+itself runs in Rust, mirroring how `ssruntime_dart` binds `libssruntime`.
 
 ## Key files
 
@@ -46,8 +48,8 @@ Paths are under `packages/ssplayer_flutter/` unless noted; **L1** now lives in t
 sibling `../ssruntime_dart/` package.
 
 | `lib/ssplayer_flutter.dart` | Public API barrel (L2–L4; import L1 from `ssruntime_dart` directly). |
-| `../ssruntime_dart/` | **L1** pure-Dart pkg: ffigen `@Native` top-level C-API bindings (`lib/src/ssruntime_bindings.g.dart`; native lib bundled by `hook/build.dart`) + runtime FlatBuffers `lib/src/fbs/{framedata,effect_draw_plan}.g.dart` (imported as `package:ssruntime_dart/framedata.dart`). |
-| `../ssconverter_dart/` | Host `.sspj`→`.ssab` converter — pure-Dart `ssconvert` CLI + `SsConverter` lib (desktop only). |
+| `../ssruntime_dart/` | **L1** binding package (plain Dart, non-Flutter): ffigen `@Native` top-level C-API bindings (`lib/src/ssruntime_bindings.g.dart`; native lib bundled by `hook/build.dart`) + runtime FlatBuffers `lib/src/fbs/{framedata,effect_draw_plan}.g.dart` (imported as `package:ssruntime_dart/framedata.dart`). |
+| `../ssconverter_dart/` | Host `.sspj`→`.ssab` converter — ffigen `@Native` bindings to the host `libssconverter` dylib (`lib/src/ssconverter_bindings.g.dart`; dylib bundled by `hook/build.dart`) behind the `ssconvert` CLI + `SsConverter` lib (desktop only). |
 | `lib/src/internal_player.dart` | **L2** engine — FFI lifecycle, SoA getters, `paint` = `DrawBatch.kind` dispatch (`_emitNormalBatch`). |
 | `lib/src/render/geometry_builder.dart` | **L2** — `GeometryBuilder` (pure SoA→`ui.Vertices` bake) + `DrawFrame` (per-frame SoA bundle). New kinds add build methods here. |
 | `lib/src/render/blend.dart` | **L2** — `blendModeFor` (`BlendType`→`ui.BlendMode`); future PartColor coef table. |
