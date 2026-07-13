@@ -1,0 +1,36 @@
+name: ssgen_flutter
+description: >-
+  Flutter dev-tooling for SpriteStudio live-reload. A State mixin (SsLiveReload)
+  that rides Flutter's hot reload: on desktop it reconverts the stale
+  SpriteStudio_Source projects in-process (ssgen_dart -> host libssconverter) and
+  hot-swaps the current pack (ssplayer_flutter's reload); on iOS/Android it
+  reloads the current pack from the bundle (the host converts + `r` DevFS-syncs).
+  Ships a `dart run ssgen_flutter:ssreconvert` host runner for device targets.
+  DEV ONLY: add this only in apps that want in-app live-reload — the
+  ssplayer_flutter runtime itself stays converter-free.
+version: 7.0.0-alpha.1
+repository: https://github.com/cri-middleware/SSPlayerForFlutter
+publish_to: none # not yet published to pub.dev
+
+# Part of the repo-root pub workspace (see ../../pubspec.yaml).
+resolution: workspace
+
+environment:
+  sdk: ">=3.10.0 <4.0.0"
+  flutter: ">=3.38.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  # The player whose resource this hot-swaps (SpriteStudioPlayer.reload).
+  ssplayer_flutter:
+    path: ../ssplayer_flutter
+  # The host reconvert-stale orchestration (SsProjectSync). Desktop only; on
+  # iOS/Android its ssconverter_dart dependency is mobile-inert (no code asset).
+  ssgen_dart:
+    path: ../ssgen_dart
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0

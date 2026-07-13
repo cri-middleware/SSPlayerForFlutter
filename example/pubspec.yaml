@@ -16,11 +16,11 @@ dependencies:
     sdk: flutter
   ssplayer_flutter:
     path: ../packages/ssplayer_flutter
-  # Desktop dev live-reload: reassemble() calls SsProjectSync to reconvert stale
-  # SpriteStudio_Source projects via the host libssconverter (desktop/debug
-  # only). Kept out of ssplayer_flutter so the runtime stays converter-free.
-  ssgen_dart:
-    path: ../packages/ssgen_dart
+  # Dev live-reload: the SsLiveReload mixin rides hot reload (desktop reconvert
+  # in-process, device reload-only) + `dart run ssgen_flutter:ssreconvert` host
+  # runner. Kept out of ssplayer_flutter so the runtime stays converter-free.
+  ssgen_flutter:
+    path: ../packages/ssgen_flutter
 
 dev_dependencies:
   flutter_test:
