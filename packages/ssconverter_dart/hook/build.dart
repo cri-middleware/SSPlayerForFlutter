@@ -1,6 +1,9 @@
+import 'dart:convert';
 import 'dart:io';
 
+import 'package:archive/archive.dart';
 import 'package:code_assets/code_assets.dart';
+import 'package:crypto/crypto.dart';
 import 'package:hooks/hooks.dart';
 
 /// Native-assets build hook: resolves the prebuilt `libssconverter` and registers
@@ -22,40 +25,17 @@ import 'package:hooks/hooks.dart';
 ///      ```
 ///   2. `native/libs/<platform>/[<arch>]/…` inside the package — a source
 ///      checkout populated by scripts/build-runtime.sh.
-///   3. Download the pinned release asset from GitHub, cached under
-///      `outputDirectoryShared` — the path for a consumer with no Rust toolchain.
+///   3. Download the SDK release's `spritestudio-sdk-dynamic-libs.zip`, verify it
+///      against the release's `SHA256SUMS`, and extract this platform's converter
+///      library — the path for a consumer with no Rust toolchain. The converter
+///      ships as a bare dylib/.so/.dll on every desktop OS (no framework), so
+///      extraction is a plain copy. Cached under `outputDirectoryShared`.
 void main(List<String> args) async {
   await build(args, (input, output) async {
     if (!input.config.buildCodeAssets) return;
 
-    final code = input.config.code;
-    final os = code.targetOS;
-    final arch = switch (code.targetArchitecture) {
-      Architecture.x64 => 'x86_64',
-      Architecture.arm64 => os == OS.linux ? 'aarch64' : 'arm64',
-      final a => a.name,
-    };
-    // (local path inside the package, release asset file name). macOS ships one
-    // universal dylib (no arch dir); linux/windows are per-arch.
-    final (String rel, String assetName) = switch (os) {
-      OS.macOS => (
-        'native/libs/macos/libssconverter.dylib',
-        'libssconverter-macos.dylib',
-      ),
-      OS.linux => (
-        'native/libs/linux/$arch/libssconverter.so',
-        'libssconverter-linux-$arch.so',
-      ),
-      OS.windows => (
-        'native/libs/windows/$arch/ssconverter.dll',
-        'ssconverter-windows-$arch.dll',
-      ),
-      _ => throw UnsupportedError(
-        'ssconverter_dart is desktop-only (Windows/macOS/Linux); got $os',
-      ),
-    };
-
-    final file = await _resolveLibrary(input, output, rel, assetName);
+    final target = _targetFor(input.config.code);
+    final file = await _resolveLibrary(input, output, target);
     output.assets.code.add(
       CodeAsset(
         package: input.packageName,
@@ -68,22 +48,78 @@ void main(List<String> args) async {
   });
 }
 
-/// The SpriteStudio-SDK release the download branch fetches prebuilt libraries
-/// from — the single source of truth for the pinned version. MUST stay in
-/// lockstep with the committed ffigen bindings' ABI: bump this whenever you
-/// regenerate the bindings against a newer SDK, or the downloaded binary and the
-/// Dart bindings will disagree.
+/// How the current build target's `libssconverter` is obtained. The converter is
+/// desktop-only and ships as a bare library on every OS, so — unlike the runtime
+/// — there is no framework/xcframework to unwrap: [macOsId] just rewrites the
+/// macOS dylib's install id, everything else is a plain copy.
+class _Target {
+  /// Path inside the package (branch 2: source checkout / build-runtime.sh).
+  final String rel;
+
+  /// Entry to pull out of `spritestudio-sdk-dynamic-libs.zip` (branch 3), matched
+  /// by suffix so the zip's leading directory doesn't have to be known.
+  final String zipEntrySuffix;
+
+  /// Bare output file name (drives the extension the code asset needs).
+  final String outName;
+
+  /// Whether to set the macOS dylib's install id to `@rpath/<outName>`.
+  final bool macOsId;
+
+  const _Target(
+    this.rel,
+    this.zipEntrySuffix,
+    this.outName, {
+    this.macOsId = false,
+  });
+}
+
+_Target _targetFor(CodeConfig code) {
+  final os = code.targetOS;
+  final arch = switch (code.targetArchitecture) {
+    Architecture.x64 => 'x86_64',
+    Architecture.arm64 => os == OS.linux ? 'aarch64' : 'arm64',
+    final a => a.name,
+  };
+  return switch (os) {
+    OS.macOS => const _Target(
+      'native/libs/macos/libssconverter.dylib',
+      'macos/libssconverter.dylib',
+      'libssconverter.dylib',
+      macOsId: true,
+    ),
+    OS.linux => _Target(
+      'native/libs/linux/$arch/libssconverter.so',
+      'libs/linux/$arch/libssconverter.so',
+      'libssconverter.so',
+    ),
+    OS.windows => _Target(
+      'native/libs/windows/$arch/ssconverter.dll',
+      'libs/windows/$arch/ssconverter.dll',
+      'ssconverter.dll',
+    ),
+    _ => throw UnsupportedError(
+      'ssconverter_dart is desktop-only (Windows/macOS/Linux); got $os',
+    ),
+  };
+}
+
+/// The SpriteStudio-SDK release the download branch fetches from — the single
+/// source of truth for the pinned version. MUST stay in lockstep with the
+/// committed ffigen bindings' ABI.
 const _sdkVersion = 'v7.0.0-alpha.1';
 
-/// GitHub Releases base for prebuilt `libssconverter` assets (see [_download]).
+/// GitHub Releases base for the SpriteStudio-SDK.
 const _releaseBase =
     'https://github.com/cri-middleware/SpriteStudio-SDK/releases/download';
+
+/// The all-platform dynamic-libraries archive published on each release.
+const _dynamicLibsZip = 'spritestudio-sdk-dynamic-libs.zip';
 
 Future<Uri> _resolveLibrary(
   BuildInput input,
   BuildOutputBuilder output,
-  String rel,
-  String assetName,
+  _Target target,
 ) async {
   // 1) Consumer override — an explicit local dylib wins over everything.
   final override = input.userDefines.path('libssconverter');
@@ -99,60 +135,152 @@ Future<Uri> _resolveLibrary(
   }
 
   // 2) Prebuilt library shipped in the package (source checkout / build-runtime).
-  final local = input.packageRoot.resolve(rel);
+  final local = input.packageRoot.resolve(target.rel);
   if (File.fromUri(local).existsSync()) {
     return local;
   }
 
-  // 3) Download the pinned release asset (consumer, no Rust toolchain).
-  return _download(input, assetName);
+  // 3) Download the release zip and extract this target (consumer).
+  return _download(input, target);
 }
 
-/// Downloads [assetName] from the pinned release into a version-keyed subfolder
-/// of `outputDirectoryShared` (persisted across builds) and returns its Uri.
-/// A prior download for the same version is reused; the write is staged through
-/// a temp file + atomic rename so an interrupted build never leaves a truncated
-/// dylib in the cache.
-Future<Uri> _download(BuildInput input, String assetName) async {
+/// Ensures the checksum-verified dynamic-libs zip is cached, then extracts this
+/// target's library. Both the zip and each extracted library are cached under
+/// `outputDirectoryShared`.
+Future<Uri> _download(BuildInput input, _Target target) async {
   final cacheDir = input.outputDirectoryShared.resolve(
-    'libssconverter/$_sdkVersion/',
+    'spritestudio-sdk/$_sdkVersion/',
   );
-  final dest = cacheDir.resolve(assetName);
-  final destFile = File.fromUri(dest);
-  if (destFile.existsSync() && destFile.lengthSync() > 0) {
-    return dest; // cache hit
+  final outUri = cacheDir
+      .resolve('extracted/')
+      .resolve(target.rel.replaceFirst('native/libs/', ''));
+  final outFile = File.fromUri(outUri);
+  if (outFile.existsSync() && outFile.lengthSync() > 0) {
+    return outUri; // cache hit
   }
 
-  final url = Uri.parse('$_releaseBase/$_sdkVersion/$assetName');
-  await Directory.fromUri(cacheDir).create(recursive: true);
+  final zipFile = await _ensureZip(cacheDir);
 
-  final client = HttpClient()
-    // Honour HTTP(S)_PROXY / NO_PROXY — the hooks runner passes these through.
-    ..findProxy = HttpClient.findProxyFromEnvironment;
+  final archive = ZipDecoder().decodeBytes(zipFile.readAsBytesSync());
+  final entry = archive.files.firstWhere(
+    (f) => f.isFile && f.name.endsWith(target.zipEntrySuffix),
+    orElse: () => throw StateError(
+      'ssconverter_dart: "${target.zipEntrySuffix}" not found in $_dynamicLibsZip '
+      '($_sdkVersion) — the release layout may have changed.',
+    ),
+  );
+
+  outFile.parent.createSync(recursive: true);
+  final tmp = File.fromUri(
+    outFile.parent.uri.resolve('${target.outName}.$pid.part'),
+  );
+  tmp.writeAsBytesSync(entry.content as List<int>);
+  if (target.macOsId) {
+    await _run('install_name_tool', [
+      '-id',
+      '@rpath/${target.outName}',
+      tmp.path,
+    ]);
+    // install_name_tool invalidated the dylib's signature; Apple Silicon won't
+    // dlopen an unsigned Mach-O, so re-sign ad-hoc (Flutter re-signs later too).
+    await _run('codesign', ['--sign', '-', '--force', tmp.path]);
+  }
+  tmp.renameSync(outFile.path); // atomic within the same directory
+  return outUri;
+}
+
+/// Downloads + checksum-verifies `spritestudio-sdk-dynamic-libs.zip` into
+/// [cacheDir] (once per version) and returns it.
+Future<File> _ensureZip(Uri cacheDir) async {
+  await Directory.fromUri(cacheDir).create(recursive: true);
+  final zipFile = File.fromUri(cacheDir.resolve(_dynamicLibsZip));
+  if (zipFile.existsSync() && zipFile.lengthSync() > 0) {
+    return zipFile; // cache hit
+  }
+
+  final client = HttpClient()..findProxy = HttpClient.findProxyFromEnvironment;
   try {
-    final request = await client.getUrl(url); // follows redirects to the CDN
-    final response = await request.close();
-    if (response.statusCode != HttpStatus.ok) {
-      throw HttpException(
-        'ssconverter_dart: could not download the prebuilt libssconverter for '
-        '$_sdkVersion (HTTP ${response.statusCode}). Either the release does '
-        'not publish "$assetName" yet, or build it locally with '
-        'scripts/build-runtime.sh.',
-        uri: url,
-      );
-    }
-    final tmp = File.fromUri(cacheDir.resolve('$assetName.$pid.part'));
-    await response.pipe(tmp.openWrite()); // pipe closes the sink
-    if (tmp.lengthSync() == 0) {
+    final sums = await _getText(
+      client,
+      Uri.parse('$_releaseBase/$_sdkVersion/SHA256SUMS'),
+    );
+    final want = _sha256For(sums, _dynamicLibsZip);
+
+    final tmp = File.fromUri(cacheDir.resolve('$_dynamicLibsZip.$pid.part'));
+    await _streamTo(
+      client,
+      Uri.parse('$_releaseBase/$_sdkVersion/$_dynamicLibsZip'),
+      tmp,
+    );
+
+    final got = sha256.convert(tmp.readAsBytesSync()).toString();
+    if (got != want) {
       tmp.deleteSync();
-      throw HttpException(
-        'ssconverter_dart: downloaded an empty file from $url',
-        uri: url,
+      throw StateError(
+        'ssconverter_dart: SHA256 mismatch for $_dynamicLibsZip ($_sdkVersion): '
+        'expected $want, got $got.',
       );
     }
-    tmp.renameSync(destFile.path); // atomic within the same directory
+    tmp.renameSync(zipFile.path); // atomic within the same directory
+    return zipFile;
   } finally {
     client.close(force: true);
   }
-  return dest;
+}
+
+/// Parses `sha256sum` output and returns the hex digest for [filename].
+String _sha256For(String sums, String filename) {
+  for (final line in const LineSplitter().convert(sums)) {
+    final m = RegExp(r'^([0-9a-fA-F]{64})\s+\*?(.+)$').firstMatch(line.trim());
+    if (m != null && m.group(2)!.split('/').last == filename) {
+      return m.group(1)!.toLowerCase();
+    }
+  }
+  throw StateError(
+    'ssconverter_dart: $filename is not listed in SHA256SUMS ($_sdkVersion).',
+  );
+}
+
+Future<String> _getText(HttpClient client, Uri url) async {
+  final resp = await (await client.getUrl(url)).close();
+  if (resp.statusCode != HttpStatus.ok) {
+    throw HttpException(
+      'ssconverter_dart: HTTP ${resp.statusCode} for $url — is the $_sdkVersion '
+      'release published? (else build locally with scripts/build-runtime.sh).',
+      uri: url,
+    );
+  }
+  return resp.transform(utf8.decoder).join();
+}
+
+Future<void> _streamTo(HttpClient client, Uri url, File dest) async {
+  final resp = await (await client.getUrl(url)).close();
+  if (resp.statusCode != HttpStatus.ok) {
+    throw HttpException(
+      'ssconverter_dart: HTTP ${resp.statusCode} for $url.',
+      uri: url,
+    );
+  }
+  await resp.pipe(dest.openWrite()); // pipe closes the sink
+  if (dest.lengthSync() == 0) {
+    dest.deleteSync();
+    throw HttpException(
+      'ssconverter_dart: downloaded an empty file from $url',
+      uri: url,
+    );
+  }
+}
+
+Future<void> _run(String exe, List<String> args) async {
+  final r = await Process.run(exe, args);
+  if (r.exitCode != 0) {
+    throw ProcessException(
+      exe,
+      args,
+      '${r.stderr}'.trim().isEmpty
+          ? '${r.stdout}'.trim()
+          : '${r.stderr}'.trim(),
+      r.exitCode,
+    );
+  }
 }

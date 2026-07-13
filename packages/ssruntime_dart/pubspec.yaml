@@ -25,6 +25,8 @@ dependencies:
   # (Only dart:ffi is used in this package — package:ffi is not needed.)
   hooks: ^2.0.2
   code_assets: ^1.2.1
+  archive: ^4.0.9
+  crypto: ^3.0.7
 
 dev_dependencies:
   test: ^1.24.0
