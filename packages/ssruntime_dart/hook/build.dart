@@ -67,12 +67,18 @@ class _Target {
   /// For [_Extract.lipoThin]: the arch to thin the fat Mach-O down to.
   final String? lipoArch;
 
+  /// Ad-hoc re-sign the extracted Mach-O? Only macOS: it is `dlopen`'d on the
+  /// host (Apple Silicon needs a valid signature), whereas iOS is signed by
+  /// Xcode with the app's identity during the app build.
+  final bool sign;
+
   const _Target(
     this.rel,
     this.zipEntrySuffix,
     this.outName,
     this.extract, {
     this.lipoArch,
+    this.sign = false,
   });
 }
 
@@ -101,6 +107,7 @@ _Target _targetFor(CodeConfig code) {
         'macos/libssruntime.framework/Versions/A/libssruntime',
         'libssruntime.dylib',
         _Extract.machoId,
+        sign: true,
       );
     case OS.linux:
       return _Target(
@@ -238,7 +245,7 @@ Future<Uri> _download(BuildInput input, _Target target) async {
         '@rpath/${target.outName}',
         tmp.path,
       ]);
-      await _sign(tmp.path);
+      if (target.sign) await _sign(tmp.path);
     case _Extract.lipoThin:
       final thin = File.fromUri(
         outFile.parent.uri.resolve('${target.outName}.$pid.thin'),
@@ -257,7 +264,7 @@ Future<Uri> _download(BuildInput input, _Target target) async {
         '@rpath/${target.outName}',
         tmp.path,
       ]);
-      await _sign(tmp.path);
+      if (target.sign) await _sign(tmp.path);
   }
 
   tmp.renameSync(outFile.path); // atomic within the same directory
