@@ -73,7 +73,7 @@ void main(List<String> args) async {
 /// lockstep with the committed ffigen bindings' ABI: bump this whenever you
 /// regenerate the bindings against a newer SDK, or the downloaded binary and the
 /// Dart bindings will disagree.
-const _sdkVersion = 'v7.0.0-alpha01';
+const _sdkVersion = 'v7.0.0-alpha.1';
 
 /// GitHub Releases base for prebuilt `libssconverter` assets (see [_download]).
 const _releaseBase =
