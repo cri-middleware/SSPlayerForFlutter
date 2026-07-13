@@ -1,7 +1,10 @@
+import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:desktop_drop/desktop_drop.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show rootBundle;
+import 'package:flutter/services.dart'
+    show AssetBundle, CachingAssetBundle, rootBundle;
 import 'package:ssplayer_flutter/ssplayer_flutter.dart';
 
 void main() => runApp(const ExampleApp());
@@ -31,18 +34,29 @@ class _PlayerPageState extends State<PlayerPage>
   late final SpriteStudioPlayer _player;
   String _status = 'loading…';
 
-  static const _assetDir = 'assets/overall';
-
-  // overall.sspj packs, switchable from the dropdown to eyeball each feature
-  // against the SS7 editor. PartsColor (§10, roadmap step 2) is the default so a
-  // bare `flutter run` lands on the current verification target.
-  static const _packs = <String>[
+  // The current .ssab source. Starts on the bundled overall.sspj packs; drag &
+  // drop a folder (or a .ssab) onto the window to swap to a filesystem source.
+  static const _bundledPacks = <String>[
     'PartsColor',
     'Basic',
     'BlendMode',
     'Interpolation',
   ];
+  AssetBundle _bundle = rootBundle;
+  String _assetDir = 'assets/overall';
+  bool _dropped = false;
+
+  // pack = a separate .ssab file in the current source directory.
+  List<String> _packs = _bundledPacks;
   String _pack = 'PartsColor';
+
+  // Animations inside the currently-loaded pack, enumerated from the .ssab via
+  // SpriteStudioPlayer.getAnimations(); the second dropdown switches between
+  // them without reloading the resource/textures.
+  List<String> _animations = const <String>[];
+  String? _anim;
+
+  bool _dragging = false;
 
   @override
   void initState() {
@@ -57,33 +71,94 @@ class _PlayerPageState extends State<PlayerPage>
       _status = 'loading "$pack"…';
     });
     try {
-      final asset = '$_assetDir/$pack.ssab';
-      final ByteData data = await rootBundle.load(asset);
-      final Uint8List bytes = data.buffer.asUint8List();
-      // Pick the first animation in the pack (name comes from the .ssab).
-      final animName = SsAnimeInfo(bytes).animationNames.first;
+      // The ssab and its sibling textures are resolved through the same bundle:
+      // rootBundle (asset keys) for bundled packs, or _FileBundle (absolute
+      // filesystem paths) for a dropped folder.
+      final assetPath = '$_assetDir/$pack.ssab';
+      final ByteData data = await _bundle.load(assetPath);
+      final Uint8List bytes =
+          data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
       // overall.ssab uses REFERENCE textures (sibling PNGs) → pass baseAssetDir.
-      await _player.load(
-        bytes,
-        animationName: animName,
-        baseAssetDir: _assetDir,
-      );
+      await _player.load(bytes, bundle: _bundle, baseAssetDir: _assetDir);
       // Guard against a newer selection winning the race while we awaited.
       if (!mounted || _pack != pack) return;
+      // Enumerate the pack's animations and start on the first one.
+      final anims = _player.getAnimations();
+      final animName = anims.isNotEmpty ? anims.first : null;
+      if (animName != null) _player.setupAnimation(animName);
       _player
         ..loop = -1
         ..play();
       final missing = _player.lastTextureReport?.unresolved ?? const [];
+      final label = animName ?? '(no animations)';
       final msg = missing.isEmpty
-          ? 'playing "$animName"'
-          : 'playing "$animName" (missing textures: ${missing.join(", ")})';
+          ? 'playing "$label"'
+          : 'playing "$label" (missing textures: ${missing.join(", ")})';
       // ignore: avoid_print
       print('[ssplayer] OK — $msg (frame=${_player.frameNo})');
-      setState(() => _status = msg);
+      setState(() {
+        _animations = anims;
+        _anim = animName;
+        _status = msg;
+      });
     } catch (e, st) {
       // ignore: avoid_print
       print('[ssplayer] FAILED: $e\n$st');
       if (mounted) setState(() => _status = 'failed: $e');
+    }
+  }
+
+  // Switch animation within the loaded pack — no reload, just re-setup + play.
+  void _selectAnimation(String name) {
+    if (name == _anim) return;
+    _player
+      ..setupAnimation(name)
+      ..loop = -1
+      ..play();
+    setState(() {
+      _anim = name;
+      _status = 'playing "$name"';
+    });
+  }
+
+  // Handle a dropped folder or .ssab: scan the directory for *.ssab, repopulate
+  // the pack dropdown, and play from disk (textures resolved from that folder).
+  Future<void> _openDropped(String path) async {
+    setState(() => _dragging = false);
+    try {
+      final dir =
+          FileSystemEntity.isDirectorySync(path) ? path : File(path).parent.path;
+      final base = path.split(Platform.pathSeparator).last;
+      final selected = base.toLowerCase().endsWith('.ssab')
+          ? base.substring(0, base.length - '.ssab'.length)
+          : null;
+
+      final packs = Directory(dir)
+          .listSync()
+          .whereType<File>()
+          .map((f) => f.path.split(Platform.pathSeparator).last)
+          .where((n) => n.toLowerCase().endsWith('.ssab'))
+          .map((n) => n.substring(0, n.length - '.ssab'.length))
+          .toList()
+        ..sort();
+      if (packs.isEmpty) {
+        setState(() => _status = 'no .ssab found in $dir');
+        return;
+      }
+      final chosen =
+          (selected != null && packs.contains(selected)) ? selected : packs.first;
+      setState(() {
+        _bundle = _FileBundle();
+        _assetDir = dir;
+        _dropped = true;
+        _packs = packs;
+        _pack = chosen;
+        _animations = const <String>[];
+        _anim = null;
+      });
+      await _load(chosen);
+    } catch (e) {
+      if (mounted) setState(() => _status = 'drop failed: $e');
     }
   }
 
@@ -95,10 +170,28 @@ class _PlayerPageState extends State<PlayerPage>
 
   @override
   Widget build(BuildContext context) {
+    final source = _dropped ? _assetDir : 'bundled assets';
     return Scaffold(
       appBar: AppBar(
         title: const Text('ssplayer_flutter'),
         actions: [
+          // Animation within the current pack (from player.getAnimations()).
+          if (_animations.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: DropdownButton<String>(
+                value: _anim,
+                hint: const Text('animation'),
+                onChanged: (v) {
+                  if (v != null) _selectAnimation(v);
+                },
+                items: [
+                  for (final a in _animations)
+                    DropdownMenuItem<String>(value: a, child: Text(a)),
+                ],
+              ),
+            ),
+          // Pack = a separate .ssab file in the current source directory.
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12),
             child: DropdownButton<String>(
@@ -114,23 +207,41 @@ class _PlayerPageState extends State<PlayerPage>
           ),
         ],
       ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 400,
-              height: 400,
-              color: Colors.black26,
-              child: SpriteStudioView(
-                player: _player,
+      body: DropTarget(
+        onDragEntered: (_) => setState(() => _dragging = true),
+        onDragExited: (_) => setState(() => _dragging = false),
+        onDragDone: (detail) {
+          if (detail.files.isNotEmpty) _openDropped(detail.files.first.path);
+        },
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
                 width: 400,
                 height: 400,
+                decoration: BoxDecoration(
+                  color: Colors.black26,
+                  border: Border.all(
+                    color: _dragging ? Colors.tealAccent : Colors.transparent,
+                    width: 3,
+                  ),
+                ),
+                child: SpriteStudioView(
+                  player: _player,
+                  width: 400,
+                  height: 400,
+                ),
               ),
-            ),
-            const SizedBox(height: 16),
-            Text(_status),
-          ],
+              const SizedBox(height: 16),
+              Text(_status),
+              const SizedBox(height: 4),
+              Text(
+                'source: $source  ·  drop a folder of .ssab here',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
+          ),
         ),
       ),
       floatingActionButton: FloatingActionButton(
@@ -139,5 +250,16 @@ class _PlayerPageState extends State<PlayerPage>
         child: const Icon(Icons.play_arrow),
       ),
     );
+  }
+}
+
+/// AssetBundle whose keys are absolute filesystem paths, so a dropped folder's
+/// `.ssab` and its sibling reference textures load through the exact same code
+/// path as bundled assets — no library change, and `dart:io` stays in the app.
+class _FileBundle extends CachingAssetBundle {
+  @override
+  Future<ByteData> load(String key) async {
+    final bytes = await File(key).readAsBytes();
+    return ByteData.sublistView(bytes);
   }
 }
