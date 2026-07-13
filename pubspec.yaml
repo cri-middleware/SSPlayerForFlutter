@@ -1,0 +1,18 @@
+# Pub workspace root for the SSPlayerForFlutter monorepo. Running
+# `flutter pub get` here resolves ALL member packages together (one shared
+# lockfile + .dart_tool), so the three published packages and the example stay
+# on a single, consistent set of dependency versions.
+#
+# This root is NOT published; each package under packages/ is published on its
+# own (see each package's pubspec). Members opt in with `resolution: workspace`.
+name: ssplayer_flutter_workspace
+publish_to: none
+
+environment:
+  sdk: ">=3.10.0 <4.0.0"
+
+workspace:
+  - packages/ssruntime_dart
+  - packages/ssconverter_dart
+  - packages/ssplayer_flutter
+  - example

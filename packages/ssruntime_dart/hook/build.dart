@@ -42,29 +42,32 @@ void main(List<String> args) async {
     // universal dylib (no arch dir); linux/windows are per-arch.
     final (String rel, String assetName) = switch (os) {
       OS.macOS => (
-          'native/libs/macos/libssruntime.dylib',
-          'libssruntime-macos.dylib',
-        ),
+        'native/libs/macos/libssruntime.dylib',
+        'libssruntime-macos.dylib',
+      ),
       OS.linux => (
-          'native/libs/linux/$arch/libssruntime.so',
-          'libssruntime-linux-$arch.so',
-        ),
+        'native/libs/linux/$arch/libssruntime.so',
+        'libssruntime-linux-$arch.so',
+      ),
       OS.windows => (
-          'native/libs/windows/$arch/ssruntime.dll',
-          'ssruntime-windows-$arch.dll',
-        ),
+        'native/libs/windows/$arch/ssruntime.dll',
+        'ssruntime-windows-$arch.dll',
+      ),
       _ => throw UnsupportedError(
-          'ssruntime_dart: no prebuilt libssruntime for $os '
-          '(iOS/Android native-assets embedding is a follow-up)'),
+        'ssruntime_dart: no prebuilt libssruntime for $os '
+        '(iOS/Android native-assets embedding is a follow-up)',
+      ),
     };
 
     final file = await _resolveLibrary(input, output, rel, assetName);
-    output.assets.code.add(CodeAsset(
-      package: input.packageName,
-      name: 'ssruntime',
-      linkMode: DynamicLoadingBundled(),
-      file: file,
-    ));
+    output.assets.code.add(
+      CodeAsset(
+        package: input.packageName,
+        name: 'ssruntime',
+        linkMode: DynamicLoadingBundled(),
+        file: file,
+      ),
+    );
     // Rebuild the code asset when the resolved library changes.
     output.dependencies.add(file);
   });
@@ -117,8 +120,9 @@ Future<Uri> _resolveLibrary(
 /// a temp file + atomic rename so an interrupted build never leaves a truncated
 /// dylib in the cache.
 Future<Uri> _download(BuildInput input, String assetName) async {
-  final cacheDir =
-      input.outputDirectoryShared.resolve('libssruntime/$_sdkVersion/');
+  final cacheDir = input.outputDirectoryShared.resolve(
+    'libssruntime/$_sdkVersion/',
+  );
   final dest = cacheDir.resolve(assetName);
   final destFile = File.fromUri(dest);
   if (destFile.existsSync() && destFile.lengthSync() > 0) {

@@ -39,28 +39,31 @@ void main(List<String> args) async {
     // universal dylib (no arch dir); linux/windows are per-arch.
     final (String rel, String assetName) = switch (os) {
       OS.macOS => (
-          'native/libs/macos/libssconverter.dylib',
-          'libssconverter-macos.dylib',
-        ),
+        'native/libs/macos/libssconverter.dylib',
+        'libssconverter-macos.dylib',
+      ),
       OS.linux => (
-          'native/libs/linux/$arch/libssconverter.so',
-          'libssconverter-linux-$arch.so',
-        ),
+        'native/libs/linux/$arch/libssconverter.so',
+        'libssconverter-linux-$arch.so',
+      ),
       OS.windows => (
-          'native/libs/windows/$arch/ssconverter.dll',
-          'ssconverter-windows-$arch.dll',
-        ),
+        'native/libs/windows/$arch/ssconverter.dll',
+        'ssconverter-windows-$arch.dll',
+      ),
       _ => throw UnsupportedError(
-          'ssconverter_dart is desktop-only (Windows/macOS/Linux); got $os'),
+        'ssconverter_dart is desktop-only (Windows/macOS/Linux); got $os',
+      ),
     };
 
     final file = await _resolveLibrary(input, output, rel, assetName);
-    output.assets.code.add(CodeAsset(
-      package: input.packageName,
-      name: 'ssconverter',
-      linkMode: DynamicLoadingBundled(),
-      file: file,
-    ));
+    output.assets.code.add(
+      CodeAsset(
+        package: input.packageName,
+        name: 'ssconverter',
+        linkMode: DynamicLoadingBundled(),
+        file: file,
+      ),
+    );
     output.dependencies.add(file);
   });
 }
@@ -111,8 +114,9 @@ Future<Uri> _resolveLibrary(
 /// a temp file + atomic rename so an interrupted build never leaves a truncated
 /// dylib in the cache.
 Future<Uri> _download(BuildInput input, String assetName) async {
-  final cacheDir =
-      input.outputDirectoryShared.resolve('libssconverter/$_sdkVersion/');
+  final cacheDir = input.outputDirectoryShared.resolve(
+    'libssconverter/$_sdkVersion/',
+  );
   final dest = cacheDir.resolve(assetName);
   final destFile = File.fromUri(dest);
   if (destFile.existsSync() && destFile.lengthSync() > 0) {

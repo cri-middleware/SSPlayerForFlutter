@@ -7,11 +7,14 @@ version: 0.1.0-dev.1
 repository: https://github.com/cri-middleware/SSPlayerForFlutter
 publish_to: none # not yet published to pub.dev
 
+# Part of the repo-root pub workspace (see ../../pubspec.yaml).
+resolution: workspace
+
 environment:
   # Native assets (build hooks) are stable & default-on since Flutter 3.38 /
-  # Dart 3.10; pinned to the current stable toolchain (Flutter 3.44.6 / Dart 3.12.2).
-  sdk: ">=3.12.2 <4.0.0"
-  flutter: ">=3.44.6"
+  # Dart 3.10 — the floor this package targets for the widest consumer base.
+  sdk: ">=3.10.0 <4.0.0"
+  flutter: ">=3.38.0"
 
 dependencies:
   flutter:

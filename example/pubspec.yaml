@@ -3,9 +3,12 @@ description: Example app for ssplayer_flutter — plays tests/overall/overall.ss
 publish_to: none
 version: 0.1.0
 
+# Part of the repo-root pub workspace (see ../pubspec.yaml).
+resolution: workspace
+
 environment:
-  sdk: ">=3.12.2 <4.0.0"
-  flutter: ">=3.44.6"
+  sdk: ">=3.10.0 <4.0.0"
+  flutter: ">=3.38.0"
 
 dependencies:
   desktop_drop: ^0.7.1

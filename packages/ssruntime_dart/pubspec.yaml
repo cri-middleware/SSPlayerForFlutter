@@ -8,8 +8,13 @@ version: 0.1.0-dev.1
 repository: https://github.com/cri-middleware/SSPlayerForFlutter
 publish_to: none # not yet published to pub.dev
 
+# Part of the repo-root pub workspace (see ../../pubspec.yaml).
+resolution: workspace
+
 environment:
-  sdk: ">=3.12.2 <4.0.0"
+  # Native assets (build hooks) are stable since Dart 3.10 (the hooks/code_assets
+  # floor too) — target that for the widest consumer base.
+  sdk: ">=3.10.0 <4.0.0"
 
 dependencies:
   # Dart FlatBuffers runtime for the flatc-generated runtime accessors
