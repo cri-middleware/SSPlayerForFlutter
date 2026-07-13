@@ -14,5 +14,6 @@ environment:
 workspace:
   - packages/ssruntime_dart
   - packages/ssconverter_dart
+  - packages/ssgen_dart
   - packages/ssplayer_flutter
   - example

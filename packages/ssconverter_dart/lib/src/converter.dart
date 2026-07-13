@@ -81,6 +81,17 @@ class SsConverter {
     bool embedded = false,
     Duration pollInterval = const Duration(milliseconds: 20),
   }) async {
+    // Desktop-only host tool: the mobile-inert build hook bundles no
+    // libssconverter on iOS/Android, so fail clearly here rather than with a
+    // cryptic native-symbol lookup error. Mobile apps ship pre-converted `.ssab`
+    // (convert on the host); the live-reload path reloads, never converts, on
+    // device.
+    if (!Platform.isMacOS && !Platform.isWindows && !Platform.isLinux) {
+      throw UnsupportedError(
+        'ssconverter_dart is desktop-only; conversion cannot run on '
+        '${Platform.operatingSystem}. Convert on the host and ship the .ssab.',
+      );
+    }
     final outDir = outputDir ?? defaultOutputDir(sspjPath, embedded: embedded);
 
     final ctx = ss_converter_create();

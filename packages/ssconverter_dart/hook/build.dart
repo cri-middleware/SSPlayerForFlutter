@@ -34,6 +34,14 @@ void main(List<String> args) async {
   await build(args, (input, output) async {
     if (!input.config.buildCodeAssets) return;
 
+    // Desktop-only host tool. On iOS/Android emit NO code asset (mobile-inert)
+    // instead of throwing, so an app that depends on ssconverter_dart (e.g. via
+    // ssgen_dart for dev live-reload) still BUILDS for mobile. The @Native
+    // bindings resolve lazily at first call; SsConverter guards at runtime and
+    // mobile code paths never call it (they reload pre-converted .ssab instead).
+    final os = input.config.code.targetOS;
+    if (os != OS.macOS && os != OS.linux && os != OS.windows) return;
+
     final target = _targetFor(input.config.code);
     final file = await _resolveLibrary(input, output, target);
     output.assets.code.add(

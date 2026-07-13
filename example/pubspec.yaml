@@ -16,6 +16,11 @@ dependencies:
     sdk: flutter
   ssplayer_flutter:
     path: ../packages/ssplayer_flutter
+  # Desktop dev live-reload: reassemble() calls SsProjectSync to reconvert stale
+  # SpriteStudio_Source projects via the host libssconverter (desktop/debug
+  # only). Kept out of ssplayer_flutter so the runtime stays converter-free.
+  ssgen_dart:
+    path: ../packages/ssgen_dart
 
 dev_dependencies:
   flutter_test:
@@ -25,5 +30,6 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
-    # Populate with `scripts/prepare-example-assets.sh` (converts overall.sspj).
-    - assets/overall/
+    # Populated by `scripts/prepare-example-assets.sh` (stages SpriteStudio_Source/
+    # then converts it here — the SsProjectSync convention the live-reload reuses).
+    - assets/spritestudio/overall/

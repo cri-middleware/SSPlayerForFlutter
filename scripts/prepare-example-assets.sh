@@ -1,18 +1,22 @@
 #!/usr/bin/env bash
 #
-# Convert the SDK's bundled test project (tests/overall/overall.sspj) into .ssab
-# assets for the example app, using the Dart `ssconvert` CLI (ssconverter_dart).
+# Stage the SDK's bundled test project (tests/overall) into the example's
+# SpriteStudio_Source/, then convert THAT copy into .ssab assets, using the Dart
+# `ssconvert` CLI (ssconverter_dart). SpriteStudio_Source is the single source of
+# truth the desktop live-reload (example reassemble()) reconverts on hot reload,
+# so the initial assets and the live output come from the same place.
 # It loads the PREBUILT libssconverter over dart:ffi, so this needs NO Rust
 # toolchain — build the native libs via scripts/build-runtime.sh.
 # All the sibling players share this "Rust-free for customizers" philosophy.
-# Output lands in example/assets/overall/ (referenced by example/pubspec.yaml).
+# Output lands in example/assets/spritestudio/overall/ (the SsProjectSync
+# convention; referenced by example/pubspec.yaml).
 #
 # SDK location (for the source .sspj): $SSSDK, else ./SpriteStudio-SDK, else
 # ../SpriteStudio-SDK.
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-OUT_DIR="$ROOT_DIR/example/assets/overall"
+OUT_DIR="$ROOT_DIR/example/assets/spritestudio/overall"
 CONV_PKG="$ROOT_DIR/packages/ssconverter_dart"
 
 SDK_DIR="${SSSDK:-}"
@@ -31,14 +35,28 @@ command -v dart >/dev/null || {
   exit 1
 }
 
-# The non-embedded converter writes the .ssab files AND copies the referenced
-# textures/fonts/sounds into OUT_DIR, so this single call produces the complete
-# example asset tree. libssconverter is delivered via native assets — the
+# 1) Stage the SOURCE project first: SpriteStudio_Source/<project> is the single
+# source of truth the desktop live-reload (example reassemble()) reconverts on
+# hot reload. Copy the overall project dir wholesale so its referenced
+# .ssae/.ssce/.png travel with the .sspj.
+SRC_STAGE="$ROOT_DIR/example/SpriteStudio_Source/overall"
+echo "Staging source project -> example/SpriteStudio_Source/overall/ ..."
+rm -rf "$SRC_STAGE"
+mkdir -p "$SRC_STAGE"
+cp -R "$SDK_DIR/tests/overall/." "$SRC_STAGE/"
+echo "   -> example/SpriteStudio_Source/overall/"
+
+# 2) Convert the STAGED copy (not the SDK original) into
+# example/assets/spritestudio/overall/ — the same SsProjectSync convention +
+# location the hot-reload path reuses. The non-embedded converter also copies the
+# referenced textures/fonts/sounds into OUT_DIR, so this single call produces the
+# complete asset tree. libssconverter is delivered via native assets — the
 # package's hook/build.dart bundles the prebuilt dylib (build-runtime.sh
 # produces it); no SSCONVERTER_LIBRARY_PATH needed.
-echo "Converting tests/overall/overall.sspj via ssconvert (Dart) ..."
+echo "Converting SpriteStudio_Source/overall/overall.sspj via ssconvert (Dart) ..."
 mkdir -p "$OUT_DIR"
 ( cd "$CONV_PKG" && dart pub get >/dev/null 2>&1 && \
-  dart run ssconverter_dart:ssconvert -o "$OUT_DIR" "$SDK_DIR/tests/overall/overall.sspj" )
-echo "   -> example/assets/overall/"
+  dart run ssconverter_dart:ssconvert -o "$OUT_DIR" "$SRC_STAGE/overall.sspj" )
+echo "   -> example/assets/spritestudio/overall/"
+
 echo "prepare-example-assets.sh: done."

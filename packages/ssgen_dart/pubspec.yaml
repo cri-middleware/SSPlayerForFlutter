@@ -1,0 +1,30 @@
+name: ssgen_dart
+description: >-
+  Host-side "reconvert only the stale SpriteStudio projects in a directory"
+  LIBRARY for the Flutter ecosystem — a thin orchestration layer over
+  ssconverter_dart: a directory scan + mtime-diff staleness check + the
+  SpriteStudio_Source/assets convention (optional spritestudio.yaml override).
+  A hot-reload-capable app calls it (e.g. from State.reassemble) to rebuild its
+  .ssab on hot reload. No CLI, no watcher, no daemon state — one-shot per call.
+  Keeping the converter here (not in ssplayer_flutter) keeps the runtime
+  converter-free. Desktop only (Windows / macOS / Linux); pure Dart.
+version: 7.0.0-alpha.1
+repository: https://github.com/cri-middleware/SSPlayerForFlutter
+publish_to: none # not yet published to pub.dev
+
+# Part of the repo-root pub workspace (see ../../pubspec.yaml).
+resolution: workspace
+
+environment:
+  sdk: ">=3.10.0 <4.0.0"
+
+dependencies:
+  # The single-shot .sspj -> .ssab converter this orchestrates.
+  ssconverter_dart:
+    path: ../ssconverter_dart
+  # Parses the optional <projectRoot>/spritestudio.yaml override.
+  yaml: ^3.1.2
+
+dev_dependencies:
+  test: ^1.24.0
+  lints: ^6.1.0

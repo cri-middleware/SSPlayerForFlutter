@@ -37,6 +37,13 @@ class SpriteStudioPlayer extends ChangeNotifier {
   bool _disposed = false;
   bool _subFrame = true;
 
+  // Transport state cached on the Player (not just the internal) so it survives
+  // a resource swap in [reload] and can be set before the first [load].
+  // `subFrame` above is the pre-existing precedent for this pattern.
+  String? _currentAnimation;
+  int? _loop;
+  double? _speed;
+
   /// Sub-frame interpolation (default ON): smooth playback beyond the source
   /// FPS. Applies to the current and future loaded animations.
   bool get subFrame => _internal?.subFrame ?? _subFrame;
@@ -68,6 +75,11 @@ class SpriteStudioPlayer extends ChangeNotifier {
   List<String> getAnimations() =>
       _animeInfo?.animationNames ?? const <String>[];
 
+  /// The animation currently selected via [load] or [setupAnimation] (null
+  /// before any is chosen). [reload] uses it to restore selection across a
+  /// resource swap.
+  String? get currentAnimation => _currentAnimation;
+
   /// The unresolved textures from the most recent [load] (empty on success).
   TextureLoadReport? get lastTextureReport => _lastTextureReport;
   TextureLoadReport? _lastTextureReport;
@@ -95,6 +107,9 @@ class SpriteStudioPlayer extends ChangeNotifier {
     );
     _internal = internal;
     internal.subFrame = _subFrame;
+    if (_loop != null) internal.loop = _loop!;
+    if (_speed != null) internal.speed = _speed!;
+    _currentAnimation = animationName;
     if (animationName != null) {
       internal.setupAnimation(animationName);
     }
@@ -114,9 +129,50 @@ class SpriteStudioPlayer extends ChangeNotifier {
     }
   }
 
+  /// Live-swaps the resource to [ssab] while **preserving transport** — the
+  /// selected animation ([currentAnimation]), the playhead ([frameNo]) and the
+  /// play/pause state — so an on-disk asset change (a re-exported `.ssab`) can be
+  /// hot-swapped in place without the rewind-to-frame-0 that [load] causes. This
+  /// is the primitive behind dev-time live reload ("save in the editor → the
+  /// preview updates"). Texture params mirror [load].
+  ///
+  /// If the previously-selected animation is gone from the new bytes it falls
+  /// back to the first one; an out-of-range playhead is left to the Brain to
+  /// clamp. Assumes single-flight — callers must not overlap [reload]/[load]
+  /// (the dev watcher debounces to guarantee this).
+  Future<void> reload(
+    Uint8List ssab, {
+    TextureRegistry? textures,
+    String? baseAssetDir,
+    AssetBundle? bundle,
+    bool loadTextures = true,
+  }) async {
+    final wasPlaying = isPlaying;
+    final frame = frameNo;
+    final anim = _currentAnimation;
+
+    await load(
+      ssab,
+      textures: textures,
+      baseAssetDir: baseAssetDir,
+      bundle: bundle,
+      loadTextures: loadTextures,
+    );
+    if (_disposed || _internal == null) return;
+
+    final names = getAnimations();
+    final target = (anim != null && names.contains(anim))
+        ? anim
+        : (names.isEmpty ? null : names.first);
+    if (target != null) setupAnimation(target);
+    seek(frame);
+    if (wasPlaying) play();
+  }
+
   /// Switches the current animation (keeps the loaded resource).
   bool setupAnimation(String name) {
     final ok = _requireInternal().setupAnimation(name);
+    if (ok) _currentAnimation = name;
     notifyListeners();
     return ok;
   }
@@ -145,8 +201,15 @@ class SpriteStudioPlayer extends ChangeNotifier {
     notifyListeners();
   }
 
-  set loop(int count) => _requireInternal().loop = count;
-  set speed(double rate) => _requireInternal().speed = rate;
+  set loop(int count) {
+    _loop = count;
+    _internal?.loop = count;
+  }
+
+  set speed(double rate) {
+    _speed = rate;
+    _internal?.speed = rate;
+  }
 
   double get frameNo => _internal?.frameNo ?? 0;
   bool get isPlaying => _internal?.isPlaying ?? false;
@@ -188,6 +251,7 @@ class SpriteStudioPlayer extends ChangeNotifier {
     _internal?.dispose();
     _internal = null;
     _animeInfo = null;
+    _currentAnimation = null;
     super.dispose();
   }
 }

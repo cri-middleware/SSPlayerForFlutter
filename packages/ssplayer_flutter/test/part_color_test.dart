@@ -110,8 +110,8 @@ void main() {
 
   test('PartColor.read resolves real PartsColor.ssab part colours', () async {
     final ssabPath = _firstExisting([
-      'example/assets/overall/PartsColor.ssab',
-      '../../example/assets/overall/PartsColor.ssab',
+      'example/assets/spritestudio/overall/PartsColor.ssab',
+      '../../example/assets/spritestudio/overall/PartsColor.ssab',
     ]);
     if (ssabPath == null) {
       markTestSkipped('PartsColor.ssab missing — run prepare-example-assets.sh');

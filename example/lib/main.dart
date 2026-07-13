@@ -2,9 +2,11 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:desktop_drop/desktop_drop.dart';
+import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'
     show AssetBundle, CachingAssetBundle, rootBundle;
+import 'package:ssgen_dart/ssgen_dart.dart';
 import 'package:ssplayer_flutter/ssplayer_flutter.dart';
 
 void main() => runApp(const ExampleApp());
@@ -43,7 +45,7 @@ class _PlayerPageState extends State<PlayerPage>
     'Interpolation',
   ];
   AssetBundle _bundle = rootBundle;
-  String _assetDir = 'assets/overall';
+  String _assetDir = 'assets/spritestudio/overall';
   bool _dropped = false;
 
   // pack = a separate .ssab file in the current source directory.
@@ -57,6 +59,9 @@ class _PlayerPageState extends State<PlayerPage>
   String? _anim;
 
   bool _dragging = false;
+
+  // Desktop dev live-reload single-flight guard (see reassemble()).
+  bool _liveBusy = false;
 
   @override
   void initState() {
@@ -133,14 +138,7 @@ class _PlayerPageState extends State<PlayerPage>
           ? base.substring(0, base.length - '.ssab'.length)
           : null;
 
-      final packs = Directory(dir)
-          .listSync()
-          .whereType<File>()
-          .map((f) => f.path.split(Platform.pathSeparator).last)
-          .where((n) => n.toLowerCase().endsWith('.ssab'))
-          .map((n) => n.substring(0, n.length - '.ssab'.length))
-          .toList()
-        ..sort();
+      final packs = _scanPacks(dir);
       if (packs.isEmpty) {
         setState(() => _status = 'no .ssab found in $dir');
         return;
@@ -159,6 +157,129 @@ class _PlayerPageState extends State<PlayerPage>
       await _load(chosen);
     } catch (e) {
       if (mounted) setState(() => _status = 'drop failed: $e');
+    }
+  }
+
+  static List<String> _scanPacks(String dir) => Directory(dir)
+      .listSync()
+      .whereType<File>()
+      .map((f) => f.path.split(Platform.pathSeparator).last)
+      .where((n) => n.toLowerCase().endsWith('.ssab'))
+      .map((n) => n.substring(0, n.length - '.ssab'.length))
+      .toList()
+    ..sort();
+
+  // --- Desktop dev live-reload -------------------------------------------
+  // Ride Flutter's own hot reload: pressing `r` (or an IDE Dart-save) fires
+  // reassemble(), which also rebuilds the SpriteStudio art — reconvert only the
+  // STALE SpriteStudio_Source projects via the host libssconverter, then
+  // hot-swap the current pack in place (SpriteStudioPlayer.reload preserves the
+  // animation, playhead and play state). Desktop + debug only: the host
+  // converter can't run on a device. To try it, edit a project in SpriteStudio
+  // (or just `touch example/SpriteStudio_Source/overall/overall.sspj`) and press
+  // `r`. Run `flutter run` from example/ so the source dir resolves.
+  @override
+  void reassemble() {
+    super.reassemble();
+    if (!kDebugMode) return;
+    if (_isDesktop) {
+      _reconvertAndReload(); // host: reconvert stale SpriteStudio_Source + reload
+    } else if (!kIsWeb) {
+      _reloadFromBundle(); // device: reload-only (host reconvert + `r` synced it)
+    }
+  }
+
+  // Device (iOS/Android) live-reload: the device can't run the host converter,
+  // so the host rebuilds assets/ (run `dart run tool/ssreconvert.dart`) and `r`
+  // DevFS-syncs the changed `.ssab` to the device + evicts its rootBundle cache.
+  // We only re-read and hot-swap in place — converter-free on device.
+  Future<void> _reloadFromBundle() async {
+    if (_liveBusy || _dropped) return;
+    _liveBusy = true;
+    try {
+      final key = '$_assetDir/$_pack.ssab';
+      rootBundle.evict(key); // belt-and-braces; Flutter also evicts changed keys
+      final data = await rootBundle.load(key);
+      final bytes =
+          data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
+      await _player.reload(bytes, bundle: rootBundle, baseAssetDir: _assetDir);
+      if (!mounted) return;
+      setState(() => _status = 'live-reloaded "$_pack" (bundle)');
+    } catch (e) {
+      if (mounted) setState(() => _status = 'live-reload failed: $e');
+    } finally {
+      _liveBusy = false;
+    }
+  }
+
+  static bool get _isDesktop =>
+      !kIsWeb && (Platform.isMacOS || Platform.isWindows || Platform.isLinux);
+
+  // Locate the project root (the dir holding SpriteStudio_Source). A macOS app's
+  // Directory.current is its sandbox container, NOT the project, so derive it
+  // from the executable path (holds for `flutter run` debug builds) — or take an
+  // explicit `--dart-define=SS_PROJECT_ROOT=<dir>` override.
+  static String? _projectRoot() {
+    const sub = SsProjectSyncConfig.defaultSourceSubdir;
+    const override = String.fromEnvironment('SS_PROJECT_ROOT');
+    if (override.isNotEmpty) {
+      return Directory('$override/$sub').existsSync() ? override : null;
+    }
+    var dir = File(Platform.resolvedExecutable).parent;
+    for (var i = 0; i < 12; i++) {
+      if (Directory('${dir.path}/$sub').existsSync()) return dir.path;
+      final parent = dir.parent;
+      if (parent.path == dir.path) break;
+      dir = parent;
+    }
+    return null;
+  }
+
+  Future<void> _reconvertAndReload() async {
+    if (_liveBusy) return; // single-flight: don't overlap reload()/load()
+    _liveBusy = true;
+    try {
+      final root = _projectRoot();
+      if (root == null) {
+        if (mounted) {
+          setState(() => _status = 'live-reload: SpriteStudio_Source not found '
+              '(pass --dart-define=SS_PROJECT_ROOT=<example dir>)');
+        }
+        return;
+      }
+      final report = await const SsProjectSync().reconvert(projectRoot: root);
+      if (!report.didConvert) return; // nothing stale → cheap no-op
+
+      // Reload the current pack from whichever project just rebuilt it.
+      String? found;
+      for (final d in report.converted.values) {
+        if (File('$d/$_pack.ssab').existsSync()) {
+          found = d;
+          break;
+        }
+      }
+      if (found == null) return; // current pack not among the rebuilt projects
+      final outDir = found;
+
+      final bytes = await File('$outDir/$_pack.ssab').readAsBytes();
+      final bundle = _FileBundle(); // fresh instance → no stale cached bytes
+      await _player.reload(bytes, bundle: bundle, baseAssetDir: outDir);
+      if (!mounted) return;
+      setState(() {
+        _bundle = bundle;
+        _assetDir = outDir;
+        _dropped = true;
+        _packs = _scanPacks(outDir);
+        _animations = _player.getAnimations();
+        _anim = _player.currentAnimation;
+        _status = 'live-reloaded "$_pack" ← $outDir';
+      });
+      // ignore: avoid_print
+      print('[ssplayer] live-reloaded ${report.converted.keys.join(", ")}');
+    } catch (e) {
+      if (mounted) setState(() => _status = 'live-reload failed: $e');
+    } finally {
+      _liveBusy = false;
     }
   }
 
