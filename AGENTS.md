@@ -136,8 +136,11 @@ These were learned the hard way — respect them.
   `native/libs/ios/{iphoneos,iphonesimulator}/<arch>/libssruntime.dylib` (device-arm64,
   sim-arm64 and sim-x86_64 are distinct Mach-O targets that can't share a slice —
   that is what an xcframework separates). `build-runtime.sh` places these; Flutter's
-  embedding wraps+signs the chosen slice like on macOS. (Mobile is wired but NOT
-  end-to-end verified in this repo — no device/simulator build here.)
+  embedding wraps+signs the chosen slice like on macOS. **Verified 2026-07-13**:
+  the example renders on an iOS **simulator** (iphonesimulator/arm64) and an Android
+  **emulator** (APK bundles all three ABIs under `lib/<abi>/`; ran on x86_64/arm64) —
+  `[ssplayer] OK` + on-screen animation on both. Still unconfirmed: a physical iOS
+  device (iphoneos slice, code-signed) and the armeabi-v7a ABI at runtime.
 * **Generated code is never hand-edited.** The flatc FlatBuffers accessors are
   **committed** — asset format in `ssplayer_flutter/lib/src/ssab/`, runtime output
   in `ssruntime_dart/lib/src/fbs/` (schema-driven; regenerate with
