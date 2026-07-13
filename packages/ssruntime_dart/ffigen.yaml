@@ -1,9 +1,9 @@
 # ffigen configuration: generates the Layer 1 dart:ffi bindings from the C-API
 # header the SDK build.rs emits (native/include/ssruntime.h, copied in by
-# build-runtime / download-sdk). No cbindgen here.
+# build-runtime). No cbindgen here.
 #
 # Regenerate with:  scripts/generate-ffigen-code.sh  (globs packages/*/ffigen*.yaml;
-# also invoked by build-runtime / download-sdk). The output is gitignored.
+# standalone — run after a C-API change). The output is COMMITTED.
 name: SsRuntimeBindings
 description: Low-level dart:ffi bindings for the SpriteStudio-SDK Brain (libssruntime).
 output: "lib/src/ssruntime_bindings.g.dart"

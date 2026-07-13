@@ -24,7 +24,7 @@ dependencies:
 dev_dependencies:
   test: ^1.24.0
   lints: ^6.1.0
-  # Regenerates lib/src/ssruntime_bindings.g.dart from native/include/ssruntime.h
-  # (gitignored). Run via scripts/generate-ffigen-code.sh (auto-invoked by
-  # build-runtime / download-sdk).
+  # Regenerates lib/src/ssruntime_bindings.g.dart (committed) from
+  # native/include/ssruntime.h. Run via scripts/generate-ffigen-code.sh
+  # (standalone; after a C-API change, then commit).
   ffigen: ^20.1.1

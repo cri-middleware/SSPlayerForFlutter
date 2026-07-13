@@ -3,19 +3,18 @@
 # Generate the Layer-1 dart:ffi bindings (ffigen) for EVERY package that carries
 # an ffigen config, from the plain-C headers the native build already produced:
 #
-#   packages/ssplayer_flutter/native/include/ssruntime.h   -> lib/src/bindings/*.g.dart
-#   packages/ssconverter_dart/native/include/ssconverter.h  -> lib/src/*.g.dart
+#   packages/ssruntime_dart/native/include/ssruntime.h     -> lib/src/ssruntime_bindings.g.dart
+#   packages/ssconverter_dart/native/include/ssconverter.h -> lib/src/ssconverter_bindings.g.dart
 #
 # The headers are emitted by the SpriteStudio-SDK `build.rs` (cbindgen, C) and
-# copied into each package's native/include/ by build-runtime.sh / download-sdk.sh
-# — so this script runs NO cbindgen of its own. It is invoked automatically at the
-# end of build-runtime / download-sdk (ffigen is Flutter/Dart-specific; folding it
-# in keeps the dev-facing script set the same size as the sibling players). Run it
-# directly only when you changed an ffigen*.yaml but not the native library.
+# copied into each package's native/include/ by build-runtime.sh — so this script
+# runs NO cbindgen of its own. It is a STANDALONE step (NOT part of build-runtime,
+# like generate-fbs-code): run it after a C-API change (or an ffigen*.yaml edit),
+# then commit the result.
 #
-# The generated bindings are gitignored — regenerated from the native C-API on
-# every build. The .fbs FlatBuffers accessors are a separate concern (see
-# scripts/generate-fbs-code.sh).
+# The generated bindings are COMMITTED (so a normal checkout / pub.dev consumer
+# builds without ffigen). The .fbs FlatBuffers accessors are a separate concern
+# (see scripts/generate-fbs-code.sh).
 #
 # Prerequisites: Dart/Flutter SDK (ffigen needs libclang; `dart pub get` first).
 set -euo pipefail

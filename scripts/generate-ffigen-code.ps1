@@ -2,15 +2,14 @@
 #
 # Generate the Layer-1 dart:ffi bindings (ffigen) for EVERY package that carries
 # an ffigen config, from the plain-C headers the native build already produced
-# (packages/*/native/include/*.h -> that package's lib/**/*.g.dart).
+# (packages/*/native/include/*.h -> that package's lib/src/*_bindings.g.dart).
 # PowerShell counterpart of scripts/generate-ffigen-code.sh. Runs NO cbindgen —
-# the SpriteStudio-SDK build.rs emits the C headers and build-runtime.ps1 /
-# download-sdk.ps1 copy them into each package. Invoked automatically at the end
-# of those two; run directly only when you changed an ffigen*.yaml but not the
-# native library.
+# the SpriteStudio-SDK build.rs emits the C headers and build-runtime.ps1 copies
+# them into each package. STANDALONE (NOT part of build-runtime, like
+# generate-fbs-code): run after a C-API change or an ffigen*.yaml edit, then commit.
 #
-# The generated bindings are gitignored — regenerated from the native C-API on
-# every build. .fbs accessors are separate — see scripts/generate-fbs-code.ps1.
+# The generated bindings are COMMITTED (so a normal checkout / pub.dev consumer
+# builds without ffigen). .fbs accessors are separate — see scripts/generate-fbs-code.ps1.
 #
 # Prerequisites: Dart/Flutter SDK (ffigen needs libclang; `dart pub get` first).
 

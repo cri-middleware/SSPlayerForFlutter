@@ -75,14 +75,17 @@ class _MyState extends State<MyWidget> with SingleTickerProviderStateMixin {
 }
 ```
 
-> ⚠️ ネイティブ Brain（`libssruntime`）が必要です。これは依存先 `ssruntime_dart` が
-> **Native Assets**（`hook/build.dart`）でアプリに自動同梱します（プラグイン／framework 配線は不要）。
-> 当面はこのリポジトリを git 依存で参照し、`scripts/download-sdk.*`（Rust 不要）または
-> `scripts/build-runtime.*` でプリビルドを配置してください（[2 章](#-2-リポジトリで試すカスタマー)）。pub.dev 公開は今後。
+> ⚠️ ネイティブ Brain（`libssruntime`）が必要です。これは依存先 `ssruntime_dart` の
+> **Native Assets**（`hook/build.dart`）がアプリに自動同梱します（プラグイン／framework 配線は不要）。
+> `hook/build.dart` はピン留めした SDK リリースからプリビルドを**自動ダウンロード**するので
+> Rust ツールチェーンは不要です（ソースからビルドする場合のみ `scripts/build-runtime.*`）。当面は
+> このリポジトリを git 依存で参照してください（[2 章](#-2-リポジトリで試すカスタマー)）。pub.dev 公開は今後。
 
 ## 🛠 2. リポジトリで試す（カスタマー）
 
-サンプル起動と、自分の `.sspj` の変換まで。**Rust ツールチェーンは不要**（プリビルドを取得）。
+サンプル起動と、自分の `.sspj` の変換まで。**Rust ツールチェーンは不要** — ネイティブ
+（`libssruntime` / `libssconverter`）は各パッケージの `hook/build.dart` が、ピン留めした
+SDK リリースからプリビルドを自動ダウンロードして同梱します（手動の取得手順はありません）。
 
 ```bash
 # クローン + サブモジュール
@@ -90,15 +93,18 @@ git clone https://github.com/cri-middleware/SSPlayerForFlutter.git
 cd SSPlayerForFlutter
 git submodule update --init --recursive
 
-# ネイティブ Brain / Converter を取得（プリビルド。Rust 不要）
-scripts/download-sdk.sh              # ※ソースからビルドする場合は 3 章の build-runtime.sh
-
-# example 用アセット（.ssab）を Dart の ssconvert で生成（Rust 不要）
+# example 用アセット（.ssab）を Dart の ssconvert で生成
+#   （libssconverter は hook/build.dart が自動DL。Rust 不要）
 scripts/prepare-example-assets.sh
 
-# example を起動
+# example を起動（libssruntime は hook/build.dart が自動DL）
 cd example && flutter run
 ```
+
+> ℹ️ プリビルドの自動DLは、SDK リリースが Flutter 向けアセット（`lib{ssruntime,ssconverter}-<os>[-<arch>]`）
+> を公開してから有効になります。それまでは 3 章の `scripts/build-runtime.*`（Rust 必要）で
+> ネイティブを用意してください。自前ビルドの dylib を差し込む場合は各アプリの `pubspec.yaml` の
+> `hooks.user_defines.<pkg>.lib<name>` で指定できます。
 
 Windows は各スクリプトの `.ps1` を使います。
 
@@ -122,8 +128,9 @@ CocoaPods／vendored framework は不要）。`flatc` は `.fbs` を再生成す
 ```bash
 git submodule update --init --recursive
 
-# ネイティブをソースからビルド（C ヘッダのコピー＋ffigen 生成まで自動）
+# ネイティブをソースからビルド（C ヘッダのコピーまで。ffigen は別ステップ）
 scripts/build-runtime.sh             # 例: build-runtime.sh platform=macos build=release
+#   C-API を変えたらバインディング再生成 → commit: scripts/generate-ffigen-code.sh
 
 # アセット生成 → example 起動
 scripts/prepare-example-assets.sh
@@ -131,10 +138,10 @@ cd example && flutter run
 #   （初回の macOS ランナー生成: cd example && flutter create --platforms=macos . ）
 ```
 
-- **コード生成**: `build-runtime` / `download-sdk` の末尾で ffigen（`generate-ffigen-code.*`）が
-  `packages/*/ffigen*.yaml` を走査して自動実行。`.fbs` スキーマを変えたときだけ
-  `generate-fbs-code.*`（flatc）を手動実行。クロスビルド（android/ios/web）は
-  `SpriteStudio-SDK/scripts/release-*` に委譲します。
+- **コード生成**: ffigen バインディング（`lib/src/*_bindings.g.dart`）は**コミット済み**。
+  C-API を変えたら `generate-ffigen-code.*` を実行して再生成 → commit（`build-runtime` は
+  もう自動実行しません）。`.fbs` スキーマを変えたときは `generate-fbs-code.*`（flatc）。
+  クロスビルド（android/ios/web）は `SpriteStudio-SDK/scripts/release-*` に委譲します。
 - **テスト**（`packages/ssplayer_flutter/`）:
   ```bash
   flutter test   # Native Assets が hook/build.dart 経由で Brain を自動同梱。env 変数は不要

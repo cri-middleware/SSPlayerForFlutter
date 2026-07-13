@@ -1,10 +1,10 @@
 # ffigen configuration: generates the low-level dart:ffi bindings for the
 # SpriteStudio-SDK converter (libssconverter) from the C-API header the SDK
-# build.rs emits (native/include/ssconverter.h, copied in by build-runtime /
-# download-sdk). No cbindgen here.
+# build.rs emits (native/include/ssconverter.h, copied in by build-runtime).
+# No cbindgen here.
 #
 # Regenerate with:  scripts/generate-ffigen-code.sh  (globs packages/*/ffigen*.yaml;
-# also invoked by build-runtime / download-sdk). The output is gitignored.
+# standalone — run after a C-API change). The output is COMMITTED.
 name: SsConverterBindings
 description: Low-level dart:ffi bindings for the SpriteStudio-SDK converter (libssconverter).
 output: "lib/src/ssconverter_bindings.g.dart"

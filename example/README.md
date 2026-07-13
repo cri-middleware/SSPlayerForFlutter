@@ -6,9 +6,9 @@
 ## 前提
 
 - **Flutter 3.44.6+ / Dart 3.12.2+**（Native Assets 標準対応）。
-- ネイティブ Brain（`libssruntime`）が `packages/ssruntime_dart/native/libs/` に配置済みであること。
-  - Rust あり: `bash scripts/build-runtime.sh`
-  - Rust なし: `bash scripts/download-sdk.sh`（プリビルド SDK を取得）
+- ネイティブ Brain（`libssruntime`）。`hook/build.dart` がピン留めした SDK リリースから
+  プリビルドを自動DL・同梱するので、通常は事前配置不要（Rust 不要）。
+  - ソースからビルドする場合: `bash scripts/build-runtime.sh`（Rust 必要）
 - 例アセット（`.ssab`）を生成済みであること:
 
   ```sh

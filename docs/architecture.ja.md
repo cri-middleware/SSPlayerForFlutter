@@ -140,7 +140,7 @@ Brain    libssruntime (Rust Native / 計算・SIMD・DrawBatch)
 ```
 （実際の構成は README.md「リポジトリ構成」を参照）
 scripts/build-runtime.{sh,ps1}         # Rust ビルド ＋ 配置
-scripts/generate-ffigen-code.{sh,ps1}  # ffigen（build-runtime/download-sdk が自動実行）
+scripts/generate-ffigen-code.{sh,ps1}  # ffigen（C-API 変更時に手動実行 → commit）
 scripts/generate-fbs-code.{sh,ps1}     # flatc（.fbs 変更時のみ）
 packages/ssplayer_flutter/             # 配布 pub パッケージ（Flutter・ssruntime_dart 依存）
 example/                               # overall.sspj 検証用 Flutter アプリ
@@ -369,8 +369,9 @@ Flutter としては **Phase 1**（Basic〜BlendMode を `SpriteStudioView` で�
 ## 17. 配布形式と対応バージョン
 
 - **配布**: pub.dev。ネイティブバイナリは原則コミットせず、`ssruntime_dart` / `ssconverter_dart` の
-  **build hook**（`hook/build.dart`）が Native Assets の `CodeAsset` として同梱する。プリビルドは SS7-SDK 側 CI が
-  GitHub Releases に publish（Rust 不要、`download-sdk.*`）するか、`build-runtime.*` でソースビルド（Rust 必要）。
+  **build hook**（`hook/build.dart`）が Native Assets の `CodeAsset` として同梱する。プリビルドは
+  `hook/build.dart` がピン留めした SDK リリース（SS7-SDK 側 CI が GitHub Releases に publish）から
+  自動DLする（Rust 不要）か、`build-runtime.*` でソースビルド（Rust 必要）。ffigen バインディングはコミット済み。
 - **Web**: `dart:ffi` 不可のため別配布。`web` フィーチャの WASM ＋ JS グルーを web アセット同梱し `dart:js_interop` でロード。
 - **対応バージョン**: Flutter 3.38+ / Dart 3.10+（**Native Assets 標準対応**）/ **Impeller 前提**（Skia 分岐は持たない）。`dart:ffi` `@Native` / `ffigen` / `NativeFinalizer` を前提に最新 API を活用。
 - **ネイティブ同梱（実装メモ）**: Flutter 側は **Native Assets** に一本化。`hook/build.dart` が素の dylib を

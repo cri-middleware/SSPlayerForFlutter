@@ -5,8 +5,8 @@
 //
 // Single-mode only (mirrors the SDK ssconverter-cli single mode): exactly one
 // .sspj at a time; no batch, no watch. libssconverter is delivered via native
-// assets (this package's hook/build.dart bundles the prebuilt dylib built by
-// scripts/build-runtime.sh or fetched by scripts/download-sdk.sh).
+// assets (this package's hook/build.dart resolves the prebuilt dylib: a local
+// scripts/build-runtime.sh build, else an auto-download of the pinned SDK release).
 import 'dart:io';
 
 import 'package:args/args.dart';

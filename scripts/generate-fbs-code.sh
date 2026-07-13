@@ -10,7 +10,7 @@
 #     (the runtime's OUTPUT read back over dart:ffi — owned by the bindings pkg)
 #
 # These track the .fbs SCHEMAS (not the native library), so run this only when a
-# schema changes — it is deliberately NOT part of build-runtime / download-sdk.
+# schema changes — it is deliberately NOT part of build-runtime.
 # The output IS committed (so a normal checkout builds without flatc installed).
 # The ffigen FFI bindings are a separate concern — see
 # scripts/generate-ffigen-code.sh.

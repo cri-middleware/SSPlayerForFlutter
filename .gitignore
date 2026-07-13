@@ -1,17 +1,13 @@
 packages/ssplayer_flutter/native
 
-# ffigen-generated Layer-1 bindings — regenerated from the native C-API by
-# build-runtime / download-sdk (like native/ above). The .fbs FlatBuffers
-# accessors under lib/src/ssab/ stay committed (schema-driven; generate-fbs-code).
-packages/ssplayer_flutter/lib/src/bindings/*.g.dart
-
-# ssruntime_dart (Layer-1 runtime bindings package): native headers + ffigen output.
+# Binding packages' native/ (prebuilt libs + copied C headers) is regenerated
+# per-clone — by scripts/build-runtime.sh, or fetched by each hook/build.dart's
+# download branch. The ffigen bindings (lib/src/*_bindings.g.dart) are NOT ignored:
+# they are COMMITTED like the flatc accessors, so a normal checkout / pub.dev
+# consumer builds without ffigen. Regenerate them with scripts/generate-ffigen-code.*
+# after a C-API change, then commit.
 packages/ssruntime_dart/native
-packages/ssruntime_dart/lib/src/ssruntime_bindings.g.dart
-
-# ssconverter_dart (host converter package): native libs + headers + ffigen output.
 packages/ssconverter_dart/native
-packages/ssconverter_dart/lib/src/ssconverter_bindings.g.dart
 
 # Example assets are derived from the SDK test projects (scripts/prepare-example-assets.sh)
 example/assets/overall/

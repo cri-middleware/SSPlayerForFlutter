@@ -3,7 +3,7 @@
 # Convert the SDK's bundled test project (tests/overall/overall.sspj) into .ssab
 # assets for the example app, using the Dart `ssconvert` CLI (ssconverter_dart).
 # It loads the PREBUILT libssconverter over dart:ffi, so this needs NO Rust
-# toolchain — get the native libs via scripts/download-sdk.sh (or build-runtime.sh).
+# toolchain — build the native libs via scripts/build-runtime.sh.
 # All the sibling players share this "Rust-free for customizers" philosophy.
 # Output lands in example/assets/overall/ (referenced by example/pubspec.yaml).
 #
@@ -34,8 +34,8 @@ command -v dart >/dev/null || {
 # The non-embedded converter writes the .ssab files AND copies the referenced
 # textures/fonts/sounds into OUT_DIR, so this single call produces the complete
 # example asset tree. libssconverter is delivered via native assets — the
-# package's hook/build.dart bundles the prebuilt dylib (build-runtime.sh /
-# download-sdk.sh produce it); no SSCONVERTER_LIBRARY_PATH needed.
+# package's hook/build.dart bundles the prebuilt dylib (build-runtime.sh
+# produces it); no SSCONVERTER_LIBRARY_PATH needed.
 echo "Converting tests/overall/overall.sspj via ssconvert (Dart) ..."
 mkdir -p "$OUT_DIR"
 ( cd "$CONV_PKG" && dart pub get >/dev/null 2>&1 && \

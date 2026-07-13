@@ -16,7 +16,6 @@
 #   libssruntime   → packages/ssruntime_dart/native/libs/<platform>/[<arch>]/   (bare dylib/.so/.dll)
 #   libssconverter → packages/ssconverter_dart/native/libs/<platform>/[<arch>]/ (host tool)
 #   packages/ssruntime_dart/native/libs/LICENSE.md, THIRD-PARTY-LICENSES.ssruntime.md
-#   packages/ssruntime_dart/native/VERSION            (SDK release stamp; download-sdk cache check)
 #   packages/ssconverter_dart/native/libs/LICENSE.md
 # No macos framework / macos/Frameworks symlink: native assets replace the
 # CocoaPods framework path (Flutter re-wraps the bare dylib at build time).
@@ -24,8 +23,9 @@
 # follow-up migration; host desktop platforms use the layout above.)
 #
 # After building, this copies the SDK build.rs-emitted plain-C headers into
-# native/include/ and regenerates the ffigen bindings (scripts/generate-ffigen-code.sh).
-# The .fbs FlatBuffers accessors are a separate concern (scripts/generate-fbs-code.sh).
+# native/include/. The ffigen bindings are COMMITTED (like the .fbs accessors), so
+# regenerating them is a separate manual step — run scripts/generate-ffigen-code.sh
+# after a C-API change and commit the result (scripts/generate-fbs-code.sh for .fbs).
 #
 # Usage: scripts/build-runtime.sh [platform=<p>] [arch=<a>] [build=<m>] [hostbuild=<auto|false>]
 #   platform : windows macos linux android ios web   (default: host)
@@ -113,9 +113,6 @@ fi
   cp "$SDK_DIR/target/licenses/THIRD-PARTY-LICENSES.ssruntime.md" "$RT_LIBS_DIR/"
 [ -f "$SDK_DIR/target/licenses/THIRD-PARTY-LICENSES.ssconverter.md" ] && \
   cp "$SDK_DIR/target/licenses/THIRD-PARTY-LICENSES.ssconverter.md" "$CONV_LIBS_DIR/"
-# record the version we built from — the SDK release stamp lives with the runtime
-# package (download-sdk.sh reads it as its cache check).
-[ -f "$ROOT_DIR/scripts/SDK_VERSION.txt" ] && cp "$ROOT_DIR/scripts/SDK_VERSION.txt" "$RT_PKG_DIR/native/VERSION"
 
 T="$SDK_DIR/target"
 case "$PLATFORM" in
@@ -208,9 +205,8 @@ rh="$SDK_DIR/libs/ssruntime/target/ssruntime.h"
 ch="$SDK_DIR/libs/ssconverter/target/ssconverter.h"
 [ -f "$ch" ] && { cp "$ch" "$CONV_PKG_DIR/native/include/ssconverter.h"; echo "   -> ssconverter_dart native/include/ssconverter.h"; }
 
-# --- Layer-1 ffigen bindings: regenerate now that the headers are fresh. ffigen
-# is Dart/FFI-specific; folding it in here keeps the dev-facing script count the
-# same as the sibling players. No-op without the Dart SDK.
-bash "$ROOT_DIR/scripts/generate-ffigen-code.sh" || true
+# The ffigen bindings (lib/src/*_bindings.g.dart) are committed, not regenerated
+# here. If this build changed the C-API, run scripts/generate-ffigen-code.sh and
+# commit the updated bindings.
 
 echo "build-runtime.sh: done."

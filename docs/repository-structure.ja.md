@@ -25,11 +25,9 @@ Brain    libssruntime (Rust, no_std, SIMD)                    ← 計算・DrawB
 SSPlayerForFlutter/
 ├── SpriteStudio-SDK/                     # [submodule] Brain (libssruntime / libssconverter / .fbs)
 ├── scripts/
-│   ├── SDK_VERSION.txt                   # download-sdk が参照するリリースタグ
 │   ├── build-runtime.{sh,ps1}            # Rust をソースビルド → 各パッケージの native/libs へ配置
-│   ├── generate-ffigen-code.{sh,ps1}     # ffigen（Dart FFI）。build-runtime/download-sdk が自動実行
+│   ├── generate-ffigen-code.{sh,ps1}     # ffigen（Dart FFI）。C-API 変更時に手動実行 → commit
 │   ├── generate-fbs-code.{sh,ps1}        # flatc（.ssab/FrameData の Dart アクセサ）。.fbs 変更時のみ
-│   ├── download-sdk.{sh,ps1}             # GitHub Releases のプリビルドを DL/展開（SDK_VERSION.txt 準拠）
 │   └── prepare-example-assets.sh         # overall.sspj → .ssab（Dart ssconvert 経由・Rust 不要）
 ├── packages/ssplayer_flutter/            # 【L2–4 描画】Flutter パッケージ（全プラットフォーム・ssruntime_dart 依存）
 │   ├── lib/

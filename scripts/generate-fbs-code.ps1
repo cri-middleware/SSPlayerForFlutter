@@ -6,7 +6,7 @@
 #   libs/ssruntime/fbs/{framedata,effect_draw_plan}.fbs -> ssruntime_dart/lib/src/fbs/
 # PowerShell counterpart of scripts/generate-fbs-code.sh. These track the .fbs
 # SCHEMAS (not the native library), so run only when a schema changes — it is
-# deliberately NOT part of build-runtime / download-sdk. Output IS committed.
+# deliberately NOT part of build-runtime. Output IS committed.
 # ffigen bindings are separate — see scripts/generate-ffigen-code.ps1.
 #
 # Prerequisites: flatc (Google FlatBuffers).
