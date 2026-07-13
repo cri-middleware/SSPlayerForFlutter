@@ -128,7 +128,16 @@ These were learned the hard way — respect them.
   the same way. NB: the SDK still builds the versioned `libssruntime.framework` via
   `scripts/make-macos-framework.sh` for the universal release + the other players
   (Godot/Unity/RenPy consume it directly) — only Flutter's *consumption* moved to
-  native assets. (iOS goes through the same hook path but isn't verified here.)
+  native assets. **iOS/Android** go through the same `ssruntime_dart/hook/build.dart`
+  (only that runtime hook; `ssconverter_dart` is a desktop-only host tool). Android
+  resolves one bare `.so` per NDK ABI (`native/libs/android/{arm64-v8a,armeabi-v7a,x86_64}/`);
+  iOS uses **bare per-slice dylibs, NOT an xcframework** — the hook is invoked once
+  per `code.iOS.targetSdk`, so it picks
+  `native/libs/ios/{iphoneos,iphonesimulator}/<arch>/libssruntime.dylib` (device-arm64,
+  sim-arm64 and sim-x86_64 are distinct Mach-O targets that can't share a slice —
+  that is what an xcframework separates). `build-runtime.sh` places these; Flutter's
+  embedding wraps+signs the chosen slice like on macOS. (Mobile is wired but NOT
+  end-to-end verified in this repo — no device/simulator build here.)
 * **Generated code is never hand-edited.** The flatc FlatBuffers accessors are
   **committed** — asset format in `ssplayer_flutter/lib/src/ssab/`, runtime output
   in `ssruntime_dart/lib/src/fbs/` (schema-driven; regenerate with

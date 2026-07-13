@@ -19,8 +19,11 @@
 #   packages/ssconverter_dart/native/libs/LICENSE.md
 # No macos framework / macos/Frameworks symlink: native assets replace the
 # CocoaPods framework path (Flutter re-wraps the bare dylib at build time).
-# (NB: ios/web outputs still land under ssplayer_flutter/native/libs pending a
-# follow-up migration; host desktop platforms use the layout above.)
+# iOS uses bare per-slice dylibs, NOT an xcframework:
+#   native/libs/ios/iphoneos/arm64/libssruntime.dylib          (device)
+#   native/libs/ios/iphonesimulator/{arm64,x86_64}/libssruntime.dylib  (simulator)
+# hook/build.dart picks one by (targetSdk, arch). (NB: web output is still a
+# follow-up; host desktop platforms use the layout above.)
 #
 # After building, this copies the SDK build.rs-emitted plain-C headers into
 # native/include/. The ffigen bindings are COMMITTED (like the .fbs accessors), so
@@ -174,16 +177,28 @@ case "$PLATFORM" in
     bash "$SDK_DIR/scripts/release-android.sh" "$BUILD_MODE"
     for pair in "aarch64-linux-android:arm64-v8a" "armv7-linux-androideabi:armeabi-v7a" "x86_64-linux-android:x86_64"; do
       tr="${pair%%:*}"; abi="${pair##*:}"
-      [ -f "$T/$tr/$BUILD_MODE/libssruntime.so" ] && place "android/$abi" "$T/$tr/$BUILD_MODE/libssruntime.so"
+      [ -f "$T/$tr/$BUILD_MODE/libssruntime.so" ] && place_rt "android/$abi" "$T/$tr/$BUILD_MODE/libssruntime.so"
     done ;;
 
   ios)
     bash "$SDK_DIR/scripts/release-ios-xcframework.sh" "$BUILD_MODE"
-    mkdir -p "$LIBS_DIR/ios"; rm -rf "$LIBS_DIR/ios/libssruntime.xcframework"
-    # Ship the DYNAMIC xcframework so the app embeds one framework and dyld
-    # resolves the Brain via @rpath (DynamicLibrary.open('libssruntime.framework/libssruntime')).
-    cp -R "$T/xcframework/dynamic/libssruntime.xcframework" "$LIBS_DIR/ios/"
-    echo "   -> native/libs/ios/libssruntime.xcframework" ;;
+    # No xcframework: hook/build.dart selects a bare per-slice dylib by
+    # (targetSdk, arch). device-arm64, simulator-arm64 and simulator-x86_64 are
+    # distinct Mach-O targets (same arch can't coexist in a fat binary — that is
+    # exactly what an xcframework separates). Flutter's native-assets embedding
+    # wraps the chosen slice into a framework and (re)signs it, as on macOS.
+    for triple_slot in \
+      "aarch64-apple-ios:ios/iphoneos/arm64" \
+      "aarch64-apple-ios-sim:ios/iphonesimulator/arm64" \
+      "x86_64-apple-ios:ios/iphonesimulator/x86_64"; do
+      tr="${triple_slot%%:*}"; slot="${triple_slot#*:}"
+      dylib="$T/$tr/$BUILD_MODE/libssruntime.dylib"
+      if [ -f "$dylib" ]; then
+        place_rt "$slot" "$dylib"
+        install_name_tool -id "@rpath/libssruntime.dylib" \
+          "$RT_LIBS_DIR/$slot/libssruntime.dylib" 2>/dev/null || true
+      fi
+    done ;;
 
   web)
     bash "$SDK_DIR/scripts/release-web.sh" "$BUILD_MODE"

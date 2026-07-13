@@ -29,36 +29,7 @@ void main(List<String> args) async {
   await build(args, (input, output) async {
     if (!input.config.buildCodeAssets) return;
 
-    final code = input.config.code;
-    final os = code.targetOS;
-    // build-runtime.sh spells the arch dir as x86_64 / aarch64 (linux) and
-    // x86_64 / arm64 (windows); map the code_assets Architecture to that.
-    final arch = switch (code.targetArchitecture) {
-      Architecture.x64 => 'x86_64',
-      Architecture.arm64 => os == OS.linux ? 'aarch64' : 'arm64',
-      final a => a.name,
-    };
-    // (local path inside the package, release asset file name). macOS ships one
-    // universal dylib (no arch dir); linux/windows are per-arch.
-    final (String rel, String assetName) = switch (os) {
-      OS.macOS => (
-        'native/libs/macos/libssruntime.dylib',
-        'libssruntime-macos.dylib',
-      ),
-      OS.linux => (
-        'native/libs/linux/$arch/libssruntime.so',
-        'libssruntime-linux-$arch.so',
-      ),
-      OS.windows => (
-        'native/libs/windows/$arch/ssruntime.dll',
-        'ssruntime-windows-$arch.dll',
-      ),
-      _ => throw UnsupportedError(
-        'ssruntime_dart: no prebuilt libssruntime for $os '
-        '(iOS/Android native-assets embedding is a follow-up)',
-      ),
-    };
-
+    final (rel, assetName) = _targetPaths(input.config.code);
     final file = await _resolveLibrary(input, output, rel, assetName);
     output.assets.code.add(
       CodeAsset(
@@ -71,6 +42,72 @@ void main(List<String> args) async {
     // Rebuild the code asset when the resolved library changes.
     output.dependencies.add(file);
   });
+}
+
+/// (package-local path, release-asset file name) for the current build target.
+/// The hook runs once per (OS, architecture, and — for iOS — SDK), so each
+/// invocation resolves exactly one native library.
+(String, String) _targetPaths(CodeConfig code) {
+  final os = code.targetOS;
+  // build-runtime.sh spells the linux arch dir aarch64 (else x86_64) and arm64
+  // elsewhere; map the code_assets Architecture to that.
+  final arch = switch (code.targetArchitecture) {
+    Architecture.x64 => 'x86_64',
+    Architecture.arm64 => os == OS.linux ? 'aarch64' : 'arm64',
+    final a => a.name,
+  };
+  return switch (os) {
+    OS.macOS => (
+      'native/libs/macos/libssruntime.dylib',
+      'libssruntime-macos.dylib',
+    ),
+    OS.linux => (
+      'native/libs/linux/$arch/libssruntime.so',
+      'libssruntime-linux-$arch.so',
+    ),
+    OS.windows => (
+      'native/libs/windows/$arch/ssruntime.dll',
+      'ssruntime-windows-$arch.dll',
+    ),
+    OS.android => _androidPaths(code.targetArchitecture),
+    OS.iOS => _iosPaths(code.iOS.targetSdk, arch),
+    _ => throw UnsupportedError(
+      'ssruntime_dart: no prebuilt libssruntime for target OS $os',
+    ),
+  };
+}
+
+/// Android ships one bare `.so` per NDK ABI (the SDK builds these three).
+(String, String) _androidPaths(Architecture arch) => switch (arch) {
+  Architecture.arm64 => (
+    'native/libs/android/arm64-v8a/libssruntime.so',
+    'libssruntime-android-arm64-v8a.so',
+  ),
+  Architecture.arm => (
+    'native/libs/android/armeabi-v7a/libssruntime.so',
+    'libssruntime-android-armeabi-v7a.so',
+  ),
+  Architecture.x64 => (
+    'native/libs/android/x86_64/libssruntime.so',
+    'libssruntime-android-x86_64.so',
+  ),
+  _ => throw UnsupportedError(
+    'ssruntime_dart: no prebuilt libssruntime for Android $arch '
+    '(built ABIs: arm64-v8a, armeabi-v7a, x86_64)',
+  ),
+};
+
+/// iOS device (`iphoneos`) and simulator (`iphonesimulator`) are DISTINCT Mach-O
+/// targets even at the same arch (`arm64-apple-ios` vs
+/// `arm64-apple-ios-simulator`), so they cannot share a slice — select by the
+/// SDK this hook invocation targets. Flutter's native-assets embedding wraps the
+/// chosen bare dylib into a framework and (re)signs it, as it does on macOS.
+(String, String) _iosPaths(IOSSdk sdk, String arch) {
+  final dir = sdk == IOSSdk.iPhoneOS ? 'iphoneos' : 'iphonesimulator';
+  return (
+    'native/libs/ios/$dir/$arch/libssruntime.dylib',
+    'libssruntime-ios-$dir-$arch.dylib',
+  );
 }
 
 /// The SpriteStudio-SDK release the download branch fetches prebuilt libraries
