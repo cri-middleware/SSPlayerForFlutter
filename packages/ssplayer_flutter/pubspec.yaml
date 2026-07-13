@@ -26,8 +26,10 @@ dependencies:
   flat_buffers: ^25.9.23
   # Layer 1: libssruntime dart:ffi `@Native` bindings via native assets (pure
   # Dart). Provides the runtime code asset (hook/build.dart) + FrameData FlatBuffers.
-  ssruntime_dart:
-    path: ../ssruntime_dart
+  # Hosted for publish; the repo-root pub workspace resolves it to the local
+  # member during dev (prerelease-inclusive caret so 7.0.0-alpha.1 satisfies it).
+  # Publish ssruntime_dart to pub.dev before publishing this package.
+  ssruntime_dart: ^7.0.0-alpha.1
 
 dev_dependencies:
   flutter_test:
