@@ -7,6 +7,8 @@
 # own (see each package's pubspec). Members opt in with `resolution: workspace`.
 name: ssplayer_flutter_workspace
 publish_to: none
+# Used by Melos to build commit links in generated CHANGELOGs (linkToCommits).
+repository: https://github.com/cri-middleware/SSPlayerForFlutter
 
 environment:
   sdk: ">=3.10.0 <4.0.0"
@@ -18,3 +20,38 @@ workspace:
   - packages/ssgen_flutter
   - packages/ssplayer_flutter
   - example
+
+# Melos must be a workspace dependency (its cli_launcher locates the workspace
+# only via a pubspec that depends on melos — a global `pub global activate`
+# install cannot detect it). Pinned <7.8.2 on purpose: melos 7.8.2 bumped its
+# transitive `cli_util` to ^0.5.0, which conflicts with ffigen's ^0.4.2 pin in
+# the shared workspace resolution. 7.8.1 is the newest melos that coexists with
+# ffigen and it already has full pub-workspace support (added in melos 7.0.0).
+dev_dependencies:
+  melos: ">=7.0.0 <7.8.2"
+
+# ── Melos: monorepo release automation ────────────────────────────────────────
+# Melos reads this `melos:` key of the workspace-root pubspec. Workspace members
+# come from the `workspace:` list above, so no separate `packages:` glob is
+# needed. Versioning is INDEPENDENT (the Melos default): each package bumps on
+# its own Conventional-Commit history and gets its own `<package>-v<version>` git
+# tag, which drives pub.dev automated publishing.
+# See docs/RELEASING.md and .github/workflows/{release,publish}.yml.
+melos:
+  command:
+    version:
+      # Trunk-based: only ever cut releases from main.
+      branch: main
+      # CHANGELOG entries link back to the commits that produced them.
+      linkToCommits: true
+      # Also maintain an aggregate CHANGELOG.md at the workspace root.
+      workspaceChangelog: true
+      # Keep any git-dependency version-tag refs in sync (no-op for our hosted deps).
+      updateGitTagRefs: true
+      # Release commit message; {new_package_versions} is expanded by Melos.
+      # NB: never add [skip ci] here — the release tag points at this commit and
+      # [skip ci] would also suppress the tag-triggered publish workflow.
+      message: |
+        chore(release): version packages
+
+        {new_package_versions}

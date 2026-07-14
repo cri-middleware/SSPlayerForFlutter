@@ -1,0 +1,61 @@
+name: Release
+
+# On-demand ("option B"): you merge PRs to main normally, then run this by hand
+# from the Actions tab when you want to cut versions. It computes INDEPENDENT
+# SemVer bumps from Conventional Commits since each package's last
+# `<package>-v<version>` tag, writes CHANGELOGs, commits, and pushes per-package
+# tags. Pushing those tags is what triggers publish.yml. See docs/RELEASING.md.
+on:
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: "Compute versions & tags but do NOT push (preview only)"
+        type: boolean
+        default: false
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history + tags so Melos can diff each package since its last tag.
+          fetch-depth: 0
+          # IMPORTANT: a PAT (or GitHub App token), NOT the default GITHUB_TOKEN.
+          # Tags pushed with GITHUB_TOKEN do NOT trigger other workflows, so
+          # publish.yml would silently never run. See docs/RELEASING.md.
+          token: ${{ secrets.RELEASE_PAT }}
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.44.6
+          channel: stable
+
+      # Resolves the workspace AND the pinned Melos dev-dependency, so the next
+      # step can invoke the exact Melos version from pubspec.lock via `dart run`.
+      - name: Resolve workspace
+        run: flutter pub get
+
+      - name: Configure git identity
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      # Independent versioning is the Melos default. --no-private skips packages
+      # still carrying `publish_to: none`, so removing that one line is what opts
+      # a package into automated releases. Dependent packages are bumped
+      # automatically (--dependent-constraints / --dependent-versions, on by default).
+      - name: Version packages (independent, Conventional Commits)
+        run: dart run melos version --yes --no-private
+
+      - name: Push version commit & tags
+        if: ${{ !inputs.dry-run }}
+        run: |
+          git push origin HEAD:main
+          git push origin --tags
