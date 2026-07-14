@@ -167,13 +167,15 @@ class _PlayerPageState extends State<PlayerPage>
     ..sort();
 
   // --- Dev live-reload (the SsLiveReload mixin) --------------------------
-  // Ride Flutter's own hot reload: on `r` (or an IDE Dart-save) the mixin's
-  // reassemble() also rebuilds the SpriteStudio art — desktop reconverts the
-  // stale SpriteStudio_Source projects in-process and hot-swaps the current
-  // pack; iOS/Android reload it from the bundle. Try it: edit a project in
-  // SpriteStudio (or `touch SpriteStudio_Source/overall/overall.sspj`; on a
-  // device also run `dart run ssgen_flutter:ssreconvert` on the host) then `r`.
-  // Run from example/ so SpriteStudio_Source resolves.
+  // Rides Flutter's own hot reload to also rebuild the SpriteStudio art —
+  // desktop reconverts the stale SpriteStudio_Source projects in-process,
+  // device reloads the fresh pack from the bundle. Opt-in via the
+  // SS_LIVE_RELOAD define (see ssLiveReloadEnabled below). Recommended: run
+  //   dart run ssgen_flutter:ssdev -d <device>
+  // from example/ — it wraps `flutter run`, injects the define, and on save
+  // reconverts + hot-reloads for you. Manual: `flutter run
+  // --dart-define=SS_LIVE_RELOAD=true`, then after a REAL edit (a `touch` is
+  // byte-identical) run `dart run ssgen_flutter:ssreconvert` and press `r`.
   @override
   SpriteStudioPlayer get ssPlayer => _player;
 
@@ -183,9 +185,12 @@ class _PlayerPageState extends State<PlayerPage>
   @override
   String get ssPack => _pack;
 
-  // Suspend while a drag-dropped (non-convention) source is shown.
+  // Live-reload is opt-in: only when launched with the SpriteStudio define
+  // (`ssdev` injects it; else `--dart-define=SS_LIVE_RELOAD=true`). Also
+  // suspended while a drag-dropped (non-convention) source is shown.
   @override
-  bool get ssLiveReloadEnabled => kDebugMode && !_dropped;
+  bool get ssLiveReloadEnabled =>
+      kDebugMode && !_dropped && const bool.fromEnvironment(ssLiveReloadDefine);
 
   @override
   void ssOnLiveReloaded() {

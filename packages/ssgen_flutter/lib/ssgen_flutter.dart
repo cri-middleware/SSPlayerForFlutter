@@ -6,3 +6,6 @@
 library;
 
 export 'src/live_reload.dart' show SsLiveReload;
+// The `--dart-define` key that opts an app into `.ssab` live-reload — apps gate
+// their `ssLiveReloadEnabled` on it; `ssdev` injects it.
+export 'src/ss_defines.dart' show ssLiveReloadDefine;

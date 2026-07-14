@@ -6,6 +6,8 @@ import 'package:flutter/widgets.dart';
 import 'package:ssgen_dart/ssgen_dart.dart';
 import 'package:ssplayer_flutter/ssplayer_flutter.dart';
 
+import 'ss_defines.dart';
+
 /// Wires SpriteStudio dev live-reload into a [State]: on Flutter's hot reload
 /// (`State.reassemble`), rebuild the art and hot-swap it in place — so pressing
 /// `r` (or an IDE Dart-save) also picks up SpriteStudio edits.
@@ -45,9 +47,14 @@ mixin SsLiveReload<T extends StatefulWidget> on State<T> {
   /// The current pack — the `.ssab` stem, e.g. `PartsColor`.
   String get ssPack;
 
-  /// Gate live-reload (default: debug builds only). Return false to suspend it —
-  /// e.g. while a non-convention / drag-dropped source is shown.
-  bool get ssLiveReloadEnabled => kDebugMode;
+  /// Gate live-reload (default: debug builds launched with the SpriteStudio
+  /// live-reload define). `ssdev` injects it; otherwise pass
+  /// `--dart-define=SS_LIVE_RELOAD=true`. So a plain `flutter run` does normal
+  /// Dart hot reload without reconverting art. Return false to suspend it (e.g.
+  /// while a drag-dropped source is shown); override to `kDebugMode` to always
+  /// reconvert on hot reload.
+  bool get ssLiveReloadEnabled =>
+      kDebugMode && const bool.fromEnvironment(ssLiveReloadDefine);
 
   /// The project root holding `SpriteStudio_Source/` (desktop reconvert).
   /// Defaults to `--dart-define=SS_PROJECT_ROOT` else a walk-up from the

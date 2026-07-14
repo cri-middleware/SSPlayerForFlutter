@@ -29,6 +29,9 @@ dependencies:
   # iOS/Android its ssconverter_dart dependency is mobile-inert (no code asset).
   ssgen_dart:
     path: ../ssgen_dart
+  # Filesystem watcher for the `ssdev` runner (watch SpriteStudio_Source →
+  # reconvert + hot reload). Host dev-tool only.
+  watcher: ^1.1.0
 
 dev_dependencies:
   flutter_test:
