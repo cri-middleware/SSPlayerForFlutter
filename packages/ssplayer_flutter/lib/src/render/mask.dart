@@ -12,6 +12,12 @@ import 'geometry_builder.dart';
 /// dropped (the flagship `break`s too).
 const int kMaxMaskWriters = 24;
 
+/// [MaskWriter.threshold] for a writer that has no texel to cut out — a Shape
+/// (§2-5「シェイプの特例」), whose whole polygon is the mask. Below every
+/// possible alpha, so nothing is ever thresholded away (the flagship's sentinel
+/// too).
+const double noCutoutThreshold = -1.0;
+
 /// The static, per-part mask flags — read **once** from the `.ssab` `PartData`
 /// and never re-read per frame (mask §用語表: PartData is static, FrameData is
 /// animated).
@@ -25,6 +31,7 @@ class MaskPartFlags {
     required this.maskInfluence,
     required this.visibleInsideMask,
     this.quadGeometry = true,
+    this.shapeGeometry = false,
   });
 
   /// A part with no mask involvement at all (also the out-of-range fallback).
@@ -38,14 +45,29 @@ class MaskPartFlags {
   /// Whether this part's shape is the plain 4-corner sprite quad
   /// (`local_vertices`) — true for Normal and Mask parts.
   ///
-  /// Mesh / Shape / Text / Nines carry their own geometry, which the coverage
-  /// pass cannot rasterise yet. Such a part is dropped as a *writer*
+  /// Mesh / Text / Nines carry their own geometry, which the coverage pass
+  /// cannot rasterise yet. Such a part is dropped as a *writer*
   /// ([MaskPlan.build]) rather than clipping its targets with the wrong shape:
   /// per the SDK's role table a Mesh can never be a pure mask, but it CAN be a
   /// clipping writer, and rasterising its undeformed quad would clip to a
   /// rectangle instead of the deformed mesh. Not writing at all is the more
   /// predictable of the two wrongs until the geometry is wired up.
   final bool quadGeometry;
+
+  /// A Shape part (§11): its coverage is its **polygon**, taken from the shape
+  /// SoA rather than the sprite quad.
+  ///
+  /// A shape writer also bypasses the alpha cutout (§2-5) entirely — it has no
+  /// cell and therefore no texel alpha to threshold, so 「形状全体がマスク」.
+  /// That is why it is a separate flag rather than another [quadGeometry] case:
+  /// the two differ in both geometry *and* thresholding.
+  final bool shapeGeometry;
+
+  /// Whether this part can write coverage at all — i.e. the coverage pass knows
+  /// how to rasterise its shape. Everything else (Mesh / Text / Nines) is
+  /// dropped as a writer rather than clipping its targets with a wrong-shaped
+  /// stand-in.
+  bool get drawableWriter => quadGeometry || shapeGeometry;
 
   /// `PartTypeMask || draw_as_mask` — writes coverage and draws NO colour.
   final bool pureMask;
@@ -97,6 +119,7 @@ class MaskPartFlags {
           visibleInsideMask: p.visibleInsideMask,
           quadGeometry: type == ssab.PartTypeTypeId.PartTypeNormal ||
               type == ssab.PartTypeTypeId.PartTypeMask,
+          shapeGeometry: type == ssab.PartTypeTypeId.PartTypeShape,
         );
       },
       growable: false,
@@ -242,17 +265,25 @@ class MaskPlan {
       final p = drawOrder[rank];
       final f = p < flags.length ? flags[p] : MaskPartFlags.none;
       if (!f.isWriter) continue;
-      // The coverage pass rasterises the sprite quad; a writer with its own
-      // geometry (Mesh / Shape / …) would clip to the wrong shape.
-      if (!f.quadGeometry) continue;
+      // A writer whose geometry the coverage pass cannot rasterise (Mesh /
+      // Text / Nines) is dropped rather than clipping its targets with a
+      // wrong-shaped stand-in.
+      if (!f.drawableWriter) continue;
 
-      // §2-2: mask == 0 opts the writer out entirely. (Equivalently its cutout
-      // threshold would be 1.0 and it would write nothing.)
+      // §2-2: mask == 0 opts the writer out entirely. This is a rule of its own
+      // — the doc says `mask` 「カットアウト閾値を兼ねる。0 で writer 無効」, it
+      // *doubles as* the threshold — so it still applies to a shape, which has
+      // no cutout at all.
       final mask = frame.partByIndex[p]?.mask ?? 0.0;
       if (mask <= 0.0) continue;
 
-      final corners = GeometryBuilder.worldCornersOf(p, frame);
-      if (corners == null) continue; // no geometry this frame — nothing to write
+      // World outline: a shape's is its polygon, everything else's is the
+      // sprite quad. A shape part has no cell and so no `local_vertices`, which
+      // is why it cannot share the quad path here.
+      final outline = f.shapeGeometry
+          ? GeometryBuilder.shapeWorldOutlineOf(p, frame)
+          : GeometryBuilder.worldCornersOf(p, frame);
+      if (outline == null) continue; // no geometry this frame — nothing to write
 
       writers.add(MaskWriter(
         partIndex: p,
@@ -260,11 +291,15 @@ class MaskPlan {
         bit: writers.length,
         opInvert: f.maskInfluence,
         isClipping: f.isClipping,
-        threshold: ((255.0 - mask) / 255.0).clamp(0.0, 1.0),
+        // A shape has no texel to threshold, so its whole polygon is the mask
+        // (§2-5「シェイプの特例」). -1 is the flagship's "never cut out" sentinel.
+        threshold: f.shapeGeometry
+            ? noCutoutThreshold
+            : ((255.0 - mask) / 255.0).clamp(0.0, 1.0),
       ));
 
-      for (var c = 0; c < 4; c++) {
-        final x = corners[c * 2], y = corners[c * 2 + 1];
+      for (var c = 0; c * 2 + 1 < outline.length; c++) {
+        final x = outline[c * 2], y = outline[c * 2 + 1];
         if (x < left) left = x;
         if (x > right) right = x;
         if (y < top) top = y;

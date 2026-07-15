@@ -110,6 +110,22 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable, InstanceChild {
     return _dummyCoverage = image;
   }
 
+  /// A 1×1 opaque white image — the "shape pixel" a Shape (§11) is composited
+  /// against when it goes through the shader as a mask target. Shared; never
+  /// disposed.
+  static ui.Image? _whitePixel;
+
+  static ui.Image _ensureWhitePixel() {
+    final existing = _whitePixel;
+    if (existing != null) return existing;
+    final recorder = ui.PictureRecorder();
+    ui.Canvas(recorder).drawPaint(ui.Paint()..color = const ui.Color(0xFFFFFFFF));
+    final picture = recorder.endRecording();
+    final image = picture.toImageSync(1, 1);
+    picture.dispose();
+    return _whitePixel = image;
+  }
+
   /// This frame's coverage bitmap. Retained past [paint] because the recorded
   /// picture rasterises later; disposed at the start of the next [paint].
   ui.Image? _coverage;
@@ -511,6 +527,22 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable, InstanceChild {
   /// CSR prefix sum into [meshIndices].
   Uint32List meshIndexOffsets() => _soaU32(ss_runtime_get_mesh_index_offsets);
 
+  // --- Shape SoA (§11) -----------------------------------------------------
+
+  /// Shape polygon vertices in **local** space, interleaved `[x,y,…]` at a fixed
+  /// stride of 24 floats per part ([ShapeBuffers.stride]) — not CSR like the
+  /// mesh. Apply the world matrix; pivot and the Y-Down flip are already in.
+  Float32List shapeVertices() => _soaFloats(ss_runtime_get_shape_vertices);
+
+  /// Normalised `[fx,fy,…]` box coordinates paired with [shapeVertices], same
+  /// stride — the weights for per-vertex PartColor.
+  Float32List shapeVertexBoxCoords() =>
+      _soaFloats(ss_runtime_get_shape_vertex_box_coords);
+
+  /// Live vertex count per part for [shapeVertices]. The only valid slice: a
+  /// Shape batch's `vertex_count` / `index_count` are 0.
+  Int32List shapeVertexCounts() => _soaI32(ss_runtime_get_shape_vertex_counts);
+
   // --- Effects (§8) --------------------------------------------------------
 
   /// The effect-hosting parts in this pack (empty when it has none).
@@ -613,6 +645,19 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable, InstanceChild {
               indexOffsets: meshIndexOffsets(),
             )
           : null,
+      // The shape SoA is fetched when a Shape batch is present OR a mask writer
+      // might be a shape: a *pure-mask* shape's colour batch is emitted with
+      // `kind == Mask`, not `Shape`, so keying only off Shape batches would
+      // starve the coverage pass of the very geometry it needs.
+      shape: batches.any((b) =>
+              b.kind == fbs.DrawBatchKind.Shape ||
+              b.kind == fbs.DrawBatchKind.Mask)
+          ? ShapeBuffers(
+              vertices: shapeVertices(),
+              boxCoords: shapeVertexBoxCoords(),
+              counts: shapeVertexCounts(),
+            )
+          : null,
       alphaScale: alphaScale,
     );
     if (frame == null) return;
@@ -638,8 +683,9 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable, InstanceChild {
           _emitEffectBatch(canvas, batch, frame);
         case fbs.DrawBatchKind.Instance:
           _emitInstanceBatch(canvas, batch, frame);
+        case fbs.DrawBatchKind.Shape:
+          _emitShapeBatch(canvas, batch, frame, maskCtx);
         case fbs.DrawBatchKind.Mask: // §9: coverage only, never colour
-        case fbs.DrawBatchKind.Shape: // TODO(phase 2): §11 shape SoA
         case fbs.DrawBatchKind.Nines: // TODO(phase 2): §11 9-slice
         case fbs.DrawBatchKind.Text: // no SDK render path
           break; // kinds not yet ported are skipped
@@ -741,6 +787,27 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable, InstanceChild {
 
     var wrote = false;
     for (final writer in plan.writers) {
+      // A Shape writer (§2-5「シェイプの特例」) has no cell, hence no texel alpha
+      // to threshold: its polygon *is* the mask. That needs no shader at all —
+      // the bit colour over the geometry, additively, is the whole operation.
+      if (_flagsFor(writer.partIndex).shapeGeometry) {
+        final geometry = _geometry.buildShapeParts(<int>[writer.partIndex], frame);
+        if (geometry == null) continue;
+        canvas.drawPath(
+          _trianglesPath(geometry),
+          ui.Paint()
+            ..blendMode = ui.BlendMode.plus
+            ..color = _bitColor(writer.bit)
+            // A coverage bit is a number, not a picture: a half-covered edge
+            // pixel would decode as a *different* writer's bits, so the fill
+            // must stay binary. (It also keeps the shared edges between the
+            // fan's triangles from double-adding under `plus`.)
+            ..isAntiAlias = false,
+        );
+        wrote = true;
+        continue;
+      }
+
       final quad = _geometry.buildPartColorQuad(writer.partIndex, frame);
       if (quad == null) continue;
       final hash = textureByRank[writer.drawRank];
@@ -821,6 +888,104 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable, InstanceChild {
     }
     flushRun();
   }
+
+  /// Emits one Shape batch (§11), preserving draw order.
+  ///
+  /// A Shape carries its colour entirely in its vertices ([GeometryBuilder.
+  /// buildShapeParts]), so the common case is one `drawVertices` for the whole
+  /// batch against a **white** paint: `modulate` against white is the identity,
+  /// which stands in for the "shape pixel" the sibling players get for free from
+  /// an unbound sampler returning white. Flutter has no such default — an
+  /// `ImageShader`-less paint would otherwise modulate against opaque black.
+  ///
+  /// Mask targets (§9) are peeled onto their own draw, exactly like the Normal
+  /// path, because the coverage test is per-fragment.
+  ///
+  /// Pure-mask shapes never reach here: the Brain emits their colour batch as
+  /// `kind == Mask`, and they are dropped anyway ([_flagsFor] / `pureMask`).
+  void _emitShapeBatch(ui.Canvas canvas, fbs.DrawBatch batch, DrawFrame frame,
+      _MaskContext? maskCtx) {
+    if (batch.count == 0 || frame.shape == null) return;
+    final blend = blendModeFor(batch.blendType);
+
+    final run = <int>[];
+    void flushRun() {
+      if (run.isEmpty) return;
+      final v = _geometry.buildShapeParts(run, frame);
+      if (v != null) {
+        canvas.drawVertices(v.toVertices(), ui.BlendMode.modulate,
+            ui.Paint()..blendMode = blend..color = const ui.Color(0xFFFFFFFF));
+      }
+      run.clear();
+    }
+
+    for (var k = 0; k < batch.count; k++) {
+      final rank = batch.startRank + k;
+      if (rank >= frame.drawOrder.length) break;
+      final p = frame.drawOrder[rank];
+      final flags = _flagsFor(p);
+      if (flags.pureMask) continue; // coverage only, never colour
+      final maskBits = maskCtx?.bitsForTarget(rank, flags);
+      if (maskBits == null) {
+        run.add(p);
+      } else {
+        flushRun();
+        _drawMaskedShape(canvas, p, frame, blend, maskBits, maskCtx!);
+      }
+    }
+    flushRun();
+  }
+
+  /// Draws one mask-target Shape: its vertex colours gated by the coverage test.
+  ///
+  /// The trick is that `drawVertices`' blend combines the vertex colours with
+  /// the paint's shader, so the shader only has to answer "does this fragment
+  /// pass the mask?" — white for yes, zero for no — and `modulate` keeps the
+  /// shape's own per-vertex gradient. That matters because a `FragmentProgram`
+  /// cannot receive varyings, so the gradient could never come *from* the shader.
+  ///
+  /// The gate is `partcolor.frag` configured to a no-op (rate 0 over a white
+  /// texel) rather than a second program: the mask replay is intricate enough
+  /// (§2-1..§2-4 scope, polarity, invert/increment) that a copy of it would be a
+  /// standing invitation to drift.
+  void _drawMaskedShape(ui.Canvas canvas, int part, DrawFrame frame,
+      ui.BlendMode blend, MaskBits maskBits, _MaskContext maskCtx) {
+    final program = _partColorProgram.get();
+    final geometry = _geometry.buildShapeParts(<int>[part], frame);
+    if (geometry == null) return;
+    if (program == null) {
+      // Still compiling — draw unmasked rather than dropping the shape.
+      canvas.drawVertices(geometry.toVertices(), ui.BlendMode.modulate,
+          ui.Paint()..blendMode = blend..color = const ui.Color(0xFFFFFFFF));
+      return;
+    }
+
+    final shader = _partColorShaders.next(program);
+    // A 1×1 opaque white texel + rate 0 collapses the whole PartColor formula to
+    // "pass the pixel through", i.e. opaque white — so the only thing the shader
+    // still decides is the mask test.
+    _setPartColorUniforms(shader, PartColor.identity, _unitQuad,
+        texWidth: 1.0,
+        texHeight: 1.0,
+        maskBits: maskBits,
+        plan: maskCtx.plan);
+    shader.setImageSampler(0, _ensureWhitePixel());
+    shader.setImageSampler(1, maskCtx.coverage);
+
+    canvas.drawVertices(geometry.toVertices(), ui.BlendMode.modulate,
+        ui.Paint()..blendMode = blend..shader = shader);
+  }
+
+  /// A degenerate quad for the mask gate: with `rate == 0` the shader never uses
+  /// `(s,t)` or the UVs, so the affine only has to be present, not meaningful.
+  static final PartColorQuad _unitQuad = PartColorQuad(
+    corners: Float32List.fromList(<double>[0, 0, 1, 0, 0, 1, 1, 1]),
+    originX: 0,
+    originY: 0,
+    inv: Float32List.fromList(<double>[0, 0, 0, 0]),
+    uvA: Float32List(4),
+    uvB: Float32List(4),
+  );
 
   /// Emits one Mesh batch (§8), preserving draw order.
   ///
@@ -968,6 +1133,37 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable, InstanceChild {
 
     canvas.drawPath(
         _quadPath(quad), ui.Paint()..blendMode = blend..shader = shader);
+  }
+
+  /// The union of a baked block's triangles, as one non-zero-wound path.
+  ///
+  /// Built from the very triangles the colour pass draws rather than from a
+  /// re-derived outline, so the coverage a shape writes can never disagree with
+  /// the shape it draws.
+  static ui.Path _trianglesPath(MeshGeometry g) {
+    final path = ui.Path();
+    final p = g.positions;
+    final idx = g.indices;
+    for (var t = 0; t + 2 < idx.length; t += 3) {
+      final a = idx[t] * 2, b = idx[t + 1] * 2, c = idx[t + 2] * 2;
+      path.moveTo(p[a], p[a + 1]);
+      path.lineTo(p[b], p[b + 1]);
+      path.lineTo(p[c], p[c + 1]);
+      path.close();
+    }
+    return path;
+  }
+
+  /// One writer's bit as a solid colour, in the same channel encoding the
+  /// coverage shader uses (8 bits × R/G/B) — alpha 1 because `BlendMode.plus` is
+  /// premultiplied and would otherwise scale the bit away.
+  static ui.Color _bitColor(int bit) {
+    final value = 1 << (bit % 8);
+    return switch (bit ~/ 8) {
+      0 => ui.Color.fromARGB(255, value, 0, 0),
+      1 => ui.Color.fromARGB(255, 0, value, 0),
+      _ => ui.Color.fromARGB(255, 0, 0, value),
+    };
   }
 
   /// The world quad's fill path, wound `lt → rt → rb → lb`.

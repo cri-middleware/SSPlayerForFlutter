@@ -102,7 +102,7 @@ void main() {
           plan, plan.commands!.first, 0, frame(),
           texWidth: 64, texHeight: 32);
       // corner UVs per quad: (0,0) (1,0) (0,0.5) (1,0.5) → ×(64,32)
-      expect(g!.texCoords.sublist(0, 8),
+      expect(g!.texCoords!.sublist(0, 8),
           <double>[0, 0, 64, 0, 0, 16, 64, 16]);
     });
 

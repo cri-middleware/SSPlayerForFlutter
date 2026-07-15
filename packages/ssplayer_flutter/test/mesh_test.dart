@@ -91,7 +91,7 @@ void main() {
       expect(g.indices, <int>[0, 1, 2, 3, 5, 4]); // part 2's [0,2,1] → [3,5,4]
       // part 2's own world coords and UVs follow part 0's, untouched.
       expect(g.positions.sublist(6), <double>[100, 50, 110, 50, 100, 60]);
-      expect(g.texCoords.sublist(6), <double>[16, 16, 24, 16, 16, 24]);
+      expect(g.texCoords!.sublist(6), <double>[16, 16, 24, 16, 16, 24]);
     });
 
     test('vertex colour is white × the part alpha, ARGB-packed', () {

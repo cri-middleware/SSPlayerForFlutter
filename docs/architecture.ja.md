@@ -348,7 +348,21 @@ Flutter としては **Phase 1**（Basic〜BlendMode を `SpriteStudioView` で�
   子のテクスチャも同じ `TextureRegistry` に読み込む（cellmap ハッシュは全体で一意なので共有アトラスは 1 回で解決）。§8 参照。
 - **シーケンス (.ssqe)（Body のステートマシン）**: 一括再生 API は無い。`ss_runtime_is_end_frame_reached()` を検知して
   次項目を `ss_runtime_setup_animation()` で切り替える状態機械を Player が実装する。
-- **9-Slice / Shape（Runtime 側で計算済み）**: 9-slice は `local_vertices` に展開済み。Shape は `ss_runtime_get_shape_vertices()` の SoA をそのまま使う。
+- **Shape（§11・実装済み）**: `ss_runtime_get_shape_{vertices,vertex_box_coords,vertex_counts}` の 3 本のみ。
+  「そのまま使う」ではないので注意:
+  - **固定ストライド 24 float（12 頂点）/パーツ。CSR ではない**（Mesh とはここが逆）。オフセット配列は無く、
+    `counts[p]` だけが唯一のスライス。Shape バッチの `vertex_count` / `index_count` は **0**（Brain は Normal にしか入れない）。
+  - **頂点はローカル空間** → world 行列を掛ける（Mesh はワールド済みなので逆）。ピボットと Y-Down 反転は適用済み。
+  - **中心始まりの三角形ファン** `[center, 周, 閉じ]` を `(0, i+1, i+2)` で三角形化。Rectangle が
+    「対角 2 枚」でなく「中心から 4 枚」なのは、4隅グラデが対角で折れないようにするため。バッチ可能なので index 再ベースが要る。
+  - **PartColor は合成式をバイパス**（§1-2-3）＝頂点色は `pc.rgba` 直値・Mix 固定・rate 1.0 を
+    `box_coords` で 4隅バイリニア。α は事前合成済み（Mix の Shape はコンバータが `a=255` に固定）なので再乗算しない。
+    結果として **テクスチャもフラグメントシェーダも不要**＝頂点カラーだけ。白 `Paint` ＋ `BlendMode.modulate` で描く
+    （兄弟プレイヤーは「未バインドのサンプラが白を返す」に依存しているが、Flutter にその既定はない）。
+  - **マスク**: Shape は writer にも対象にもなる。writer は**ポリゴンそのものがマスク＝カットアウト閾値なし**
+    （§2-5「シェイプの特例」）。ただし `mask == 0` の writer 無効は別ルールなので生きる。
+  - **Arrow は SDK 側が不整合**（中心頂点が無いのに全プレイヤーがファンとして消費）。status.ja.md 参照。
+- **9-Slice（Runtime 側で計算済み・未実装）**: `local_vertices` に展開済み。
 - **Sound（Body）**: passed_event の `audios` を監視してアプリのオーディオで再生。
 
 ## 12. アニメーションブレンド / ミキシング

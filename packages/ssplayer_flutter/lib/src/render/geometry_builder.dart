@@ -4,6 +4,64 @@ import 'dart:ui' as ui;
 import 'package:ssruntime_dart/effect_draw_plan.dart' as efbs;
 import 'package:ssruntime_dart/framedata.dart' as fbs;
 
+import 'part_color.dart';
+
+/// The Brain's shape SoA for one frame (§11), bundled for [DrawFrame].
+///
+/// Deliberately **not** CSR, unlike [MeshBuffers]: the Brain writes a fixed
+/// [stride] of 12 vertices per part and reports how many of them are live in
+/// [counts]. A non-shape part carries count 0 and zero-filled slots, so the
+/// buffers are always `parts × 24` long whether or not the animation has shapes.
+class ShapeBuffers {
+  const ShapeBuffers({
+    required this.vertices,
+    required this.boxCoords,
+    required this.counts,
+  });
+
+  /// Interleaved `[x,y,…]` **local-space** positions, `part * 24 + 2*v`.
+  ///
+  /// Local, not world — the opposite of [MeshBuffers] and the same as
+  /// `local_vertices`: the caller applies the world matrix. Pivot and the Y-Down
+  /// flip are already baked in; do not re-apply either.
+  final Float32List vertices;
+
+  /// Interleaved `[fx,fy,…]` normalised box coordinates, same stride: `(0,0)` is
+  /// the LT corner of the shape's pre-pivot bounding box, `(1,1)` the RB — free
+  /// of pivot and coordinate system. The Brain emits these purely so a Body can
+  /// bilinearly interpolate the four PartColor corners onto vertices that are
+  /// not corners (a star's points, a fan's center).
+  final Float32List boxCoords;
+
+  /// Live vertex count per part. The only valid slice — there is no offsets
+  /// array, and `DrawBatch.vertex_count` is 0 for a Shape batch (the Brain fills
+  /// it for Normal only).
+  final Int32List counts;
+
+  /// Floats per part in [vertices] / [boxCoords] (12 vertices × 2).
+  static const int stride = 24;
+
+  /// The largest polygon the Brain can emit — a Star (center + 10 points +
+  /// closing vertex).
+  static const int maxVertices = 12;
+
+  /// True when this frame carries no shape data at all.
+  bool get isEmpty => counts.isEmpty || vertices.isEmpty;
+
+  /// Part [p]'s live vertex count, or 0 when it draws no shape this frame.
+  ///
+  /// Guards the buffers as well as the count: fewer than 3 vertices cannot form
+  /// a triangle, and the Brain itself skips such parts (a zero-sized shape).
+  int countOf(int p) {
+    if (p < 0 || p >= counts.length) return 0;
+    final n = counts[p];
+    if (n < 3 || n > maxVertices) return 0;
+    final end = p * stride + n * 2;
+    if (end > vertices.length || end > boxCoords.length) return 0;
+    return n;
+  }
+}
+
 /// The Brain's mesh SoA for one frame (§8), bundled for [DrawFrame].
 ///
 /// Every buffer is concatenated across all parts and sliced by a **CSR prefix
@@ -86,6 +144,7 @@ class DrawFrame {
     required this.local,
     required this.uv,
     this.mesh,
+    this.shape,
     this.alphaScale = 1.0,
   });
 
@@ -100,6 +159,7 @@ class DrawFrame {
     required Float32List local,
     required Float32List uv,
     MeshBuffers? mesh,
+    ShapeBuffers? shape,
     double alphaScale = 1.0,
   }) {
     final drawOrder = frameData.drawOrder;
@@ -115,6 +175,7 @@ class DrawFrame {
       local: local,
       uv: uv,
       mesh: mesh,
+      shape: shape,
       alphaScale: alphaScale,
     );
   }
@@ -128,6 +189,9 @@ class DrawFrame {
 
   /// The frame's mesh SoA (§8), or null when the animation has no Mesh batch.
   final MeshBuffers? mesh;
+
+  /// The frame's shape SoA (§11), or null when the animation has no Shape part.
+  final ShapeBuffers? shape;
 
   /// An extra opacity multiplier applied on top of every part's own alpha.
   ///
@@ -167,7 +231,11 @@ class MeshGeometry {
   });
 
   final Float32List positions;
-  final Float32List texCoords;
+
+  /// Null for a kind that samples no texture — a Shape (§11) is coloured purely
+  /// by [colors], so there is nothing to map. `Vertices.raw` requires this to be
+  /// either absent or exactly as long as [positions].
+  final Float32List? texCoords;
   final Int32List colors;
   final Uint16List indices;
 
@@ -509,6 +577,147 @@ class GeometryBuilder {
       corners[c * 2 + 1] = m1 * lx + m5 * ly + m13;
     }
     return corners;
+  }
+
+  /// Bakes Shape parts (§11) into one indexed vertex block, or null when none of
+  /// them has geometry this frame.
+  ///
+  /// A Shape is the Normal path's geometry rules with the Mesh path's batching:
+  /// vertices are **local** and get the world matrix (Mesh's are already world),
+  /// and several parts concatenate into one draw, so each part's fan indices are
+  /// rebased onto its vertex base.
+  ///
+  /// The colour is the whole story here, and it is the one place PartColor does
+  /// **not** go through the shader (§1-2-3 「シェイプは合成式をバイパス」):
+  ///
+  ///  * With PartColor, the vertex colour is `pc.rgba` *directly* — no blend
+  ///    formula, forced Mix, rate pinned to 1 — bilinearly weighted per vertex by
+  ///    the Brain's box coords. The alpha already carries the hierarchical alpha
+  ///    (the converter additionally forces `a = 255` for a Mix shape so the
+  ///    product lands exactly on the part's alpha), so it must NOT be
+  ///    re-multiplied — only [DrawFrame.alphaScale] is still owed.
+  ///  * Without PartColor, it is white at the part's alpha.
+  ///
+  /// That collapses the whole kind onto plain per-vertex colours, which is why a
+  /// Shape needs no texture and no fragment program: the caller draws it with a
+  /// white [ui.Paint] under `BlendMode.modulate`.
+  MeshGeometry? buildShapeParts(List<int> parts, DrawFrame frame) {
+    final shape = frame.shape;
+    if (shape == null || parts.isEmpty) return null;
+
+    var vTotal = 0;
+    var iTotal = 0;
+    for (final p in parts) {
+      final n = shape.countOf(p);
+      if (n == 0) continue;
+      vTotal += n;
+      iTotal += (n - 2) * 3; // center-first fan
+    }
+    if (vTotal == 0 || iTotal == 0) return null;
+
+    final positions = Float32List(vTotal * 2);
+    final colors = Int32List(vTotal);
+    final indices = Uint16List(iTotal);
+    var vPos = 0, cPos = 0, iPos = 0, base = 0;
+
+    for (final p in parts) {
+      final n = shape.countOf(p);
+      if (n == 0) continue;
+
+      final m = p * DrawFrame.worldStride;
+      if (m + 16 > frame.world.length) continue;
+      final m0 = frame.world[m], m1 = frame.world[m + 1];
+      final m4 = frame.world[m + 4], m5 = frame.world[m + 5];
+      final m12 = frame.world[m + 12], m13 = frame.world[m + 13];
+
+      final state = frame.partByIndex[p];
+      final pc = state == null ? null : PartColor.read(frame.frameData, state);
+      // No PartColor → white at the part's alpha (§1-2-4's default), which also
+      // picks up the instance chain's scale. With PartColor the corner alphas
+      // already hold the hierarchical alpha, so only the chain scale is applied.
+      final plain = pc == null ? _argb(1.0, 1.0, 1.0, frame.alphaOf(p)) : 0;
+      final tinted = pc?.scaleAlpha(frame.alphaScale);
+
+      final o = p * ShapeBuffers.stride;
+      for (var v = 0; v < n; v++) {
+        final lx = shape.vertices[o + 2 * v];
+        final ly = shape.vertices[o + 2 * v + 1];
+        positions[vPos++] = m0 * lx + m4 * ly + m12;
+        positions[vPos++] = m1 * lx + m5 * ly + m13;
+
+        if (tinted == null) {
+          colors[cPos++] = plain;
+        } else {
+          // Bilinear over the box coords — the whole reason the Brain emits
+          // them. A fan's center lands at (0.5, 0.5) and gets the average, which
+          // is what makes a per-corner-coloured shape gradient smoothly instead
+          // of creasing along a diagonal.
+          final fx = shape.boxCoords[o + 2 * v];
+          final fy = shape.boxCoords[o + 2 * v + 1];
+          final wLT = (1.0 - fx) * (1.0 - fy);
+          final wRT = fx * (1.0 - fy);
+          final wLB = (1.0 - fx) * fy;
+          final wRB = fx * fy;
+          colors[cPos++] = _argb(
+            tinted.lt.r * wLT + tinted.rt.r * wRT + tinted.lb.r * wLB + tinted.rb.r * wRB,
+            tinted.lt.g * wLT + tinted.rt.g * wRT + tinted.lb.g * wLB + tinted.rb.g * wRB,
+            tinted.lt.b * wLT + tinted.rt.b * wRT + tinted.lb.b * wLB + tinted.rb.b * wRB,
+            tinted.lt.a * wLT + tinted.rt.a * wRT + tinted.lb.a * wLB + tinted.rb.a * wRB,
+          );
+        }
+      }
+
+      // Center-first fan: [center, perimeter…, closing]. Rebased onto this
+      // part's vertex base so several parts share one draw.
+      for (var t = 0; t < n - 2; t++) {
+        indices[iPos++] = base;
+        indices[iPos++] = base + t + 1;
+        indices[iPos++] = base + t + 2;
+      }
+      base += n;
+    }
+    if (vPos == 0 || iPos == 0) return null;
+
+    return MeshGeometry(
+      positions: positions.sublist(0, vPos),
+      // A Shape samples nothing; the caller pairs this with a white Paint.
+      texCoords: null,
+      colors: colors.sublist(0, cPos),
+      indices: indices.sublist(0, iPos),
+    );
+  }
+
+  /// Part [part]'s shape polygon in world space, interleaved `[x,y,…]`, or null
+  /// when it draws no shape this frame.
+  ///
+  /// Every live vertex including the fan's center — callers use it for bounds,
+  /// where the center is harmlessly interior.
+  static Float32List? shapeWorldOutlineOf(int part, DrawFrame frame) {
+    final shape = frame.shape;
+    if (shape == null) return null;
+    final n = shape.countOf(part);
+    if (n == 0) return null;
+    final m = part * DrawFrame.worldStride;
+    if (m + 16 > frame.world.length) return null;
+
+    final m0 = frame.world[m], m1 = frame.world[m + 1];
+    final m4 = frame.world[m + 4], m5 = frame.world[m + 5];
+    final m12 = frame.world[m + 12], m13 = frame.world[m + 13];
+    final o = part * ShapeBuffers.stride;
+
+    final out = Float32List(n * 2);
+    for (var v = 0; v < n; v++) {
+      final lx = shape.vertices[o + 2 * v];
+      final ly = shape.vertices[o + 2 * v + 1];
+      out[v * 2] = m0 * lx + m4 * ly + m12;
+      out[v * 2 + 1] = m1 * lx + m5 * ly + m13;
+    }
+    return out;
+  }
+
+  static int _argb(double r, double g, double b, double a) {
+    int ch(double v) => (v.clamp(0.0, 1.0) * 255.0).round();
+    return (ch(a) << 24) | (ch(r) << 16) | (ch(g) << 8) | ch(b);
   }
 
   /// Part [part]'s world matrix as a `Canvas.transform` matrix, or null when the

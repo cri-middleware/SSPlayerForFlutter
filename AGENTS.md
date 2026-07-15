@@ -50,11 +50,11 @@ sibling `../ssruntime_dart/` package.
 | `lib/ssplayer_flutter.dart` | Public API barrel (L2–L4; import L1 from `ssruntime_dart` directly). |
 | `../ssruntime_dart/` | **L1** binding package (plain Dart, non-Flutter): ffigen `@Native` top-level C-API bindings (`lib/src/ssruntime_bindings.g.dart`; native lib bundled by `hook/build.dart`) + runtime FlatBuffers `lib/src/fbs/{framedata,effect_draw_plan}.g.dart` (imported as `package:ssruntime_dart/framedata.dart`). |
 | `../ssconverter_dart/` | Host `.sspj`→`.ssab` converter — ffigen `@Native` bindings to the host `libssconverter` dylib (`lib/src/ssconverter_bindings.g.dart`; dylib bundled by `hook/build.dart`) behind the `ssconvert` CLI + `SsConverter` lib (desktop only). |
-| `lib/src/internal_player.dart` | **L2** engine — FFI lifecycle, SoA getters, `paint` = `DrawBatch.kind` dispatch (`_emitNormalBatch`). |
-| `lib/src/render/geometry_builder.dart` | **L2** — `GeometryBuilder` (pure SoA→`ui.Vertices` bake) + `DrawFrame` (per-frame SoA bundle). New kinds add build methods here. |
+| `lib/src/internal_player.dart` | **L2** engine — FFI lifecycle, SoA getters, `paint` = `DrawBatch.kind` dispatch (`_emit{Normal,Mesh,Effect,Instance,Shape}Batch`). |
+| `lib/src/render/geometry_builder.dart` | **L2** — `GeometryBuilder` (pure SoA→`ui.Vertices` bake) + `DrawFrame` (per-frame SoA bundle) + `MeshBuffers` (§8, CSR) / `ShapeBuffers` (§11, fixed stride). New kinds add build methods here. |
 | `lib/src/render/blend.dart` | **L2** — `blendModeFor` (`BlendType`→`ui.BlendMode`); future PartColor coef table. |
 | `lib/src/render/part_color.dart` | **L2** — PartColor (§10) reader (`PartColor.read`) + `PartColor.identity` passthrough. |
-| `lib/src/render/mask.dart` | **L2** — Mask (§9) pure logic: `MaskPartFlags` (ssab PartData roles), `MaskPlan` (writer collection, scope, coverage bbox/UV), `MaskBits`. |
+| `lib/src/render/mask.dart` | **L2** — Mask (§9) pure logic: `MaskPartFlags` (ssab PartData roles + writer geometry kind), `MaskPlan` (writer collection, scope, coverage bbox/UV), `MaskBits`. |
 | `lib/src/render/effect.dart` | **L2** — Effect (§8): `EffectPart` (ssab effect binding) + `EffectSlots` (slot lifecycle, per-frame `step`, plan cache). |
 | `lib/src/render/instance.dart` | **L2** — Instance (§8): `InstancePart` (ssab binding + pack resolution), `InstanceChild` (the child-player surface, so this stays below L2), `InstanceSlots` (slot lifecycle, per-frame `step`). |
 | `shaders/partcolor.frag` | PartColor blend + mask replay — the shader every *peeled* part uses. |
@@ -256,6 +256,51 @@ These were learned the hard way — respect them.
     the editor cannot practically author while silently dropping the innermost
     child if it did. `SsInstanceLoader`'s per-pack dedup is *not* that guard — it
     is plain fetch-once, and it does bound the asset walk.
+* **Shape (§11) is Normal's geometry rules with Mesh's batching — and it is the
+  one kind PartColor does NOT go through the shader.** Three getters, no others:
+  `ss_runtime_get_shape_{vertices,vertex_box_coords,vertex_counts}`.
+  - **Fixed stride 24 floats (12 verts) per part — NOT CSR.** There is no offsets
+    array; `shape_vertex_counts[p]` is the only slice, and a Shape batch's
+    `vertex_count`/`index_count` are **0** (the Brain fills those for Normal
+    only), so sizing a buffer from the batch silently allocates nothing. Guard
+    `count < 3`. Non-shape parts carry count 0 + zero-filled slots, so the
+    buffers are `parts × 24` long regardless.
+  - **Vertices are LOCAL** — apply the world matrix (the opposite of Mesh, whose
+    verts arrive world-space). Pivot and the Y-Down flip are already baked in.
+  - **Geometry is a center-first TRIANGLE_FAN** `[center, perimeter…, closing]`,
+    triangulated `(0, i+1, i+2)`. A Rectangle is deliberately 4 triangles from
+    its center, not 2 across a diagonal, so a per-corner gradient does not crease.
+    Shape batches are batchable → rebase each part's fan onto its vertex base.
+  - **PartColor bypasses the compositing formula** (§1-2-3): the vertex colour is
+    `pc.rgba` *directly*, forced Mix, rate pinned to 1, bilinearly weighted by
+    `box_coords` (that buffer exists for exactly this). Alpha is pre-folded (the
+    converter additionally forces `a=255` for a Mix shape so the product lands on
+    the part's alpha) — do NOT re-multiply `PartState.alpha`. Without PartColor:
+    white at the part's alpha. So the whole kind collapses to per-vertex colours
+    and needs **no texture and no fragment program** — pair it with a **white**
+    `Paint` under `BlendMode.modulate`. (The siblings instead rely on an unbound
+    sampler returning white; Flutter has no such default, and a shader-less paint
+    would modulate against opaque *black*.)
+  - **Mask**: a Shape can be a pure mask (`draw_as_mask`) or a clipping writer,
+    and its **polygon is the mask — no alpha cutout** (§2-5「シェイプの特例」:
+    it has no cell, so there is no texel to threshold). `mask == 0` still
+    disables the writer though — that rule is separate (`mask`「カットアウト閾値
+    を兼ねる。0 で writer 無効」). A shape writer needs no texture and no shader:
+    fill its triangles with the bit colour under `BlendMode.plus`, **AA off** (a
+    coverage bit is a number; a half-covered edge decodes as another writer's
+    bits). As a mask *target* it must be peeled — but a `FragmentProgram` cannot
+    receive varyings, so the gradient can never come from the shader; instead
+    `drawVertices(…, BlendMode.modulate, paint..shader = gate)` keeps the vertex
+    colours and lets the shader answer only "does this fragment pass?".
+  - **Two different `ShapeType` enums**: ssab is `Unknown=0, Triangle, Rectangle,
+    Arrow, Star`; the Rust `core::geometry` one is `Rectangle=0, Triangle, Star,
+    Arrow`. They are mapped by *name* in `lib.rs`, so both are correct in place —
+    never assume the values interchange. The Body needs neither: the runtime
+    hands over finished vertices.
+  - **Arrow is broken upstream**: the runtime emits it as a bare 7-point polygon
+    with no center vertex, while every player (this one included) fans it — so
+    2 of its 5 triangles paint outside the arrow. Fix belongs in the SDK (give
+    Arrow a center + closing vertex, count 7→9); see docs/status.ja.md.
 * **PartColor alpha is either/or — the Brain pre-folds it (§1-3).** With a
   PartColor, the hierarchical alpha is already multiplied into `rgba.a`, so
   `a = texel.a * col.a` and re-multiplying `PartState.alpha` double-applies.
