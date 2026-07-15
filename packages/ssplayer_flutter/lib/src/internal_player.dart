@@ -348,7 +348,11 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable, InstanceChild {
   }
 
   bool get isPlaying => ss_runtime_is_playing(_context);
-  bool get isEndFrameReached => ss_runtime_is_end_frame_reached(_context);
+
+  /// Every configured loop has played. Sticky until the next play/setup, so
+  /// callers wanting a one-shot notification must take the rising edge.
+  bool get isFinished => ss_runtime_is_finished(_context);
+
   bool get isLooped => ss_runtime_is_looped(_context);
   double get frameNo => ss_runtime_get_frame_no(_context);
   int get startFrame => ss_runtime_get_start_frame(_context);

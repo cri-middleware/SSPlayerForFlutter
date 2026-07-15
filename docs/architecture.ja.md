@@ -196,10 +196,13 @@ Flutter としては **Phase 1**（Basic〜BlendMode を `SpriteStudioView` で�
 
 **B. 再生制御 API（C-API ラッパー）**:
 - `ss_runtime_setup_animation(context, name)`（アニメをセット、frame 0 へ。name→hash は必ず `ss_runtime_hash_string` を使い、自前 FNV-1a を再実装しない）。
-- `ss_runtime_play` / `ss_runtime_pause`（pause はトグル）/ `ss_runtime_set_loop(context, count)`（-1=無限）/
+- `ss_runtime_play` / `ss_runtime_pause`（pause はトグル）/ `ss_runtime_set_loop(context, count)`（n>0=n周で停止、-1=無限、0 は -1 の別名で「再生しない」ではない）/
   `ss_runtime_set_animation_speed(context, speed)` / `ss_runtime_set_frame_no(context, frame_f32)`（サブフレーム可）/ `ss_runtime_reset`。
 - `ss_runtime_update(context, delta)` — Ticker の経過時間を渡す。フレームスキップは Brain が自動算出。フレーム番号は `f32` でサブフレーム補間。
-- 状態取得: `ss_runtime_is_end_frame_reached` / `ss_runtime_is_looped`。有効フレーム範囲は `[start_frame, end_frame+1)` の半開区間。末尾クランプ不要。
+- 状態取得: `ss_runtime_is_finished`（指定ループ回数を完走＝`onComplete`。**状態**なので立ち上がりエッジを取り、`play` でラッチを戻す）/
+  `ss_runtime_is_looped`（1周した＝`onLoop`。**パルス**なので `update` 直後にそのまま読む）。実装の型は SDK の
+  [再生制御とイベント処理](../SpriteStudio-SDK/libs/ssruntime/docs/30_core/20_playback_control.ja.md) 参照。
+  有効フレーム範囲は `[start_frame, end_frame+1)` の半開区間。末尾クランプ不要。
 
 **C. イベント処理（ポーリング）**:
 - `ss_runtime_update` の後、`ss_runtime_get_passed_event_count(context)` と `ss_runtime_get_passed_event_index(context, i)` で
@@ -346,7 +349,7 @@ Flutter としては **Phase 1**（Basic〜BlendMode を `SpriteStudioView` で�
 - **External Instance（Body・実装済み）**: `SsInstanceLoader` が `external_instances` を推移的に辿って
   `<baseAssetDir>/<pack>.ssab` を取得し、パック `name_hash` をキーに `SpriteStudioInternalPlayer.load(instancePacks:)` へ渡す。
   子のテクスチャも同じ `TextureRegistry` に読み込む（cellmap ハッシュは全体で一意なので共有アトラスは 1 回で解決）。§8 参照。
-- **シーケンス (.ssqe)（Body のステートマシン）**: 一括再生 API は無い。`ss_runtime_is_end_frame_reached()` を検知して
+- **シーケンス (.ssqe)（Body のステートマシン）**: 一括再生 API は無い。`ss_runtime_is_finished()` を検知して
   次項目を `ss_runtime_setup_animation()` で切り替える状態機械を Player が実装する。
 - **Shape（§11・実装済み）**: `ss_runtime_get_shape_{vertices,vertex_box_coords,vertex_counts}` の 3 本のみ。
   「そのまま使う」ではないので注意:

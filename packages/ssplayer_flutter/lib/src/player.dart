@@ -36,6 +36,7 @@ class SpriteStudioPlayer extends ChangeNotifier {
 
   Duration _lastElapsed = Duration.zero;
   bool _disposed = false;
+  bool _prevFinished = false;
   bool _subFrame = true;
 
   // Transport state cached on the Player (not just the internal) so it survives
@@ -56,10 +57,12 @@ class SpriteStudioPlayer extends ChangeNotifier {
   /// Invoked (on the UI isolate) with the event indices passed each frame.
   SsEventCallback? onEvents;
 
-  /// Fired when playback reaches the end frame this frame.
+  /// Fired once every configured loop has played. Never fires while [loop] is
+  /// infinite, nor on a commanded [stop].
   VoidCallback? onComplete;
 
-  /// Fired when playback crossed a loop boundary this frame.
+  /// Fired each time playback crosses a loop boundary. The final cycle does not
+  /// loop, so it fires [onComplete] instead.
   VoidCallback? onLoop;
 
   TextureRegistry get textures =>
@@ -214,6 +217,7 @@ class SpriteStudioPlayer extends ChangeNotifier {
 
   void play() {
     _requireInternal().play();
+    _prevFinished = false;
     if (!_ticker.isActive) {
       _lastElapsed = Duration.zero;
       _ticker.start();
@@ -236,6 +240,8 @@ class SpriteStudioPlayer extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Number of cycles to play: `n > 0` plays `n` times then fires [onComplete];
+  /// `-1` loops forever. `0` is a synonym for `-1`, not "play once".
   set loop(int count) {
     _loop = count;
     _internal?.loop = count;
@@ -267,11 +273,18 @@ class SpriteStudioPlayer extends ChangeNotifier {
 
     final passed = internal.passedEventIndices();
     if (passed.isNotEmpty) onEvents?.call(passed);
+
+    // `isLooped` is a pulse the runtime clears on entry to every update, so it
+    // is read verbatim. `isFinished` is a sticky state, so it goes through a
+    // rising edge that `play` re-arms.
     if (internal.isLooped) onLoop?.call();
-    if (internal.isEndFrameReached) {
+
+    final finished = internal.isFinished;
+    if (finished && !_prevFinished) {
       onComplete?.call();
       if (_ticker.isActive) _ticker.stop();
     }
+    _prevFinished = finished;
 
     notifyListeners();
   }
