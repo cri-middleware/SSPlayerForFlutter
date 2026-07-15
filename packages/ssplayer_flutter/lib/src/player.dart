@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart' show AssetBundle;
 
+import 'instance_loader.dart';
 import 'internal_player.dart';
 import 'ssab_info.dart';
 import 'texture_loader.dart';
@@ -35,6 +36,7 @@ class SpriteStudioPlayer extends ChangeNotifier {
 
   Duration _lastElapsed = Duration.zero;
   bool _disposed = false;
+  bool _prevFinished = false;
   bool _subFrame = true;
 
   // Transport state cached on the Player (not just the internal) so it survives
@@ -55,10 +57,12 @@ class SpriteStudioPlayer extends ChangeNotifier {
   /// Invoked (on the UI isolate) with the event indices passed each frame.
   SsEventCallback? onEvents;
 
-  /// Fired when playback reaches the end frame this frame.
+  /// Fired once every configured loop has played. Never fires while [loop] is
+  /// infinite, nor on a commanded [stop].
   VoidCallback? onComplete;
 
-  /// Fired when playback crossed a loop boundary this frame.
+  /// Fired each time playback crosses a loop boundary. The final cycle does not
+  /// loop, so it fires [onComplete] instead.
   VoidCallback? onLoop;
 
   TextureRegistry get textures =>
@@ -84,6 +88,12 @@ class SpriteStudioPlayer extends ChangeNotifier {
   TextureLoadReport? get lastTextureReport => _lastTextureReport;
   TextureLoadReport? _lastTextureReport;
 
+  /// The instance packs (§8) fetched by the most recent [load], and any that
+  /// could not be resolved — an instance part whose pack is missing silently
+  /// never draws, so this is the way to notice.
+  InstancePackLoadResult? get lastInstanceReport => _lastInstanceReport;
+  InstancePackLoadResult? _lastInstanceReport;
+
   /// Loads a `.ssab`, prepares [animationName], and (by default) decodes its
   /// cellmap textures — both embedded and reference modes (design §16C). For
   /// reference textures pass [baseAssetDir] (the asset folder that holds the
@@ -97,13 +107,30 @@ class SpriteStudioPlayer extends ChangeNotifier {
     String? baseAssetDir,
     AssetBundle? bundle,
     bool loadTextures = true,
+    Map<String, Uint8List>? instancePacks,
   }) async {
     _internal?.dispose();
     _lastTextureReport = null;
     _animeInfo = SsAnimeInfo(ssab);
+
+    // Instance children (§8) are built inside the sync `load` below — a child's
+    // Context must exist before the first step — so their packs must be fetched
+    // first. Same-pack sub-animations need nothing here; this is only for
+    // `external_instances`, and resolves to an empty map for the vast majority
+    // of animations.
+    final packs = await SsInstanceLoader.load(
+      ssab,
+      bundle: bundle,
+      baseAssetDir: baseAssetDir,
+      provided: instancePacks,
+    );
+    if (_disposed) return;
+    _lastInstanceReport = packs;
+
     final internal = SpriteStudioInternalPlayer.load(
       ssab,
       textures: textures,
+      instancePacks: packs.packs,
     );
     _internal = internal;
     internal.subFrame = _subFrame;
@@ -116,15 +143,21 @@ class SpriteStudioPlayer extends ChangeNotifier {
     notifyListeners();
 
     if (loadTextures) {
-      final report = await SsTextureLoader.load(
-        internal.textures,
-        ssab,
-        bundle: bundle,
-        baseAssetDir: baseAssetDir,
-      );
+      // Every pack's cellmaps land in the one registry the whole tree shares:
+      // texture keys are cellmap name hashes, so a shared atlas resolves once
+      // and a child-only cellmap simply adds to it. Without this pass an
+      // instance child draws untextured.
+      final reports = await Future.wait(<Future<TextureLoadReport>>[
+        SsTextureLoader.load(internal.textures, ssab,
+            bundle: bundle, baseAssetDir: baseAssetDir),
+        for (final child in packs.packs.values)
+          SsTextureLoader.load(internal.textures, child,
+              bundle: bundle, baseAssetDir: baseAssetDir),
+      ]);
       // Guard against a concurrent reload/dispose while awaiting.
       if (_disposed || !identical(_internal, internal)) return;
-      _lastTextureReport = report;
+      _lastTextureReport = TextureLoadReport(
+          <String>[for (final r in reports) ...r.unresolved]);
       notifyListeners();
     }
   }
@@ -146,17 +179,22 @@ class SpriteStudioPlayer extends ChangeNotifier {
     String? baseAssetDir,
     AssetBundle? bundle,
     bool loadTextures = true,
+    Map<String, Uint8List>? instancePacks,
   }) async {
     final wasPlaying = isPlaying;
     final frame = frameNo;
     final anim = _currentAnimation;
 
+    // Instance packs (§8) are re-fetched by `load`, so a live-reload picks up an
+    // edited child `.ssab` too — the child pack is a separate file the watcher
+    // may well have just reconverted.
     await load(
       ssab,
       textures: textures,
       baseAssetDir: baseAssetDir,
       bundle: bundle,
       loadTextures: loadTextures,
+      instancePacks: instancePacks,
     );
     if (_disposed || _internal == null) return;
 
@@ -179,6 +217,7 @@ class SpriteStudioPlayer extends ChangeNotifier {
 
   void play() {
     _requireInternal().play();
+    _prevFinished = false;
     if (!_ticker.isActive) {
       _lastElapsed = Duration.zero;
       _ticker.start();
@@ -201,6 +240,8 @@ class SpriteStudioPlayer extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Number of cycles to play: `n > 0` plays `n` times then fires [onComplete];
+  /// `-1` loops forever. `0` is a synonym for `-1`, not "play once".
   set loop(int count) {
     _loop = count;
     _internal?.loop = count;
@@ -232,11 +273,18 @@ class SpriteStudioPlayer extends ChangeNotifier {
 
     final passed = internal.passedEventIndices();
     if (passed.isNotEmpty) onEvents?.call(passed);
+
+    // `isLooped` is a pulse the runtime clears on entry to every update, so it
+    // is read verbatim. `isFinished` is a sticky state, so it goes through a
+    // rising edge that `play` re-arms.
     if (internal.isLooped) onLoop?.call();
-    if (internal.isEndFrameReached) {
+
+    final finished = internal.isFinished;
+    if (finished && !_prevFinished) {
       onComplete?.call();
       if (_ticker.isActive) _ticker.stop();
     }
+    _prevFinished = finished;
 
     notifyListeners();
   }

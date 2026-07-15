@@ -473,8 +473,14 @@ external void ss_runtime_get_mesh_index_offsets(
 @ffi.Native<ffi.Float Function(ffi.Pointer<ffi.Void>)>()
 external double ss_runtime_get_frame_no(ffi.Pointer<ffi.Void> context);
 
+/// Returns `true` once the configured loops have completed, staying `true`
+/// until the next `ss_runtime_play` / `ss_runtime_setup_animation`. Always
+/// `false` under an infinite loop count, and never raised by
+/// `ss_runtime_stop`.
+///
+/// This is a *state*, not a pulse: to notify once, take its rising edge.
 @ffi.Native<ffi.Bool Function(ffi.Pointer<ffi.Void>)>()
-external bool ss_runtime_is_end_frame_reached(ffi.Pointer<ffi.Void> context);
+external bool ss_runtime_is_finished(ffi.Pointer<ffi.Void> context);
 
 @ffi.Native<ffi.Bool Function(ffi.Pointer<ffi.Void>)>()
 external bool ss_runtime_is_looped(ffi.Pointer<ffi.Void> context);

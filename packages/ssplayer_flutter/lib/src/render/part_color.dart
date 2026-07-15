@@ -10,6 +10,10 @@ import 'blend.dart' show partColorCoef;
 class PartColorCorner {
   const PartColorCorner(this.r, this.g, this.b, this.a, this.rate);
 
+  /// This corner with its alpha replaced by [alpha] (RGB and `rate` untouched).
+  PartColorCorner withAlpha(double alpha) =>
+      PartColorCorner(r, g, b, alpha.clamp(0.0, 1.0), rate);
+
   final double r;
   final double g;
   final double b;
@@ -37,6 +41,57 @@ class PartColor {
     required this.lb,
     required this.rb,
   });
+
+  /// The no-op PartColor: white corners at `rate` 0, which the shader's formula
+  /// collapses to a plain texel passthrough (§10 "デフォルトは白・rate 0 で素通し").
+  ///
+  /// Fully opaque — prefer [passthrough], which carries the part's alpha, unless
+  /// you specifically want α = 1.
+  static const PartColor identity = PartColor(
+    coef: <double>[-1.0, 1.0, 0.0, 0.0], // Mix
+    lt: _white,
+    rt: _white,
+    lb: _white,
+    rb: _white,
+  );
+
+  /// The no-op PartColor at [alpha] — §1-2-4's stated default for a part with no
+  /// PartColor: 「頂点色 = 白（α は階層 α）／ rate = 0」.
+  ///
+  /// Used when a part must go through the fragment shader for a reason other
+  /// than PartColor — a mask test (§9), or an instance child's alpha (§8) — so
+  /// that peeling it off the batched path does not change its colours. [alpha]
+  /// must be supplied because the shader's `a = texel.a * col.a` has no
+  /// `PartState.alpha` term of its own: on the *PartColor* path the Brain has
+  /// pre-folded the hierarchical alpha into `rgba.a` (§1-3 — never re-multiply
+  /// it), but on this path there is no such value to inherit, so passing the
+  /// shared α=1 [identity] here silently renders the part fully opaque.
+  static PartColor passthrough(double alpha) => PartColor(
+        coef: const <double>[-1.0, 1.0, 0.0, 0.0], // Mix
+        lt: _white.withAlpha(alpha),
+        rt: _white.withAlpha(alpha),
+        lb: _white.withAlpha(alpha),
+        rb: _white.withAlpha(alpha),
+      );
+
+  /// This PartColor with every corner's alpha scaled by [scale].
+  ///
+  /// The one legitimate reason to touch a Brain-supplied corner alpha: an
+  /// instance child (§8) is modulated by its instance part's alpha, which the
+  /// Brain cannot know about because it lives in the *parent's* FrameData. RGB
+  /// and `rate` are untouched, matching the flagship's alpha-only
+  /// `Color(1, 1, 1, part_alpha)` modulate.
+  PartColor scaleAlpha(double scale) => scale == 1.0
+      ? this
+      : PartColor(
+          coef: coef,
+          lt: lt.withAlpha(lt.a * scale),
+          rt: rt.withAlpha(rt.a * scale),
+          lb: lb.withAlpha(lb.a * scale),
+          rb: rb.withAlpha(rb.a * scale),
+        );
+
+  static const PartColorCorner _white = PartColorCorner(1.0, 1.0, 1.0, 1.0, 0.0);
 
   /// `(fSrc, fDst, fDstSrc/mulFlag, 0)` — see [partColorCoef].
   final List<double> coef;

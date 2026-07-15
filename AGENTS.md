@@ -50,11 +50,18 @@ sibling `../ssruntime_dart/` package.
 | `lib/ssplayer_flutter.dart` | Public API barrel (L2–L4; import L1 from `ssruntime_dart` directly). |
 | `../ssruntime_dart/` | **L1** binding package (plain Dart, non-Flutter): ffigen `@Native` top-level C-API bindings (`lib/src/ssruntime_bindings.g.dart`; native lib bundled by `hook/build.dart`) + runtime FlatBuffers `lib/src/fbs/{framedata,effect_draw_plan}.g.dart` (imported as `package:ssruntime_dart/framedata.dart`). |
 | `../ssconverter_dart/` | Host `.sspj`→`.ssab` converter — ffigen `@Native` bindings to the host `libssconverter` dylib (`lib/src/ssconverter_bindings.g.dart`; dylib bundled by `hook/build.dart`) behind the `ssconvert` CLI + `SsConverter` lib (desktop only). |
-| `lib/src/internal_player.dart` | **L2** engine — FFI lifecycle, SoA getters, `paint` = `DrawBatch.kind` dispatch (`_emitNormalBatch`). |
-| `lib/src/render/geometry_builder.dart` | **L2** — `GeometryBuilder` (pure SoA→`ui.Vertices` bake) + `DrawFrame` (per-frame SoA bundle). New kinds add build methods here. |
+| `lib/src/internal_player.dart` | **L2** engine — FFI lifecycle, SoA getters, `paint` = `DrawBatch.kind` dispatch (`_emit{Normal,Mesh,Effect,Instance,Shape}Batch`). |
+| `lib/src/render/geometry_builder.dart` | **L2** — `GeometryBuilder` (pure SoA→`ui.Vertices` bake) + `DrawFrame` (per-frame SoA bundle) + `MeshBuffers` (§8, CSR) / `ShapeBuffers` (§11, fixed stride). New kinds add build methods here. |
 | `lib/src/render/blend.dart` | **L2** — `blendModeFor` (`BlendType`→`ui.BlendMode`); future PartColor coef table. |
+| `lib/src/render/part_color.dart` | **L2** — PartColor (§10) reader (`PartColor.read`) + `PartColor.identity` passthrough. |
+| `lib/src/render/mask.dart` | **L2** — Mask (§9) pure logic: `MaskPartFlags` (ssab PartData roles + writer geometry kind), `MaskPlan` (writer collection, scope, coverage bbox/UV), `MaskBits`. |
+| `lib/src/render/effect.dart` | **L2** — Effect (§8): `EffectPart` (ssab effect binding) + `EffectSlots` (slot lifecycle, per-frame `step`, plan cache). |
+| `lib/src/render/instance.dart` | **L2** — Instance (§8): `InstancePart` (ssab binding + pack resolution), `InstanceChild` (the child-player surface, so this stays below L2), `InstanceSlots` (slot lifecycle, per-frame `step`). |
+| `shaders/partcolor.frag` | PartColor blend + mask replay — the shader every *peeled* part uses. |
+| `shaders/mask_write.frag` | Writes one mask writer's bit into the coverage bitmap. |
 | `lib/src/texture_registry.dart` | **L2** — pure texture store: hash→`ui.Image` + cached `shaderFor` (`ImageShader`). No blend/Paint logic. |
 | `lib/src/texture_loader.dart` | `SsTextureLoader` — reference + embedded texture loading + per-cellmap routing (§16C). |
+| `lib/src/instance_loader.dart` | `SsInstanceLoader` — fetches the external `.ssab` packs instance parts reference (the async half; L2 builds children synchronously). |
 | `lib/src/ssab_info.dart` | `SsAnimeInfo` — enumerate animation/cellmap names from bytes. |
 | `lib/src/player.dart` | **L3** `SpriteStudioPlayer`. |
 | `lib/src/render/sprite_studio_view.dart` | **L4** `SpriteStudioView` / `SpriteStudioRenderBox`. |
@@ -69,8 +76,8 @@ All mirror the sibling players (`../SSPlayerFor{Godot,Unity,Web,RenPy}`).
 
 | Script | Does | When |
 |---|---|---|
-| `scripts/build-runtime.{sh,ps1}` | Builds `ssruntime`/`ssconverter` (host direct; cross via `SpriteStudio-SDK/scripts/release-*`) and places the **bare** dynamic libs into each binding package's `native/libs/<platform>/[<arch>]` — `libssruntime` → `ssruntime_dart`, the host `libssconverter` → `ssconverter_dart`. No framework wrapping / `macos/Frameworks/` symlink on the Flutter side: each package's `hook/build.dart` bundles the dylib as a **native-assets code asset** (Flutter re-wraps it into `ssruntime.framework` inside the `.app` automatically). Then copies the SDK `build.rs`-emitted plain-C headers (`<crate>.h`) into each package's `native/include/` and regenerates the ffigen bindings for both (calls `generate-ffigen-code`). | After changing Rust / first setup. |
-| `scripts/generate-ffigen-code.{sh,ps1}` | `dart run ffigen` → each package's `lib/src/*_bindings.g.dart` (`@Native` top-level bindings) from `native/include/*.h`. **No cbindgen** — the SDK `build.rs` emits the C header. Auto-invoked at the end of `build-runtime`; run directly only when an `ffigen*.yaml` changed. | After a native / C-API change (usually automatic). |
+| `scripts/build-runtime.{sh,ps1}` | Builds `ssruntime`/`ssconverter` (host direct; cross via `SpriteStudio-SDK/scripts/release-*`) and places the **bare** dynamic libs into each binding package's `native/libs/<platform>/[<arch>]` — `libssruntime` → `ssruntime_dart`, the host `libssconverter` → `ssconverter_dart`. No framework wrapping / `macos/Frameworks/` symlink on the Flutter side: each package's `hook/build.dart` bundles the dylib as a **native-assets code asset** (Flutter re-wraps it into `ssruntime.framework` inside the `.app` automatically). Then copies the SDK `build.rs`-emitted plain-C headers (`<crate>.h`) into each package's `native/include/` — but does **not** regenerate the ffigen bindings (they are committed; that is a separate manual step). | After changing Rust / first setup. |
+| `scripts/generate-ffigen-code.{sh,ps1}` | `dart run ffigen` → each package's `lib/src/*_bindings.g.dart` (`@Native` top-level bindings) from `native/include/*.h`. **No cbindgen** — the SDK `build.rs` emits the C header. **Standalone** — NOT invoked by `build-runtime`; run it yourself after a C-API change and commit the result. | After a native / C-API change (then commit). |
 | `scripts/generate-fbs-code.{sh,ps1}` | `flatc --dart` → `lib/src/ssab/*.g.dart` from the SDK `.fbs`. Standalone (deliberately NOT part of `build-runtime`). | After changing a `.fbs` schema. |
 | `scripts/prepare-example-assets.sh` | Converts `tests/overall/overall.sspj` → `.ssab` into `example/assets/overall/`. | Refreshing example assets. |
 
@@ -159,6 +166,159 @@ These were learned the hard way — respect them.
 * **Blend types**: only Mix/Add/Mul/Sub are honored (others → Mix), matching the
   flagship; straight (non-premultiplied) alpha. `PartColor` needs a
   `FragmentProgram` (Phase-1+), not stock `BlendMode`.
+* **Flutter's fragment-shader dialect is NOT full GLSL.** `impellerc` rejects
+  **integer bitwise operators** (`<<`, `>>`, `&`, `|`, `~`) and **`discard`** —
+  runtime effects are SkSL *shaders*, which return a colour. Port bit twiddling
+  to float arithmetic (`bitAt(set, 2^i) = floor(mod(set/p, 2.0))`; an 8-bit
+  `~x` is `255.0 - x`; a 24-bit set is exact in a float32 mantissa) and replace
+  `discard` with `fragColor = vec4(0.0)` — a zero premultiplied fragment is a
+  no-op under every blend mode we emit. Shaders also get **no per-vertex
+  varyings**, which is why `drawVertices` can't feed them: a shaded part is
+  peeled onto its own `drawPath` and its UVs are rebuilt from a CPU affine
+  (`buildPartColorQuad`). **`flutter test` compiles the shaders** (impellerc runs
+  in the asset build), so a dialect error shows up there — but the tests still
+  pass, because the programs merely fail to load and the code falls back. Grep
+  the test output for `impellerc failure` / `SkSL Error`; fragment programs never
+  *execute* headless, so shader output can only be verified in `example/`.
+* **Mesh (§8) vertices are ALREADY world-space — do not apply the world matrix.**
+  The opposite of the Normal path (`local_vertices`, which you must transform).
+  `mesh_vertices_x/_y` are a separate-axis SoA; `mesh_uvs` are interleaved and in
+  texture-pixel space like `local_uvs` (so on Flutter they pass straight through
+  — the Godot flagship's `* inv_tex_size` is Godot needing normalised UVs, not a
+  step you port); `mesh_indices` are **part-local, 0-based**. All four slice by a
+  CSR prefix sum of length `parts + 1` (`[offsets[p], offsets[p+1])`, empty for a
+  non-mesh part) — guard `p + 1 < len`. A Mesh `DrawBatch` **is batchable**
+  (`count > 1`), so concatenating parts into one `drawVertices` means rebasing
+  each part's indices by its vertex base. UVs/indices are static (a mesh part
+  can't change cell), but re-fetch every pointer each frame anyway: `play()`
+  clears the static mesh Vecs, which can reallocate them. Only `RenderMode`
+  Direct fills these (we set it at load); SceneGraph leaves them empty.
+* **Effect (§8) inverts two conventions the other kinds share.** Its geometry
+  never comes from the SoA: `ss_effect_slot_step` returns an `EffectDrawPlan`
+  (its own FlatBuffers root, valid only until that slot steps again). (a) The
+  plan's verts are in the **slot's own simulation space** — the step API takes no
+  matrix — so the Body applies the effect part's world matrix (mesh is the
+  opposite). (b) The plan's UVs are **normalised 0..1** (the runtime divides by
+  `size_original`), while `local_uvs`/`mesh_uvs` are texture pixels — Flutter
+  samples in pixels, so scale them back up. Also: `EffectDrawCommand.blend` is
+  the raw SS6 byte (`0=Mix, 1=Add`), **not** a `BlendType` — passing it to
+  `blendModeFor` reads 1 as Mul (use `effectBlendModeFor`); the plan carries no
+  part alpha, so fold `alphaOf(part)` into the vertex colours; an Effect batch's
+  `texture_hash`/`vertex_count`/`index_count` are meaningless (texture is per
+  `command.cellmap_hash`); commands with `quad_count == 0` are emitted for
+  unresolved cells; and indices are 0..`quad_count*4` **within a command**, so
+  they need rebasing only if you merge commands. Slots are stepped from
+  `update` (where the delta is), not `paint`, and must be reset on `play()` /
+  `setupAnimation` or the "last started key" debounce eats the first key.
+* **Instance (§8): the Brain owns everything except the child itself.** Every
+  playback attribute — start/end labels, loop count, speed, reverse, pingpong,
+  independent — is resolved *inside* `ss_instance_slot_step`. Never read
+  `PartAttributeInstance` (the flagship has 0 references to it), and never branch
+  on `ev.is_synthetic_default`. The Body owns exactly three things: a child
+  player per instance part (own Context **and** Resource; `ss_instance_slot_create()`
+  takes **no arguments** and binds no resource — `step` takes the *child* ctx per
+  call, while `ss_runtime_get_active_event_instance` is resolved against the
+  *parent*), resolving `external_instances` (`<baseAssetDir>/<pack>.ssab`; a
+  same-pack sub-animation is absent from that manifest and resolves against the
+  own bytes), and drawing. Slot index == **part index**. Gotchas, each one bought
+  with a bug:
+  - **`play()` on `transitioned` is MANDATORY, not a courtesy.** `step` configures
+    the child (section/direction/loop) but leaves it **stopped**, and returns the
+    *pre-play* frame on that tick, expecting the host to snap it to the start.
+    Skip it and `Context::update` no-ops on the stopped controller, so every
+    `independent` child freezes forever while synced ones look fine (they are
+    seeked, not updated). The Godot header's 「コントローラは step() 内で既に設定・
+    再生済み」 is *half* true — 設定 yes, 再生 **no**; trust `InstanceSlot::step` in
+    `libs/ssruntime/src/lib.rs`. Because the returned frame is stale on that tick,
+    re-read the child's clock after `play()` or you flash a frame of the previous
+    playthrough. Also `stop()` the child at setup so it can't self-advance before
+    its key fires.
+  - **`previous_child_frame` must stay raw.** Never floor/clamp the *stored*
+    value: a sub-frame child advances < 1 frame per tick and rounding truncates
+    that delta away every tick, freezing it. Round only at draw. (The flagship
+    stores the rounded draw frame here when sub-frame is off; we don't.)
+  - `subFrame` must propagate to children recursively, or they stutter at integer
+    frames under a smooth parent.
+  - The child's clock is the parent's slot, so a child must **not** call
+    `ss_runtime_update` — but its *own* effects and nested instances still need a
+    per-tick step at the frame the slot moved it to.
+  - Unlike Godot (retained CanvasItems: draw the child early, re-parent later)
+    Flutter is immediate-mode — paint the child **recursively** inside the
+    Instance batch under `canvas.transform(slotMatrix)`. That also gets ordering
+    for free: the whole child occupies exactly the instance part's z-slot and can
+    never interleave with the parent's parts. Use only the 2D affine
+    (`GeometryBuilder.world2dOf`), not the Brain's raw 4×4.
+  - Alpha folds *down* (`DrawFrame.alphaScale`), never a `saveLayer`: group alpha
+    differs from Godot's cascading per-item modulate wherever child parts overlap.
+  - Nesting is expanded eagerly and **unbounded**, like every sibling player — a
+    cyclic `.ssab` overflows the stack. Deliberate: `.ssab` is trusted input (the
+    Brain does not validate it either), and a depth cap only ever fires on nesting
+    the editor cannot practically author while silently dropping the innermost
+    child if it did. `SsInstanceLoader`'s per-pack dedup is *not* that guard — it
+    is plain fetch-once, and it does bound the asset walk.
+* **Shape (§11) is Normal's geometry rules with Mesh's batching — and it is the
+  one kind PartColor does NOT go through the shader.** Three getters, no others:
+  `ss_runtime_get_shape_{vertices,vertex_box_coords,vertex_counts}`.
+  - **Fixed stride 24 floats (12 verts) per part — NOT CSR.** There is no offsets
+    array; `shape_vertex_counts[p]` is the only slice, and a Shape batch's
+    `vertex_count`/`index_count` are **0** (the Brain fills those for Normal
+    only), so sizing a buffer from the batch silently allocates nothing. Guard
+    `count < 3`. Non-shape parts carry count 0 + zero-filled slots, so the
+    buffers are `parts × 24` long regardless.
+  - **Vertices are LOCAL** — apply the world matrix (the opposite of Mesh, whose
+    verts arrive world-space). Pivot and the Y-Down flip are already baked in.
+  - **Geometry is a center-first TRIANGLE_FAN** `[center, perimeter…, closing]`,
+    triangulated `(0, i+1, i+2)`. A Rectangle is deliberately 4 triangles from
+    its center, not 2 across a diagonal, so a per-corner gradient does not crease.
+    Shape batches are batchable → rebase each part's fan onto its vertex base.
+  - **PartColor bypasses the compositing formula** (§1-2-3): the vertex colour is
+    `pc.rgba` *directly*, forced Mix, rate pinned to 1, bilinearly weighted by
+    `box_coords` (that buffer exists for exactly this). Alpha is pre-folded (the
+    converter additionally forces `a=255` for a Mix shape so the product lands on
+    the part's alpha) — do NOT re-multiply `PartState.alpha`. Without PartColor:
+    white at the part's alpha. So the whole kind collapses to per-vertex colours
+    and needs **no texture and no fragment program** — pair it with a **white**
+    `Paint` under `BlendMode.modulate`. (The siblings instead rely on an unbound
+    sampler returning white; Flutter has no such default, and a shader-less paint
+    would modulate against opaque *black*.)
+  - **Mask**: a Shape can be a pure mask (`draw_as_mask`) or a clipping writer,
+    and its **polygon is the mask — no alpha cutout** (§2-5「シェイプの特例」:
+    it has no cell, so there is no texel to threshold). `mask == 0` still
+    disables the writer though — that rule is separate (`mask`「カットアウト閾値
+    を兼ねる。0 で writer 無効」). A shape writer needs no texture and no shader:
+    fill its triangles with the bit colour under `BlendMode.plus`, **AA off** (a
+    coverage bit is a number; a half-covered edge decodes as another writer's
+    bits). As a mask *target* it must be peeled — but a `FragmentProgram` cannot
+    receive varyings, so the gradient can never come from the shader; instead
+    `drawVertices(…, BlendMode.modulate, paint..shader = gate)` keeps the vertex
+    colours and lets the shader answer only "does this fragment pass?".
+  - **Two different `ShapeType` enums**: ssab is `Unknown=0, Triangle, Rectangle,
+    Arrow, Star`; the Rust `core::geometry` one is `Rectangle=0, Triangle, Star,
+    Arrow`. They are mapped by *name* in `lib.rs`, so both are correct in place —
+    never assume the values interchange. The Body needs neither: the runtime
+    hands over finished vertices.
+  - **Arrow is broken upstream**: the runtime emits it as a bare 7-point polygon
+    with no center vertex, while every player (this one included) fans it — so
+    2 of its 5 triangles paint outside the arrow. Fix belongs in the SDK (give
+    Arrow a center + closing vertex, count 7→9); see docs/status.ja.md.
+* **PartColor alpha is either/or — the Brain pre-folds it (§1-3).** With a
+  PartColor, the hierarchical alpha is already multiplied into `rgba.a`, so
+  `a = texel.a * col.a` and re-multiplying `PartState.alpha` double-applies.
+  Without one, §1-2-4 says the vertex is 「白（α は階層 α）／rate 0」 — the alpha
+  must be supplied. That asymmetry is a trap for the *peeled* shader path: a part
+  peeled only for a mask test (§9) has no PartColor, and handing it a shared α=1
+  identity renders it fully opaque. Use `PartColor.passthrough(frame.alphaOf(p))`,
+  and `scaleAlpha` only for the instance chain (which the Brain cannot pre-fold —
+  it lives in the *parent's* FrameData).
+* **Mask (§9) has no C-API — it is a data contract.** The roles come from the
+  **static `.ssab` `PartData`** (`mask_write` / `draw_as_mask` /
+  `visible_inside_mask` / `mask_influence`), read once at load
+  (`MaskPartFlags.readAll`), NOT from `FrameData` and NOT from any SoA buffer;
+  only `mask` / `priority` / `hide` are per-frame. `mask_influence` is
+  **deliberately overloaded** (writer → OP invert/increment; target → opt-in) —
+  never normalise it away. Ignore `FrameData.mask_indices`: the runtime omits
+  clipping writers from it and *includes* hidden masks, so walk `draw_order` +
+  `PartData` instead (the flagship does the same).
 
 ## Verification
 
@@ -173,7 +333,7 @@ no `SSRUNTIME_LIBRARY_PATH` / `DynamicLibrary.open` and no framework to point at
 | Unit + render tests | `flutter test` |
 | L1 bindings smoke (in `../ssruntime_dart/`) | `dart test` |
 | Converter smoke + CLI (in `../ssconverter_dart/`) | `dart test` / `dart run ssconverter_dart:ssconvert -o <out> <sspj>` |
-| Native host build (also copies C headers + regenerates ffigen) | `bash ../../scripts/build-runtime.sh` |
+| Native host build (also copies C headers) | `bash ../../scripts/build-runtime.sh` |
 | ffigen bindings only | `bash ../../scripts/generate-ffigen-code.sh` |
 | FlatBuffers (on `.fbs` change) | `bash ../../scripts/generate-fbs-code.sh` |
 | macOS desktop run | (in `example/`) `flutter run -d macos` → expect `[ssplayer] OK` |

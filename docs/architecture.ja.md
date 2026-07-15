@@ -17,9 +17,13 @@
   - [`../AGENTS.md`](../AGENTS.md) — 実装規約・要注意点（FFI 寿命 / ネイティブ同梱（Native Assets）/ `updateFlag` の罠 / UV ピクセル座標 / 再ハッシュ禁止）。
   - [`../README.md`](../README.md) — 構成・セットアップ・テスト・Dart API 使い方。
   - `SpriteStudio-SDK/libs/ssruntime/docs/30_core/30_render_loop.ja.md` — レンダリング契約（一次情報）。
-- **主要ファイル**: `packages/ssplayer_flutter/lib/src/{internal_player,player,texture_registry,texture_loader,ssab_info}.dart`、`render/{sprite_studio_view,geometry_builder,blend}.dart`。L1 バインディングは `packages/ssruntime_dart/lib/src/ssruntime_bindings.g.dart`（`@Native`）。
+- **主要ファイル**: `packages/ssplayer_flutter/lib/src/{internal_player,player,texture_registry,texture_loader,ssab_info}.dart`、`render/{sprite_studio_view,geometry_builder,blend,part_color}.dart`。L1 バインディングは `packages/ssruntime_dart/lib/src/ssruntime_bindings.g.dart`（`@Native`）。
 - **描画の分割（リファクタ済み）**: L2 は「FFI ライフサイクル＋トランスポート＋ kind 別ディスパッチ」を持ち、頂点ベイクは純粋（Widget/FFI 非依存）な `GeometryBuilder`（`DrawFrame` バンドルを消費）へ、ブレンド写像は `render/blend.dart` へ切り出し済み。兄弟移植（Web `GeometryBuilder` / Unity `SpriteStudioGeometryBuilder` / Godot `_build_*`・`_emit_*`）に倣う。`paint()` の `switch (batch.kind)` は全 kind を列挙し、未移植 kind は Phase-2 の差し込み口として明示的にスキップする。
-- **次の作業（Phase 1 後半〜2）**: PartColor（§10, `FragmentProgram`）→ Mask（§9, カバレッジビットマップ）→ Mesh / Effect / Instance（§8）→ BoxFit スケール配置 → 各プラットフォーム同梱の実機検証（Linux/Windows/iOS/Android）。各 kind の実装は `GeometryBuilder` に build メソッドを足し、`paint()` の対応 case を埋める形で追加する。
+- **次の作業（Phase 2）**: PartColor（§10）・Mask（§9）・Mesh / Effect / Instance（§8）は**実装済み**。
+  以降は Shape / Nines / Text（§11）→ BoxFit スケール配置 → 各プラットフォーム同梱の実機検証
+  （Linux/Windows/iOS 実機/armeabi-v7a）。各 kind の実装は
+  `GeometryBuilder` に build メソッドを足し、`paint()` の対応 case を埋める形で追加する。なお各 kind を移植するときは、
+  その kind が **マスクの書き手にも対象にもなり得る**ことに注意（現状の writer 収集は Normal / Mask パーツの 4 隅クアッド前提）。
 
 ### 実装と設計の差分（重要・設計書本文の訂正）
 
@@ -192,10 +196,13 @@ Flutter としては **Phase 1**（Basic〜BlendMode を `SpriteStudioView` で�
 
 **B. 再生制御 API（C-API ラッパー）**:
 - `ss_runtime_setup_animation(context, name)`（アニメをセット、frame 0 へ。name→hash は必ず `ss_runtime_hash_string` を使い、自前 FNV-1a を再実装しない）。
-- `ss_runtime_play` / `ss_runtime_pause`（pause はトグル）/ `ss_runtime_set_loop(context, count)`（-1=無限）/
+- `ss_runtime_play` / `ss_runtime_pause`（pause はトグル）/ `ss_runtime_set_loop(context, count)`（n>0=n周で停止、-1=無限、0 は -1 の別名で「再生しない」ではない）/
   `ss_runtime_set_animation_speed(context, speed)` / `ss_runtime_set_frame_no(context, frame_f32)`（サブフレーム可）/ `ss_runtime_reset`。
 - `ss_runtime_update(context, delta)` — Ticker の経過時間を渡す。フレームスキップは Brain が自動算出。フレーム番号は `f32` でサブフレーム補間。
-- 状態取得: `ss_runtime_is_end_frame_reached` / `ss_runtime_is_looped`。有効フレーム範囲は `[start_frame, end_frame+1)` の半開区間。末尾クランプ不要。
+- 状態取得: `ss_runtime_is_finished`（指定ループ回数を完走＝`onComplete`。**状態**なので立ち上がりエッジを取り、`play` でラッチを戻す）/
+  `ss_runtime_is_looped`（1周した＝`onLoop`。**パルス**なので `update` 直後にそのまま読む）。実装の型は SDK の
+  [再生制御とイベント処理](../SpriteStudio-SDK/libs/ssruntime/docs/30_core/20_playback_control.ja.md) 参照。
+  有効フレーム範囲は `[start_frame, end_frame+1)` の半開区間。末尾クランプ不要。
 
 **C. イベント処理（ポーリング）**:
 - `ss_runtime_update` の後、`ss_runtime_get_passed_event_count(context)` と `ss_runtime_get_passed_event_index(context, i)` で
@@ -246,16 +253,56 @@ Flutter としては **Phase 1**（Basic〜BlendMode を `SpriteStudioView` で�
 
 準拠: `40_components/{10_instance,20_effect,30_mesh}`。いずれも `DrawBatch.kind` で区別され、基本ループの延長として消費。
 
-- **Instance（サブアニメ）**: `ss_instance_slot_step` が `ss_instance_step_result`（`transitioned` / `visible` /
-  `child_frame_no`(float・サブフレーム精度)）を返す。親のサブフレーム補間設定を子へ再帰伝播。`ExternalInstance`（別 `.ssab` 参照）は
-  `SSAB.external_instances()` から解決し、参照先 `.ssab` を Body（レジストリ）が別 Resource として供給。未供給ならスロット描画スキップ。
-- **Effect（パーティクル）**: `ss_effect_slot_step` が `EffectDrawPlan`（別 FlatBuffers ルート）を返す。フィールド:
+- **Instance（サブアニメ・実装済み）**: `ss_instance_slot_step` が `ss_instance_step_result`（`visible` / `transitioned` /
+  `independent` / `child_frame_no`(float・サブフレーム精度) / `child_looped`）を返す。実装は `render/instance.dart`
+  （`InstancePart` ＝ ssab の `PartTypeInstance` 読み出し＋パック解決、`InstanceChild` ＝ 子プレイヤーの抽象面、
+  `InstanceSlots` ＝ スロット寿命＋step）＋ `instance_loader.dart`（外部 `.ssab` 取得）＋ `_emitInstanceBatch`。
+  **役割分担が極端に Brain 寄り**なのが要点:
+  - **再生属性（start/end ラベル・loop・speed・reverse・pingpong・independent）はすべて `step` の内部で解決**される。
+    Body は `PartAttributeInstance` を読まないし、`ev.is_synthetic_default` で分岐もしない（SDK が明示的に禁止）。
+  - Body の仕事は 3 つだけ: ① インスタンスパーツごとの子プレイヤー（Context も Resource も個別）、
+    ② `external_instances` の解決（`<baseAssetDir>/<pack>.ssab`。**同一パック内**のサブアニメはマニフェストに載らず自分の bytes で解決）、
+    ③ 描画。`ss_instance_slot_create()` は **引数なし**（リソース束縛なし）で、`step` に**子 ctx** を毎回渡す。
+    一方 `ss_runtime_get_active_event_instance` は**親 ctx** に対して引く。スロット index ＝ **パーツ index**。
+  - **`transitioned` で `play()` を呼ぶのは必須**。`step` は子の設定（区間/方向/ループ）だけして**停止したまま**返し、
+    そのティックでは *play 前の* フレームを返す（開始フレームへのスナップは host の仕事）。呼ばないと `Context::update` が
+    停止中コントローラで no-op になり、**independent の子が永久に凍る**（synced は seek なので一見動いてしまう）。
+    play 後にフレームを読み直さないと前回再生の 1 フレームがちらつく。setup 時は `stop()`。
+  - `previous_child_frame` は**生のまま**保持（丸めるとサブフレームの微小デルタが毎ティック切り捨てられて停止する）。丸めるのは描画時のみ。
+  - 子の**時計は親のスロット**なので子は `ss_runtime_update` を呼ばない。ただし子**自身の**エフェクト／入れ子インスタンスは毎ティック step が要る。
+  - Godot（保持モード＝子を先に描いて後から re-parent）と異なり、Flutter は即時モードなので
+    **Instance バッチの中で子を再帰 `paint`** する（`canvas.transform(slotMatrix)`／2D アフィンのみ＝`world2dOf`）。
+    描画順もこれで自動的に正しくなる（子は丸ごとインスタンスパーツの z スロット 1 つを占め、親のパーツと交互にならない）。
+  - α は `DrawFrame.alphaScale` で下へ折り込む（`saveLayer` のグループ α は子パーツが重なると Godot の modulate と一致しない）。
+  - **入れ子の展開は eager かつ無制限**（兄弟プレイヤーと同じ）。循環した `.ssab` はスタックを食い潰す。
+    これは意図的で、`.ssab` は信頼できる入力という前提（Brain も検証しない）。深さキャップはエディタが実際には
+    作れない深さでしか発火せず、発火したら最内の子を黙って落とすだけなので置かない。
+    なお `SsInstanceLoader` のパック重複排除はガードではなく単なる「同じパックは 1 回だけ取得」で、
+    結果としてアセット取得側の探索は有限に収まる。
+- **Effect（パーティクル・実装済み）**: `ss_effect_slot_step` が `EffectDrawPlan`（別 FlatBuffers ルート）を返す。フィールド:
   `commands[]`（各 `EffectDrawCommand`: `cellmap_hash` / `quad_count` / `particle_offset` / `blend`(0=Mix,1=Add)）、`verts[]`、`uvs[]`、
-  `colors[]`(RGBA 0..1)、`indices[]`(quad ローカル 0 始まり, 6/quad)。引数 `y_flip=true`（Flutter は Y-Down）、`vert_stride=2`（2D）。
-  決定論的シミュレーションでエディタと一致。同一 `cellmap_hash`＋blend の連続コマンドは index を再ベースして動的マージ。
-  independent 再生は `delta_seconds` で親停止中も進行可能。これらは `drawVertices` にそのまま流せる。
-- **Mesh / Deform**: SoA で供給（`ss_runtime_get_mesh_vertices_x/_y`、`ss_runtime_get_mesh_uvs`、`ss_runtime_get_mesh_indices`、各 offsets）。
-  頂点は X/Y 別 SoA、index はパーツローカル 0 始まり。`Vertices.raw` に index 付きで渡して 1 ドローで描ける。UV は静的でキャッシュ可。
+  `colors[]`(RGBA 0..1)、`indices[]`(コマンド内 0..quad_count*4)。引数 `y_flip=true`（Flutter は Y-Down）、`vert_stride=2`（2D）。
+  実装は `render/effect.dart`（`EffectPart` ＝ ssab の `ref_effect_name_hash` 読み出し、`EffectSlots` ＝ スロット寿命＋step）
+  ＋ `GeometryBuilder.buildEffectCommand`（ベイク）＋ `_emitEffectBatch`。**他の kind と異なる 3 点**:
+  - **頂点はスロット空間**（slot API に行列を渡す引数が無い）＝ **エフェクトパーツの world 行列を Body が適用**する（Mesh とは逆）。
+  - **UV は正規化 0..1**（runtime が `size_original` で除算済み）＝ Flutter では**テクスチャサイズを掛けてピクセルに戻す**
+    （`local_uvs` / `mesh_uvs` はピクセルなので、ここだけ逆）。
+  - **`blend` は `BlendType` ではない**（0=Mix / 1=Add の SS6 生値）→ `effectBlendModeFor`。`blendModeFor` に渡すと Add が Mul になる。
+  - パーツ α は plan に入っていないので、頂点カラーへ合成する（`alphaOf(part)`）。seed は フラグシップと同式 `part_index ^ effect_name_hash`。
+  - Effect バッチの `texture_hash` / `vertex_count` / `index_count` は無意味（テクスチャは `command.cellmap_hash`）。
+  step は **`update()` 側**で行う（dt が要るため）。フラグシップは draw 内で step するため再描画の間引きが
+  シミュレーションの間引きを兼ねてしまい `is_independent` の判定が要るが、Flutter は Ticker が update→paint を 1:1 で回すので不要。
+  差異として、**hide 中の independent エフェクト**はフラグシップでは時計が止まり、こちらは進み続ける。
+  independent 再生は `delta_seconds`＋`fps` で親停止中も進行（synced は `parent_frame` のみで決まり dt を無視）。
+  同一 `cellmap_hash`＋blend の連続コマンドの動的マージは未実装（実装時は index に `dest_quad_count*4` の再ベースが必要）。
+- **Mesh / Deform（実装済み）**: SoA で供給（`ss_runtime_get_mesh_vertices_x/_y`、`ss_runtime_get_mesh_uvs`、`ss_runtime_get_mesh_indices`、各 offsets）。
+  頂点は X/Y 別 SoA で **既にワールド変換済み**（Normal の `local_vertices` と違い world 行列を掛けてはいけない）。
+  UV はテクスチャピクセル space・interleaved で静的、index はパーツローカル 0 始まり。各バッファは **CSR 前置和**（長さ `parts+1`）で
+  `[offsets[p], offsets[p+1])` にスライスし、非 Mesh パーツは空レンジ。実装は `MeshBuffers`（スライス）＋
+  `GeometryBuilder.buildMeshGeometry`（ベイク）＋ `_emitMeshBatch`。**Mesh バッチは batchable（`count>1` あり）** なので、
+  1 バッチを 1 `drawVertices` にまとめる際は各パーツの vertex base を index に加算する（実装済み）。
+  未対応: Mesh の PartColor（Whole-only＝`lt` を全頂点へ。かつ PartColor 有り時の α は `PartState.alpha` ではなく `pc.lt.a` を使う
+  ＝両者を掛けると階層 α の二重適用）と、Mesh のマスク（対象・writer とも）。いずれも `partcolor.frag` がクアッドアフィン前提のため。
 
 ## 9. Mask の実装（カバレッジビットマップ方式）
 
@@ -265,12 +312,23 @@ Flutter としては **Phase 1**（Basic〜BlendMode を `SpriteStudioView` で�
 - **ランタイムが出すもの**: `draw_order[]`、`mask_indices[]`、PartState の `mask`(0..255)・`priority`・`mask_influence`、
   PartData の `mask_write` / `draw_as_mask` / `visible_inside_mask`。`DrawBatchKind::Mask` と `flags` の `MASK_INFLUENCE`(0x01) で識別。
   書き手メタは `mask_meta`（`draw_rank` / `bit` / `op_invert` / `is_clipping`）。
-- **Flutter での実現**: ① オフスクリーンのカバレッジビットマップ（RGBA8、最大 24 書き手＝RGB 24bit）を
-  `PictureRecorder` / `saveLayer` ＋加算合成で生成。各書き手は `FragmentProgram` で `texture.a <= (255-mask)/255` を discard し自分の bit を立てる。
-  ② 対象パーツ描画時に別の `FragmentProgram` でカバレッジを nearest サンプルし、書き手ごとに bit を取り出してスコープ
-  （`is_clipping ? rank > writer_rank : rank < writer_rank`）と極性（`(stencil!=0)==visible_inside_mask`）を判定して discard。
-- **Instance 配下のマスク**は親のカバレッジ UV 変換 `M_child = M_parent · slot_xf` を子へ伝える。
-- **コスト**: オフスクリーン確保と 2 パスのため重い（§18-D）。矩形クリップで足りる箇所は `clipRect` に落として段階最適化。
+- **Flutter での実現（実装済み）**: `render/mask.dart`（純粋ロジック）＋ `shaders/mask_write.frag`（書き手）
+  ＋ `shaders/partcolor.frag` の `maskPasses()`（対象側）。① `PictureRecorder` に各書き手の bit を
+  `BlendMode.plus` で加算描画し `Picture.toImageSync()` でカバレッジ RGBA8 を得る（最大 24 書き手＝RGB 24bit）。
+  ② 対象パーツは `partcolor.frag` に peel して描き、カバレッジをサンプルしてステンシルを再構成・判定する。
+  マスク対象は PartColor の有無に関わらずこのシェーダを通す（PartColor 無しは `PartColor.identity`＝白・rate 0 で素通し）。
+- **フラグシップとの意図的な差分（2 点）**:
+  - **`mask_meta[]` 配列を持たない**。スコープ（§2-1）は CPU 側（`MaskPlan.bitsFor`）で解決し、
+    シェーダへは「増分側／反転側」の 24bit セット 2 つだけを渡す。bit は draw rank 昇順に割り当てられるので、
+    シェーダが bit 0→23 を走査すれば OP の適用順が draw order と一致する。
+  - **1 フレーム遅延の対策が不要**。`toImageSync` は同一フレーム内でカバレッジを読めるため、移植ガイド §3-2-3 の
+    サイズクラス量子化・縮小ヒステリシス・旧 target の 1 フレーム保持はいずれも実装していない（bbox 実寸・長辺 1024 上限のみ）。
+- **Instance 配下のマスク（§3-2-2）は未実装**。親のカバレッジ UV 変換 `M_child = M_parent · slot_xf` を子へ伝える必要がある（TODO）。
+  ただし**子が自前で完結しているマスクは正しく描ける**: 子のカバレッジは独立した `PictureRecorder` に子ローカル空間で焼かれ、
+  Flutter の `Paint.shader` 座標もローカルなので、`canvas.transform(slotMatrix)` の下でも整合する。
+  この点だけはフラグシップ（`!_parent_driven` で子のカバレッジ描画自体を止める＝子の自前マスクも効かない）より広い。
+- **コスト**: オフスクリーン確保と 2 パス、かつマスク対象はバッチから peel されるため重い（§18-D）。
+  カバレッジはフレーム毎に確保しており、プールは未実装（最適化余地）。矩形クリップで足りる箇所は `clipRect` に落として段階最適化。
 
 ## 10. パーツカラー (Parts Color)
 
@@ -288,10 +346,26 @@ Flutter としては **Phase 1**（Basic〜BlendMode を `SpriteStudioView` で�
 準拠: `40_components/70_external_resources`。多くは Body の責務。
 
 - **テクスチャオーバーライド（Body）**: `cellmap_name_hash → Texture` のマップを Player が保持し、`DrawBatch.texture_hash()` で解決（差し替え・スキン・DL 配信）。
-- **External Instance（Body）**: 外部 `.ssab` を別 Resource としてロード・キャッシュし、インスタンス setup 時に `ref_anime_hash` を解決。
-- **シーケンス (.ssqe)（Body のステートマシン）**: 一括再生 API は無い。`ss_runtime_is_end_frame_reached()` を検知して
+- **External Instance（Body・実装済み）**: `SsInstanceLoader` が `external_instances` を推移的に辿って
+  `<baseAssetDir>/<pack>.ssab` を取得し、パック `name_hash` をキーに `SpriteStudioInternalPlayer.load(instancePacks:)` へ渡す。
+  子のテクスチャも同じ `TextureRegistry` に読み込む（cellmap ハッシュは全体で一意なので共有アトラスは 1 回で解決）。§8 参照。
+- **シーケンス (.ssqe)（Body のステートマシン）**: 一括再生 API は無い。`ss_runtime_is_finished()` を検知して
   次項目を `ss_runtime_setup_animation()` で切り替える状態機械を Player が実装する。
-- **9-Slice / Shape（Runtime 側で計算済み）**: 9-slice は `local_vertices` に展開済み。Shape は `ss_runtime_get_shape_vertices()` の SoA をそのまま使う。
+- **Shape（§11・実装済み）**: `ss_runtime_get_shape_{vertices,vertex_box_coords,vertex_counts}` の 3 本のみ。
+  「そのまま使う」ではないので注意:
+  - **固定ストライド 24 float（12 頂点）/パーツ。CSR ではない**（Mesh とはここが逆）。オフセット配列は無く、
+    `counts[p]` だけが唯一のスライス。Shape バッチの `vertex_count` / `index_count` は **0**（Brain は Normal にしか入れない）。
+  - **頂点はローカル空間** → world 行列を掛ける（Mesh はワールド済みなので逆）。ピボットと Y-Down 反転は適用済み。
+  - **中心始まりの三角形ファン** `[center, 周, 閉じ]` を `(0, i+1, i+2)` で三角形化。Rectangle が
+    「対角 2 枚」でなく「中心から 4 枚」なのは、4隅グラデが対角で折れないようにするため。バッチ可能なので index 再ベースが要る。
+  - **PartColor は合成式をバイパス**（§1-2-3）＝頂点色は `pc.rgba` 直値・Mix 固定・rate 1.0 を
+    `box_coords` で 4隅バイリニア。α は事前合成済み（Mix の Shape はコンバータが `a=255` に固定）なので再乗算しない。
+    結果として **テクスチャもフラグメントシェーダも不要**＝頂点カラーだけ。白 `Paint` ＋ `BlendMode.modulate` で描く
+    （兄弟プレイヤーは「未バインドのサンプラが白を返す」に依存しているが、Flutter にその既定はない）。
+  - **マスク**: Shape は writer にも対象にもなる。writer は**ポリゴンそのものがマスク＝カットアウト閾値なし**
+    （§2-5「シェイプの特例」）。ただし `mask == 0` の writer 無効は別ルールなので生きる。
+  - **Arrow は SDK 側が不整合**（中心頂点が無いのに全プレイヤーがファンとして消費）。status.ja.md 参照。
+- **9-Slice（Runtime 側で計算済み・未実装）**: `local_vertices` に展開済み。
 - **Sound（Body）**: passed_event の `audios` を監視してアプリのオーディオで再生。
 
 ## 12. アニメーションブレンド / ミキシング

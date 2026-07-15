@@ -41,9 +41,12 @@ flutter:
   # dependency via native assets (its hook/build.dart bundles the code asset), so
   # there is no vendored framework / podspec / platform glue here.
 
-  # PartColor (§10) fragment shader. Consumers get it as
-  # `packages/ssplayer_flutter/shaders/partcolor.frag`; the plugin loads it
-  # lazily (only when a part actually carries a PartColor), so animations that
-  # never use PartColor pay nothing and keep the stock textured path.
+  # Fragment shaders, loaded lazily (only once a part actually needs one), so
+  # animations that use neither PartColor nor masks pay nothing and keep the
+  # stock batched textured path. Consumers get them as
+  # `packages/ssplayer_flutter/shaders/<name>.frag`.
+  #   partcolor  — PartColor (§10) blend + mask (§9) replay, for peeled parts.
+  #   mask_write — writes one mask writer's bit into the coverage bitmap (§9).
   shaders:
     - shaders/partcolor.frag
+    - shaders/mask_write.frag

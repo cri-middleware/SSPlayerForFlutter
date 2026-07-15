@@ -16,12 +16,31 @@ export 'src/player.dart' show SpriteStudioPlayer, SsEventCallback;
 export 'src/internal_player.dart' show SpriteStudioInternalPlayer;
 export 'src/texture_registry.dart' show TextureRegistry;
 export 'src/texture_loader.dart' show SsTextureLoader, TextureLoadReport;
+export 'src/instance_loader.dart' show SsInstanceLoader, InstancePackLoadResult;
 export 'src/ssab_info.dart' show SsAnimeInfo;
 // Render helpers — reusable SoA→Vertices bake + blend mapping.
 export 'src/render/geometry_builder.dart'
-    show GeometryBuilder, DrawFrame, PartColorQuad;
-export 'src/render/blend.dart' show blendModeFor, partColorCoef;
+    show
+        GeometryBuilder,
+        DrawFrame,
+        MeshBuffers,
+        MeshGeometry,
+        PartColorQuad,
+        ShapeBuffers;
+export 'src/render/blend.dart'
+    show blendModeFor, effectBlendModeFor, partColorCoef;
+export 'src/render/effect.dart' show EffectPart, EffectSlots;
+export 'src/render/instance.dart'
+    show InstanceChild, InstancePart, InstanceSlot, InstanceSlots;
 export 'src/render/part_color.dart' show PartColor, PartColorCorner;
+export 'src/render/mask.dart'
+    show
+        MaskBits,
+        MaskPartFlags,
+        MaskPlan,
+        MaskWriter,
+        kMaxMaskWriters,
+        noCutoutThreshold;
 
 // Layer 1 — the raw dart:ffi C-API (the "escape hatch") lives in the pure-Dart
 // `ssruntime_dart` package as native-assets `@Native` functions. Import it
