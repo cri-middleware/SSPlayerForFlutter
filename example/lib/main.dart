@@ -39,6 +39,7 @@ class _PlayerPageState extends State<PlayerPage>
   // The current .ssab source. Starts on the bundled overall.sspj packs; drag &
   // drop a folder (or a .ssab) onto the window to swap to a filesystem source.
   static const _bundledPacks = <String>[
+    'Mesh',
     'Mask',
     'PartsColor',
     'Basic',
@@ -51,7 +52,7 @@ class _PlayerPageState extends State<PlayerPage>
 
   // pack = a separate .ssab file in the current source directory.
   List<String> _packs = _bundledPacks;
-  String _pack = 'Mask';
+  String _pack = 'Mesh';
 
   // Animations inside the currently-loaded pack, enumerated from the .ssab via
   // SpriteStudioPlayer.getAnimations(); the second dropdown switches between

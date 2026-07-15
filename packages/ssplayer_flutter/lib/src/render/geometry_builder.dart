@@ -3,6 +3,62 @@ import 'dart:ui' as ui;
 
 import 'package:ssruntime_dart/framedata.dart' as fbs;
 
+/// The Brain's mesh SoA for one frame (§8), bundled for [DrawFrame].
+///
+/// Every buffer is concatenated across all parts and sliced by a **CSR prefix
+/// sum** (`length == parts + 1`): part `p` owns `[offsets[p], offsets[p + 1])`,
+/// and a non-mesh part has an empty range. [x] / [y] are a separate-axis SoA and
+/// are **already world-transformed** — unlike the Normal path's `local_vertices`
+/// they must NOT be multiplied by the world matrix again. [uv] is interleaved
+/// `[u,v,…]` in texture-pixel space and shares [vertexOffsets] (vertex `v` lives
+/// at `2v`). [indices] are part-local and 0-based, so they need rebasing onto
+/// the emitted vertex block.
+class MeshBuffers {
+  const MeshBuffers({
+    required this.x,
+    required this.y,
+    required this.uv,
+    required this.indices,
+    required this.vertexOffsets,
+    required this.indexOffsets,
+  });
+
+  final Float32List x;
+  final Float32List y;
+  final Float32List uv;
+  final Int32List indices;
+  final Uint32List vertexOffsets;
+  final Uint32List indexOffsets;
+
+  /// True when this frame carries no mesh data at all.
+  bool get isEmpty => vertexOffsets.isEmpty || x.isEmpty;
+
+  /// Part [p]'s `[start, end)` vertex range, or null when it owns no mesh
+  /// vertices (a non-mesh part, or a buffer too short to trust).
+  (int, int)? vertexRange(int p) {
+    if (p < 0 || p + 1 >= vertexOffsets.length) return null;
+    final start = vertexOffsets[p];
+    final end = vertexOffsets[p + 1];
+    if (end <= start) return null;
+    if (end > x.length || end > y.length || end * 2 > uv.length) return null;
+    return (start, end);
+  }
+
+  /// Part [p]'s `[start, end)` index range, or null when it owns none.
+  ///
+  /// A range whose length is not a multiple of 3 is rejected: the indices are
+  /// triangles, so a partial one means the buffer is not what we think it is
+  /// (the flagship makes the same defensive check).
+  (int, int)? indexRange(int p) {
+    if (p < 0 || p + 1 >= indexOffsets.length) return null;
+    final start = indexOffsets[p];
+    final end = indexOffsets[p + 1];
+    if (end <= start || end > indices.length) return null;
+    if ((end - start) % 3 != 0) return null;
+    return (start, end);
+  }
+}
+
 /// Per-frame draw inputs bundled for the geometry builders (design §7).
 ///
 /// Mirrors the Godot flagship `DrawFrame` struct and the Web port's raw frame
@@ -28,15 +84,20 @@ class DrawFrame {
     required this.world,
     required this.local,
     required this.uv,
+    this.mesh,
   });
 
   /// Bundles the frame's FlatBuffers root with its SoA views. Returns null when
   /// the frame carries no drawable structure (`draw_order` / `parts` absent).
+  ///
+  /// [mesh] is only needed by animations that actually have a Mesh batch; the
+  /// caller fetches it lazily and leaves it null otherwise.
   static DrawFrame? build({
     required fbs.FrameData frameData,
     required Float32List world,
     required Float32List local,
     required Float32List uv,
+    MeshBuffers? mesh,
   }) {
     final drawOrder = frameData.drawOrder;
     final parts = frameData.parts;
@@ -50,6 +111,7 @@ class DrawFrame {
       world: world,
       local: local,
       uv: uv,
+      mesh: mesh,
     );
   }
 
@@ -60,6 +122,9 @@ class DrawFrame {
   final Float32List local; // parts × 10 (lt,rt,lb,rb,center)
   final Float32List uv; // parts × 10 (texture-pixel space)
 
+  /// The frame's mesh SoA (§8), or null when the animation has no Mesh batch.
+  final MeshBuffers? mesh;
+
   /// Floats per part in each SoA buffer.
   static const int worldStride = 16;
   static const int vertexStride = 10; // local vertices and UVs share this
@@ -68,6 +133,26 @@ class DrawFrame {
   /// is not present in the `parts` vector).
   double alphaOf(int partIndex) =>
       (partByIndex[partIndex]?.alpha ?? 1.0).clamp(0.0, 1.0);
+}
+
+/// A baked, ready-to-draw vertex block — the inspectable form of what
+/// [GeometryBuilder.buildMeshParts] hands to `Canvas.drawVertices`.
+///
+/// [positions] and [texCoords] are interleaved `[x,y,…]` (texCoords in
+/// texture-pixel space), [colors] is one ARGB per vertex, and [indices] are
+/// already rebased onto this block.
+class MeshGeometry {
+  const MeshGeometry({
+    required this.positions,
+    required this.texCoords,
+    required this.colors,
+    required this.indices,
+  });
+
+  final Float32List positions;
+  final Float32List texCoords;
+  final Int32List colors;
+  final Uint16List indices;
 }
 
 /// Per-part quad + affine map for the PartColor shader path (parts_color §1).
@@ -187,6 +272,99 @@ class GeometryBuilder {
       ui.VertexMode.triangles,
       positions.sublist(0, fPos),
       textureCoordinates: texCoords.sublist(0, fPos),
+      colors: colors.sublist(0, cPos),
+      indices: indices.sublist(0, iPos),
+    );
+  }
+
+  /// Bakes the given mesh [parts] into a single indexed [ui.Vertices] (§8).
+  ///
+  /// Thin wrapper over [buildMeshGeometry] — see it for the contract. Returns
+  /// null when nothing was emitted.
+  ui.Vertices? buildMeshParts(List<int> parts, DrawFrame frame) {
+    final g = buildMeshGeometry(parts, frame);
+    if (g == null) return null;
+    return ui.Vertices.raw(
+      ui.VertexMode.triangles,
+      g.positions,
+      textureCoordinates: g.texCoords,
+      colors: g.colors,
+      indices: g.indices,
+    );
+  }
+
+  /// Bakes the given mesh [parts] (part indices, already in draw order) into
+  /// raw vertex arrays (§8).
+  ///
+  /// Much simpler than the Normal path: the Brain hands over **world-space**
+  /// vertices, so there is no matrix to apply — the SoA X/Y are interleaved into
+  /// positions, the texture-pixel UVs are copied as-is (Flutter's identity
+  /// `ImageShader` samples in image pixels, so they need no normalising), each
+  /// vertex takes white × the part's hierarchical alpha, and the part-local
+  /// indices are rebased onto the emitted vertex block — a Mesh `DrawBatch` is
+  /// batchable and may carry several parts, so the rebase is load-bearing.
+  ///
+  /// Returns null when nothing was emitted. Split out from [buildMeshParts] so
+  /// the bake is inspectable (a `ui.Vertices` is opaque) — the "already
+  /// world-space" invariant is the one thing worth pinning down in a test.
+  MeshGeometry? buildMeshGeometry(List<int> parts, DrawFrame frame) {
+    final mesh = frame.mesh;
+    if (mesh == null || mesh.isEmpty || parts.isEmpty) return null;
+
+    // Size the buffers exactly: walk the CSR ranges once up front.
+    var vTotal = 0;
+    var iTotal = 0;
+    for (final p in parts) {
+      final vr = mesh.vertexRange(p);
+      final ir = mesh.indexRange(p);
+      if (vr == null || ir == null) continue;
+      vTotal += vr.$2 - vr.$1;
+      iTotal += ir.$2 - ir.$1;
+    }
+    if (vTotal == 0 || iTotal == 0) return null;
+    // ui.Vertices indices are 16-bit; a part tree this big is not a thing, but
+    // silently wrapping would corrupt the geometry.
+    if (vTotal > 0xFFFF) return null;
+
+    final positions = Float32List(vTotal * 2);
+    final texCoords = Float32List(vTotal * 2);
+    final colors = Int32List(vTotal);
+    final indices = Uint16List(iTotal);
+
+    var vBase = 0; // vertices emitted so far (the index rebase)
+    var fPos = 0;
+    var cPos = 0;
+    var iPos = 0;
+
+    for (final p in parts) {
+      final vr = mesh.vertexRange(p);
+      final ir = mesh.indexRange(p);
+      if (vr == null || ir == null) continue;
+
+      final alpha = frame.alphaOf(p);
+      final color = ((alpha * 255).round() & 0xFF) << 24 | 0x00FFFFFF;
+
+      for (var v = vr.$1; v < vr.$2; v++) {
+        positions[fPos] = mesh.x[v]; // already world-space
+        positions[fPos + 1] = mesh.y[v];
+        texCoords[fPos] = mesh.uv[v * 2]; // texture-pixel UV, used as-is
+        texCoords[fPos + 1] = mesh.uv[v * 2 + 1];
+        fPos += 2;
+        colors[cPos++] = color;
+      }
+      final vCount = vr.$2 - vr.$1;
+      for (var i = ir.$1; i < ir.$2; i++) {
+        final local = mesh.indices[i];
+        if (local < 0 || local >= vCount) continue; // corrupt range — drop it
+        indices[iPos++] = vBase + local;
+      }
+      vBase += vCount;
+    }
+
+    if (vBase == 0 || iPos == 0) return null;
+    return MeshGeometry(
+      positions: positions.sublist(0, fPos),
+      texCoords: texCoords.sublist(0, fPos),
       colors: colors.sublist(0, cPos),
       indices: indices.sublist(0, iPos),
     );

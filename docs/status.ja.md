@@ -32,8 +32,10 @@ SSPlayerForGodot の `ss_internal_player.cpp` レシピに準拠）。加えて 
 | サブフレーム補間（既定 ON）| ✅ |
 | **PartColor（§10）**（Normal パーツ・`FragmentProgram`・4 隅補間・Mix/Mul/Add/Sub）| ✅ 実装・`test/part_color_test.dart` PASS |
 | **Mask（§9）**（カバレッジビットマップ・スコープ/極性/OP・カットアウト閾値）| ✅ 実装・`test/mask_test.dart` PASS・example で Mask.ssab 目視確認済み |
-| ↳ Mesh / Shape / Text / Nines を writer とするマスク | ⏳ 各 kind 移植時（現状 Normal / Mask パーツのみ）|
+| ↳ Mesh / Shape / Text / Nines を writer とするマスク | ⏳ 各 kind 移植時（現状 Normal / Mask パーツのみ。writer 収集で `quadGeometry` により除外＝誤形状で clipping しない）|
 | ↳ Instance 配下へのマスク継承（§3-2-2）| ⏳ Instance kind 移植時 |
+| **Mesh（§8）**（ワールド頂点 SoA・CSR スライス・index 再ベース・バッチ描画）| ✅ 実装・`test/mesh_test.dart` PASS |
+| ↳ Mesh の PartColor（Whole-only＝`lt` 一律）／ Mesh のマスク対象判定 | ⏳ TODO（シェーダが varying を取れずクアッドアフィンに乗らないため）|
 | **`ssconverter_dart`**（`SsConverter` / `ssconvert` CLI / embedded）| ✅ analyze・test・CLI 検証済み |
 | **ライブリロード**（`ssgen_dart` / `ssgen_flutter` / `ssdev`・SS7 保存→即反映）| ✅ desktop / mobile 実動 |
 | **実機検証**（Flutter / `flutter analyze` 0 件、`flutter test` PASS）| ✅ |

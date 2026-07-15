@@ -19,7 +19,7 @@ export 'src/texture_loader.dart' show SsTextureLoader, TextureLoadReport;
 export 'src/ssab_info.dart' show SsAnimeInfo;
 // Render helpers — reusable SoA→Vertices bake + blend mapping.
 export 'src/render/geometry_builder.dart'
-    show GeometryBuilder, DrawFrame, PartColorQuad;
+    show GeometryBuilder, DrawFrame, MeshBuffers, MeshGeometry, PartColorQuad;
 export 'src/render/blend.dart' show blendModeFor, partColorCoef;
 export 'src/render/part_color.dart' show PartColor, PartColorCorner;
 export 'src/render/mask.dart'

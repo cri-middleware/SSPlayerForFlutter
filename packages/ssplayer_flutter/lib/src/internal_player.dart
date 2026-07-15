@@ -113,6 +113,10 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable {
       calloc<ffi.Pointer<ffi.Float>>();
   final ffi.Pointer<ffi.Pointer<ffi.Uint8>> _outBytePtr =
       calloc<ffi.Pointer<ffi.Uint8>>();
+  final ffi.Pointer<ffi.Pointer<ffi.Uint32>> _outU32Ptr =
+      calloc<ffi.Pointer<ffi.Uint32>>();
+  final ffi.Pointer<ffi.Pointer<ffi.Int32>> _outI32Ptr =
+      calloc<ffi.Pointer<ffi.Int32>>();
   final ffi.Pointer<ffi.Size> _outLen = calloc<ffi.Size>();
 
   // Native-assets: the finalizer function pointers come from the @Native
@@ -297,6 +301,62 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable {
   /// Per-part cell meta (parts × 6: pivot_x,pivot_y,w,h,rect_left,rect_top).
   Float32List cellMeta() => _soaFloats(ss_runtime_get_cell_meta);
 
+  // --- Mesh SoA (§8) -------------------------------------------------------
+  //
+  // Unlike the Normal path's `local_vertices`, mesh vertices arrive **already
+  // world-transformed** — do NOT apply the world matrix again. All four data
+  // buffers are concatenated across parts and sliced by a CSR prefix sum
+  // (length = parts + 1): part `p` owns `[offsets[p], offsets[p + 1])`, and a
+  // non-mesh part has an empty range. Empty under Indirect render mode (we set
+  // Direct at load).
+
+  Uint32List _soaU32(
+      void Function(ffi.Pointer<ffi.Void>,
+              ffi.Pointer<ffi.Pointer<ffi.Uint32>>, ffi.Pointer<ffi.UintPtr>)
+          getter) {
+    _outU32Ptr.value = ffi.nullptr;
+    _outLen.value = 0;
+    getter(_context, _outU32Ptr, _outLen.cast());
+    final data = _outU32Ptr.value;
+    final len = _outLen.value;
+    if (data == ffi.nullptr || len == 0) return Uint32List(0);
+    return data.asTypedList(len);
+  }
+
+  Int32List _soaI32(
+      void Function(ffi.Pointer<ffi.Void>,
+              ffi.Pointer<ffi.Pointer<ffi.Int32>>, ffi.Pointer<ffi.UintPtr>)
+          getter) {
+    _outI32Ptr.value = ffi.nullptr;
+    _outLen.value = 0;
+    getter(_context, _outI32Ptr, _outLen.cast());
+    final data = _outI32Ptr.value;
+    final len = _outLen.value;
+    if (data == ffi.nullptr || len == 0) return Int32List(0);
+    return data.asTypedList(len);
+  }
+
+  /// Mesh per-vertex X coordinates, **world space**, all parts concatenated.
+  Float32List meshVerticesX() => _soaFloats(ss_runtime_get_mesh_vertices_x);
+
+  /// Mesh per-vertex Y coordinates (SoA companion to [meshVerticesX]).
+  Float32List meshVerticesY() => _soaFloats(ss_runtime_get_mesh_vertices_y);
+
+  /// Mesh per-vertex UVs in **texture-pixel** space, interleaved `[u,v,…]` and
+  /// sliced by [meshVertexOffsets] (so vertex `v` is at `2v`, `2v+1`). Static.
+  Float32List meshUvs() => _soaFloats(ss_runtime_get_mesh_uvs);
+
+  /// Mesh triangle indices, **part-local and 0-based**, sliced by
+  /// [meshIndexOffsets]. Static.
+  Int32List meshIndices() => _soaI32(ss_runtime_get_mesh_indices);
+
+  /// CSR prefix sum into [meshVerticesX] / [meshVerticesY] / [meshUvs].
+  Uint32List meshVertexOffsets() =>
+      _soaU32(ss_runtime_get_mesh_vertex_offsets);
+
+  /// CSR prefix sum into [meshIndices].
+  Uint32List meshIndexOffsets() => _soaU32(ss_runtime_get_mesh_index_offsets);
+
   // --- Events (polling) ----------------------------------------------------
 
   /// Indices, into the ssab `events()` table, that were passed on the last
@@ -332,12 +392,24 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable {
     if (frameData == null || batches == null) return;
 
     // One zero-copy SoA gather per frame (mirrors the flagship's single-block
-    // fetch); the views are valid only until the next update.
+    // fetch); the views are valid only until the next update. The mesh SoA is
+    // fetched only when a Mesh batch is actually present, so the common
+    // mesh-free animation pays nothing.
     final frame = DrawFrame.build(
       frameData: frameData,
       world: worldMatrices(), // parts × 16
       local: localVertices(), // parts × 10
       uv: localUvs(), // parts × 10 (texture-pixel space)
+      mesh: batches.any((b) => b.kind == fbs.DrawBatchKind.Mesh)
+          ? MeshBuffers(
+              x: meshVerticesX(),
+              y: meshVerticesY(),
+              uv: meshUvs(),
+              indices: meshIndices(),
+              vertexOffsets: meshVertexOffsets(),
+              indexOffsets: meshIndexOffsets(),
+            )
+          : null,
     );
     if (frame == null) return;
 
@@ -362,9 +434,10 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable {
       switch (batch.kind) {
         case fbs.DrawBatchKind.Normal:
           _emitNormalBatch(canvas, batch, frame, maskCtx);
+        case fbs.DrawBatchKind.Mesh:
+          _emitMeshBatch(canvas, batch, frame);
         case fbs.DrawBatchKind.Mask: // §9: coverage only, never colour
         case fbs.DrawBatchKind.Shape: // TODO(phase 2): §11 shape SoA
-        case fbs.DrawBatchKind.Mesh: // TODO(phase 2): §8 mesh SoA
         case fbs.DrawBatchKind.Instance: // TODO(phase 2): §8 instance slot
         case fbs.DrawBatchKind.Effect: // TODO(phase 2): §8 effect slot
         case fbs.DrawBatchKind.Nines: // TODO(phase 2): §11 9-slice
@@ -507,6 +580,40 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable {
       }
     }
     flushRun();
+  }
+
+  /// Emits one Mesh batch (§8), preserving draw order.
+  ///
+  /// Much cheaper than the Normal path: the Brain supplies mesh geometry ready
+  /// to draw (world-space vertices, texture-pixel UVs, part-local indices), so
+  /// the whole batch bakes into one indexed `drawVertices` with no matrix work.
+  ///
+  /// PartColor (§10) and the mask test (§9) are NOT applied to mesh parts yet:
+  /// both run through `partcolor.frag`, which rebuilds a fragment's UV from a
+  /// *quad* affine, and a deformed mesh is not an affine image of its quad —
+  /// nor can a Flutter shader take the per-vertex UVs instead (no varyings).
+  /// Such a part still draws — plain, un-tinted and unmasked — rather than
+  /// vanishing. Two consequences to fix when that lands: a mesh's PartColor is
+  /// **whole-only** (`lt` applies to every vertex, not a 4-corner gradient), and
+  /// a PartColored mesh takes its alpha from `pc.lt.a` *instead of*
+  /// `PartState.alpha` — multiplying the two double-applies the hierarchy alpha.
+  void _emitMeshBatch(ui.Canvas canvas, fbs.DrawBatch batch, DrawFrame frame) {
+    final count = batch.count;
+    if (count == 0) return;
+    final drawOrder = frame.drawOrder;
+
+    final parts = <int>[];
+    for (var k = 0; k < count; k++) {
+      final rank = batch.startRank + k;
+      if (rank >= drawOrder.length) break;
+      final p = drawOrder[rank];
+      if (_flagsFor(p).pureMask) continue; // coverage-only: never draws colour
+      parts.add(p);
+    }
+
+    final vertices = _geometry.buildMeshParts(parts, frame);
+    if (vertices == null) return;
+    canvas.drawVertices(vertices, ui.BlendMode.modulate, _paintForBatch(batch));
   }
 
   /// Draws one peeled Normal part via `shaders/partcolor.frag` — the path for a
@@ -700,6 +807,8 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable {
     }
     calloc.free(_outFloatPtr);
     calloc.free(_outBytePtr);
+    calloc.free(_outU32Ptr);
+    calloc.free(_outI32Ptr);
     calloc.free(_outLen);
 
     _partColorShaders.dispose();

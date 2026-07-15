@@ -177,6 +177,19 @@ These were learned the hard way — respect them.
   pass, because the programs merely fail to load and the code falls back. Grep
   the test output for `impellerc failure` / `SkSL Error`; fragment programs never
   *execute* headless, so shader output can only be verified in `example/`.
+* **Mesh (§8) vertices are ALREADY world-space — do not apply the world matrix.**
+  The opposite of the Normal path (`local_vertices`, which you must transform).
+  `mesh_vertices_x/_y` are a separate-axis SoA; `mesh_uvs` are interleaved and in
+  texture-pixel space like `local_uvs` (so on Flutter they pass straight through
+  — the Godot flagship's `* inv_tex_size` is Godot needing normalised UVs, not a
+  step you port); `mesh_indices` are **part-local, 0-based**. All four slice by a
+  CSR prefix sum of length `parts + 1` (`[offsets[p], offsets[p+1])`, empty for a
+  non-mesh part) — guard `p + 1 < len`. A Mesh `DrawBatch` **is batchable**
+  (`count > 1`), so concatenating parts into one `drawVertices` means rebasing
+  each part's indices by its vertex base. UVs/indices are static (a mesh part
+  can't change cell), but re-fetch every pointer each frame anyway: `play()`
+  clears the static mesh Vecs, which can reallocate them. Only `RenderMode`
+  Direct fills these (we set it at load); SceneGraph leaves them empty.
 * **Mask (§9) has no C-API — it is a data contract.** The roles come from the
   **static `.ssab` `PartData`** (`mask_write` / `draw_as_mask` /
   `visible_inside_mask` / `mask_influence`), read once at load

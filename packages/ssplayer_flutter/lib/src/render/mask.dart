@@ -24,6 +24,7 @@ class MaskPartFlags {
     required this.maskWrite,
     required this.maskInfluence,
     required this.visibleInsideMask,
+    this.quadGeometry = true,
   });
 
   /// A part with no mask involvement at all (also the out-of-range fallback).
@@ -33,6 +34,18 @@ class MaskPartFlags {
     maskInfluence: false,
     visibleInsideMask: false,
   );
+
+  /// Whether this part's shape is the plain 4-corner sprite quad
+  /// (`local_vertices`) — true for Normal and Mask parts.
+  ///
+  /// Mesh / Shape / Text / Nines carry their own geometry, which the coverage
+  /// pass cannot rasterise yet. Such a part is dropped as a *writer*
+  /// ([MaskPlan.build]) rather than clipping its targets with the wrong shape:
+  /// per the SDK's role table a Mesh can never be a pure mask, but it CAN be a
+  /// clipping writer, and rasterising its undeformed quad would clip to a
+  /// rectangle instead of the deformed mesh. Not writing at all is the more
+  /// predictable of the two wrongs until the geometry is wired up.
+  final bool quadGeometry;
 
   /// `PartTypeMask || draw_as_mask` — writes coverage and draws NO colour.
   final bool pureMask;
@@ -75,12 +88,15 @@ class MaskPartFlags {
       parts.length,
       (i) {
         final p = parts[i];
+        final type = p.partTypeType;
         return MaskPartFlags(
-          pureMask: p.partTypeType == ssab.PartTypeTypeId.PartTypeMask ||
-              p.drawAsMask,
+          pureMask:
+              type == ssab.PartTypeTypeId.PartTypeMask || p.drawAsMask,
           maskWrite: p.maskWrite,
           maskInfluence: p.maskInfluence,
           visibleInsideMask: p.visibleInsideMask,
+          quadGeometry: type == ssab.PartTypeTypeId.PartTypeNormal ||
+              type == ssab.PartTypeTypeId.PartTypeMask,
         );
       },
       growable: false,
@@ -226,6 +242,9 @@ class MaskPlan {
       final p = drawOrder[rank];
       final f = p < flags.length ? flags[p] : MaskPartFlags.none;
       if (!f.isWriter) continue;
+      // The coverage pass rasterises the sprite quad; a writer with its own
+      // geometry (Mesh / Shape / …) would clip to the wrong shape.
+      if (!f.quadGeometry) continue;
 
       // §2-2: mask == 0 opts the writer out entirely. (Equivalently its cutout
       // threshold would be 1.0 and it would write nothing.)

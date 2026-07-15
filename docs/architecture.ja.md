@@ -258,8 +258,14 @@ Flutter としては **Phase 1**（Basic〜BlendMode を `SpriteStudioView` で�
   `colors[]`(RGBA 0..1)、`indices[]`(quad ローカル 0 始まり, 6/quad)。引数 `y_flip=true`（Flutter は Y-Down）、`vert_stride=2`（2D）。
   決定論的シミュレーションでエディタと一致。同一 `cellmap_hash`＋blend の連続コマンドは index を再ベースして動的マージ。
   independent 再生は `delta_seconds` で親停止中も進行可能。これらは `drawVertices` にそのまま流せる。
-- **Mesh / Deform**: SoA で供給（`ss_runtime_get_mesh_vertices_x/_y`、`ss_runtime_get_mesh_uvs`、`ss_runtime_get_mesh_indices`、各 offsets）。
-  頂点は X/Y 別 SoA、index はパーツローカル 0 始まり。`Vertices.raw` に index 付きで渡して 1 ドローで描ける。UV は静的でキャッシュ可。
+- **Mesh / Deform（実装済み）**: SoA で供給（`ss_runtime_get_mesh_vertices_x/_y`、`ss_runtime_get_mesh_uvs`、`ss_runtime_get_mesh_indices`、各 offsets）。
+  頂点は X/Y 別 SoA で **既にワールド変換済み**（Normal の `local_vertices` と違い world 行列を掛けてはいけない）。
+  UV はテクスチャピクセル space・interleaved で静的、index はパーツローカル 0 始まり。各バッファは **CSR 前置和**（長さ `parts+1`）で
+  `[offsets[p], offsets[p+1])` にスライスし、非 Mesh パーツは空レンジ。実装は `MeshBuffers`（スライス）＋
+  `GeometryBuilder.buildMeshGeometry`（ベイク）＋ `_emitMeshBatch`。**Mesh バッチは batchable（`count>1` あり）** なので、
+  1 バッチを 1 `drawVertices` にまとめる際は各パーツの vertex base を index に加算する（実装済み）。
+  未対応: Mesh の PartColor（Whole-only＝`lt` を全頂点へ。かつ PartColor 有り時の α は `PartState.alpha` ではなく `pc.lt.a` を使う
+  ＝両者を掛けると階層 α の二重適用）と、Mesh のマスク（対象・writer とも）。いずれも `partcolor.frag` がクアッドアフィン前提のため。
 
 ## 9. Mask の実装（カバレッジビットマップ方式）
 
