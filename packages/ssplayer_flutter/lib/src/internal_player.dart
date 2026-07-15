@@ -10,6 +10,7 @@ import 'package:ssruntime_dart/ssruntime_dart.dart';
 import 'render/blend.dart';
 import 'render/effect.dart';
 import 'render/geometry_builder.dart';
+import 'render/instance.dart';
 import 'render/mask.dart';
 import 'render/part_color.dart';
 import 'package:ssruntime_dart/framedata.dart' as fbs;
@@ -27,7 +28,7 @@ const double _maxCoverageDim = 1024.0;
 /// per-frame `FrameData` + SoA buffers from the Brain, and (will) bake them
 /// into `ui.Vertices` for `Canvas.drawVertices`. It is `dispose`-able and
 /// reusable from higher layers (Player) or headless tests.
-class SpriteStudioInternalPlayer implements ffi.Finalizable {
+class SpriteStudioInternalPlayer implements ffi.Finalizable, InstanceChild {
   SpriteStudioInternalPlayer._(
     this._context,
     this._resource,
@@ -62,6 +63,12 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable {
   /// Per-part particle-effect slots (§8), stepped from [updateMs] because they
   /// need a delta time. Empty when the pack hosts no effects.
   final EffectSlots _effects;
+
+  /// Per-part instance slots (§8) and the nested child players they drive,
+  /// stepped from [updateMs] alongside the effects. Empty when the pack hosts no
+  /// instances. Assigned right after construction ([load]) because building the
+  /// children needs the finished parent.
+  late final InstanceSlots<SpriteStudioInternalPlayer> _instances;
 
   /// Pure SoA→`ui.Vertices` baker (Widget/FFI-free); the per-kind builders grow
   /// here as Phase-2 kinds are ported.
@@ -110,7 +117,19 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable {
   /// When true (default), rendering samples the Brain's fractional (sub-frame)
   /// frame number, giving smooth playback beyond the source FPS on high-refresh
   /// displays. Set false to snap to integer frames.
-  bool subFrame = true;
+  ///
+  /// Propagates to instance children (§8): the SDK requires it, and a child left
+  /// on the other setting visibly stutters at integer frames while its parent
+  /// runs smooth.
+  bool get subFrame => _subFrame;
+  set subFrame(bool value) {
+    _subFrame = value;
+    for (final part in _instances.parts) {
+      _instances.slotFor(part.partIndex)?.child.subFrame = value;
+    }
+  }
+
+  bool _subFrame = true;
 
   bool _disposed = false;
   bool get isDisposed => _disposed;
@@ -133,14 +152,24 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable {
   static final ffi.NativeFinalizer _resourceFinalizer = ffi.NativeFinalizer(
       ffi.Native.addressOf<ffi.NativeFinalizerFunction>(ss_resource_destroy));
 
-  /// Loads `ssab` into a fresh Context and binds it.
+  /// Loads `ssab` into a fresh Context, binds it, and recursively spawns any
+  /// instance children (§8).
   ///
   /// Steps mirror docs/30_core/10_initialization: create resource → create
   /// context → bind → set coordinate system. The `.ssab` is NOT
   /// validated by the Brain; validate untrusted input before calling this.
+  ///
+  /// [instancePacks] maps a pack's `name_hash` to that pack's `.ssab` bytes and
+  /// resolves `external_instances` references. Fetching those bytes is async
+  /// (asset bundle / disk) while this factory is sync, so the host does the
+  /// fetching — L3 `SpriteStudioPlayer.load` builds the map from
+  /// [InstancePart.externalPackNames]. A same-pack sub-animation needs no entry;
+  /// it resolves against [ssab] itself. Parts whose pack is missing get no child
+  /// and are silently not drawn.
   factory SpriteStudioInternalPlayer.load(
     Uint8List ssab, {
     TextureRegistry? textures,
+    Map<int, Uint8List>? instancePacks,
   }) {
     // `TypedData.address` gives a pointer straight into `ssab`'s Dart-heap
     // backing store; it is only valid as the argument of a *leaf* @Native call
@@ -182,16 +211,65 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable {
     // runtime defaults (Center / Pixel) — the flagship sets neither.
     ss_context_set_coordinate_system(context, 1); // 1 = Y-Down
 
-    return SpriteStudioInternalPlayer._(
+    final registry = textures ?? TextureRegistry();
+    final player = SpriteStudioInternalPlayer._(
       context,
       resource,
-      textures ?? TextureRegistry(),
+      registry,
       // Mask roles (§1-2) live in the static `.ssab` PartData, not in FrameData
       // and not in any SoA buffer — read them once here rather than per frame.
       MaskPartFlags.readAll(ssab),
       // Same for the effect bindings; the slots themselves are created lazily.
       EffectSlots(resource, EffectPart.readAll(ssab)),
     );
+
+    // Instance children (§8). Unlike effect slots these cannot be lazy: each is
+    // a whole nested player, and `ss_instance_slot_step` needs its Context from
+    // the very first tick. `_instances` is late-final rather than a constructor
+    // argument because a child's `childFor` closure below wants the finished
+    // parent in scope.
+    final ownPackHash = InstancePart.packHashOf(ssab);
+    // Nesting is expanded eagerly and without a depth cap, like every sibling
+    // player: a cap buys nothing against real content (it would only ever fire
+    // on nesting the SS7 editor cannot practically author) while silently
+    // dropping the innermost child if it ever did. A cyclic `.ssab` recurses
+    // until the stack gives out — `.ssab` is trusted input, which the Brain
+    // does not validate either.
+    player._instances = InstanceSlots<SpriteStudioInternalPlayer>.build(
+      InstancePart.readAll(ssab),
+      (part) {
+        final bytes = InstancePart.resolvePack(
+          part,
+          ownBytes: ssab,
+          ownPackHash: ownPackHash,
+          packs: instancePacks,
+        );
+        if (bytes == null) return null; // unresolved external pack
+        final child = SpriteStudioInternalPlayer.load(
+          bytes,
+          // Children share the parent's registry: cellmap hashes are global, so
+          // a shared atlas resolves once and a child-only cellmap simply adds to
+          // it. The host loads each pack's textures into this same registry.
+          textures: registry,
+          instancePacks: instancePacks,
+        );
+        if (!child.setupAnimation(part.animeName)) {
+          // The pack resolved but the animation name did not — authored garbage.
+          child.dispose();
+          return null;
+        }
+        // The SDK requires this to propagate, and recursively: a child left on
+        // the other setting stutters at integer frames while its parent is
+        // smooth.
+        child.subFrame = player.subFrame;
+        // Stopped until an EventInstance starts it (the flagship does the same
+        // at setup). A child left playing would advance its own clock from frame
+        // 0 and be out of position the moment its key finally fires.
+        child.stop();
+        return child;
+      },
+    );
+    return player;
   }
 
   void _ensureAlive() {
@@ -208,9 +286,9 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable {
     final cName = name.toNativeUtf8();
     try {
       final ok = ss_runtime_setup_animation(_context, cName.cast());
-      // A different animation has different effect keys — drop each slot's
-      // "last started key" memory so the new animation fires its own.
-      if (ok) _effects.reset();
+      // A different animation has different effect/instance keys — drop each
+      // slot's "last started key" memory so the new animation fires its own.
+      if (ok) _resetSlots();
       return ok;
     } finally {
       malloc.free(cName);
@@ -232,7 +310,15 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable {
     ss_runtime_play(_context);
     // An explicit head-out: without this the slot debounces the first key as
     // "the one I already started" and a replayed animation never re-fires.
+    _resetSlots();
+  }
+
+  /// Re-arms every slot-based kind on an explicit head-out (`play` / a new
+  /// `setupAnimation`), recursing into instance children — the flagship's
+  /// `_reset_slots_playback_state`.
+  void _resetSlots() {
     _effects.reset();
+    _instances.reset();
   }
 
   void pause() {
@@ -270,6 +356,19 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable {
   double updateMs(double deltaMs) {
     _ensureAlive();
     final frame = ss_runtime_update(_context, deltaMs);
+    // `is_looped` is per-update (cleared at the top of each update), so it is
+    // the loop *edge* the slots want, not "looping is enabled".
+    _stepSlots(frame, deltaMs, isLooped);
+    return frame;
+  }
+
+  /// Drives the slot-based kinds (§8) one tick at [frame].
+  ///
+  /// Shared by [updateMs] (a root player, which has just advanced its own clock)
+  /// and [instanceStepSlots] (an instance child, whose clock the parent's slot
+  /// advanced instead) — both need their effects and nested instances ticked,
+  /// and neither should duplicate the rules for doing it.
+  void _stepSlots(double frame, double deltaMs, bool looped) {
     if (!_effects.isEmpty) {
       // Effects simulate themselves rather than riding the SoA, so they are
       // stepped here, where the delta is known; `paint` then draws the plans.
@@ -291,12 +390,24 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable {
         // The animation's authored fps (converts the delta to frames for
         // independent slots), NOT the display's.
         fps: fps > 0 ? fps.toDouble() : 60.0,
-        // `is_looped` is per-update (cleared at the top of each update), so it
-        // is the loop *edge* the slot wants, not "looping is enabled".
-        parentLooped: isLooped,
+        parentLooped: looped,
       );
     }
-    return frame;
+    if (!_instances.isEmpty) {
+      // Instances are stepped here for the same reason as effects — the delta
+      // only exists on this side of the frame. An independent child keeps
+      // running even while this player is paused, because `ss_runtime_update`
+      // not advancing our frame does not stop us handing the slot a delta.
+      _instances.step(
+        _context,
+        // NOT rounded: the Brain diffs this against the slot's own notion of the
+        // parent clock to spot EventInstance edges, and `paint`'s rounding is a
+        // display concern that must not leak into playback state.
+        parentFrame: frame,
+        deltaMs: deltaMs,
+        parentLooped: looped,
+      );
+    }
   }
 
   /// Parses the FlatBuffers `FrameData` for [frameNo]. The returned view aliases
@@ -413,6 +524,19 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable {
   efbs.EffectDrawPlan? effectPlanFor(int partIndex) =>
       _effects.planFor(partIndex);
 
+  // --- Instances (§8) ------------------------------------------------------
+
+  /// The instance-hosting parts in this pack (empty when it has none).
+  List<InstancePart> get instanceParts => _instances.parts;
+
+  /// The live slot for instance part [partIndex] — the child player and the
+  /// frame the Brain last stepped it to — or null when the part has no child
+  /// (its pack did not resolve).
+  ///
+  /// The child is owned by this player and dies with it; do not dispose it.
+  InstanceSlot<SpriteStudioInternalPlayer>? instanceSlotFor(int partIndex) =>
+      _instances.slotFor(partIndex);
+
   // --- Events (polling) ----------------------------------------------------
 
   /// Indices, into the ssab `events()` table, that were passed on the last
@@ -433,17 +557,40 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable {
   /// each `DrawBatch` on its `kind`.
   ///
   /// The **Normal** batch path (see [_emitNormalBatch]) covers plain textured
-  /// parts, PartColor (§10) and masking (§9); the other kinds are pre-cut seams
-  /// for Phase 2 (§8–§11) and skipped for now. BoxFit / scale placement into
-  /// [dst] is also Phase 2.
+  /// parts, PartColor (§10) and masking (§9); Mesh, Effect and Instance (§8) have
+  /// their own. Shape / Nines / Text are pre-cut seams and skipped for now, as is
+  /// BoxFit / scale placement into [dst].
   void paint(ui.Canvas canvas, {ui.Rect? dst, ui.Size? sourceSize}) {
     _ensureAlive();
+    // Place the animation's world origin at the center of the destination box.
+    final origin = dst?.center ??
+        ui.Offset((sourceSize?.width ?? 0) / 2, (sourceSize?.height ?? 0) / 2);
+    canvas.save();
+    canvas.translate(origin.dx, origin.dy);
+    _paintTree(canvas);
+    canvas.restore();
+  }
+
+  /// Draws this player's batches into the *already positioned* [canvas] — the
+  /// recursive half of [paint].
+  ///
+  /// Split out for Instance (§8): a child is drawn by calling this under the
+  /// instance part's world transform, so it must not re-apply [paint]'s origin
+  /// placement. [frameOverride] is the child's Brain-owned clock, and
+  /// [alphaScale] the instance chain's opacity.
+  void _paintTree(
+    ui.Canvas canvas, {
+    double? frameOverride,
+    double alphaScale = 1.0,
+  }) {
     // Last frame's coverage has been rasterised by now; release it.
     _coverage?.dispose();
     _coverage = null;
     // Sub-frame ON (default): sample the fractional frame for smooth playback;
-    // OFF: snap to the integer frame.
-    final frameData = getFrameData(subFrame ? frameNo : frameNo.floorToDouble());
+    // OFF: snap to the integer frame. This is the ONLY place a frame gets
+    // rounded — the playback state that feeds `ss_instance_slot_step` stays raw.
+    final sampled = frameOverride ?? frameNo;
+    final frameData = getFrameData(subFrame ? sampled : sampled.floorToDouble());
     final batches = frameData?.drawBatches;
     if (frameData == null || batches == null) return;
 
@@ -466,12 +613,9 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable {
               indexOffsets: meshIndexOffsets(),
             )
           : null,
+      alphaScale: alphaScale,
     );
     if (frame == null) return;
-
-    // Place the animation's world origin at the center of the destination box.
-    final origin = dst?.center ??
-        ui.Offset((sourceSize?.width ?? 0) / 2, (sourceSize?.height ?? 0) / 2);
 
     // Rewind the per-frame shader pools (reused across frames).
     _partColorShaders.rewind();
@@ -484,8 +628,6 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable {
     // none of that machinery is needed.
     final maskCtx = _buildMaskContext(frame, batches);
 
-    canvas.save();
-    canvas.translate(origin.dx, origin.dy);
     for (final batch in batches) {
       switch (batch.kind) {
         case fbs.DrawBatchKind.Normal:
@@ -494,15 +636,56 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable {
           _emitMeshBatch(canvas, batch, frame);
         case fbs.DrawBatchKind.Effect:
           _emitEffectBatch(canvas, batch, frame);
+        case fbs.DrawBatchKind.Instance:
+          _emitInstanceBatch(canvas, batch, frame);
         case fbs.DrawBatchKind.Mask: // §9: coverage only, never colour
         case fbs.DrawBatchKind.Shape: // TODO(phase 2): §11 shape SoA
-        case fbs.DrawBatchKind.Instance: // TODO(phase 2): §8 instance slot
         case fbs.DrawBatchKind.Nines: // TODO(phase 2): §11 9-slice
         case fbs.DrawBatchKind.Text: // no SDK render path
           break; // kinds not yet ported are skipped
       }
     }
-    canvas.restore();
+  }
+
+  /// Emits one Instance batch (§8): draws each child animation in-place.
+  ///
+  /// The child is a whole nested player whose clock the Brain advanced during
+  /// [updateMs]; all that is left here is placement. Its parts are in *child*
+  /// space, so the instance part's world matrix goes on the canvas and the child
+  /// paints beneath it — where the flagship instead re-parents a retained
+  /// CanvasItem and lets Godot's scene graph do the multiply.
+  ///
+  /// The whole child occupies exactly the instance part's z-slot: it can never
+  /// interleave with this player's other parts. Painting it recursively at this
+  /// point in the batch loop reproduces that ordering for free.
+  void _emitInstanceBatch(
+      ui.Canvas canvas, fbs.DrawBatch batch, DrawFrame frame) {
+    for (var k = 0; k < batch.count; k++) {
+      final rank = batch.startRank + k;
+      if (rank >= frame.drawOrder.length) break;
+      final part = frame.drawOrder[rank];
+      final state = _instances.slotFor(part);
+      // Invisible is the fail-safe: no slot (unresolved pack) or a
+      // Brain-reported dead child both draw nothing.
+      if (state == null || !state.visible) continue;
+
+      final world = GeometryBuilder.world2dOf(part, frame);
+      if (world == null) continue;
+
+      // The instance part's own alpha modulates the entire child, and compounds
+      // down a nested chain. `alphaOf` already folds in this frame's own scale.
+      final alpha = frame.alphaOf(part);
+      if (alpha <= 0.0) continue;
+
+      canvas.save();
+      canvas.transform(world);
+      state.child._paintTree(
+        canvas,
+        frameOverride: state.childFrame,
+        alphaScale: alpha,
+      );
+      canvas.restore();
+    }
   }
 
   /// Builds this frame's mask plan and rasterises its coverage bitmap, or null
@@ -759,8 +942,22 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable {
       return;
     }
 
+    // Two different alpha contracts meet here (§1-3):
+    //  * WITH PartColor the Brain has already pre-folded the part's hierarchical
+    //    alpha into the corner alphas, so re-multiplying it would double-apply.
+    //    Only the instance chain's scale — which lives in the *parent's*
+    //    FrameData and so cannot be pre-folded — is still owed.
+    //  * WITHOUT PartColor there is no corner alpha to inherit, so the part's
+    //    own alpha must be supplied (§1-2-4's 「頂点色 = 白（α は階層 α）」);
+    //    `alphaOf` already includes the instance scale.
+    // The shared α=1 `PartColor.identity` is deliberately not used: it renders a
+    // masked part fully opaque.
+    final effective = pc == null
+        ? PartColor.passthrough(frame.alphaOf(part))
+        : pc.scaleAlpha(frame.alphaScale);
+
     final shader = _partColorShaders.next(program);
-    _setPartColorUniforms(shader, pc ?? PartColor.identity, quad,
+    _setPartColorUniforms(shader, effective, quad,
         texWidth: image.width.toDouble(),
         texHeight: image.height.toDouble(),
         maskBits: maskBits,
@@ -897,6 +1094,48 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable {
     ..blendMode = blendModeFor(batch.blendType)
     ..shader = textures.shaderFor(batch.textureHash);
 
+  // --- InstanceChild (§8): this player driven as another's instance child ---
+
+  @override
+  ffi.Pointer<ffi.Void> get instanceContext => _context;
+
+  @override
+  double get instanceFrameNo => frameNo;
+
+  @override
+  void instancePlay() {
+    if (_disposed) return;
+    // Required, not a courtesy: `ss_instance_slot_step` configures this child
+    // but leaves it stopped, and an independent child's per-tick
+    // `Context::update` no-ops until something starts it. `play()` also snaps to
+    // the start frame the step just configured and re-arms our nested slots.
+    play();
+  }
+
+  @override
+  void instanceResetSlots() {
+    if (_disposed) return;
+    _resetSlots();
+  }
+
+  @override
+  void instanceStop() {
+    if (_disposed) return;
+    stop();
+  }
+
+  @override
+  void instanceStepSlots(double childFrame, double deltaMs, bool childLooped) {
+    if (_disposed) return;
+    // No `ss_runtime_update` — our animation clock belongs to the parent's slot,
+    // which has already moved us to `childFrame`. Only the slot-based kinds
+    // still owe a tick.
+    _stepSlots(childFrame, deltaMs, childLooped);
+  }
+
+  @override
+  void instanceDispose() => dispose();
+
   // --- Teardown ------------------------------------------------------------
 
   void dispose() {
@@ -904,8 +1143,10 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable {
     _disposed = true;
     _coverage?.dispose();
     _coverage = null;
-    // The slots borrow `_resource`; they must go first.
+    // The slots borrow `_resource`; they must go first. Instance children own
+    // their own Context/Resource and are torn down recursively from here.
     _effects.dispose();
+    _instances.dispose();
     _contextFinalizer.detach(this);
     _resourceFinalizer.detach(this);
 

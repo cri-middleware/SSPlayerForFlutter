@@ -12,7 +12,8 @@
 
 ## 現状
 
-**足場 ＋ Layer 1〜4 ＋ Phase 1 Basic 実描画 ＋ PartColor（§10）**（フラグシップ
+**足場 ＋ Layer 1〜4 ＋ Phase 1 Basic 実描画 ＋ PartColor（§10）＋ Mask（§9）
+＋ Mesh / Effect / Instance（§8）**（フラグシップ
 SSPlayerForGodot の `ss_internal_player.cpp` レシピに準拠）。加えて `.sspj → .ssab`
 変換パッケージ（`ssconverter_dart`：`SsConverter` API + `ssconvert` CLI + embedded
 対応）と、SS7 保存 → プレビュー即更新のライブリロード（`ssgen_dart` / `ssgen_flutter`
@@ -33,11 +34,16 @@ SSPlayerForGodot の `ss_internal_player.cpp` レシピに準拠）。加えて 
 | **PartColor（§10）**（Normal パーツ・`FragmentProgram`・4 隅補間・Mix/Mul/Add/Sub）| ✅ 実装・`test/part_color_test.dart` PASS |
 | **Mask（§9）**（カバレッジビットマップ・スコープ/極性/OP・カットアウト閾値）| ✅ 実装・`test/mask_test.dart` PASS・example で Mask.ssab 目視確認済み |
 | ↳ Mesh / Shape / Text / Nines を writer とするマスク | ⏳ 各 kind 移植時（現状 Normal / Mask パーツのみ。writer 収集で `quadGeometry` により除外＝誤形状で clipping しない）|
-| ↳ Instance 配下へのマスク継承（§3-2-2）| ⏳ Instance kind 移植時 |
+| ↳ Instance 配下へのマスク継承（§3-2-2）| ⏳ TODO（下の Instance 行を参照）|
 | **Mesh（§8）**（ワールド頂点 SoA・CSR スライス・index 再ベース・バッチ描画）| ✅ 実装・`test/mesh_test.dart` PASS |
 | ↳ Mesh の PartColor（Whole-only＝`lt` 一律）／ Mesh のマスク対象判定 | ⏳ TODO（シェーダが varying を取れずクアッドアフィンに乗らないため）|
 | **Effect（§8）**（Slot API・`EffectDrawPlan`・独立再生・パーツ α 合成）| ✅ 実装・`test/effect_test.dart` PASS |
 | ↳ コマンドの動的マージ（同一 cellmap＋blend の連続コマンド）| ⏳ 最適化 TODO（現状 1 コマンド＝1 ドロー。マージ時は index 再ベースが必要）|
+| **Instance（§8）**（Slot API・子プレイヤー再帰・外部 `.ssab` 解決・α 伝搬）| ✅ 実装・`test/instance_test.dart` PASS・example で Instance.ssab 目視確認済み |
+| ↳ 再生属性（label/loop/speed/reverse/pingpong/independent）| ✅ **すべて Brain 側**（`ss_instance_slot_step` が解決）。Body は `PartAttributeInstance` を一切読まない |
+| ↳ Instance 配下へのマスク継承（§3-2-2＝親の `mask_local_to_uv * slot_xf` を子に渡す）| ⏳ TODO（子は自前のマスクは正しく描ける。親→子の継承のみ未実装）|
+| ↳ Instance パーツ自身の PartColor | ⏳ TODO（フラグシップも未対応。α のみ伝搬）|
+| ↳ 子リソースの共有（現状 1 インスタンスパーツ＝1 Resource）| ⏳ 最適化 TODO（Context は個別必須だが Resource は共有できるはず）|
 | **`ssconverter_dart`**（`SsConverter` / `ssconvert` CLI / embedded）| ✅ analyze・test・CLI 検証済み |
 | **ライブリロード**（`ssgen_dart` / `ssgen_flutter` / `ssdev`・SS7 保存→即反映）| ✅ desktop / mobile 実動 |
 | **実機検証**（Flutter / `flutter analyze` 0 件、`flutter test` PASS）| ✅ |
@@ -45,7 +51,7 @@ SSPlayerForGodot の `ss_internal_player.cpp` レシピに準拠）。加えて 
 | ↳ 実描画テスト（テクスチャ付き非空フレームをラスタライズ）| ✅ PASS（目視でも overall/Basic がエディタ相当に描画） |
 | **macOS デスクトップ example 起動**（`flutter run -d macos`、Native Assets 同梱＆再生）| ✅ `[ssplayer] OK — playing "anime_1"` |
 | ↳ 埋め込み検証（`flutter build macos` → `.app/Contents/Frameworks/ssruntime.framework`）| ✅ NativeAssetsManifest.json 写像確認済み |
-| Mesh / Effect / Instance / Shape / Nines、BoxFit スケール | ⏳ TODO（Phase 2）|
+| Shape / Nines / Text、BoxFit スケール | ⏳ TODO（Phase 2。Mesh / Effect / Instance は上記の通り実装済み）|
 
 ## Phase 1 Basic 描画の実装要点
 

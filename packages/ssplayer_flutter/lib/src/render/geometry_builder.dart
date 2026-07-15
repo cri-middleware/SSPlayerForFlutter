@@ -86,6 +86,7 @@ class DrawFrame {
     required this.local,
     required this.uv,
     this.mesh,
+    this.alphaScale = 1.0,
   });
 
   /// Bundles the frame's FlatBuffers root with its SoA views. Returns null when
@@ -99,6 +100,7 @@ class DrawFrame {
     required Float32List local,
     required Float32List uv,
     MeshBuffers? mesh,
+    double alphaScale = 1.0,
   }) {
     final drawOrder = frameData.drawOrder;
     final parts = frameData.parts;
@@ -113,6 +115,7 @@ class DrawFrame {
       local: local,
       uv: uv,
       mesh: mesh,
+      alphaScale: alphaScale,
     );
   }
 
@@ -126,14 +129,27 @@ class DrawFrame {
   /// The frame's mesh SoA (§8), or null when the animation has no Mesh batch.
   final MeshBuffers? mesh;
 
+  /// An extra opacity multiplier applied on top of every part's own alpha.
+  ///
+  /// 1.0 for a root player. For an instance child (§8) it carries the product of
+  /// the instance parts' alphas down the chain — that modulation lives in the
+  /// *parent's* FrameData, so the Brain cannot fold it in the way it folds the
+  /// hierarchical alpha within one pack.
+  final double alphaScale;
+
   /// Floats per part in each SoA buffer.
   static const int worldStride = 16;
   static const int vertexStride = 10; // local vertices and UVs share this
 
   /// The hierarchical alpha for part [partIndex], clamped to 0..1 (1 if the part
-  /// is not present in the `parts` vector).
+  /// is not present in the `parts` vector), times this frame's [alphaScale].
+  ///
+  /// The Brain has already resolved the parent chain *within* this pack, so this
+  /// never walks it. Note the PartColor path does NOT go through here: there the
+  /// hierarchical alpha is pre-folded into the corner alphas (§1-3) and
+  /// re-multiplying it would double-apply.
   double alphaOf(int partIndex) =>
-      (partByIndex[partIndex]?.alpha ?? 1.0).clamp(0.0, 1.0);
+      (partByIndex[partIndex]?.alpha ?? 1.0).clamp(0.0, 1.0) * alphaScale;
 }
 
 /// A baked, ready-to-draw vertex block — the inspectable form of what
@@ -493,6 +509,34 @@ class GeometryBuilder {
       corners[c * 2 + 1] = m1 * lx + m5 * ly + m13;
     }
     return corners;
+  }
+
+  /// Part [part]'s world matrix as a `Canvas.transform` matrix, or null when the
+  /// part is outside the SoA.
+  ///
+  /// Used by Instance (§8) to place a child animation, which — unlike every
+  /// other kind — is transformed by the *canvas* rather than by baking vertices.
+  ///
+  /// Only the 2D affine (`m0, m1, m4, m5, m12, m13`) is carried over, with an
+  /// identity Z row, rather than copying the Brain's 4×4 wholesale. Both are
+  /// column-major and the six values even land on the same indices, but the
+  /// source matrix's Z/W rows are not part of the contract this Body reads
+  /// anywhere else — [worldCornersOf] uses exactly these six — and letting a
+  /// stray Z scale or perspective term through `Canvas.transform` would silently
+  /// distort the whole child subtree.
+  static Float64List? world2dOf(int part, DrawFrame frame) {
+    final world = frame.world;
+    final m = part * DrawFrame.worldStride;
+    if (m + 16 > world.length) return null;
+    return Float64List(16)
+      ..[0] = world[m] // m0
+      ..[1] = world[m + 1] // m1
+      ..[4] = world[m + 4] // m4
+      ..[5] = world[m + 5] // m5
+      ..[10] = 1.0
+      ..[12] = world[m + 12] // m12 (tx)
+      ..[13] = world[m + 13] // m13 (ty)
+      ..[15] = 1.0;
   }
 
   /// Builds the world quad + frag→`(s,t)` affine for part [part]'s PartColor

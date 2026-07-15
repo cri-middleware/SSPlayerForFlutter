@@ -56,10 +56,12 @@ sibling `../ssruntime_dart/` package.
 | `lib/src/render/part_color.dart` | **L2** — PartColor (§10) reader (`PartColor.read`) + `PartColor.identity` passthrough. |
 | `lib/src/render/mask.dart` | **L2** — Mask (§9) pure logic: `MaskPartFlags` (ssab PartData roles), `MaskPlan` (writer collection, scope, coverage bbox/UV), `MaskBits`. |
 | `lib/src/render/effect.dart` | **L2** — Effect (§8): `EffectPart` (ssab effect binding) + `EffectSlots` (slot lifecycle, per-frame `step`, plan cache). |
+| `lib/src/render/instance.dart` | **L2** — Instance (§8): `InstancePart` (ssab binding + pack resolution), `InstanceChild` (the child-player surface, so this stays below L2), `InstanceSlots` (slot lifecycle, per-frame `step`). |
 | `shaders/partcolor.frag` | PartColor blend + mask replay — the shader every *peeled* part uses. |
 | `shaders/mask_write.frag` | Writes one mask writer's bit into the coverage bitmap. |
 | `lib/src/texture_registry.dart` | **L2** — pure texture store: hash→`ui.Image` + cached `shaderFor` (`ImageShader`). No blend/Paint logic. |
 | `lib/src/texture_loader.dart` | `SsTextureLoader` — reference + embedded texture loading + per-cellmap routing (§16C). |
+| `lib/src/instance_loader.dart` | `SsInstanceLoader` — fetches the external `.ssab` packs instance parts reference (the async half; L2 builds children synchronously). |
 | `lib/src/ssab_info.dart` | `SsAnimeInfo` — enumerate animation/cellmap names from bytes. |
 | `lib/src/player.dart` | **L3** `SpriteStudioPlayer`. |
 | `lib/src/render/sprite_studio_view.dart` | **L4** `SpriteStudioView` / `SpriteStudioRenderBox`. |
@@ -208,6 +210,61 @@ These were learned the hard way — respect them.
   they need rebasing only if you merge commands. Slots are stepped from
   `update` (where the delta is), not `paint`, and must be reset on `play()` /
   `setupAnimation` or the "last started key" debounce eats the first key.
+* **Instance (§8): the Brain owns everything except the child itself.** Every
+  playback attribute — start/end labels, loop count, speed, reverse, pingpong,
+  independent — is resolved *inside* `ss_instance_slot_step`. Never read
+  `PartAttributeInstance` (the flagship has 0 references to it), and never branch
+  on `ev.is_synthetic_default`. The Body owns exactly three things: a child
+  player per instance part (own Context **and** Resource; `ss_instance_slot_create()`
+  takes **no arguments** and binds no resource — `step` takes the *child* ctx per
+  call, while `ss_runtime_get_active_event_instance` is resolved against the
+  *parent*), resolving `external_instances` (`<baseAssetDir>/<pack>.ssab`; a
+  same-pack sub-animation is absent from that manifest and resolves against the
+  own bytes), and drawing. Slot index == **part index**. Gotchas, each one bought
+  with a bug:
+  - **`play()` on `transitioned` is MANDATORY, not a courtesy.** `step` configures
+    the child (section/direction/loop) but leaves it **stopped**, and returns the
+    *pre-play* frame on that tick, expecting the host to snap it to the start.
+    Skip it and `Context::update` no-ops on the stopped controller, so every
+    `independent` child freezes forever while synced ones look fine (they are
+    seeked, not updated). The Godot header's 「コントローラは step() 内で既に設定・
+    再生済み」 is *half* true — 設定 yes, 再生 **no**; trust `InstanceSlot::step` in
+    `libs/ssruntime/src/lib.rs`. Because the returned frame is stale on that tick,
+    re-read the child's clock after `play()` or you flash a frame of the previous
+    playthrough. Also `stop()` the child at setup so it can't self-advance before
+    its key fires.
+  - **`previous_child_frame` must stay raw.** Never floor/clamp the *stored*
+    value: a sub-frame child advances < 1 frame per tick and rounding truncates
+    that delta away every tick, freezing it. Round only at draw. (The flagship
+    stores the rounded draw frame here when sub-frame is off; we don't.)
+  - `subFrame` must propagate to children recursively, or they stutter at integer
+    frames under a smooth parent.
+  - The child's clock is the parent's slot, so a child must **not** call
+    `ss_runtime_update` — but its *own* effects and nested instances still need a
+    per-tick step at the frame the slot moved it to.
+  - Unlike Godot (retained CanvasItems: draw the child early, re-parent later)
+    Flutter is immediate-mode — paint the child **recursively** inside the
+    Instance batch under `canvas.transform(slotMatrix)`. That also gets ordering
+    for free: the whole child occupies exactly the instance part's z-slot and can
+    never interleave with the parent's parts. Use only the 2D affine
+    (`GeometryBuilder.world2dOf`), not the Brain's raw 4×4.
+  - Alpha folds *down* (`DrawFrame.alphaScale`), never a `saveLayer`: group alpha
+    differs from Godot's cascading per-item modulate wherever child parts overlap.
+  - Nesting is expanded eagerly and **unbounded**, like every sibling player — a
+    cyclic `.ssab` overflows the stack. Deliberate: `.ssab` is trusted input (the
+    Brain does not validate it either), and a depth cap only ever fires on nesting
+    the editor cannot practically author while silently dropping the innermost
+    child if it did. `SsInstanceLoader`'s per-pack dedup is *not* that guard — it
+    is plain fetch-once, and it does bound the asset walk.
+* **PartColor alpha is either/or — the Brain pre-folds it (§1-3).** With a
+  PartColor, the hierarchical alpha is already multiplied into `rgba.a`, so
+  `a = texel.a * col.a` and re-multiplying `PartState.alpha` double-applies.
+  Without one, §1-2-4 says the vertex is 「白（α は階層 α）／rate 0」 — the alpha
+  must be supplied. That asymmetry is a trap for the *peeled* shader path: a part
+  peeled only for a mask test (§9) has no PartColor, and handing it a shared α=1
+  identity renders it fully opaque. Use `PartColor.passthrough(frame.alphaOf(p))`,
+  and `scaleAlpha` only for the instance chain (which the Brain cannot pre-fold —
+  it lives in the *parent's* FrameData).
 * **Mask (§9) has no C-API — it is a data contract.** The roles come from the
   **static `.ssab` `PartData`** (`mask_write` / `draw_as_mask` /
   `visible_inside_mask` / `mask_influence`), read once at load
