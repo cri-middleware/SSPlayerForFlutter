@@ -36,6 +36,8 @@ SSPlayerForGodot の `ss_internal_player.cpp` レシピに準拠）。加えて 
 | ↳ Instance 配下へのマスク継承（§3-2-2）| ⏳ Instance kind 移植時 |
 | **Mesh（§8）**（ワールド頂点 SoA・CSR スライス・index 再ベース・バッチ描画）| ✅ 実装・`test/mesh_test.dart` PASS |
 | ↳ Mesh の PartColor（Whole-only＝`lt` 一律）／ Mesh のマスク対象判定 | ⏳ TODO（シェーダが varying を取れずクアッドアフィンに乗らないため）|
+| **Effect（§8）**（Slot API・`EffectDrawPlan`・独立再生・パーツ α 合成）| ✅ 実装・`test/effect_test.dart` PASS |
+| ↳ コマンドの動的マージ（同一 cellmap＋blend の連続コマンド）| ⏳ 最適化 TODO（現状 1 コマンド＝1 ドロー。マージ時は index 再ベースが必要）|
 | **`ssconverter_dart`**（`SsConverter` / `ssconvert` CLI / embedded）| ✅ analyze・test・CLI 検証済み |
 | **ライブリロード**（`ssgen_dart` / `ssgen_flutter` / `ssdev`・SS7 保存→即反映）| ✅ desktop / mobile 実動 |
 | **実機検証**（Flutter / `flutter analyze` 0 件、`flutter test` PASS）| ✅ |

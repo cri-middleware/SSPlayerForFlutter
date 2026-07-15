@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:ssruntime_dart/effect_draw_plan.dart' as efbs;
 import 'package:ssruntime_dart/framedata.dart' as fbs;
 
 /// The Brain's mesh SoA for one frame (§8), bundled for [DrawFrame].
@@ -153,6 +154,15 @@ class MeshGeometry {
   final Float32List texCoords;
   final Int32List colors;
   final Uint16List indices;
+
+  /// Wraps this block for `Canvas.drawVertices`.
+  ui.Vertices toVertices() => ui.Vertices.raw(
+        ui.VertexMode.triangles,
+        positions,
+        textureCoordinates: texCoords,
+        colors: colors,
+        indices: indices,
+      );
 }
 
 /// Per-part quad + affine map for the PartColor shader path (parts_color §1).
@@ -281,17 +291,8 @@ class GeometryBuilder {
   ///
   /// Thin wrapper over [buildMeshGeometry] — see it for the contract. Returns
   /// null when nothing was emitted.
-  ui.Vertices? buildMeshParts(List<int> parts, DrawFrame frame) {
-    final g = buildMeshGeometry(parts, frame);
-    if (g == null) return null;
-    return ui.Vertices.raw(
-      ui.VertexMode.triangles,
-      g.positions,
-      textureCoordinates: g.texCoords,
-      colors: g.colors,
-      indices: g.indices,
-    );
-  }
+  ui.Vertices? buildMeshParts(List<int> parts, DrawFrame frame) =>
+      buildMeshGeometry(parts, frame)?.toVertices();
 
   /// Bakes the given mesh [parts] (part indices, already in draw order) into
   /// raw vertex arrays (§8).
@@ -367,6 +368,102 @@ class GeometryBuilder {
       texCoords: texCoords.sublist(0, fPos),
       colors: colors.sublist(0, cPos),
       indices: indices.sublist(0, iPos),
+    );
+  }
+
+  /// Bakes one `EffectDrawCommand`'s particle quads into a vertex block (§8).
+  ///
+  /// The command slices the plan's flat buffers at `particle_offset` (in quads)
+  /// with each buffer's own stride; index values are already 0-based within the
+  /// command, so a per-command draw needs no rebasing.
+  ///
+  /// Two things differ from every other kind and are easy to get wrong:
+  /// * the plan's verts are in the **effect's own simulation space** — the slot
+  ///   API is never handed a matrix — so the effect part's world matrix is
+  ///   applied here (the opposite of the mesh path, which arrives world-ready);
+  /// * the plan's UVs are **normalised 0..1** (the runtime divides by the
+  ///   cellmap's `size_original`), whereas `local_uvs` / `mesh_uvs` are texture
+  ///   pixels — so they are scaled up by [texWidth]/[texHeight] to match what
+  ///   Flutter's identity `ImageShader` samples in.
+  ///
+  /// Returns null when the command is empty or the plan's buffers are short.
+  MeshGeometry? buildEffectCommand(
+    efbs.EffectDrawPlan plan,
+    efbs.EffectDrawCommand cmd,
+    int part,
+    DrawFrame frame, {
+    required double texWidth,
+    required double texHeight,
+  }) {
+    final quads = cmd.quadCount;
+    if (quads == 0) return null;
+    final verts = plan.verts;
+    final uvs = plan.uvs;
+    final planColors = plan.colors;
+    final planIndices = plan.indices;
+    if (verts == null || uvs == null || planColors == null ||
+        planIndices == null) {
+      return null;
+    }
+
+    final stride = plan.vertStride == 3 ? 3 : 2;
+    final vertexCount = quads * 4;
+    final vOff = cmd.particleOffset * 4 * stride;
+    final uOff = cmd.particleOffset * 4 * 2;
+    final cOff = cmd.particleOffset * 4 * 4;
+    final iOff = cmd.particleOffset * 6;
+    final indexCount = quads * 6;
+    if (vOff + vertexCount * stride > verts.length ||
+        uOff + vertexCount * 2 > uvs.length ||
+        cOff + vertexCount * 4 > planColors.length ||
+        iOff + indexCount > planIndices.length) {
+      return null;
+    }
+    if (vertexCount > 0xFFFF) return null; // ui.Vertices indices are 16-bit
+
+    final m = part * DrawFrame.worldStride;
+    if (m + 16 > frame.world.length) return null;
+    final world = frame.world;
+    final m0 = world[m], m1 = world[m + 1];
+    final m4 = world[m + 4], m5 = world[m + 5];
+    final m12 = world[m + 12], m13 = world[m + 13];
+
+    // The particle colours already carry the emitter's own alpha; fold the
+    // part's hierarchical alpha in on top (the slot never sees it).
+    final partAlpha = frame.alphaOf(part);
+
+    final positions = Float32List(vertexCount * 2);
+    final texCoords = Float32List(vertexCount * 2);
+    final colors = Int32List(vertexCount);
+    final indices = Uint16List(indexCount);
+
+    for (var i = 0; i < vertexCount; i++) {
+      final x = verts[vOff + i * stride];
+      final y = verts[vOff + i * stride + 1];
+      positions[i * 2] = m0 * x + m4 * y + m12;
+      positions[i * 2 + 1] = m1 * x + m5 * y + m13;
+
+      texCoords[i * 2] = uvs[uOff + i * 2] * texWidth;
+      texCoords[i * 2 + 1] = uvs[uOff + i * 2 + 1] * texHeight;
+
+      final c = cOff + i * 4;
+      final a = (planColors[c + 3] * partAlpha * 255).round().clamp(0, 255);
+      final r = (planColors[c] * 255).round().clamp(0, 255);
+      final g = (planColors[c + 1] * 255).round().clamp(0, 255);
+      final b = (planColors[c + 2] * 255).round().clamp(0, 255);
+      colors[i] = (a << 24) | (r << 16) | (g << 8) | b;
+    }
+    for (var k = 0; k < indexCount; k++) {
+      final v = planIndices[iOff + k];
+      if (v < 0 || v >= vertexCount) return null; // corrupt plan
+      indices[k] = v;
+    }
+
+    return MeshGeometry(
+      positions: positions,
+      texCoords: texCoords,
+      colors: colors,
+      indices: indices,
     );
   }
 

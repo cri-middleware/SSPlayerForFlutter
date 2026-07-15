@@ -253,11 +253,22 @@ Flutter としては **Phase 1**（Basic〜BlendMode を `SpriteStudioView` で�
 - **Instance（サブアニメ）**: `ss_instance_slot_step` が `ss_instance_step_result`（`transitioned` / `visible` /
   `child_frame_no`(float・サブフレーム精度)）を返す。親のサブフレーム補間設定を子へ再帰伝播。`ExternalInstance`（別 `.ssab` 参照）は
   `SSAB.external_instances()` から解決し、参照先 `.ssab` を Body（レジストリ）が別 Resource として供給。未供給ならスロット描画スキップ。
-- **Effect（パーティクル）**: `ss_effect_slot_step` が `EffectDrawPlan`（別 FlatBuffers ルート）を返す。フィールド:
+- **Effect（パーティクル・実装済み）**: `ss_effect_slot_step` が `EffectDrawPlan`（別 FlatBuffers ルート）を返す。フィールド:
   `commands[]`（各 `EffectDrawCommand`: `cellmap_hash` / `quad_count` / `particle_offset` / `blend`(0=Mix,1=Add)）、`verts[]`、`uvs[]`、
-  `colors[]`(RGBA 0..1)、`indices[]`(quad ローカル 0 始まり, 6/quad)。引数 `y_flip=true`（Flutter は Y-Down）、`vert_stride=2`（2D）。
-  決定論的シミュレーションでエディタと一致。同一 `cellmap_hash`＋blend の連続コマンドは index を再ベースして動的マージ。
-  independent 再生は `delta_seconds` で親停止中も進行可能。これらは `drawVertices` にそのまま流せる。
+  `colors[]`(RGBA 0..1)、`indices[]`(コマンド内 0..quad_count*4)。引数 `y_flip=true`（Flutter は Y-Down）、`vert_stride=2`（2D）。
+  実装は `render/effect.dart`（`EffectPart` ＝ ssab の `ref_effect_name_hash` 読み出し、`EffectSlots` ＝ スロット寿命＋step）
+  ＋ `GeometryBuilder.buildEffectCommand`（ベイク）＋ `_emitEffectBatch`。**他の kind と異なる 3 点**:
+  - **頂点はスロット空間**（slot API に行列を渡す引数が無い）＝ **エフェクトパーツの world 行列を Body が適用**する（Mesh とは逆）。
+  - **UV は正規化 0..1**（runtime が `size_original` で除算済み）＝ Flutter では**テクスチャサイズを掛けてピクセルに戻す**
+    （`local_uvs` / `mesh_uvs` はピクセルなので、ここだけ逆）。
+  - **`blend` は `BlendType` ではない**（0=Mix / 1=Add の SS6 生値）→ `effectBlendModeFor`。`blendModeFor` に渡すと Add が Mul になる。
+  - パーツ α は plan に入っていないので、頂点カラーへ合成する（`alphaOf(part)`）。seed は フラグシップと同式 `part_index ^ effect_name_hash`。
+  - Effect バッチの `texture_hash` / `vertex_count` / `index_count` は無意味（テクスチャは `command.cellmap_hash`）。
+  step は **`update()` 側**で行う（dt が要るため）。フラグシップは draw 内で step するため再描画の間引きが
+  シミュレーションの間引きを兼ねてしまい `is_independent` の判定が要るが、Flutter は Ticker が update→paint を 1:1 で回すので不要。
+  差異として、**hide 中の independent エフェクト**はフラグシップでは時計が止まり、こちらは進み続ける。
+  independent 再生は `delta_seconds`＋`fps` で親停止中も進行（synced は `parent_frame` のみで決まり dt を無視）。
+  同一 `cellmap_hash`＋blend の連続コマンドの動的マージは未実装（実装時は index に `dest_quad_count*4` の再ベースが必要）。
 - **Mesh / Deform（実装済み）**: SoA で供給（`ss_runtime_get_mesh_vertices_x/_y`、`ss_runtime_get_mesh_uvs`、`ss_runtime_get_mesh_indices`、各 offsets）。
   頂点は X/Y 別 SoA で **既にワールド変換済み**（Normal の `local_vertices` と違い world 行列を掛けてはいけない）。
   UV はテクスチャピクセル space・interleaved で静的、index はパーツローカル 0 始まり。各バッファは **CSR 前置和**（長さ `parts+1`）で

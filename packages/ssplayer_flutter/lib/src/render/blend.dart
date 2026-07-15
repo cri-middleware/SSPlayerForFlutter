@@ -33,6 +33,16 @@ ui.BlendMode blendModeFor(fbs.BlendType type) {
   }
 }
 
+/// Framebuffer blend mapping for an `EffectDrawCommand.blend` (§8).
+///
+/// **Not** the [fbs.BlendType] enum — an emitter's blend is the SS6-style raw
+/// byte `0 = Mix`, `1 = Add`, and anything else falls back to Mix (the runtime
+/// says so, and the flagship agrees). Passing it through [blendModeFor] would
+/// read 1 as `BlendType.Mul` and silently turn every additive particle into a
+/// multiply, so the two mappings stay separate on purpose.
+ui.BlendMode effectBlendModeFor(int blend) =>
+    blend == 1 ? ui.BlendMode.plus : ui.BlendMode.srcOver;
+
 /// Shader-side PartColor coefficient row for [type] (parts_color §1-4): the
 /// `_PartColorCoef` table `(fSrc, fDst, fDstSrc/mulFlag, 0)`. The `partcolor.frag`
 /// shader combines it with the per-fragment `rate` into

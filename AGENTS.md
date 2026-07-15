@@ -55,6 +55,7 @@ sibling `../ssruntime_dart/` package.
 | `lib/src/render/blend.dart` | **L2** — `blendModeFor` (`BlendType`→`ui.BlendMode`); future PartColor coef table. |
 | `lib/src/render/part_color.dart` | **L2** — PartColor (§10) reader (`PartColor.read`) + `PartColor.identity` passthrough. |
 | `lib/src/render/mask.dart` | **L2** — Mask (§9) pure logic: `MaskPartFlags` (ssab PartData roles), `MaskPlan` (writer collection, scope, coverage bbox/UV), `MaskBits`. |
+| `lib/src/render/effect.dart` | **L2** — Effect (§8): `EffectPart` (ssab effect binding) + `EffectSlots` (slot lifecycle, per-frame `step`, plan cache). |
 | `shaders/partcolor.frag` | PartColor blend + mask replay — the shader every *peeled* part uses. |
 | `shaders/mask_write.frag` | Writes one mask writer's bit into the coverage bitmap. |
 | `lib/src/texture_registry.dart` | **L2** — pure texture store: hash→`ui.Image` + cached `shaderFor` (`ImageShader`). No blend/Paint logic. |
@@ -190,6 +191,23 @@ These were learned the hard way — respect them.
   can't change cell), but re-fetch every pointer each frame anyway: `play()`
   clears the static mesh Vecs, which can reallocate them. Only `RenderMode`
   Direct fills these (we set it at load); SceneGraph leaves them empty.
+* **Effect (§8) inverts two conventions the other kinds share.** Its geometry
+  never comes from the SoA: `ss_effect_slot_step` returns an `EffectDrawPlan`
+  (its own FlatBuffers root, valid only until that slot steps again). (a) The
+  plan's verts are in the **slot's own simulation space** — the step API takes no
+  matrix — so the Body applies the effect part's world matrix (mesh is the
+  opposite). (b) The plan's UVs are **normalised 0..1** (the runtime divides by
+  `size_original`), while `local_uvs`/`mesh_uvs` are texture pixels — Flutter
+  samples in pixels, so scale them back up. Also: `EffectDrawCommand.blend` is
+  the raw SS6 byte (`0=Mix, 1=Add`), **not** a `BlendType` — passing it to
+  `blendModeFor` reads 1 as Mul (use `effectBlendModeFor`); the plan carries no
+  part alpha, so fold `alphaOf(part)` into the vertex colours; an Effect batch's
+  `texture_hash`/`vertex_count`/`index_count` are meaningless (texture is per
+  `command.cellmap_hash`); commands with `quad_count == 0` are emitted for
+  unresolved cells; and indices are 0..`quad_count*4` **within a command**, so
+  they need rebasing only if you merge commands. Slots are stepped from
+  `update` (where the delta is), not `paint`, and must be reset on `play()` /
+  `setupAnimation` or the "last started key" debounce eats the first key.
 * **Mask (§9) has no C-API — it is a data contract.** The roles come from the
   **static `.ssab` `PartData`** (`mask_write` / `draw_as_mask` /
   `visible_inside_mask` / `mask_influence`), read once at load

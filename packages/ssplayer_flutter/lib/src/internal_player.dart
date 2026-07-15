@@ -5,8 +5,10 @@ import 'dart:ui' as ui;
 
 import 'package:ffi/ffi.dart';
 
+import 'package:ssruntime_dart/effect_draw_plan.dart' as efbs;
 import 'package:ssruntime_dart/ssruntime_dart.dart';
 import 'render/blend.dart';
+import 'render/effect.dart';
 import 'render/geometry_builder.dart';
 import 'render/mask.dart';
 import 'render/part_color.dart';
@@ -31,6 +33,7 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable {
     this._resource,
     this.textures,
     this._maskFlags,
+    this._effects,
   ) {
     // Backstop finalizers: if the caller forgets dispose(), the Brain-side
     // Context/Resource are still reclaimed on GC. The Arc refcount inside the
@@ -55,6 +58,10 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable {
   MaskPartFlags _flagsFor(int partIndex) => partIndex < _maskFlags.length
       ? _maskFlags[partIndex]
       : MaskPartFlags.none;
+
+  /// Per-part particle-effect slots (§8), stepped from [updateMs] because they
+  /// need a delta time. Empty when the pack hosts no effects.
+  final EffectSlots _effects;
 
   /// Pure SoA→`ui.Vertices` baker (Widget/FFI-free); the per-kind builders grow
   /// here as Phase-2 kinds are ported.
@@ -182,6 +189,8 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable {
       // Mask roles (§1-2) live in the static `.ssab` PartData, not in FrameData
       // and not in any SoA buffer — read them once here rather than per frame.
       MaskPartFlags.readAll(ssab),
+      // Same for the effect bindings; the slots themselves are created lazily.
+      EffectSlots(resource, EffectPart.readAll(ssab)),
     );
   }
 
@@ -198,7 +207,11 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable {
     _ensureAlive();
     final cName = name.toNativeUtf8();
     try {
-      return ss_runtime_setup_animation(_context, cName.cast());
+      final ok = ss_runtime_setup_animation(_context, cName.cast());
+      // A different animation has different effect keys — drop each slot's
+      // "last started key" memory so the new animation fires its own.
+      if (ok) _effects.reset();
+      return ok;
     } finally {
       malloc.free(cName);
     }
@@ -217,6 +230,9 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable {
   void play() {
     _ensureAlive();
     ss_runtime_play(_context);
+    // An explicit head-out: without this the slot debounces the first key as
+    // "the one I already started" and a replayed animation never re-fires.
+    _effects.reset();
   }
 
   void pause() {
@@ -253,7 +269,34 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable {
 
   double updateMs(double deltaMs) {
     _ensureAlive();
-    return ss_runtime_update(_context, deltaMs);
+    final frame = ss_runtime_update(_context, deltaMs);
+    if (!_effects.isEmpty) {
+      // Effects simulate themselves rather than riding the SoA, so they are
+      // stepped here, where the delta is known; `paint` then draws the plans.
+      //
+      // Note this diverges from the flagship, which steps effects inside its
+      // draw pass and therefore needs an `is_independent` probe to stop its
+      // redraw dedup from also skipping simulation ticks. Flutter's Ticker
+      // drives update→paint 1:1, so stepping here keeps the clock honest with
+      // no such workaround. The visible difference is a *hidden* independent
+      // effect: the flagship freezes its clock (no batch → no step), we keep it
+      // running. Synced effects are unaffected — their frame is a pure function
+      // of the parent's.
+      _effects.step(
+        _context,
+        // Sample the same frame `paint` will draw, or the effect and the rest
+        // of the animation disagree by up to a frame with sub-frame off.
+        parentFrame: subFrame ? frame : frame.floorToDouble(),
+        deltaSeconds: deltaMs / 1000.0,
+        // The animation's authored fps (converts the delta to frames for
+        // independent slots), NOT the display's.
+        fps: fps > 0 ? fps.toDouble() : 60.0,
+        // `is_looped` is per-update (cleared at the top of each update), so it
+        // is the loop *edge* the slot wants, not "looping is enabled".
+        parentLooped: isLooped,
+      );
+    }
+    return frame;
   }
 
   /// Parses the FlatBuffers `FrameData` for [frameNo]. The returned view aliases
@@ -357,6 +400,19 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable {
   /// CSR prefix sum into [meshIndices].
   Uint32List meshIndexOffsets() => _soaU32(ss_runtime_get_mesh_index_offsets);
 
+  // --- Effects (§8) --------------------------------------------------------
+
+  /// The effect-hosting parts in this pack (empty when it has none).
+  List<EffectPart> get effectParts => _effects.parts;
+
+  /// The particle plan for effect part [partIndex] as of the last [update], or
+  /// null when that slot drew nothing (dead, unstarted, or past its lifetime).
+  ///
+  /// Like the SoA views this aliases the Brain's memory: it is only valid until
+  /// that slot is stepped again, i.e. until the next [update].
+  efbs.EffectDrawPlan? effectPlanFor(int partIndex) =>
+      _effects.planFor(partIndex);
+
   // --- Events (polling) ----------------------------------------------------
 
   /// Indices, into the ssab `events()` table, that were passed on the last
@@ -436,10 +492,11 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable {
           _emitNormalBatch(canvas, batch, frame, maskCtx);
         case fbs.DrawBatchKind.Mesh:
           _emitMeshBatch(canvas, batch, frame);
+        case fbs.DrawBatchKind.Effect:
+          _emitEffectBatch(canvas, batch, frame);
         case fbs.DrawBatchKind.Mask: // §9: coverage only, never colour
         case fbs.DrawBatchKind.Shape: // TODO(phase 2): §11 shape SoA
         case fbs.DrawBatchKind.Instance: // TODO(phase 2): §8 instance slot
-        case fbs.DrawBatchKind.Effect: // TODO(phase 2): §8 effect slot
         case fbs.DrawBatchKind.Nines: // TODO(phase 2): §11 9-slice
         case fbs.DrawBatchKind.Text: // no SDK render path
           break; // kinds not yet ported are skipped
@@ -614,6 +671,59 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable {
     final vertices = _geometry.buildMeshParts(parts, frame);
     if (vertices == null) return;
     canvas.drawVertices(vertices, ui.BlendMode.modulate, _paintForBatch(batch));
+  }
+
+  /// Emits one Effect batch (§8) — the particle plans stepped by [updateMs].
+  ///
+  /// The odd one out: an Effect batch carries no geometry of its own. Its
+  /// `texture_hash` / `vertex_count` / `index_count` are meaningless — the real
+  /// texture is per `EffectDrawCommand.cellmap_hash` and the geometry lives in
+  /// the slot's `EffectDrawPlan`. So this resolves each rank to its slot, then
+  /// draws one `drawVertices` per command.
+  ///
+  /// One draw per command (the plan already concatenates every emitter into
+  /// shared buffers, so a command's indices need no rebasing). The SDK suggests
+  /// merging adjacent commands that share cellmap + blend into a single draw;
+  /// that is an optimisation on top of this, and it would require the rebase.
+  void _emitEffectBatch(ui.Canvas canvas, fbs.DrawBatch batch, DrawFrame frame) {
+    if (_effects.isEmpty) return;
+    final drawOrder = frame.drawOrder;
+
+    for (var k = 0; k < batch.count; k++) {
+      final rank = batch.startRank + k;
+      if (rank >= drawOrder.length) break;
+      final part = drawOrder[rank];
+      final plan = _effects.planFor(part);
+      final commands = plan?.commands;
+      if (plan == null || commands == null) continue; // invisible / dead slot
+
+      for (final command in commands) {
+        // The runtime still emits a command for an emitter whose cell failed to
+        // resolve, with quad_count 0 — skip before touching the texture.
+        if (command.quadCount == 0) continue;
+        final image = textures.imageFor(command.cellmapHash);
+        if (image == null) continue;
+
+        final geometry = _geometry.buildEffectCommand(
+          plan,
+          command,
+          part,
+          frame,
+          texWidth: image.width.toDouble(),
+          texHeight: image.height.toDouble(),
+        );
+        if (geometry == null) continue;
+
+        canvas.drawVertices(
+          geometry.toVertices(),
+          ui.BlendMode.modulate,
+          ui.Paint()
+            // An emitter's blend is the raw 0=Mix / 1=Add byte, NOT a BlendType.
+            ..blendMode = effectBlendModeFor(command.blend)
+            ..shader = textures.shaderFor(command.cellmapHash),
+        );
+      }
+    }
   }
 
   /// Draws one peeled Normal part via `shaders/partcolor.frag` — the path for a
@@ -794,6 +904,8 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable {
     _disposed = true;
     _coverage?.dispose();
     _coverage = null;
+    // The slots borrow `_resource`; they must go first.
+    _effects.dispose();
     _contextFinalizer.detach(this);
     _resourceFinalizer.detach(this);
 
