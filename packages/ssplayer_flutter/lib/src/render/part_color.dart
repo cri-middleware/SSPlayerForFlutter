@@ -38,6 +38,22 @@ class PartColor {
     required this.rb,
   });
 
+  /// The no-op PartColor: white corners at `rate` 0, which the shader's formula
+  /// collapses to a plain texel passthrough (§10 "デフォルトは白・rate 0 で素通し").
+  ///
+  /// Used when a part must go through the fragment shader for a reason other
+  /// than PartColor — currently a mask test (§9) — so that peeling it off the
+  /// batched path does not change its colours.
+  static const PartColor identity = PartColor(
+    coef: <double>[-1.0, 1.0, 0.0, 0.0], // Mix
+    lt: _white,
+    rt: _white,
+    lb: _white,
+    rb: _white,
+  );
+
+  static const PartColorCorner _white = PartColorCorner(1.0, 1.0, 1.0, 1.0, 0.0);
+
   /// `(fSrc, fDst, fDstSrc/mulFlag, 0)` — see [partColorCoef].
   final List<double> coef;
   final PartColorCorner lt;

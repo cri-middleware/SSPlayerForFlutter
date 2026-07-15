@@ -53,6 +53,10 @@ sibling `../ssruntime_dart/` package.
 | `lib/src/internal_player.dart` | **L2** engine — FFI lifecycle, SoA getters, `paint` = `DrawBatch.kind` dispatch (`_emitNormalBatch`). |
 | `lib/src/render/geometry_builder.dart` | **L2** — `GeometryBuilder` (pure SoA→`ui.Vertices` bake) + `DrawFrame` (per-frame SoA bundle). New kinds add build methods here. |
 | `lib/src/render/blend.dart` | **L2** — `blendModeFor` (`BlendType`→`ui.BlendMode`); future PartColor coef table. |
+| `lib/src/render/part_color.dart` | **L2** — PartColor (§10) reader (`PartColor.read`) + `PartColor.identity` passthrough. |
+| `lib/src/render/mask.dart` | **L2** — Mask (§9) pure logic: `MaskPartFlags` (ssab PartData roles), `MaskPlan` (writer collection, scope, coverage bbox/UV), `MaskBits`. |
+| `shaders/partcolor.frag` | PartColor blend + mask replay — the shader every *peeled* part uses. |
+| `shaders/mask_write.frag` | Writes one mask writer's bit into the coverage bitmap. |
 | `lib/src/texture_registry.dart` | **L2** — pure texture store: hash→`ui.Image` + cached `shaderFor` (`ImageShader`). No blend/Paint logic. |
 | `lib/src/texture_loader.dart` | `SsTextureLoader` — reference + embedded texture loading + per-cellmap routing (§16C). |
 | `lib/src/ssab_info.dart` | `SsAnimeInfo` — enumerate animation/cellmap names from bytes. |
@@ -69,8 +73,8 @@ All mirror the sibling players (`../SSPlayerFor{Godot,Unity,Web,RenPy}`).
 
 | Script | Does | When |
 |---|---|---|
-| `scripts/build-runtime.{sh,ps1}` | Builds `ssruntime`/`ssconverter` (host direct; cross via `SpriteStudio-SDK/scripts/release-*`) and places the **bare** dynamic libs into each binding package's `native/libs/<platform>/[<arch>]` — `libssruntime` → `ssruntime_dart`, the host `libssconverter` → `ssconverter_dart`. No framework wrapping / `macos/Frameworks/` symlink on the Flutter side: each package's `hook/build.dart` bundles the dylib as a **native-assets code asset** (Flutter re-wraps it into `ssruntime.framework` inside the `.app` automatically). Then copies the SDK `build.rs`-emitted plain-C headers (`<crate>.h`) into each package's `native/include/` and regenerates the ffigen bindings for both (calls `generate-ffigen-code`). | After changing Rust / first setup. |
-| `scripts/generate-ffigen-code.{sh,ps1}` | `dart run ffigen` → each package's `lib/src/*_bindings.g.dart` (`@Native` top-level bindings) from `native/include/*.h`. **No cbindgen** — the SDK `build.rs` emits the C header. Auto-invoked at the end of `build-runtime`; run directly only when an `ffigen*.yaml` changed. | After a native / C-API change (usually automatic). |
+| `scripts/build-runtime.{sh,ps1}` | Builds `ssruntime`/`ssconverter` (host direct; cross via `SpriteStudio-SDK/scripts/release-*`) and places the **bare** dynamic libs into each binding package's `native/libs/<platform>/[<arch>]` — `libssruntime` → `ssruntime_dart`, the host `libssconverter` → `ssconverter_dart`. No framework wrapping / `macos/Frameworks/` symlink on the Flutter side: each package's `hook/build.dart` bundles the dylib as a **native-assets code asset** (Flutter re-wraps it into `ssruntime.framework` inside the `.app` automatically). Then copies the SDK `build.rs`-emitted plain-C headers (`<crate>.h`) into each package's `native/include/` — but does **not** regenerate the ffigen bindings (they are committed; that is a separate manual step). | After changing Rust / first setup. |
+| `scripts/generate-ffigen-code.{sh,ps1}` | `dart run ffigen` → each package's `lib/src/*_bindings.g.dart` (`@Native` top-level bindings) from `native/include/*.h`. **No cbindgen** — the SDK `build.rs` emits the C header. **Standalone** — NOT invoked by `build-runtime`; run it yourself after a C-API change and commit the result. | After a native / C-API change (then commit). |
 | `scripts/generate-fbs-code.{sh,ps1}` | `flatc --dart` → `lib/src/ssab/*.g.dart` from the SDK `.fbs`. Standalone (deliberately NOT part of `build-runtime`). | After changing a `.fbs` schema. |
 | `scripts/prepare-example-assets.sh` | Converts `tests/overall/overall.sspj` → `.ssab` into `example/assets/overall/`. | Refreshing example assets. |
 
@@ -159,6 +163,29 @@ These were learned the hard way — respect them.
 * **Blend types**: only Mix/Add/Mul/Sub are honored (others → Mix), matching the
   flagship; straight (non-premultiplied) alpha. `PartColor` needs a
   `FragmentProgram` (Phase-1+), not stock `BlendMode`.
+* **Flutter's fragment-shader dialect is NOT full GLSL.** `impellerc` rejects
+  **integer bitwise operators** (`<<`, `>>`, `&`, `|`, `~`) and **`discard`** —
+  runtime effects are SkSL *shaders*, which return a colour. Port bit twiddling
+  to float arithmetic (`bitAt(set, 2^i) = floor(mod(set/p, 2.0))`; an 8-bit
+  `~x` is `255.0 - x`; a 24-bit set is exact in a float32 mantissa) and replace
+  `discard` with `fragColor = vec4(0.0)` — a zero premultiplied fragment is a
+  no-op under every blend mode we emit. Shaders also get **no per-vertex
+  varyings**, which is why `drawVertices` can't feed them: a shaded part is
+  peeled onto its own `drawPath` and its UVs are rebuilt from a CPU affine
+  (`buildPartColorQuad`). **`flutter test` compiles the shaders** (impellerc runs
+  in the asset build), so a dialect error shows up there — but the tests still
+  pass, because the programs merely fail to load and the code falls back. Grep
+  the test output for `impellerc failure` / `SkSL Error`; fragment programs never
+  *execute* headless, so shader output can only be verified in `example/`.
+* **Mask (§9) has no C-API — it is a data contract.** The roles come from the
+  **static `.ssab` `PartData`** (`mask_write` / `draw_as_mask` /
+  `visible_inside_mask` / `mask_influence`), read once at load
+  (`MaskPartFlags.readAll`), NOT from `FrameData` and NOT from any SoA buffer;
+  only `mask` / `priority` / `hide` are per-frame. `mask_influence` is
+  **deliberately overloaded** (writer → OP invert/increment; target → opt-in) —
+  never normalise it away. Ignore `FrameData.mask_indices`: the runtime omits
+  clipping writers from it and *includes* hidden masks, so walk `draw_order` +
+  `PartData` instead (the flagship does the same).
 
 ## Verification
 
@@ -173,7 +200,7 @@ no `SSRUNTIME_LIBRARY_PATH` / `DynamicLibrary.open` and no framework to point at
 | Unit + render tests | `flutter test` |
 | L1 bindings smoke (in `../ssruntime_dart/`) | `dart test` |
 | Converter smoke + CLI (in `../ssconverter_dart/`) | `dart test` / `dart run ssconverter_dart:ssconvert -o <out> <sspj>` |
-| Native host build (also copies C headers + regenerates ffigen) | `bash ../../scripts/build-runtime.sh` |
+| Native host build (also copies C headers) | `bash ../../scripts/build-runtime.sh` |
 | ffigen bindings only | `bash ../../scripts/generate-ffigen-code.sh` |
 | FlatBuffers (on `.fbs` change) | `bash ../../scripts/generate-fbs-code.sh` |
 | macOS desktop run | (in `example/`) `flutter run -d macos` → expect `[ssplayer] OK` |

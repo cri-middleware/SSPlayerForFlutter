@@ -17,9 +17,13 @@
   - [`../AGENTS.md`](../AGENTS.md) — 実装規約・要注意点（FFI 寿命 / ネイティブ同梱（Native Assets）/ `updateFlag` の罠 / UV ピクセル座標 / 再ハッシュ禁止）。
   - [`../README.md`](../README.md) — 構成・セットアップ・テスト・Dart API 使い方。
   - `SpriteStudio-SDK/libs/ssruntime/docs/30_core/30_render_loop.ja.md` — レンダリング契約（一次情報）。
-- **主要ファイル**: `packages/ssplayer_flutter/lib/src/{internal_player,player,texture_registry,texture_loader,ssab_info}.dart`、`render/{sprite_studio_view,geometry_builder,blend}.dart`。L1 バインディングは `packages/ssruntime_dart/lib/src/ssruntime_bindings.g.dart`（`@Native`）。
+- **主要ファイル**: `packages/ssplayer_flutter/lib/src/{internal_player,player,texture_registry,texture_loader,ssab_info}.dart`、`render/{sprite_studio_view,geometry_builder,blend,part_color}.dart`。L1 バインディングは `packages/ssruntime_dart/lib/src/ssruntime_bindings.g.dart`（`@Native`）。
 - **描画の分割（リファクタ済み）**: L2 は「FFI ライフサイクル＋トランスポート＋ kind 別ディスパッチ」を持ち、頂点ベイクは純粋（Widget/FFI 非依存）な `GeometryBuilder`（`DrawFrame` バンドルを消費）へ、ブレンド写像は `render/blend.dart` へ切り出し済み。兄弟移植（Web `GeometryBuilder` / Unity `SpriteStudioGeometryBuilder` / Godot `_build_*`・`_emit_*`）に倣う。`paint()` の `switch (batch.kind)` は全 kind を列挙し、未移植 kind は Phase-2 の差し込み口として明示的にスキップする。
-- **次の作業（Phase 1 後半〜2）**: PartColor（§10, `FragmentProgram`）→ Mask（§9, カバレッジビットマップ）→ Mesh / Effect / Instance（§8）→ BoxFit スケール配置 → 各プラットフォーム同梱の実機検証（Linux/Windows/iOS/Android）。各 kind の実装は `GeometryBuilder` に build メソッドを足し、`paint()` の対応 case を埋める形で追加する。
+- **次の作業（Phase 2）**: PartColor（§10, `render/part_color.dart` ＋ `shaders/partcolor.frag`）と
+  Mask（§9, `render/mask.dart` ＋ `shaders/mask_write.frag`）は**実装済み**。以降は Mesh / Effect / Instance（§8）
+  → BoxFit スケール配置 → 各プラットフォーム同梱の実機検証（Linux/Windows/iOS/Android）。各 kind の実装は
+  `GeometryBuilder` に build メソッドを足し、`paint()` の対応 case を埋める形で追加する。なお各 kind を移植するときは、
+  その kind が **マスクの書き手にも対象にもなり得る**ことに注意（現状の writer 収集は Normal / Mask パーツの 4 隅クアッド前提）。
 
 ### 実装と設計の差分（重要・設計書本文の訂正）
 
@@ -265,12 +269,20 @@ Flutter としては **Phase 1**（Basic〜BlendMode を `SpriteStudioView` で�
 - **ランタイムが出すもの**: `draw_order[]`、`mask_indices[]`、PartState の `mask`(0..255)・`priority`・`mask_influence`、
   PartData の `mask_write` / `draw_as_mask` / `visible_inside_mask`。`DrawBatchKind::Mask` と `flags` の `MASK_INFLUENCE`(0x01) で識別。
   書き手メタは `mask_meta`（`draw_rank` / `bit` / `op_invert` / `is_clipping`）。
-- **Flutter での実現**: ① オフスクリーンのカバレッジビットマップ（RGBA8、最大 24 書き手＝RGB 24bit）を
-  `PictureRecorder` / `saveLayer` ＋加算合成で生成。各書き手は `FragmentProgram` で `texture.a <= (255-mask)/255` を discard し自分の bit を立てる。
-  ② 対象パーツ描画時に別の `FragmentProgram` でカバレッジを nearest サンプルし、書き手ごとに bit を取り出してスコープ
-  （`is_clipping ? rank > writer_rank : rank < writer_rank`）と極性（`(stencil!=0)==visible_inside_mask`）を判定して discard。
-- **Instance 配下のマスク**は親のカバレッジ UV 変換 `M_child = M_parent · slot_xf` を子へ伝える。
-- **コスト**: オフスクリーン確保と 2 パスのため重い（§18-D）。矩形クリップで足りる箇所は `clipRect` に落として段階最適化。
+- **Flutter での実現（実装済み）**: `render/mask.dart`（純粋ロジック）＋ `shaders/mask_write.frag`（書き手）
+  ＋ `shaders/partcolor.frag` の `maskPasses()`（対象側）。① `PictureRecorder` に各書き手の bit を
+  `BlendMode.plus` で加算描画し `Picture.toImageSync()` でカバレッジ RGBA8 を得る（最大 24 書き手＝RGB 24bit）。
+  ② 対象パーツは `partcolor.frag` に peel して描き、カバレッジをサンプルしてステンシルを再構成・判定する。
+  マスク対象は PartColor の有無に関わらずこのシェーダを通す（PartColor 無しは `PartColor.identity`＝白・rate 0 で素通し）。
+- **フラグシップとの意図的な差分（2 点）**:
+  - **`mask_meta[]` 配列を持たない**。スコープ（§2-1）は CPU 側（`MaskPlan.bitsFor`）で解決し、
+    シェーダへは「増分側／反転側」の 24bit セット 2 つだけを渡す。bit は draw rank 昇順に割り当てられるので、
+    シェーダが bit 0→23 を走査すれば OP の適用順が draw order と一致する。
+  - **1 フレーム遅延の対策が不要**。`toImageSync` は同一フレーム内でカバレッジを読めるため、移植ガイド §3-2-3 の
+    サイズクラス量子化・縮小ヒステリシス・旧 target の 1 フレーム保持はいずれも実装していない（bbox 実寸・長辺 1024 上限のみ）。
+- **Instance 配下のマスク**は親のカバレッジ UV 変換 `M_child = M_parent · slot_xf` を子へ伝える（Instance kind 移植時）。
+- **コスト**: オフスクリーン確保と 2 パス、かつマスク対象はバッチから peel されるため重い（§18-D）。
+  カバレッジはフレーム毎に確保しており、プールは未実装（最適化余地）。矩形クリップで足りる箇所は `clipRect` に落として段階最適化。
 
 ## 10. パーツカラー (Parts Color)
 

@@ -22,6 +22,8 @@ export 'src/render/geometry_builder.dart'
     show GeometryBuilder, DrawFrame, PartColorQuad;
 export 'src/render/blend.dart' show blendModeFor, partColorCoef;
 export 'src/render/part_color.dart' show PartColor, PartColorCorner;
+export 'src/render/mask.dart'
+    show MaskBits, MaskPartFlags, MaskPlan, MaskWriter, kMaxMaskWriters;
 
 // Layer 1 — the raw dart:ffi C-API (the "escape hatch") lives in the pure-Dart
 // `ssruntime_dart` package as native-assets `@Native` functions. Import it

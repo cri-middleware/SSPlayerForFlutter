@@ -192,26 +192,18 @@ class GeometryBuilder {
     );
   }
 
-  /// Builds the world quad + frag→`(s,t)` affine for part [part]'s PartColor
-  /// shader draw (parts_color §1). Transforms the four local corners
-  /// (`lt,rt,lb,rb`) by the world matrix, takes `du = rt-lt`, `dv = lb-lt`, and
-  /// inverts `[du dv]` so the shader can recover quad-local coordinates from a
-  /// fragment position.
+  /// The four world-transformed corners of part [part], 8 floats
+  /// (`ltx,lty, rtx,rty, lbx,lby, rbx,rby`), or null when the part is outside
+  /// the SoA (no geometry this frame).
   ///
-  /// Returns null when the SoA is out of range or the quad is degenerate
-  /// (`|det| ~ 0`, e.g. a zero-size part) — nothing visible to draw. Assumes a
-  /// non-deformed (affine) quad, which holds for a Normal sprite; vertex-deform
-  /// (`AttributeVertex`) breaks the affine assumption and is handled with the
-  /// Mesh/deform path.
-  PartColorQuad? buildPartColorQuad(int part, DrawFrame frame) {
+  /// Shared by the PartColor quad and the mask coverage pass, which both need
+  /// the same `x' = m0·x + m4·y + m12`, `y' = m1·x + m5·y + m13` transform.
+  static Float32List? worldCornersOf(int part, DrawFrame frame) {
     final world = frame.world;
     final local = frame.local;
-    final uv = frame.uv;
     final m = part * DrawFrame.worldStride;
     final v = part * DrawFrame.vertexStride;
-    if (m + 16 > world.length || v + 8 > local.length || v + 8 > uv.length) {
-      return null;
-    }
+    if (m + 16 > world.length || v + 8 > local.length) return null;
 
     final m0 = world[m], m1 = world[m + 1];
     final m4 = world[m + 4], m5 = world[m + 5];
@@ -225,6 +217,25 @@ class GeometryBuilder {
       corners[c * 2] = m0 * lx + m4 * ly + m12;
       corners[c * 2 + 1] = m1 * lx + m5 * ly + m13;
     }
+    return corners;
+  }
+
+  /// Builds the world quad + frag→`(s,t)` affine for part [part]'s PartColor
+  /// shader draw (parts_color §1). Transforms the four local corners
+  /// (`lt,rt,lb,rb`) by the world matrix, takes `du = rt-lt`, `dv = lb-lt`, and
+  /// inverts `[du dv]` so the shader can recover quad-local coordinates from a
+  /// fragment position.
+  ///
+  /// Returns null when the SoA is out of range or the quad is degenerate
+  /// (`|det| ~ 0`, e.g. a zero-size part) — nothing visible to draw. Assumes a
+  /// non-deformed (affine) quad, which holds for a Normal sprite; vertex-deform
+  /// (`AttributeVertex`) breaks the affine assumption and is handled with the
+  /// Mesh/deform path.
+  PartColorQuad? buildPartColorQuad(int part, DrawFrame frame) {
+    final uv = frame.uv;
+    final v = part * DrawFrame.vertexStride;
+    final corners = worldCornersOf(part, frame);
+    if (corners == null || v + 8 > uv.length) return null;
 
     final ltx = corners[0], lty = corners[1];
     // du = rt - lt (s-axis), dv = lb - lt (t-axis).
