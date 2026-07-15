@@ -268,7 +268,7 @@ Flutter としては **Phase 1**（Basic〜BlendMode を `SpriteStudioView` で�
     そのティックでは *play 前の* フレームを返す（開始フレームへのスナップは host の仕事）。呼ばないと `Context::update` が
     停止中コントローラで no-op になり、**independent の子が永久に凍る**（synced は seek なので一見動いてしまう）。
     play 後にフレームを読み直さないと前回再生の 1 フレームがちらつく。setup 時は `stop()`。
-  - `previous_child_frame` は**生のまま**保持（丸めるとサブフレームの微小デルタが毎ティック切り捨てられて停止する）。丸めるのは描画時のみ。
+  - `childFrame` は**生のまま**保持（孫の `parent_frame` として下に渡され、synced の子は `(parent_frame - event_frame) * speed` に seek されるので、丸めると synced の子孫が整数フレームに量子化される）。丸めるのは描画時のみ。
   - 子の**時計は親のスロット**なので子は `ss_runtime_update` を呼ばない。ただし子**自身の**エフェクト／入れ子インスタンスは毎ティック step が要る。
   - Godot（保持モード＝子を先に描いて後から re-parent）と異なり、Flutter は即時モードなので
     **Instance バッチの中で子を再帰 `paint`** する（`canvas.transform(slotMatrix)`／2D アフィンのみ＝`world2dOf`）。

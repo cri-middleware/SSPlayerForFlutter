@@ -161,20 +161,8 @@ class InstanceSlot<T extends InstanceChild> {
   final ffi.Pointer<ffi.Void> slot;
   final T child;
 
-  /// The child's frame as of the previous [InstanceSlots.step], passed back in
-  /// as `previous_child_frame` so the Brain can spot independent-mode loop
-  /// edges.
-  ///
-  /// **Kept raw on purpose.** The SDK is emphatic that this value must never be
-  /// floored or clamped: with sub-frame playback a slow child advances by less
-  /// than a frame per tick, and rounding the *stored* value truncates that delta
-  /// away every tick, freezing the child outright. Rounding happens only at draw
-  /// time. (This is also where we diverge from the flagship, which stores the
-  /// rounded draw frame here when sub-frame is off.)
-  double previousFrame = 0.0;
-
   /// The frame the last [InstanceSlots.step] left the child on — what `paint`
-  /// draws (rounded there, per [previousFrame]).
+  /// draws (rounded there).
   double childFrame = 0.0;
 
   /// Whether the Brain says this child is live this frame. Invisible is the
@@ -266,7 +254,6 @@ class InstanceSlots<T extends InstanceChild> {
         state.slot,
         ev,
         state.child.instanceContext,
-        state.previousFrame,
         parentFrame,
         deltaSeconds,
         parentLooped,
@@ -288,7 +275,6 @@ class InstanceSlots<T extends InstanceChild> {
       // freshly stepped one.
       final childFrame =
           r.transitioned ? state.child.instanceFrameNo : r.child_frame_no;
-      state.previousFrame = childFrame; // raw — see InstanceSlot
       state.childFrame = childFrame;
       // The child's animation clock is the Brain's; its effects and nested
       // instances still need their own tick, at the frame it was just moved to.
@@ -309,7 +295,6 @@ class InstanceSlots<T extends InstanceChild> {
   void reset() {
     for (final state in _slots.values) {
       ss_instance_slot_reset(state.slot);
-      state.previousFrame = 0.0;
       state.childFrame = 0.0;
       state.visible = false;
       state.child.instanceStop();

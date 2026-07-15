@@ -233,10 +233,11 @@ These were learned the hard way — respect them.
     re-read the child's clock after `play()` or you flash a frame of the previous
     playthrough. Also `stop()` the child at setup so it can't self-advance before
     its key fires.
-  - **`previous_child_frame` must stay raw.** Never floor/clamp the *stored*
-    value: a sub-frame child advances < 1 frame per tick and rounding truncates
-    that delta away every tick, freezing it. Round only at draw. (The flagship
-    stores the rounded draw frame here when sub-frame is off; we don't.)
+  - **`childFrame` must stay raw.** Never floor/clamp the *stored* value: it is
+    handed back down as the grandchildren's `parent_frame`, and a synced child is
+    seeked to `(parent_frame - event_frame) * speed`, so rounding it quantizes
+    every synced descendant to integer frames. Round only at draw. (The flagship
+    propagates the rounded draw frame here when sub-frame is off; we don't.)
   - `subFrame` must propagate to children recursively, or they stutter at integer
     frames under a smooth parent.
   - The child's clock is the parent's slot, so a child must **not** call

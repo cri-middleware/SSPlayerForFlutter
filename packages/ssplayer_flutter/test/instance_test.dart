@@ -429,7 +429,6 @@ void main() {
       player.play(); // explicit head-out
       for (final p in player.instanceParts) {
         final slot = player.instanceSlotFor(p.partIndex)!;
-        expect(slot.previousFrame, 0.0);
         expect(slot.childFrame, 0.0);
         expect(slot.visible, isFalse);
       }
