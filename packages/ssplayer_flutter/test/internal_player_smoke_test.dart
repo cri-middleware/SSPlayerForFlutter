@@ -2,7 +2,7 @@
 //
 // Requires:
 //   * scripts/build-runtime.sh   (produces native/libs/<host>/libssruntime.*)
-//   * scripts/prepare-example-assets.sh (produces example/assets/spritestudio/overall/*.ssab)
+//   * scripts/deploy-examples.sh (produces example/assets/spritestudio/overall/*.ssab)
 //   * SSRUNTIME_LIBRARY_PATH pointing at the built dylib, e.g.:
 //
 //   SSRUNTIME_LIBRARY_PATH=$PWD/native/libs/macos/libssruntime.framework/libssruntime \
@@ -28,7 +28,7 @@ void main() {
 
   test('load → update → frame data → SoA returns geometry', () {
     if (ssabPath == null) {
-      markTestSkipped('Basic.ssab missing — run prepare-example-assets.sh');
+      markTestSkipped('Basic.ssab missing — run deploy-examples.sh');
       return;
     }
 

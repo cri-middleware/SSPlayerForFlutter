@@ -114,7 +114,7 @@ void main() {
       '../../example/assets/spritestudio/overall/PartsColor.ssab',
     ]);
     if (ssabPath == null) {
-      markTestSkipped('PartsColor.ssab missing — run prepare-example-assets.sh');
+      markTestSkipped('PartsColor.ssab missing — run deploy-examples.sh');
       return;
     }
 

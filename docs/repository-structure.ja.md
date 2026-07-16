@@ -28,7 +28,7 @@ SSPlayerForFlutter/
 │   ├── build-runtime.{sh,ps1}            # Rust をソースビルド → 各パッケージの native/libs へ配置
 │   ├── generate-ffigen-code.{sh,ps1}     # ffigen（Dart FFI）。C-API 変更時に手動実行 → commit
 │   ├── generate-fbs-code.{sh,ps1}        # flatc（.ssab/FrameData の Dart アクセサ）。.fbs 変更時のみ
-│   └── prepare-example-assets.sh         # overall.sspj → .ssab（Dart ssconvert 経由・Rust 不要）
+│   └── deploy-examples.sh         # overall.sspj → .ssab（Dart ssconvert 経由・Rust 不要）
 ├── packages/ssplayer_flutter/            # 【L2–4 描画】Flutter パッケージ（全プラットフォーム・ssruntime_dart 依存）
 │   ├── lib/
 │   │   ├── ssplayer_flutter.dart         # 公開 API（L2–4。L1 は ssruntime_dart から直接 import）

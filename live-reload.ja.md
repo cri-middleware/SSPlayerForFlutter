@@ -83,7 +83,7 @@ ssplayer_flutter (L2-4 player; reload() を持つ; ★converter-FREE; 全PF)
    ```
 3. **起動＝live-reload の opt-in**: `dart run ssgen_flutter:ssdev -d <device>`（推奨。`flutter run` を置き換え、`SS_LIVE_RELOAD` define を注入、保存で reconvert＋hot reload を1コマンド自動化）。手動なら `flutter run --dart-define=SS_LIVE_RELOAD=true` ＋ device では host で `dart run ssgen_flutter:ssreconvert` ＋ `r`。**define 無しの素の `flutter run` は art を reload しない**（通常の Dart hot reload のみ）。
 4. **macOS**: `bash example/scripts/setup-macos.sh`（Debug の App Sandbox を false に。理由は §5）。
-5. source を `SpriteStudio_Source/<project>/` に置く（`scripts/prepare-example-assets.sh` が overall を stage＋変換して雛形を作る）。
+5. source を `SpriteStudio_Source/<project>/` に置く（`scripts/deploy-examples.sh` が overall を stage＋変換して雛形を作る）。
 
 ## 5. 既知の gotcha（ハマりどころ）
 
@@ -122,7 +122,7 @@ ssplayer_flutter (L2-4 player; reload() を持つ; ★converter-FREE; 全PF)
   - **残**: 実 Windows / Linux desktop での確認（同一 daemon 経路なので有望、未実測）。手動2手（`ssreconvert`＋`r`）は ssdev の部分集合として機構的にカバー済み。
 - **(b′) IDE 統合 — ✅ 実装済み（`ssreconvert --watch`）**: ラッパ ssdev は `flutter run` を所有するので **IDE の Run/Debug と両立しない**。**reconvert-only watch**（`dart run ssgen_flutter:ssreconvert --watch`、flutter/daemon 非所有、`ChangeRunner` 再利用）で分解: IDE で run（+`--dart-define=SS_LIVE_RELOAD=true`）＋本コマンドが保存で `.ssab` 再生成＋**IDE の hot reload ボタン**（＝ツールが DevFS 同期）。desktop は mixin が reassemble で再変換するので watch 不要。トレードオフ: ssdev=ゼロキー/端末専用 ⇔ watch+IDE=1キー/デバッガ維持（full-auto＋IDE は IDE が外部 reload API を出さないので不可）。VS Code=`launch.json` の `toolArgs`／IntelliJ=run config の Additional args に define。
 - **(c) Windows/Linux desktop 検証**: 機構は OS 非依存のはず。Linux は bash＋no-sandbox で macOS 同様の見込み。
-  Windows は `scripts/prepare-example-assets.ps1` が無い（.sh のみ）＋SIGUSR1 不可（ssdev は VM Service 側で回避）。native libs は release zip download or `build-runtime.{sh,ps1}`。
+  Windows は `scripts/deploy-examples.ps1` が無い（.sh のみ）＋SIGUSR1 不可（ssdev は VM Service 側で回避）。native libs は release zip download or `build-runtime.{sh,ps1}`。
 - **(d) `ssgen_flutter` の widget test**: mixin の reassemble を WidgetTester で回す軽いテスト（現状は example がドッグフーディングでカバー）。
 - **(e) manifest（逆引き ssab→sspj）**: Unity/Godot の「エディタから元 sspj を開く」相当。`SsProjectSync` に薄く足せる（今は mtime 走査のみ）。
 
@@ -141,12 +141,12 @@ ssplayer_flutter (L2-4 player; reload() を持つ; ★converter-FREE; 全PF)
 | `packages/ssgen_flutter/lib/src/ss_defines.dart` | 共有 const `ssLiveReloadDefine`（`'SS_LIVE_RELOAD'`）。`ssgen_flutter.dart` から公開 export |
 | `example/lib/main.dart` | mixin 利用のドッグフーディング |
 | `example/scripts/setup-macos.sh` | Debug sandbox off（＋drag&drop entitlement） |
-| `scripts/prepare-example-assets.sh` | overall を `SpriteStudio_Source/` に stage＋`assets/spritestudio/overall/` へ変換 |
+| `scripts/deploy-examples.sh` | overall を `SpriteStudio_Source/` に stage＋`assets/spritestudio/overall/` へ変換 |
 
 ## 9. 動作確認レシピ（手元で再現）
 
 ```bash
-bash scripts/prepare-example-assets.sh          # source を stage＋変換
+bash scripts/deploy-examples.sh          # source を stage＋変換
 bash example/scripts/setup-macos.sh             # macOS のみ: Debug sandbox off
 cd example
 

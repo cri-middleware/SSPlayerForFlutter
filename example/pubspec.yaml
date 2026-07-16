@@ -30,6 +30,6 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
-    # Populated by `scripts/prepare-example-assets.sh` (stages SpriteStudio_Source/
+    # Populated by `scripts/deploy-examples.sh` (stages SpriteStudio_Source/
     # then converts it here — the SsProjectSync convention the live-reload reuses).
     - assets/spritestudio/overall/

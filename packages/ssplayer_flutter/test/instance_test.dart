@@ -226,7 +226,7 @@ void main() {
     test('reads every instance binding out of the ssab', () {
       final a = assets;
       if (a == null) {
-        markTestSkipped('Instance.ssab missing — run prepare-example-assets.sh');
+        markTestSkipped('Instance.ssab missing — run deploy-examples.sh');
         return;
       }
       final parts = InstancePart.readAll(a.bytes);

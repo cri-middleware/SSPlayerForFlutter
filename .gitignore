@@ -9,7 +9,7 @@ packages/ssplayer_flutter/native
 packages/ssruntime_dart/native
 packages/ssconverter_dart/native
 
-# Example assets are derived from the SDK test projects (scripts/prepare-example-assets.sh)
+# Example assets are derived from the SDK test projects (scripts/deploy-examples.sh)
 example/assets/overall/
 
 # Example platform runners are generated per-clone: `cd example && flutter create --platforms=<p> .`

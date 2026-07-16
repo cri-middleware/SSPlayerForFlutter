@@ -44,6 +44,6 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
-# Generated / staged by scripts/prepare-example-assets.sh — never committed.
+# Generated / staged by scripts/deploy-examples.sh — never committed.
 /assets/spritestudio/
 /SpriteStudio_Source/

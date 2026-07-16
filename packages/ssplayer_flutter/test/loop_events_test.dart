@@ -2,7 +2,7 @@
 //
 // Requires the same setup as internal_player_smoke_test.dart:
 //   * scripts/build-runtime.sh
-//   * scripts/prepare-example-assets.sh
+//   * scripts/deploy-examples.sh
 //
 // These pin the two cases that let a truncation bug live in the tick loop
 // unnoticed: a finite loop count above 1, and a commanded stop.
@@ -51,7 +51,7 @@ void main() {
   test('loop=3 emits looped, looped, finished', () {
     final player = setup(3);
     if (player == null) {
-      markTestSkipped('Basic.ssab missing — run prepare-example-assets.sh');
+      markTestSkipped('Basic.ssab missing — run deploy-examples.sh');
       return;
     }
     addTearDown(player.dispose);

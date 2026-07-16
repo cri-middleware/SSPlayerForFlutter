@@ -423,7 +423,7 @@ Flutter としては **Phase 1**（Basic〜BlendMode を `SpriteStudioView` で�
 準拠: `60_tooling/10_editor_integration`。Flutter には GUI エディタが無いため、変換は「コード / ビルド時」に寄せる。
 
 **A. 変換経路（sspj → ssab）**:
-- 事前コンバート（CLI・推奨）: `ssconverter-cli` で `.ssab` 群を生成し `pubspec.yaml` の `assets:` に登録（本リポジトリは `scripts/prepare-example-assets.sh`）。
+- 事前コンバート（CLI・推奨）: `ssconverter-cli` で `.ssab` 群を生成し `pubspec.yaml` の `assets:` に登録（本リポジトリは `scripts/deploy-examples.sh`）。
 - ビルドフック: `flutter build` 時に `libssconverter` を呼び `.sspj` → `.ssab` を自動生成。
 - ランタイム変換: ツール系アプリでは `libssconverter` を FFI 同梱しメモリ上変換も可。
 
