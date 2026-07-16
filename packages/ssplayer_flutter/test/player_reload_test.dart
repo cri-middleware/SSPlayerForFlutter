@@ -17,7 +17,7 @@ void main() {
 
   testWidgets('reload preserves the animation and playhead', (tester) async {
     if (ssabPath == null) {
-      markTestSkipped('Basic.ssab missing — run prepare-example-assets.sh');
+      markTestSkipped('Basic.ssab missing — run deploy-examples.sh');
       return;
     }
     final bytes = Uint8List.fromList(File(ssabPath).readAsBytesSync());

@@ -21,7 +21,7 @@ void main() {
       '../../example/assets/spritestudio/overall/Basic.ssab',
     ]);
     if (ssabPath == null) {
-      markTestSkipped('Basic.ssab missing — run prepare-example-assets.sh');
+      markTestSkipped('Basic.ssab missing — run deploy-examples.sh');
       return;
     }
     final assetDir = ssabPath.substring(0, ssabPath.lastIndexOf('/'));

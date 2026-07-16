@@ -12,7 +12,7 @@
 - 例アセット（`.ssab`）を生成済みであること:
 
   ```sh
-  bash scripts/prepare-example-assets.sh   # → example/assets/overall/ に出力
+  bash scripts/deploy-examples.sh   # → example/assets/spritestudio/overall/ に出力
   ```
 
 > `libssruntime` は **Native Assets** で自動同梱されます。`SSRUNTIME_LIBRARY_PATH` の設定や
@@ -49,6 +49,6 @@ flutter build macos      # .app をビルド
   `App` / `FlutterMacOS` / `ssruntime` framework のみ）。もし旧チェックアウトに移行前の
   `macos/Podfile` が残って `The sandbox is not in sync with the Podfile.lock` が出たら、runner を
   作り直してください: `rm -rf macos && flutter create --platforms=macos .`。
-- **`Could not find bin/ssconvert.dart`**（`prepare-example-assets.sh`）: `ssconverter_dart` の
+- **`Could not find bin/ssconvert.dart`**（`deploy-examples.sh`）: `ssconverter_dart` の
   CLI 未取得。リポジトリを最新化（`git pull`）してください。
-- アセット未生成でウィンドウが `loading…` のまま: 先に `bash scripts/prepare-example-assets.sh` を実行。
+- アセット未生成でウィンドウが `loading…` のまま: 先に `bash scripts/deploy-examples.sh` を実行。

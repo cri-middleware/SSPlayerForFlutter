@@ -26,12 +26,12 @@ if [ -z "$SDK_DIR" ]; then
   done
 fi
 [ -n "$SDK_DIR" ] && [ -f "$SDK_DIR/tests/overall/overall.sspj" ] || {
-  echo "prepare-example-assets.sh: overall.sspj not found (init the SpriteStudio-SDK submodule or set SSSDK)" >&2
+  echo "deploy-examples.sh: overall.sspj not found (init the SpriteStudio-SDK submodule or set SSSDK)" >&2
   exit 1
 }
 
 command -v dart >/dev/null || {
-  echo "prepare-example-assets.sh: dart not found (install the Dart/Flutter SDK)" >&2
+  echo "deploy-examples.sh: dart not found (install the Dart/Flutter SDK)" >&2
   exit 1
 }
 
@@ -59,4 +59,4 @@ mkdir -p "$OUT_DIR"
   dart run ssconverter_dart:ssconvert -o "$OUT_DIR" "$SRC_STAGE/overall.sspj" )
 echo "   -> example/assets/spritestudio/overall/"
 
-echo "prepare-example-assets.sh: done."
+echo "deploy-examples.sh: done."

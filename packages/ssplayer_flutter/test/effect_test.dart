@@ -162,7 +162,7 @@ void main() {
       '../../example/assets/spritestudio/overall/Effect.ssab',
     ]);
     if (ssabPath == null) {
-      markTestSkipped('Effect.ssab missing — run prepare-example-assets.sh');
+      markTestSkipped('Effect.ssab missing — run deploy-examples.sh');
       return;
     }
 

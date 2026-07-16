@@ -79,7 +79,7 @@ All mirror the sibling players (`../SSPlayerFor{Godot,Unity,Web,RenPy}`).
 | `scripts/build-runtime.{sh,ps1}` | Builds `ssruntime`/`ssconverter` (host direct; cross via `SpriteStudio-SDK/scripts/release-*`) and places the **bare** dynamic libs into each binding package's `native/libs/<platform>/[<arch>]` — `libssruntime` → `ssruntime_dart`, the host `libssconverter` → `ssconverter_dart`. No framework wrapping / `macos/Frameworks/` symlink on the Flutter side: each package's `hook/build.dart` bundles the dylib as a **native-assets code asset** (Flutter re-wraps it into `ssruntime.framework` inside the `.app` automatically). Then copies the SDK `build.rs`-emitted plain-C headers (`<crate>.h`) into each package's `native/include/` — but does **not** regenerate the ffigen bindings (they are committed; that is a separate manual step). | After changing Rust / first setup. |
 | `scripts/generate-ffigen-code.{sh,ps1}` | `dart run ffigen` → each package's `lib/src/*_bindings.g.dart` (`@Native` top-level bindings) from `native/include/*.h`. **No cbindgen** — the SDK `build.rs` emits the C header. **Standalone** — NOT invoked by `build-runtime`; run it yourself after a C-API change and commit the result. | After a native / C-API change (then commit). |
 | `scripts/generate-fbs-code.{sh,ps1}` | `flatc --dart` → `lib/src/ssab/*.g.dart` from the SDK `.fbs`. Standalone (deliberately NOT part of `build-runtime`). | After changing a `.fbs` schema. |
-| `scripts/prepare-example-assets.sh` | Converts `tests/overall/overall.sspj` → `.ssab` into `example/assets/overall/`. | Refreshing example assets. |
+| `scripts/deploy-examples.sh` | Converts `tests/overall/overall.sspj` → `.ssab` into `example/assets/spritestudio/overall/`. | Refreshing example assets. |
 
 > There is **no** `download-sdk` script: a Rust-less consumer gets the prebuilt
 > `libssruntime` from `ssruntime_dart/hook/build.dart`'s download branch (see the
@@ -233,10 +233,11 @@ These were learned the hard way — respect them.
     re-read the child's clock after `play()` or you flash a frame of the previous
     playthrough. Also `stop()` the child at setup so it can't self-advance before
     its key fires.
-  - **`previous_child_frame` must stay raw.** Never floor/clamp the *stored*
-    value: a sub-frame child advances < 1 frame per tick and rounding truncates
-    that delta away every tick, freezing it. Round only at draw. (The flagship
-    stores the rounded draw frame here when sub-frame is off; we don't.)
+  - **`childFrame` must stay raw.** Never floor/clamp the *stored* value: it is
+    handed back down as the grandchildren's `parent_frame`, and a synced child is
+    seeked to `(parent_frame - event_frame) * speed`, so rounding it quantizes
+    every synced descendant to integer frames. Round only at draw. (The flagship
+    propagates the rounded draw frame here when sub-frame is off; we don't.)
   - `subFrame` must propagate to children recursively, or they stutter at integer
     frames under a smooth parent.
   - The child's clock is the parent's slot, so a child must **not** call

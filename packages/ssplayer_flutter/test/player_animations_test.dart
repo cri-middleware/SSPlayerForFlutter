@@ -16,7 +16,7 @@ void main() {
   testWidgets('getAnimations lists the loaded pack animations',
       (tester) async {
     if (ssabPath == null) {
-      markTestSkipped('Basic.ssab missing — run prepare-example-assets.sh');
+      markTestSkipped('Basic.ssab missing — run deploy-examples.sh');
       return;
     }
     final bytes = Uint8List.fromList(File(ssabPath).readAsBytesSync());

@@ -141,7 +141,7 @@ void main() {
       '../../example/assets/spritestudio/overall/Mesh.ssab',
     ]);
     if (ssabPath == null) {
-      markTestSkipped('Mesh.ssab missing — run prepare-example-assets.sh');
+      markTestSkipped('Mesh.ssab missing — run deploy-examples.sh');
       return;
     }
 

@@ -205,7 +205,7 @@ void main() {
       '../../example/assets/spritestudio/overall/Mask.ssab',
     ]);
     if (ssabPath == null) {
-      markTestSkipped('Mask.ssab missing — run prepare-example-assets.sh');
+      markTestSkipped('Mask.ssab missing — run deploy-examples.sh');
       return;
     }
 
@@ -224,7 +224,7 @@ void main() {
       '../../example/assets/spritestudio/overall/Mask.ssab',
     ]);
     if (ssabPath == null) {
-      markTestSkipped('Mask.ssab missing — run prepare-example-assets.sh');
+      markTestSkipped('Mask.ssab missing — run deploy-examples.sh');
       return;
     }
 

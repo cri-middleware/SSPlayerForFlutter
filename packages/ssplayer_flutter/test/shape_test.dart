@@ -280,7 +280,7 @@ void main() {
 
     test('reads the Shape roles out of the ssab', () {
       if (bytes == null) {
-        markTestSkipped('Shape.ssab missing — run prepare-example-assets.sh');
+        markTestSkipped('Shape.ssab missing — run deploy-examples.sh');
         return;
       }
       final flags = MaskPartFlags.readAll(bytes);

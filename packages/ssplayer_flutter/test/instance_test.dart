@@ -226,7 +226,7 @@ void main() {
     test('reads every instance binding out of the ssab', () {
       final a = assets;
       if (a == null) {
-        markTestSkipped('Instance.ssab missing — run prepare-example-assets.sh');
+        markTestSkipped('Instance.ssab missing — run deploy-examples.sh');
         return;
       }
       final parts = InstancePart.readAll(a.bytes);
@@ -429,7 +429,6 @@ void main() {
       player.play(); // explicit head-out
       for (final p in player.instanceParts) {
         final slot = player.instanceSlotFor(p.partIndex)!;
-        expect(slot.previousFrame, 0.0);
         expect(slot.childFrame, 0.0);
         expect(slot.visible, isFalse);
       }

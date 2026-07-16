@@ -95,7 +95,7 @@ git submodule update --init --recursive
 
 # example 用アセット（.ssab）を Dart の ssconvert で生成
 #   （libssconverter は hook/build.dart が自動DL。Rust 不要）
-scripts/prepare-example-assets.sh
+scripts/deploy-examples.sh
 
 # example を起動（libssruntime は hook/build.dart が自動DL）
 cd example && flutter run
@@ -133,7 +133,7 @@ scripts/build-runtime.sh             # 例: build-runtime.sh platform=macos buil
 #   C-API を変えたらバインディング再生成 → commit: scripts/generate-ffigen-code.sh
 
 # アセット生成 → example 起動
-scripts/prepare-example-assets.sh
+scripts/deploy-examples.sh
 cd example && flutter run
 #   （初回の macOS ランナー生成: cd example && flutter create --platforms=macos . ）
 ```

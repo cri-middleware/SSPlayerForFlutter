@@ -804,8 +804,6 @@ external void ss_instance_slot_reset(ffi.Pointer<ffi.Void> slot);
 /// EventInstance (via `ss_runtime_get_active_event_instance` against the
 /// *parent* runtime context) and passes the *child* runtime context here so
 /// that label resolution and frame stepping happen against the right Context.
-/// `previous_child_frame` is the child's frame_no before this tick — used
-/// only to detect independent-mode loop edges.
 /// Returns `transitioned == true` on EventInstance edges; the caller is
 /// responsible for any side effects tied to `play()` (event-sink notifications)
 /// since those are host-side concerns.
@@ -816,7 +814,6 @@ external void ss_instance_slot_reset(ffi.Pointer<ffi.Void> slot);
     ffi.Pointer<ffi.Void>,
     ffi.Float,
     ffi.Float,
-    ffi.Float,
     ffi.Bool,
   )
 >()
@@ -824,7 +821,6 @@ external ss_instance_step_result ss_instance_slot_step(
   ffi.Pointer<ffi.Void> slot,
   ss_event_instance_info ev,
   ffi.Pointer<ffi.Void> child_ctx,
-  double previous_child_frame,
   double parent_frame,
   double delta_seconds,
   bool parent_looped,
