@@ -13,7 +13,7 @@
 ## 現状
 
 **足場 ＋ Layer 1〜4 ＋ Phase 1 Basic 実描画 ＋ PartColor（§10）＋ Mask（§9）
-＋ Mesh / Effect / Instance（§8）**（フラグシップ
+＋ Mesh / Effect / Instance（§8）＋ Shape（§11）**（フラグシップ
 SSPlayerForGodot の `ss_internal_player.cpp` レシピに準拠）。加えて `.sspj → .ssab`
 変換パッケージ（`ssconverter_dart`：`SsConverter` API + `ssconvert` CLI + embedded
 対応）と、SS7 保存 → プレビュー即更新のライブリロード（`ssgen_dart` / `ssgen_flutter`
@@ -29,19 +29,23 @@ SSPlayerForGodot の `ss_internal_player.cpp` レシピに準拠）。加えて 
 | Layer 2 `SpriteStudioInternalPlayer`（ライフサイクル / SoA / update）| ✅ |
 | **Phase 1 Basic 描画**（Normal バッチ・親子継承・α・テクスチャ・BlendMode）| ✅ 実装（実機検証は下記） |
 | Layer 3/4（`SpriteStudioPlayer` / `SpriteStudioView`）| ✅ |
+| ↳ トランスポート（`isPaused` / `resume` / `togglePlayPause`・`pause` 冪等）| ✅ `test/transport_test.dart` PASS（Brain の pause は hold フラグのトグルなので `isPlaying` は true 継続。1 回押すと固まる不具合を解消）|
+| ↳ D&D リロードの use-after-dispose 対策（`load()` が ticker を止め engine を null 化してから非同期スワップ）| ✅ 実装（stale-delta のジャンプも回避） |
 | テクスチャ（reference＝兄弟PNG / embedded 両対応、§16C ルーティング）| ✅ |
+| テクスチャサンプリング（cellmap `filterMode`/`wrapMode` を尊重）| ✅ Nearest→`none` / Linear→`low`(bilinear)、Clamp/Repeat/Mirror。バッチ `ImageShader` と peeled `partcolor.frag` の両経路で適用（既定強制 nearest によるジャギを解消）|
 | サブフレーム補間（既定 ON）| ✅ |
 | **PartColor（§10）**（Normal パーツ・`FragmentProgram`・4 隅補間・Mix/Mul/Add/Sub）| ✅ 実装・`test/part_color_test.dart` PASS |
 | **Mask（§9）**（カバレッジビットマップ・スコープ/極性/OP・カットアウト閾値）| ✅ 実装・`test/mask_test.dart` PASS・example で Mask.ssab 目視確認済み |
-| ↳ Mesh / Shape / Text / Nines を writer とするマスク | ⏳ 各 kind 移植時（現状 Normal / Mask パーツのみ。writer 収集で `quadGeometry` により除外＝誤形状で clipping しない）|
-| ↳ Instance 配下へのマスク継承（§3-2-2）| ⏳ TODO（下の Instance 行を参照）|
+| ↳ Normal / Mask / **Shape** / **Mesh** を writer とするマスク | ✅ 実装（`drawableWriter = quadGeometry \|\| shapeGeometry \|\| meshGeometry`。Shape/Mesh は幾何そのものがマスク＝テクセル閾値なしでカバレッジへラスタライズ）|
+| ↳ Text / Nines を writer とするマスク | ⏳ TODO（各 kind 自体が未実装。writer 収集で除外）|
+| ↳ Instance 配下へのマスク継承（§3-2-2）| ✅ 実装（親のカバレッジ＋ビット＋`uvBasis · slotMatrix` で子アニメ全体をゲート。単一レベル・フラグシップ準拠。下の Instance 行も参照）|
 | **Mesh（§8）**（ワールド頂点 SoA・CSR スライス・index 再ベース・バッチ描画）| ✅ 実装・`test/mesh_test.dart` PASS |
 | ↳ Mesh の PartColor（Whole-only＝`lt` 一律）／ Mesh のマスク対象判定 | ⏳ TODO（シェーダが varying を取れずクアッドアフィンに乗らないため）|
 | **Effect（§8）**（Slot API・`EffectDrawPlan`・独立再生・パーツ α 合成）| ✅ 実装・`test/effect_test.dart` PASS |
 | ↳ コマンドの動的マージ（同一 cellmap＋blend の連続コマンド）| ✅ 実装（連続する同一キーのコマンドを 1 `drawVertices` に。`buildEffectGroup` が index 再ベース・16bit 上限でグループ分割。→ [ROADMAP.md](../ROADMAP.md#performance)）|
 | **Instance（§8）**（Slot API・子プレイヤー再帰・外部 `.ssab` 解決・α 伝搬）| ✅ 実装・`test/instance_test.dart` PASS・example で Instance.ssab 目視確認済み |
 | ↳ 再生属性（label/loop/speed/reverse/pingpong/independent）| ✅ **すべて Brain 側**（`ss_instance_slot_step` が解決）。Body は `PartAttributeInstance` を一切読まない |
-| ↳ Instance 配下へのマスク継承（§3-2-2＝親の `mask_local_to_uv * slot_xf` を子に渡す）| ⏳ TODO（子は自前のマスクは正しく描ける。親→子の継承のみ未実装）|
+| ↳ Instance 配下へのマスク継承（§3-2-2＝親の `mask_local_to_uv * slot_xf` を子に渡す）| ✅ 実装（`_MaskDraw.composeSlot(world)` で `uvBasis · slotMatrix` を子へ。インスタンスパーツ自身の rank/極性で子全体をゲート。**単一レベル**＝孫へは再伝搬しない／フラグシップと同じ）|
 | ↳ Instance パーツ自身の PartColor | ⏳ TODO（フラグシップも未対応。α のみ伝搬）|
 | ↳ 子リソースの共有（現状 1 インスタンスパーツ＝1 Resource）| ⏳ 最適化 TODO（Context は個別必須だが Resource は共有できるはず）|
 | **Shape（§11）**（中心ファン・ローカル頂点×world 行列・box_coords 4隅バイリニア・バッチ結合）| ✅ 実装・`test/shape_test.dart` PASS・example で Shape.ssab 目視確認済み |
@@ -56,7 +60,7 @@ SSPlayerForGodot の `ss_internal_player.cpp` レシピに準拠）。加えて 
 | ↳ 実描画テスト（テクスチャ付き非空フレームをラスタライズ）| ✅ PASS（目視でも overall/Basic がエディタ相当に描画） |
 | **macOS デスクトップ example 起動**（`flutter run -d macos`、Native Assets 同梱＆再生）| ✅ `[ssplayer] OK — playing "anime_1"` |
 | ↳ 埋め込み検証（`flutter build macos` → `.app/Contents/Frameworks/ssruntime.framework`）| ✅ NativeAssetsManifest.json 写像確認済み |
-| Shape / Nines / Text、BoxFit スケール | ⏳ TODO（Phase 2。Mesh / Effect / Instance は上記の通り実装済み）|
+| Nines / Text、BoxFit スケール | ⏳ TODO（Phase 2。Normal / PartColor / Mask / Mesh / Effect / Instance / Shape は上記の通り実装済み）|
 
 ## 機能どうしの整合性（kind × 横断機能）
 
@@ -68,19 +72,22 @@ SSPlayerForGodot の `ss_internal_player.cpp` レシピに準拠）。加えて 
 | **Normal** | ✅ シェーダで 4隅補間 | ✅ スプライトクアッド | ✅ | ✅ |
 | **Mask**（純粋マスク） | — 色を描かない | ✅ スプライトクアッド | — | — |
 | **Shape** | ✅ 頂点カラー（式バイパス）| ✅ ポリゴン・閾値なし | ✅ | ✅ |
-| **Mesh** | ⏳ TODO | ❌ 除外（誤形状を描くよりマシ）| ⏳ TODO | ✅ |
+| **Mesh** | ⏳ TODO | ✅ 変形三角形・閾値なし（幾何=マスク）| ⏳ TODO | ✅ |
 | **Effect** | ❌ 非対応（plan が自前の色を持つ）| ❌ | ⏳ TODO | ✅ |
-| **Instance** | ⏳ TODO（フラグシップも未対応）| ❌ | ⏳ TODO（§3-2-2 継承も未）| ✅ |
+| **Instance** | ⏳ TODO（フラグシップも未対応）| ❌ | ✅ §3-2-2 継承（子全体をゲート・単一レベル）| ✅ |
 | **Nines / Text** | ❌ kind 自体が未実装 | ❌ 除外 | ❌ | — |
 
 確認方法（再現手順）:
 
-* **マスク対象**: `MaskPlan.bitsForTarget` の呼び出し元は `_emitNormalBatch` と `_emitShapeBatch` の 2 箇所のみ。
-  → Mesh / Effect / Instance はマスク対象になってもテストされず素通しで描かれる。
+* **マスク対象**: `_MaskContext.bitsForTarget` の呼び出し元は `_emitNormalBatch` /
+  `_emitShapeBatch` /（§3-2-2 継承の）`_emitInstanceBatch` の 3 箇所。前 2 者はパーツ単位の
+  ゲート、Instance は子アニメ**全体**を 1 つの rank でゲート（`drawFor(bits).composeSlot(world)`）。
+  → Mesh / Effect がマスク対象になってもテストされず素通しで描かれる（Mesh のマスク対象は varying 制約で TODO）。
 * **PartColor**: `PartColor.read` の呼び出し元は `_emitNormalBatch`（シェーダ経路）と
   `GeometryBuilder.buildShapeParts`（頂点カラー経路）の 2 箇所のみ。
-* **マスク writer**: `MaskPartFlags.drawableWriter` ＝ `quadGeometry || shapeGeometry`。
-  `quadGeometry` は Normal / Mask パーツ型、`shapeGeometry` は Shape パーツ型。他は writer 収集で落とす。
+* **マスク writer**: `MaskPartFlags.drawableWriter` ＝ `quadGeometry || shapeGeometry || meshGeometry`。
+  `quadGeometry` は Normal / Mask パーツ型、`shapeGeometry` は Shape、`meshGeometry` は Mesh パーツ型。
+  Shape / Mesh writer はテクセル閾値を持たず、幾何そのものを `plus`・AA off でカバレッジに描く。他（Text/Nines/Effect）は writer 収集で落とす。
 * **α スケール**: `DrawFrame.alphaOf` が一点集約なので、それを通る全経路
   （`buildNormalParts` / `buildMeshGeometry` / `buildEffectCommand` / `buildShapeParts` /
   `_emitInstanceBatch`）に届く。シェーダ経路だけは `pc.scaleAlpha(frame.alphaScale)` で別途適用
@@ -98,7 +105,7 @@ SSPlayerForGodot の `ss_internal_player.cpp` レシピに準拠）。加えて 
   脆いコードが 4 リポジトリに散ります。Triangle / Rectangle / Star は影響ありません。
 * **マスク writer のアンチエイリアス**: カバレッジは「数」であって絵ではないため、
   writer のエッジが AA されると半端な値が**別の writer のビット**としてデコードされ得ます。
-  Shape writer は `isAntiAlias = false` で描いていますが、既存のクアッド writer 経路
+  Shape / Mesh writer は `isAntiAlias = false` で描いていますが、既存のクアッド writer 経路
   （`drawPath` ＋ シェーダ）は Paint 既定の AA のままです。実害はエッジ 1px に限られるものの、
   同じ理由で AA を切るべきです（未対応・低優先）。
 
@@ -111,7 +118,10 @@ Godot flagship 準拠。詳細は `SpriteStudio-SDK/libs/ssruntime/docs/30_core/
 - 頂点ベイク: `x' = m0·x + m4·y + m12`, `y' = m1·x + m5·y + m13`。
 - 4 隅クアッド `{0,1,2, 1,3,2}`。UV はピクセルのまま `ImageShader`(identity) へ（Flutter は正規化不要）。
 - α: `PartState.alpha` を白×α 頂点カラー＋`drawVertices(v, modulate, paint)` で乗算。
-- BlendMode: Mix→srcOver / Add→plus / Mul→multiply / Sub→(近似) / 他→srcOver。
+- BlendMode（全 12 値・ssplayer-webgl の `applyBlend` から移植／`render/blend.dart`）:
+  Mix→srcOver / Add→plus / Mul・Mulalpha・Mul2→multiply / Screen・Screen2→screen /
+  Exclusion→exclusion / Sub・Invert→difference（stock に無いため近似・各々が狙う暗化/不透明
+  オーバーレイ域で厳密）/ Div2・Overlay2→srcOver（上流にも GL 写像なし）。`test/blend_test.dart` で固定。
 - テクスチャキー = `cellmap.name_hash` = `DrawBatch.texture_hash`（再ハッシュしない）。
 
 > `packages/ssruntime_dart/lib/src/ssruntime_bindings.g.dart`（Layer 1・**コミット済み**）は
