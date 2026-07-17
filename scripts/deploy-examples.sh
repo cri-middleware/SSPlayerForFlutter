@@ -82,4 +82,18 @@ for entry in "${PROJECTS[@]}"; do
   deploy_project "${entry%%|*}" "${entry##*|}"
 done
 
+# The Flame example (examples/flame) needs just one self-contained pack, not the
+# whole overall tree. Reuse the Ringo output the loop just produced (a character
+# animation + its reference PNG) — copy, don't reconvert, so it stays a single
+# source of truth. Skipped cleanly if Ringo wasn't deployed.
+FLAME_SRC="$ROOT_DIR/examples/overall/assets/spritestudio/Ringo"
+FLAME_DST="$ROOT_DIR/examples/flame/assets/spritestudio/Ringo"
+if [ -d "$FLAME_SRC" ]; then
+  echo "Copying Ringo -> examples/flame/assets/spritestudio/Ringo/ ..."
+  rm -rf "$FLAME_DST"
+  mkdir -p "$FLAME_DST"
+  cp -R "$FLAME_SRC/." "$FLAME_DST/"
+  echo "   -> examples/flame/assets/spritestudio/Ringo/"
+fi
+
 echo "deploy-examples.sh: done."

@@ -109,9 +109,11 @@ draw-call count of *peeled* shader parts.
   start-offset, or by animation index. Labels already ship in the `.ssab`
   FlatBuffers payload, so no SDK change is needed; add `play_range` / `play_by_index`
   on L3.
-- ☐ **Flame renderer adapter** — an L4 sibling to `SpriteStudioView` that draws the
-  same L2 batches into a Flame component (L2 is already Widget-free for exactly
-  this).
+- ☑ **Flame renderer adapter** — shipped as the `ssplayer_flame` package: a
+  `SpriteStudioComponent` (L4 sibling to `SpriteStudioView`) drives an
+  externally-clocked `SpriteStudioPlayer` from Flame's game loop and draws the
+  same L2 batches. Kept a separate package so the core player never pulls in
+  Flame. Demo: `examples/flame`.
 - ☐ **`Nines` / `Text` kinds + BoxFit / alignment** — the remaining Phase-2 draw
   kinds and fitting the animation's design bounds into the destination box. Shape
   and the other kinds already ship; see the kind matrix in

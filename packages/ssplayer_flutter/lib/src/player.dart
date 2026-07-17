@@ -15,21 +15,31 @@ typedef SsEventCallback = void Function(List<int> passedEventIndices);
 
 /// Layer 3 — the user-facing controller (ports the SDK's `SSPlayer`).
 ///
-/// Wraps a single [SpriteStudioInternalPlayer], drives time with a [Ticker],
-/// and notifies listeners each frame so Layer-4 adapters (SpriteStudioView,
-/// Flame, CustomPaint) can repaint. Widget-agnostic: one Player can back
-/// several adapters.
+/// Wraps a single [SpriteStudioInternalPlayer] and notifies listeners each frame
+/// so Layer-4 adapters (SpriteStudioView, Flame, CustomPaint) can repaint.
+/// Widget-agnostic: one Player can back several adapters.
+///
+/// **Clock.** Pass a [vsync] to have the player drive its own time with a
+/// [Ticker] (the Widget path: SpriteStudioView). Omit it for an
+/// **externally-clocked** player — the host advances playback by calling
+/// [advance] once per frame from its own loop (e.g. a Flame component's
+/// `update(dt)`, or a headless test). Everything else — [load], transport,
+/// events — is identical in both modes.
 ///
 /// SKELETON: transport + ticker + repaint notification are wired; crossfade /
 /// blend / audio dispatch are Phase-1+.
 class SpriteStudioPlayer extends ChangeNotifier {
   SpriteStudioPlayer({
-    required TickerProvider vsync,
+    TickerProvider? vsync,
   }) {
-    _ticker = vsync.createTicker(_onTick);
+    _ticker = vsync?.createTicker(_onTick);
   }
 
-  late final Ticker _ticker;
+  /// The self-clock used by the Widget path. Null when the player is
+  /// **externally clocked** (constructed without a `vsync`): the host drives
+  /// time via [advance], so there is no Ticker to start/stop and [play] /
+  /// [resume] merely set the Brain playing.
+  Ticker? _ticker;
 
   SpriteStudioInternalPlayer? _internal;
   SpriteStudioInternalPlayer? get internal => _internal;
@@ -115,7 +125,7 @@ class SpriteStudioPlayer extends ChangeNotifier {
     // ("used after dispose"); nulling it also makes `_onTick` no-op through the
     // gap. Callers resume playback explicitly via `play`/`resume` (the ticker
     // then restarts with a fresh `_lastElapsed`, so no delta jump).
-    if (_ticker.isActive) _ticker.stop();
+    if (_ticker?.isActive ?? false) _ticker!.stop();
     _internal?.dispose();
     _internal = null;
     _lastTextureReport = null;
@@ -240,7 +250,7 @@ class SpriteStudioPlayer extends ChangeNotifier {
     final internal = _internal;
     if (internal == null) return;
     if (!internal.isPausing) internal.pause();
-    if (_ticker.isActive) _ticker.stop();
+    if (_ticker?.isActive ?? false) _ticker!.stop();
     notifyListeners();
   }
 
@@ -265,14 +275,17 @@ class SpriteStudioPlayer extends ChangeNotifier {
 
   void stop() {
     _requireInternal().stop();
-    if (_ticker.isActive) _ticker.stop();
+    if (_ticker?.isActive ?? false) _ticker!.stop();
     notifyListeners();
   }
 
   void _startTicker() {
-    if (!_ticker.isActive) {
+    // No-op for an externally-clocked player (no Ticker): [play]/[resume] have
+    // already set the Brain playing; the host's loop does the advancing.
+    final ticker = _ticker;
+    if (ticker != null && !ticker.isActive) {
       _lastElapsed = Duration.zero;
-      _ticker.start();
+      ticker.start();
     }
   }
 
@@ -308,17 +321,31 @@ class SpriteStudioPlayer extends ChangeNotifier {
     _internal?.paint(canvas, dst: dst, sourceSize: sourceSize);
   }
 
+  // The internal Ticker's callback (vsync mode only): derive the per-frame delta
+  // from the monotonic elapsed time and hand it to [advance]. `_startTicker`
+  // resets `_lastElapsed` on each (re)start, so the first tick has a zero delta.
   void _onTick(Duration elapsed) {
+    final delta = _lastElapsed == Duration.zero
+        ? Duration.zero
+        : elapsed - _lastElapsed;
+    _lastElapsed = elapsed;
+    advance(delta);
+  }
+
+  /// Advances playback by [delta], dispatches this frame's events / loop /
+  /// complete callbacks, then notifies listeners so Layer-4 adapters repaint.
+  ///
+  /// The internal [Ticker] calls this each frame in vsync mode. An
+  /// **externally-clocked** player (constructed without a `vsync`) must call it
+  /// itself from its host clock — e.g. a Flame component forwarding its
+  /// `update(dt)`, or a headless test stepping frames. Safe to call before
+  /// [load] or after [dispose] (no-op).
+  void advance(Duration delta) {
     final internal = _internal;
     // Defence in depth: `load` stops the ticker before swapping the engine, but
     // never drive a null or already-disposed internal even if a stray frame
     // slips through (it would throw "used after dispose").
     if (internal == null || internal.isDisposed || _disposed) return;
-
-    final delta = _lastElapsed == Duration.zero
-        ? Duration.zero
-        : elapsed - _lastElapsed;
-    _lastElapsed = elapsed;
 
     internal.update(delta);
 
@@ -333,7 +360,7 @@ class SpriteStudioPlayer extends ChangeNotifier {
     final finished = internal.isFinished;
     if (finished && !_prevFinished) {
       onComplete?.call();
-      if (_ticker.isActive) _ticker.stop();
+      if (_ticker?.isActive ?? false) _ticker!.stop();
     }
     _prevFinished = finished;
 
@@ -346,7 +373,7 @@ class SpriteStudioPlayer extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
-    _ticker.dispose();
+    _ticker?.dispose();
     _internal?.dispose();
     _internal = null;
     _animeInfo = null;

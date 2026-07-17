@@ -88,4 +88,18 @@ foreach ($p in $Projects) {
     Deploy-Project -SdkSub $p.Sub -Sspj $p.Sspj
 }
 
+# The Flame example (examples/flame) needs just one self-contained pack, not the
+# whole overall tree. Reuse the Ringo output the loop just produced (a character
+# animation + its reference PNG) — copy, don't reconvert, so it stays a single
+# source of truth. Skipped cleanly if Ringo wasn't deployed.
+$FlameSrc = Join-Path $RootDir "examples/overall/assets/spritestudio/Ringo"
+$FlameDst = Join-Path $RootDir "examples/flame/assets/spritestudio/Ringo"
+if (Test-Path $FlameSrc) {
+    Write-Host "Copying Ringo -> examples/flame/assets/spritestudio/Ringo/ ..."
+    Remove-Item -Recurse -Force $FlameDst -ErrorAction SilentlyContinue
+    New-Item -ItemType Directory -Force -Path $FlameDst | Out-Null
+    Copy-Item -Path (Join-Path $FlameSrc '*') -Destination $FlameDst -Recurse -Force
+    Write-Host "   -> examples/flame/assets/spritestudio/Ringo/"
+}
+
 Write-Host "deploy-examples.ps1: done."

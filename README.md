@@ -19,7 +19,7 @@
 ## 📚 ドキュメント
 
 - [アーキテクチャ設計（`docs/architecture.ja.md`）](./docs/architecture.ja.md) — 設計意図の一次情報・リポジトリ構成（§3）・kind × 横断機能の整合性（§11-A）
-- [今後のロードマップ（`ROADMAP.md`）](./ROADMAP.md) — Normal / PartColor / Mask / Mesh / Effect / Instance / Shape は出荷済み。今後の作業（Nines・Text・BoxFit・Flame・性能・SDK 待ち）はこちら
+- [今後のロードマップ（`ROADMAP.md`）](./ROADMAP.md) — Normal / PartColor / Mask / Mesh / Effect / Instance / Shape / Flame アダプタは出荷済み。今後の作業（Nines・Text・BoxFit・性能・SDK 待ち）はこちら
 - [実装者向け規約・要注意点（`AGENTS.md`）](./AGENTS.md) — FFI 寿命 / ネイティブ同梱（Native Assets）/ UV ピクセル座標 / `updateFlag` の罠 ほか
 
 ### 目的別ガイド（読む範囲は目的まででOK）

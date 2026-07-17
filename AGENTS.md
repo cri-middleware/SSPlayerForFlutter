@@ -23,8 +23,11 @@ The Brain (`libssruntime`, Rust `no_std`) loads a `.ssab`, advances time, and
 emits per-frame **SoA buffers** (world matrices, local vertices/UVs) plus a
 FlatBuffers **`FrameData`** carrying a **DrawBatch** plan. The Body (this repo)
 is a strict 4-layer downward dependency: **L4** drawing adapters
-(`SpriteStudioView` = `RenderBox`; Flame/CustomPaint optional) → **L3**
-`SpriteStudioPlayer` (`ChangeNotifier` + `Ticker`, transport/events) → **L2**
+(`SpriteStudioView` = `RenderBox`; the Flame `SpriteStudioComponent` ships in the
+separate **`ssplayer_flame`** package; CustomPaint optional) → **L3**
+`SpriteStudioPlayer` (`ChangeNotifier`; a `Ticker` in vsync mode, or
+externally-clocked via `advance` — that is how Flame drives it — transport/events)
+→ **L2**
 `SpriteStudioInternalPlayer` (Widget-agnostic: FFI Resource/Context lifecycle,
 SoA→`ui.Vertices` bake, `paint`) → **L1** ffigen `@Native` C-API bindings
 (`dart:ffi`), which live in the sibling **`ssruntime_dart`** binding package
@@ -48,6 +51,7 @@ Paths are under `packages/ssplayer_flutter/` unless noted; **L1** now lives in t
 sibling `../ssruntime_dart/` package.
 
 | `lib/ssplayer_flutter.dart` | Public API barrel (L2–L4; import L1 from `ssruntime_dart` directly). |
+| `../ssplayer_flame/` | **L4** Flame adapter (separate package so the core never pulls in `flame`): `lib/src/sprite_studio_component.dart` = `SpriteStudioComponent` (a `PositionComponent` that drives an externally-clocked `SpriteStudioPlayer`: `update`→`advance`, `render`→L2 `paint`). Re-exports the whole `ssplayer_flutter` API. |
 | `../ssruntime_dart/` | **L1** binding package (plain Dart, non-Flutter): ffigen `@Native` top-level C-API bindings (`lib/src/ssruntime_bindings.g.dart`; native lib bundled by `hook/build.dart`) + runtime FlatBuffers `lib/src/fbs/{framedata,effect_draw_plan}.g.dart` (imported as `package:ssruntime_dart/framedata.dart`). |
 | `../ssconverter_dart/` | Host `.sspj`→`.ssab` converter — ffigen `@Native` bindings to the host `libssconverter` dylib (`lib/src/ssconverter_bindings.g.dart`; dylib bundled by `hook/build.dart`) behind the `ssconvert` CLI + `SsConverter` lib (desktop only). |
 | `lib/src/internal_player.dart` | **L2** engine — FFI lifecycle, SoA getters, `paint` = `DrawBatch.kind` dispatch (`_emit{Normal,Mesh,Effect,Instance,Shape}Batch`). |
@@ -68,6 +72,7 @@ sibling `../ssruntime_dart/` package.
 | `lib/src/ssab/*.g.dart` | flatc-generated `.ssab`/`.ssqb` **asset-format** accessors (do not hand-edit; runtime `framedata`/`effect` FlatBuffers live in `ssruntime_dart`). |
 | `scripts/*` | Native build + codegen toolchain (below). |
 | `examples/overall/` | overall/Basic validation app. |
+| `examples/flame/` | Flame validation app — a `FlameGame` playing Ringo via `ssplayer_flame`. |
 
 ## Toolchain scripts
 

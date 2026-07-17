@@ -1,0 +1,35 @@
+name: ssplayer_flame
+description: >-
+  Flame adapter for ssplayer_flutter — a SpriteStudioComponent that plays a
+  SpriteStudio 7 .ssab inside a FlameGame. An L4 drawing adapter (sibling to the
+  Widget-based SpriteStudioView) that forwards Flame's game-loop `update(dt)` to
+  the player and draws the same L2 DrawBatch plans in `render`. The heavy
+  SpriteStudio dependency (dart:ffi Brain, textures) comes transitively via
+  ssplayer_flutter; this package only adds the Flame glue.
+version: 7.0.0-alpha.1
+repository: https://github.com/cri-middleware/SSPlayerForFlutter
+publish_to: none # not yet published to pub.dev
+
+# Part of the repo-root pub workspace (see ../../pubspec.yaml).
+resolution: workspace
+
+environment:
+  sdk: ">=3.10.0 <4.0.0"
+  flutter: ">=3.38.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  # The 2D game engine this adapter targets. Kept OUT of ssplayer_flutter so the
+  # core Widget/headless player never pays for Flame — an app opts in by adding
+  # this package. Pinned to the resolved latest (matches the repo's dep policy).
+  flame: ^1.37.0
+  # The player being adapted: L3 SpriteStudioPlayer (external-clock mode, driven
+  # by the Flame loop) + L2 paint. Brings the Rust Brain via native assets.
+  ssplayer_flutter:
+    path: ../ssplayer_flutter
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0

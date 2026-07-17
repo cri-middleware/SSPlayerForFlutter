@@ -1,0 +1,35 @@
+name: ssplayer_flame_example
+description: >-
+  Example FlameGame that plays a SpriteStudio 7 .ssab (Ringo) via the
+  ssplayer_flame SpriteStudioComponent. Tap to toggle play/pause.
+publish_to: none
+version: 0.1.0-dev.1
+
+# Part of the repo-root pub workspace (see ../../pubspec.yaml).
+resolution: workspace
+
+environment:
+  sdk: ">=3.10.0 <4.0.0"
+  flutter: ">=3.38.0"
+
+dependencies:
+  flame: ^1.37.0
+  flutter:
+    sdk: flutter
+  # The Flame adapter under test. Re-exports the whole ssplayer_flutter API, so
+  # SpriteStudioPlayer / SpriteStudioComponent both come from this one import.
+  ssplayer_flame:
+    path: ../../packages/ssplayer_flame
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    # Deployed by `scripts/deploy-examples.sh` (the Ringo pack is copied here
+    # from the overall example's converted output). Reference textures (Ringo.png)
+    # sit alongside the .ssab, so baseAssetDir points at this same dir.
+    - assets/spritestudio/Ringo/

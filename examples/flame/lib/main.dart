@@ -1,0 +1,80 @@
+import 'package:flame/components.dart';
+import 'package:flame/game.dart';
+import 'package:flutter/material.dart';
+import 'package:ssplayer_flame/ssplayer_flame.dart';
+
+void main() => runApp(const FlameExampleApp());
+
+class FlameExampleApp extends StatelessWidget {
+  const FlameExampleApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final game = SpriteStudioGame();
+    return MaterialApp(
+      title: 'ssplayer_flame example',
+      theme: ThemeData.dark(useMaterial3: true),
+      home: Scaffold(
+        appBar: AppBar(title: const Text('ssplayer_flame — Ringo')),
+        // Flame owns the game loop; the SpriteStudioComponent's `update`/`render`
+        // ride it. A plain GestureDetector in the Flutter layer toggles playback
+        // (keeps this demo free of Flame input-mixin version churn).
+        body: GestureDetector(
+          onTap: game.toggle,
+          behavior: HitTestBehavior.opaque,
+          child: Stack(
+            children: [
+              GameWidget(game: game),
+              const Align(
+                alignment: Alignment.bottomCenter,
+                child: Padding(
+                  padding: EdgeInsets.all(12),
+                  child: Text('tap to play / pause'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A minimal [FlameGame] whose single content is a [SpriteStudioComponent]
+/// playing the bundled Ringo animation, kept placed as the window resizes.
+class SpriteStudioGame extends FlameGame {
+  SpriteStudioComponent? _ringo;
+
+  /// Where Ringo's world origin sits, as a fraction of the viewport height.
+  /// Ringo's origin is near its lower body, so a dead-centre (0.5) placement
+  /// pushes the head off the top — nudge it below centre so the whole body
+  /// shows. Tune this to reframe.
+  static const _originYFraction = 1.0;
+
+  Vector2 _placement(Vector2 size) =>
+      Vector2(size.x / 2, size.y * _originYFraction);
+
+  @override
+  Future<void> onLoad() async {
+    _ringo = SpriteStudioComponent.asset(
+      'assets/spritestudio/Ringo/Ringo.ssab',
+      // Ringo uses REFERENCE textures (sibling Ringo.png) → point at its dir.
+      baseAssetDir: 'assets/spritestudio/Ringo',
+      // anchor.center ⇒ `position` IS the animation's world origin on screen
+      // (SpriteStudio origins are centered).
+      anchor: Anchor.center,
+      position: _placement(size),
+    );
+    await add(_ringo!);
+  }
+
+  @override
+  void onGameResize(Vector2 size) {
+    super.onGameResize(size);
+    _ringo?.position = _placement(size);
+  }
+
+  /// Toggle play/pause from the Flutter tap handler (the player is null until
+  /// the component finishes loading).
+  void toggle() => _ringo?.player?.togglePlayPause();
+}

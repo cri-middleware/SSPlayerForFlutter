@@ -101,7 +101,7 @@ Body の内部は 4 層。各層は単一責務を持ち、上位が下位を保
 ```
 Layer 4  描画アダプタ Widget/Painter
   ├─ SpriteStudioView (LeafRenderObjectWidget + RenderBox)   ← 必須
-  └─ SpriteStudioComponent / Painter (Flame / CustomPaint)   ← 任意
+  └─ SpriteStudioComponent (Flame ← ssplayer_flame・出荷済み) / Painter (CustomPaint)  ← 任意
 Layer 3  ユーザー向け制御
   └─ SpriteStudioPlayer (ChangeNotifier / Ticker / play・seek・events)
 Layer 2  描画特化エンジン (Pure Dart)
@@ -162,6 +162,11 @@ SSPlayerForFlutter/
 │   │       └── render/sprite_studio_view.dart  # Layer 4
 │   ├── test/                             # スモーク＋実描画テスト（Native Assets 経由・env 変数不要）
 │   └── pubspec.yaml                      # ※プラグインではない（native は ssruntime_dart が同梱）
+├── packages/ssplayer_flame/              # 【L4 Flame】任意アダプタ（ssplayer_flutter 依存・flame をここに隔離）
+│   ├── lib/ssplayer_flame.dart           # 公開 API（SpriteStudioComponent ＋ ssplayer_flutter 再エクスポート）
+│   ├── lib/src/sprite_studio_component.dart  # Layer 4（PositionComponent・update→advance / render→paint）
+│   ├── test/                             # ヘッドレス実描画テスト（FlameGame ライフサイクルを直接駆動）
+│   └── pubspec.yaml
 ├── packages/ssruntime_dart/              # 【Layer 1】ランタイム FFI バインディング（純 Dart・renderer 非依存）
 │   ├── lib/ssruntime_dart.dart           # 公開 API（@Native トップレベル C-API 関数・ローダ無し）
 │   ├── lib/framedata.dart                # ランタイム出力 FrameData の公開ライブラリ
@@ -179,7 +184,8 @@ SSPlayerForFlutter/
 │   ├── native/                           # [生成物] include/ssconverter.h + libs/<platform>/（gitignore）
 │   ├── ffigen.yaml
 │   └── pubspec.yaml
-└── examples/overall/                     # overall.ssab 検証用の Flutter アプリ
+├── examples/overall/                     # overall.ssab 検証用の Flutter アプリ
+└── examples/flame/                       # Flame アダプタ検証用（Ringo を FlameGame で再生）
 ```
 
 ネイティブ同梱（Native Assets）と macOS フレームワーク再ラップの詳細は §17（配布形式）と
