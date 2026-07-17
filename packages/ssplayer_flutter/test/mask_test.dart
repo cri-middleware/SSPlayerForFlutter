@@ -201,8 +201,8 @@ void main() {
   test('MaskPartFlags.readAll finds the writers in the real Mask.ssab',
       () async {
     final ssabPath = _firstExisting([
-      'example/assets/spritestudio/overall/Mask.ssab',
-      '../../example/assets/spritestudio/overall/Mask.ssab',
+      'examples/overall/assets/spritestudio/overall/Mask.ssab',
+      '../../examples/overall/assets/spritestudio/overall/Mask.ssab',
     ]);
     if (ssabPath == null) {
       markTestSkipped('Mask.ssab missing — run deploy-examples.sh');
@@ -220,8 +220,8 @@ void main() {
 
   test('MaskPlan.build collects writers from a real Mask.ssab frame', () async {
     final ssabPath = _firstExisting([
-      'example/assets/spritestudio/overall/Mask.ssab',
-      '../../example/assets/spritestudio/overall/Mask.ssab',
+      'examples/overall/assets/spritestudio/overall/Mask.ssab',
+      '../../examples/overall/assets/spritestudio/overall/Mask.ssab',
     ]);
     if (ssabPath == null) {
       markTestSkipped('Mask.ssab missing — run deploy-examples.sh');

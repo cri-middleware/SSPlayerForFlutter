@@ -161,8 +161,8 @@ void main() {
   test('the real Mesh.ssab exposes a Mesh batch with a consistent mesh SoA',
       () async {
     final ssabPath = _firstExisting([
-      'example/assets/spritestudio/overall/Mesh.ssab',
-      '../../example/assets/spritestudio/overall/Mesh.ssab',
+      'examples/overall/assets/spritestudio/overall/Mesh.ssab',
+      '../../examples/overall/assets/spritestudio/overall/Mesh.ssab',
     ]);
     if (ssabPath == null) {
       markTestSkipped('Mesh.ssab missing — run deploy-examples.sh');

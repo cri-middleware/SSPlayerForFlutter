@@ -200,8 +200,8 @@ void main() {
 
   test('EffectPart.readAll + the slot API drive the real Effect.ssab', () async {
     final ssabPath = _firstExisting([
-      'example/assets/spritestudio/overall/Effect.ssab',
-      '../../example/assets/spritestudio/overall/Effect.ssab',
+      'examples/overall/assets/spritestudio/overall/Effect.ssab',
+      '../../examples/overall/assets/spritestudio/overall/Effect.ssab',
     ]);
     if (ssabPath == null) {
       markTestSkipped('Effect.ssab missing — run deploy-examples.sh');

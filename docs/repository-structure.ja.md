@@ -59,7 +59,7 @@ SSPlayerForFlutter/
 │   ├── native/                           # [生成物] include/ssconverter.h + libs/<platform>/（gitignore）
 │   ├── ffigen.yaml
 │   └── pubspec.yaml
-└── example/                              # overall.ssab 検証用の Flutter アプリ
+└── examples/overall/                     # overall.ssab 検証用の Flutter アプリ
 ```
 
 ## ネイティブ同梱の要点（Native Assets）

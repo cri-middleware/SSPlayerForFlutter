@@ -67,7 +67,7 @@ sibling `../ssruntime_dart/` package.
 | `lib/src/render/sprite_studio_view.dart` | **L4** `SpriteStudioView` / `SpriteStudioRenderBox`. |
 | `lib/src/ssab/*.g.dart` | flatc-generated `.ssab`/`.ssqb` **asset-format** accessors (do not hand-edit; runtime `framedata`/`effect` FlatBuffers live in `ssruntime_dart`). |
 | `scripts/*` | Native build + codegen toolchain (below). |
-| `example/` | overall/Basic validation app. |
+| `examples/overall/` | overall/Basic validation app. |
 
 ## Toolchain scripts
 
@@ -79,7 +79,7 @@ All mirror the sibling players (`../SSPlayerFor{Godot,Unity,Web,RenPy}`).
 | `scripts/build-runtime.{sh,ps1}` | Builds `ssruntime`/`ssconverter` (host direct; cross via `SpriteStudio-SDK/scripts/release-*`) and places the **bare** dynamic libs into each binding package's `native/libs/<platform>/[<arch>]` — `libssruntime` → `ssruntime_dart`, the host `libssconverter` → `ssconverter_dart`. No framework wrapping / `macos/Frameworks/` symlink on the Flutter side: each package's `hook/build.dart` bundles the dylib as a **native-assets code asset** (Flutter re-wraps it into `ssruntime.framework` inside the `.app` automatically). Then copies the SDK `build.rs`-emitted plain-C headers (`<crate>.h`) into each package's `native/include/` — but does **not** regenerate the ffigen bindings (they are committed; that is a separate manual step). | After changing Rust / first setup. |
 | `scripts/generate-ffigen-code.{sh,ps1}` | `dart run ffigen` → each package's `lib/src/*_bindings.g.dart` (`@Native` top-level bindings) from `native/include/*.h`. **No cbindgen** — the SDK `build.rs` emits the C header. **Standalone** — NOT invoked by `build-runtime`; run it yourself after a C-API change and commit the result. | After a native / C-API change (then commit). |
 | `scripts/generate-fbs-code.{sh,ps1}` | `flatc --dart` → `lib/src/ssab/*.g.dart` from the SDK `.fbs`. Standalone (deliberately NOT part of `build-runtime`). | After changing a `.fbs` schema. |
-| `scripts/deploy-examples.sh` | Converts `tests/overall/overall.sspj` → `.ssab` into `example/assets/spritestudio/overall/`. | Refreshing example assets. |
+| `scripts/deploy-examples.sh` | Converts `tests/overall/overall.sspj` → `.ssab` into `examples/overall/assets/spritestudio/overall/`. | Refreshing example assets. |
 
 > There is **no** `download-sdk` script: a Rust-less consumer gets the prebuilt
 > `libssruntime` from `ssruntime_dart/hook/build.dart`'s download branch (see the
@@ -188,7 +188,7 @@ These were learned the hard way — respect them.
   in the asset build), so a dialect error shows up there — but the tests still
   pass, because the programs merely fail to load and the code falls back. Grep
   the test output for `impellerc failure` / `SkSL Error`; fragment programs never
-  *execute* headless, so shader output can only be verified in `example/`.
+  *execute* headless, so shader output can only be verified in `examples/overall/`.
 * **Mesh (§8) vertices are ALREADY world-space — do not apply the world matrix.**
   The opposite of the Normal path (`local_vertices`, which you must transform).
   `mesh_vertices_x/_y` are a separate-axis SoA; `mesh_uvs` are interleaved and in
@@ -346,10 +346,10 @@ no `SSRUNTIME_LIBRARY_PATH` / `DynamicLibrary.open` and no framework to point at
 | Native host build (also copies C headers) | `bash ../../scripts/build-runtime.sh` |
 | ffigen bindings only | `bash ../../scripts/generate-ffigen-code.sh` |
 | FlatBuffers (on `.fbs` change) | `bash ../../scripts/generate-fbs-code.sh` |
-| macOS desktop run | (in `example/`) `flutter run -d macos` → expect `[ssplayer] OK` |
-| macOS embedding check | (in `example/`) `flutter build macos` → `ssruntime.framework` under `*.app/Contents/Frameworks/` |
+| macOS desktop run | (in `examples/overall/`) `flutter run -d macos` → expect `[ssplayer] OK` |
+| macOS embedding check | (in `examples/overall/`) `flutter build macos` → `ssruntime.framework` under `*.app/Contents/Frameworks/` |
 
-`example/` is analyzed as its own package (path dependency on the `ssplayer_flutter`
+`examples/overall/` is analyzed as its own package (path dependency on the `ssplayer_flutter`
 package; no longer a Flutter plugin — native assets replace the plugin/podspec).
 
 ## Render recipe (Phase 1 Basic)

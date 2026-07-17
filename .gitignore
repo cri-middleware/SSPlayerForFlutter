@@ -10,15 +10,15 @@ packages/ssruntime_dart/native
 packages/ssconverter_dart/native
 
 # Example assets are derived from the SDK test projects (scripts/deploy-examples.sh)
-example/assets/overall/
+examples/overall/assets/overall/
 
 # Example platform runners are generated per-clone: `cd example && flutter create --platforms=<p> .`
-example/android/
-example/ios/
-example/linux/
-example/macos/
-example/windows/
-example/web/
+examples/overall/android/
+examples/overall/ios/
+examples/overall/linux/
+examples/overall/macos/
+examples/overall/windows/
+examples/overall/web/
 
 # Scratch (PDF text extraction, etc.)
 scratchpad_design.txt

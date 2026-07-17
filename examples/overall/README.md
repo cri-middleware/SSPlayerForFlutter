@@ -12,21 +12,22 @@
 - 例アセット（`.ssab`）を生成済みであること:
 
   ```sh
-  bash scripts/deploy-examples.sh   # → example/assets/spritestudio/overall/ に出力
+  bash scripts/deploy-examples.sh   # → examples/overall/assets/spritestudio/overall/ に出力
   ```
 
 > `libssruntime` は **Native Assets** で自動同梱されます。`SSRUNTIME_LIBRARY_PATH` の設定や
 > framework の手動配置は不要です（`flutter run`/`flutter build` が `hook/build.dart` を自動実行）。
 
-## 実行 / ビルド（`example/` で）
+## 実行 / ビルド（`examples/overall/` で）
 
-> ⚠️ **プラットフォーム runner はコミットされていません。** `example/{android,ios,macos,linux,windows,web}/`
+> ⚠️ **プラットフォーム runner はコミットされていません。** `examples/overall/{android,ios,macos,linux,windows,web}/`
 > はリポジトリの `.gitignore` 済みで、クローン毎に再生成する方針です（ルート `.gitignore` 参照）。
+> （旧 `example/` から `examples/overall/` へ移設済み）
 > **初回、または `git clean` の後は必ず再生成**してください（これをしないと
 > `No macOS desktop project configured.` になります）:
 >
 > ```sh
-> cd example
+> cd examples/overall
 > flutter create --platforms=macos .        # 必要なら ios,android,linux,windows,web も同様
 > ```
 
