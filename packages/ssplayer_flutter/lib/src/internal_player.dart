@@ -74,6 +74,14 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable, InstanceChild {
   /// here as Phase-2 kinds are ported.
   final GeometryBuilder _geometry = GeometryBuilder();
 
+  /// One [ui.Paint] reused across every plain Normal/Mesh batch draw instead of
+  /// allocating one per batch. `Canvas.drawVertices` snapshots the paint's state
+  /// at the call, so a single mutable instance is safe as long as every mutated
+  /// field is re-set each time — [_paintForBatch] is its ONLY writer and always
+  /// sets both `blendMode` and `shader`. Peeled / shape / effect draws build
+  /// their own paints (different field sets) and never touch this one.
+  final ui.Paint _batchPaint = ui.Paint();
+
   /// PartColor (§10) + mask-replay (§3-2) fragment program — the shader every
   /// *peeled* part goes through. Compiled once, shared across players.
   static final _LazyProgram _partColorProgram =
@@ -636,16 +644,34 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable, InstanceChild {
     final batches = frameData?.drawBatches;
     if (frameData == null || batches == null) return;
 
+    // Decide which optional SoA blocks this frame needs in ONE pass over the
+    // batch plan (was two separate `any` scans). Mesh SoA is fetched only when a
+    // Mesh batch is present; shape SoA when a Shape OR Mask batch is — a
+    // *pure-mask* shape's colour batch is emitted with `kind == Mask`, not
+    // `Shape`, so keying only off Shape would starve the coverage pass of its
+    // geometry. The common mesh/shape-free animation fetches neither.
+    var hasMesh = false;
+    var hasShapeGeom = false;
+    for (final b in batches) {
+      switch (b.kind) {
+        case fbs.DrawBatchKind.Mesh:
+          hasMesh = true;
+        case fbs.DrawBatchKind.Shape:
+        case fbs.DrawBatchKind.Mask:
+          hasShapeGeom = true;
+        default:
+          break;
+      }
+    }
+
     // One zero-copy SoA gather per frame (mirrors the flagship's single-block
-    // fetch); the views are valid only until the next update. The mesh SoA is
-    // fetched only when a Mesh batch is actually present, so the common
-    // mesh-free animation pays nothing.
+    // fetch); the views are valid only until the next update.
     final frame = DrawFrame.build(
       frameData: frameData,
       world: worldMatrices(), // parts × 16
       local: localVertices(), // parts × 10
       uv: localUvs(), // parts × 10 (texture-pixel space)
-      mesh: batches.any((b) => b.kind == fbs.DrawBatchKind.Mesh)
+      mesh: hasMesh
           ? MeshBuffers(
               x: meshVerticesX(),
               y: meshVerticesY(),
@@ -655,13 +681,7 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable, InstanceChild {
               indexOffsets: meshIndexOffsets(),
             )
           : null,
-      // The shape SoA is fetched when a Shape batch is present OR a mask writer
-      // might be a shape: a *pure-mask* shape's colour batch is emitted with
-      // `kind == Mask`, not `Shape`, so keying only off Shape batches would
-      // starve the coverage pass of the very geometry it needs.
-      shape: batches.any((b) =>
-              b.kind == fbs.DrawBatchKind.Shape ||
-              b.kind == fbs.DrawBatchKind.Mask)
+      shape: hasShapeGeom
           ? ShapeBuffers(
               vertices: shapeVertices(),
               boxCoords: shapeVertexBoxCoords(),
@@ -1080,10 +1100,12 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable, InstanceChild {
   /// the slot's `EffectDrawPlan`. So this resolves each rank to its slot, then
   /// draws one `drawVertices` per command.
   ///
-  /// One draw per command (the plan already concatenates every emitter into
-  /// shared buffers, so a command's indices need no rebasing). The SDK suggests
-  /// merging adjacent commands that share cellmap + blend into a single draw;
-  /// that is an optimisation on top of this, and it would require the rebase.
+  /// Adjacent commands that share cellmap + blend are merged into one
+  /// `drawVertices` ([GeometryBuilder.buildEffectGroup] rebases their per-command
+  /// indices); a run breaks on a differing cellmap/blend, an unresolved cell
+  /// (quad_count 0 / no texture), or the 16-bit vertex cap. Draw order within the
+  /// plan is preserved — only *consecutive* same-key commands merge, never
+  /// reordered.
   void _emitEffectBatch(ui.Canvas canvas, fbs.DrawBatch batch, DrawFrame frame) {
     if (_effects.isEmpty) return;
     final drawOrder = frame.drawOrder;
@@ -1096,16 +1118,45 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable, InstanceChild {
       final commands = plan?.commands;
       if (plan == null || commands == null) continue; // invisible / dead slot
 
-      for (final command in commands) {
+      var i = 0;
+      while (i < commands.length) {
+        final first = commands[i];
         // The runtime still emits a command for an emitter whose cell failed to
         // resolve, with quad_count 0 — skip before touching the texture.
-        if (command.quadCount == 0) continue;
-        final image = textures.imageFor(command.cellmapHash);
-        if (image == null) continue;
+        if (first.quadCount == 0) {
+          i++;
+          continue;
+        }
+        final image = textures.imageFor(first.cellmapHash);
+        if (image == null) {
+          i++;
+          continue;
+        }
+        final cellmap = first.cellmapHash;
+        final blend = first.blend;
 
-        final geometry = _geometry.buildEffectCommand(
+        // Gather the maximal run of drawable same-(cellmap,blend) commands,
+        // keeping the group's vertex count inside the 16-bit index limit.
+        final group = <efbs.EffectDrawCommand>[first];
+        var groupVerts = first.quadCount * 4;
+        var j = i + 1;
+        while (j < commands.length) {
+          final c = commands[j];
+          if (c.quadCount == 0 ||
+              c.cellmapHash != cellmap ||
+              c.blend != blend ||
+              groupVerts + c.quadCount * 4 > 0xFFFF) {
+            break;
+          }
+          group.add(c);
+          groupVerts += c.quadCount * 4;
+          j++;
+        }
+        i = j;
+
+        final geometry = _geometry.buildEffectGroup(
           plan,
-          command,
+          group,
           part,
           frame,
           texWidth: image.width.toDouble(),
@@ -1118,8 +1169,8 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable, InstanceChild {
           ui.BlendMode.modulate,
           ui.Paint()
             // An emitter's blend is the raw 0=Mix / 1=Add byte, NOT a BlendType.
-            ..blendMode = effectBlendModeFor(command.blend)
-            ..shader = textures.shaderFor(command.cellmapHash),
+            ..blendMode = effectBlendModeFor(blend)
+            ..shader = textures.shaderFor(cellmap),
         );
       }
     }
@@ -1341,9 +1392,12 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable, InstanceChild {
     f(writer.threshold);
   }
 
-  /// Builds the [ui.Paint] for a batch: framebuffer blend (`render/blend.dart`)
-  /// plus the resolved texture's identity [ui.ImageShader] (design §7B/§7C).
-  ui.Paint _paintForBatch(fbs.DrawBatch batch) => ui.Paint()
+  /// Configures the shared [_batchPaint] for a batch — framebuffer blend
+  /// (`render/blend.dart`) plus the resolved texture's identity [ui.ImageShader]
+  /// (design §7B/§7C) — and returns it. The result aliases [_batchPaint]; a
+  /// caller must consume it (draw) before the next [_paintForBatch] call, which
+  /// every call site does within one batch's scope.
+  ui.Paint _paintForBatch(fbs.DrawBatch batch) => _batchPaint
     ..blendMode = blendModeFor(batch.blendType)
     ..shader = textures.shaderFor(batch.textureHash);
 

@@ -522,13 +522,32 @@ class GeometryBuilder {
     );
   }
 
-  /// Bakes one `EffectDrawCommand`'s particle quads into a vertex block (§8).
+  /// Bakes one `EffectDrawCommand`'s particle quads into a vertex block (§8) —
+  /// the single-command case of [buildEffectGroup]. Returns null when the
+  /// command is empty or the plan's buffers are short.
+  MeshGeometry? buildEffectCommand(
+    efbs.EffectDrawPlan plan,
+    efbs.EffectDrawCommand cmd,
+    int part,
+    DrawFrame frame, {
+    required double texWidth,
+    required double texHeight,
+  }) =>
+      buildEffectGroup(plan, <efbs.EffectDrawCommand>[cmd], part, frame,
+          texWidth: texWidth, texHeight: texHeight);
+
+  /// Bakes a run of adjacent `EffectDrawCommand`s that share cellmap + blend
+  /// into ONE vertex block (§8), so the caller draws the whole group with a
+  /// single `drawVertices` instead of one per command (the SDK's suggested
+  /// effect optimisation). [cmds] must be same-cellmap / same-blend and in draw
+  /// order; [SpriteStudioInternalPlayer] groups them, capping each group so its
+  /// vertices stay within the 16-bit index limit.
   ///
-  /// The command slices the plan's flat buffers at `particle_offset` (in quads)
-  /// with each buffer's own stride; index values are already 0-based within the
-  /// command, so a per-command draw needs no rebasing.
-  ///
-  /// Two things differ from every other kind and are easy to get wrong:
+  /// Each command slices the plan's flat buffers at its own `particle_offset`
+  /// (in quads) with each buffer's stride; a command's indices are 0-based
+  /// *within that command*, so the group rebases them onto the running vertex
+  /// base (a single command rebases by 0 — the old per-command behaviour). Two
+  /// effect-only conventions the bake must honour:
   /// * the plan's verts are in the **effect's own simulation space** — the slot
   ///   API is never handed a matrix — so the effect part's world matrix is
   ///   applied here (the opposite of the mesh path, which arrives world-ready);
@@ -537,17 +556,19 @@ class GeometryBuilder {
   ///   pixels — so they are scaled up by [texWidth]/[texHeight] to match what
   ///   Flutter's identity `ImageShader` samples in.
   ///
-  /// Returns null when the command is empty or the plan's buffers are short.
-  MeshGeometry? buildEffectCommand(
+  /// A command whose buffers are short or whose indices are out of range is
+  /// skipped whole — validated before any of its data is written, so a corrupt
+  /// command never leaves a partial quad behind. Returns null when nothing was
+  /// emitted.
+  MeshGeometry? buildEffectGroup(
     efbs.EffectDrawPlan plan,
-    efbs.EffectDrawCommand cmd,
+    List<efbs.EffectDrawCommand> cmds,
     int part,
     DrawFrame frame, {
     required double texWidth,
     required double texHeight,
   }) {
-    final quads = cmd.quadCount;
-    if (quads == 0) return null;
+    if (cmds.isEmpty) return null;
     final verts = plan.verts;
     final uvs = plan.uvs;
     final planColors = plan.colors;
@@ -556,21 +577,17 @@ class GeometryBuilder {
         planIndices == null) {
       return null;
     }
-
     final stride = plan.vertStride == 3 ? 3 : 2;
-    final vertexCount = quads * 4;
-    final vOff = cmd.particleOffset * 4 * stride;
-    final uOff = cmd.particleOffset * 4 * 2;
-    final cOff = cmd.particleOffset * 4 * 4;
-    final iOff = cmd.particleOffset * 6;
-    final indexCount = quads * 6;
-    if (vOff + vertexCount * stride > verts.length ||
-        uOff + vertexCount * 2 > uvs.length ||
-        cOff + vertexCount * 4 > planColors.length ||
-        iOff + indexCount > planIndices.length) {
-      return null;
+
+    // Upper bound over the group; the views trim to what is actually written if
+    // a command is skipped as corrupt.
+    var totalQuads = 0;
+    for (final cmd in cmds) {
+      totalQuads += cmd.quadCount;
     }
-    if (vertexCount > 0xFFFF) return null; // ui.Vertices indices are 16-bit
+    if (totalQuads == 0) return null;
+    final totalVerts = totalQuads * 4;
+    if (totalVerts > 0xFFFF) return null; // ui.Vertices indices are 16-bit
 
     final m = part * DrawFrame.worldStride;
     if (m + 16 > frame.world.length) return null;
@@ -583,42 +600,71 @@ class GeometryBuilder {
     // part's hierarchical alpha in on top (the slot never sees it).
     final partAlpha = frame.alphaOf(part);
 
-    final positions = _pos(vertexCount * 2);
-    final texCoords = _uvs(vertexCount * 2);
-    final colors = _cols(vertexCount);
-    final indices = _idx(indexCount);
+    final positions = _pos(totalVerts * 2);
+    final texCoords = _uvs(totalVerts * 2);
+    final colors = _cols(totalVerts);
+    final indices = _idx(totalQuads * 6);
 
-    for (var i = 0; i < vertexCount; i++) {
-      final x = verts[vOff + i * stride];
-      final y = verts[vOff + i * stride + 1];
-      positions[i * 2] = m0 * x + m4 * y + m12;
-      positions[i * 2 + 1] = m1 * x + m5 * y + m13;
+    var vBase = 0; // running vertex base — the per-command index rebase
+    var fPos = 0, cPos = 0, iPos = 0;
+    for (final cmd in cmds) {
+      final quads = cmd.quadCount;
+      if (quads == 0) continue;
+      final vertexCount = quads * 4;
+      final vOff = cmd.particleOffset * 4 * stride;
+      final uOff = cmd.particleOffset * 4 * 2;
+      final cOff = cmd.particleOffset * 4 * 4;
+      final iOff = cmd.particleOffset * 6;
+      final indexCount = quads * 6;
+      if (vOff + vertexCount * stride > verts.length ||
+          uOff + vertexCount * 2 > uvs.length ||
+          cOff + vertexCount * 4 > planColors.length ||
+          iOff + indexCount > planIndices.length) {
+        continue; // short buffers — skip this command, keep the rest
+      }
+      // Validate the whole index range BEFORE writing any of this command's
+      // data, so a corrupt command leaves no half-written quad behind.
+      var valid = true;
+      for (var k = 0; k < indexCount; k++) {
+        final v = planIndices[iOff + k];
+        if (v < 0 || v >= vertexCount) {
+          valid = false;
+          break;
+        }
+      }
+      if (!valid) continue;
 
-      texCoords[i * 2] = uvs[uOff + i * 2] * texWidth;
-      texCoords[i * 2 + 1] = uvs[uOff + i * 2 + 1] * texHeight;
+      for (var i = 0; i < vertexCount; i++) {
+        final x = verts[vOff + i * stride];
+        final y = verts[vOff + i * stride + 1];
+        positions[fPos] = m0 * x + m4 * y + m12;
+        positions[fPos + 1] = m1 * x + m5 * y + m13;
 
-      final c = cOff + i * 4;
-      final a = (planColors[c + 3] * partAlpha * 255).round().clamp(0, 255);
-      final r = (planColors[c] * 255).round().clamp(0, 255);
-      final g = (planColors[c + 1] * 255).round().clamp(0, 255);
-      final b = (planColors[c + 2] * 255).round().clamp(0, 255);
-      colors[i] = (a << 24) | (r << 16) | (g << 8) | b;
+        texCoords[fPos] = uvs[uOff + i * 2] * texWidth;
+        texCoords[fPos + 1] = uvs[uOff + i * 2 + 1] * texHeight;
+        fPos += 2;
+
+        final c = cOff + i * 4;
+        final a = (planColors[c + 3] * partAlpha * 255).round().clamp(0, 255);
+        final r = (planColors[c] * 255).round().clamp(0, 255);
+        final g = (planColors[c + 1] * 255).round().clamp(0, 255);
+        final b = (planColors[c + 2] * 255).round().clamp(0, 255);
+        colors[cPos++] = (a << 24) | (r << 16) | (g << 8) | b;
+      }
+      for (var k = 0; k < indexCount; k++) {
+        indices[iPos++] = vBase + planIndices[iOff + k];
+      }
+      vBase += vertexCount;
     }
-    for (var k = 0; k < indexCount; k++) {
-      final v = planIndices[iOff + k];
-      if (v < 0 || v >= vertexCount) return null; // corrupt plan
-      indices[k] = v;
-    }
 
-    // Views trim the shared scratch back to this command's exact size (see the
-    // class doc's reuse contract).
+    if (fPos == 0 || iPos == 0) return null;
+    // Views trim the shared scratch back to what the group actually wrote (see
+    // the class doc's reuse contract).
     return MeshGeometry(
-      positions:
-          Float32List.view(positions.buffer, positions.offsetInBytes, vertexCount * 2),
-      texCoords:
-          Float32List.view(texCoords.buffer, texCoords.offsetInBytes, vertexCount * 2),
-      colors: Int32List.view(colors.buffer, colors.offsetInBytes, vertexCount),
-      indices: Uint16List.view(indices.buffer, indices.offsetInBytes, indexCount),
+      positions: Float32List.view(positions.buffer, positions.offsetInBytes, fPos),
+      texCoords: Float32List.view(texCoords.buffer, texCoords.offsetInBytes, fPos),
+      colors: Int32List.view(colors.buffer, colors.offsetInBytes, cPos),
+      indices: Uint16List.view(indices.buffer, indices.offsetInBytes, iPos),
     );
   }
 
