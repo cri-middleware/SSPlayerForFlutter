@@ -18,9 +18,8 @@
 
 ## 📚 ドキュメント
 
-- [アーキテクチャ設計（`docs/architecture.ja.md`）](./docs/architecture.ja.md) — 設計意図の一次情報
-- [リポジトリ構成・アーキテクチャ図（`docs/repository-structure.ja.md`）](./docs/repository-structure.ja.md)
-- [実装ロードマップ・現状（`docs/status.ja.md`）](./docs/status.ja.md)
+- [アーキテクチャ設計（`docs/architecture.ja.md`）](./docs/architecture.ja.md) — 設計意図の一次情報・リポジトリ構成（§3）・kind × 横断機能の整合性（§11-A）
+- [今後のロードマップ（`ROADMAP.md`）](./ROADMAP.md) — Normal / PartColor / Mask / Mesh / Effect / Instance / Shape は出荷済み。今後の作業（Nines・Text・BoxFit・Flame・性能・SDK 待ち）はこちら
 - [実装者向け規約・要注意点（`AGENTS.md`）](./AGENTS.md) — FFI 寿命 / ネイティブ同梱（Native Assets）/ UV ピクセル座標 / `updateFlag` の罠 ほか
 
 ### 目的別ガイド（読む範囲は目的まででOK）
@@ -147,10 +146,9 @@ cd examples/overall && flutter run
   flutter test   # Native Assets が hook/build.dart 経由で Brain を自動同梱。env 変数は不要
   ```
   `ssruntime_dart` / `ssconverter_dart` は各パッケージで `dart test`（同じく hook がネイティブを解決）。
-- **規約・設計**: [AGENTS.md](./AGENTS.md)（実装規約・要注意点） /
-  [docs/architecture.ja.md](./docs/architecture.ja.md)（設計） /
-  [docs/repository-structure.ja.md](./docs/repository-structure.ja.md)（構成図・Native Assets 同梱の要点） /
-  [docs/status.ja.md](./docs/status.ja.md)（進捗）。
+- **規約・設計**: [AGENTS.md](./AGENTS.md)（実装規約・要注意点・Native Assets 同梱） /
+  [docs/architecture.ja.md](./docs/architecture.ja.md)（設計・リポジトリ構成 §3・kind × 横断機能の整合性 §11-A） /
+  [ROADMAP.md](./ROADMAP.md)（今後の作業）。
 
 ## 🔗 関連リポジトリ
 

@@ -2,10 +2,11 @@
 
 This is the **Flutter Player** roadmap for SSPlayerForFlutter. It tracks the
 Flutter-specific implementation tasks for capabilities exposed by the **Rust
-runtime/converter** (`SpriteStudio-SDK/ROADMAP.md`). Feature-completeness of the
-draw kinds already shipped (Normal / PartColor / Mask / Mesh / Effect / Instance /
-Shape) and the known cross-cutting gaps live in
-[`docs/status.ja.md`](./docs/status.ja.md); this file tracks forward-looking work.
+runtime/converter** (`SpriteStudio-SDK/ROADMAP.md`). The draw kinds already
+shipped (Normal / PartColor / Mask / Mesh / Effect / Instance / Shape) and the
+code-verified kind × cross-cutting consistency matrix live in
+[`docs/architecture.ja.md` §11-A](./docs/architecture.ja.md); this file tracks
+forward-looking work only.
 
 Most items selectively bring worthwhile capabilities from the legacy SS6 players
 into this SS7-based Flutter player — reimagined for SS7 and Flutter's
@@ -92,7 +93,13 @@ draw-call count of *peeled* shader parts.
   `Resource` (the parsed `.ssab`) should be shareable across children of the same
   pack. Related to the SDK Phase 3 **shared resource registry** (below), but a
   Body-local dedup is possible sooner. See the Instance row in
-  [`docs/status.ja.md`](./docs/status.ja.md).
+  [`docs/architecture.ja.md` §8](./docs/architecture.ja.md).
+- ☐ **Quad mask-writer anti-aliasing** (low priority) — coverage is a *number*, not
+  a picture, so an AA'd writer edge can decode as another writer's bits. Shape/Mesh
+  writers already draw with `isAntiAlias = false`; the existing quad-writer path
+  (`drawPath` + shader) still uses Paint's default AA and should be turned off for
+  the same reason. Real-world impact is bounded to a 1px edge. See
+  [`docs/architecture.ja.md` §11-A](./docs/architecture.ja.md) "既知の不整合".
 
 ---
 
@@ -107,11 +114,15 @@ draw-call count of *peeled* shader parts.
   this).
 - ☐ **`Nines` / `Text` kinds + BoxFit / alignment** — the remaining Phase-2 draw
   kinds and fitting the animation's design bounds into the destination box. Shape
-  and the other kinds already ship; see [`docs/status.ja.md`](./docs/status.ja.md).
-- ☐ **Instance-child mask inheritance (§3-2-2)** and **Mesh PartColor / mask-target**
-  — cross-cutting gaps tracked in [`docs/status.ja.md`](./docs/status.ja.md). Mesh
-  PartColor/mask is bounded by the same no-varyings shader constraint as the
-  fan-out item above.
+  and the other kinds already ship; see the kind matrix in
+  [`docs/architecture.ja.md` §11-A](./docs/architecture.ja.md).
+- ☐ **Mesh PartColor / mask-target** and **Instance-part own PartColor** — the
+  remaining cross-cutting gaps in the kind matrix
+  ([`docs/architecture.ja.md` §11-A](./docs/architecture.ja.md)). Mesh
+  PartColor/mask-target is bounded by the same no-varyings shader constraint as the
+  fan-out item above; Instance-part PartColor is unimplemented in the Godot flagship
+  too (only α propagates today). (Instance-*child* mask inheritance §3-2-2 already
+  ships — see the matrix.)
 
 ## ☐/⛔ SDK-integration features
 
@@ -147,7 +158,8 @@ draw-call count of *peeled* shader parts.
   geometry bug (`Arrow` is emitted as a bare 7-point polygon with no center, while
   every Player fans it). The fix belongs in the runtime (give `Arrow` a center +
   closing vertex, count 7→9); it is on the **SpriteStudio-SDK Backlog** and repairs
-  all five Players at once. See `docs/status.ja.md` and the SDK roadmap.
+  all five Players at once. See [`docs/architecture.ja.md` §11-A](./docs/architecture.ja.md)
+  "既知の不整合" and the SDK roadmap.
 - **Mask rendering is a Player responsibility, not an SDK deliverable** (per the
   SDK roadmap's "Items not on the roadmap by design"). Already implemented here
   via the coverage-bitmap hybrid — no roadmap item.

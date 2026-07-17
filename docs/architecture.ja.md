@@ -142,13 +142,48 @@ Brain    libssruntime (Rust Native / 計算・SIMD・DrawBatch)
   同梱する Native Assets 方式。プラットフォーム別のプラグインネイティブビルド（podspec / CMake）は不要。
 
 ```
-（実際の構成は README.md「リポジトリ構成」を参照）
-scripts/build-runtime.{sh,ps1}         # Rust ビルド ＋ 配置
-scripts/generate-ffigen-code.{sh,ps1}  # ffigen（C-API 変更時に手動実行 → commit）
-scripts/generate-fbs-code.{sh,ps1}     # flatc（.fbs 変更時のみ）
-packages/ssplayer_flutter/             # 配布 pub パッケージ（Flutter・ssruntime_dart 依存）
-examples/overall/                      # overall.sspj 検証用 Flutter アプリ
+SSPlayerForFlutter/
+├── SpriteStudio-SDK/                     # [submodule] Brain (libssruntime / libssconverter / .fbs)
+├── scripts/
+│   ├── build-runtime.{sh,ps1}            # Rust をソースビルド → 各パッケージの native/libs へ配置
+│   ├── generate-ffigen-code.{sh,ps1}     # ffigen（Dart FFI）。C-API 変更時に手動実行 → commit
+│   ├── generate-fbs-code.{sh,ps1}        # flatc（.ssab/FrameData の Dart アクセサ）。.fbs 変更時のみ
+│   └── deploy-examples.sh                # overall.sspj → .ssab（Dart ssconvert 経由・Rust 不要）
+├── packages/ssplayer_flutter/            # 【L2–4 描画】Flutter パッケージ（全プラットフォーム・ssruntime_dart 依存）
+│   ├── lib/
+│   │   ├── ssplayer_flutter.dart         # 公開 API（L2–4。L1 は ssruntime_dart から直接 import）
+│   │   └── src/
+│   │       ├── ssab/*.g.dart             # [flatc 生成・コミット] .ssab / .ssqb アセット形式アクセサ
+│   │       ├── internal_player.dart      # Layer 2（描画エンジン・SoA ベイク・paint）
+│   │       ├── texture_registry.dart     # Layer 2（hash→Image・blend マッピング）
+│   │       ├── texture_loader.dart       # reference/embedded テクスチャ読込（§16C）
+│   │       ├── ssab_info.dart            # アニメ／セルマップ名の列挙
+│   │       ├── player.dart               # Layer 3
+│   │       └── render/sprite_studio_view.dart  # Layer 4
+│   ├── test/                             # スモーク＋実描画テスト（Native Assets 経由・env 変数不要）
+│   └── pubspec.yaml                      # ※プラグインではない（native は ssruntime_dart が同梱）
+├── packages/ssruntime_dart/              # 【Layer 1】ランタイム FFI バインディング（純 Dart・renderer 非依存）
+│   ├── lib/ssruntime_dart.dart           # 公開 API（@Native トップレベル C-API 関数・ローダ無し）
+│   ├── lib/framedata.dart                # ランタイム出力 FrameData の公開ライブラリ
+│   ├── lib/src/ssruntime_bindings.g.dart # [ffigen 生成・@Native] 全 C-API（gitignore）
+│   ├── lib/src/fbs/*.g.dart              # [flatc 生成・コミット] framedata / effect_draw_plan
+│   ├── hook/build.dart                   # Native Assets: 素の dylib を CodeAsset として同梱
+│   ├── native/                           # [生成物] include/ssruntime.h + libs/<platform>/（gitignore）
+│   ├── ffigen.yaml
+│   └── pubspec.yaml
+├── packages/ssconverter_dart/            # 【変換ツール】ホスト用 .sspj→.ssab（純 Dart・desktop 専用）
+│   ├── lib/ssconverter_dart.dart         # 公開 API（SsConverter）
+│   ├── lib/src/                          # converter.dart・ffigen 生成物（gitignore）
+│   ├── bin/ssconvert.dart                # dart run ssconverter_dart:ssconvert
+│   ├── hook/build.dart                   # Native Assets: libssconverter を CodeAsset として同梱
+│   ├── native/                           # [生成物] include/ssconverter.h + libs/<platform>/（gitignore）
+│   ├── ffigen.yaml
+│   └── pubspec.yaml
+└── examples/overall/                     # overall.ssab 検証用の Flutter アプリ
 ```
+
+ネイティブ同梱（Native Assets）と macOS フレームワーク再ラップの詳細は §17（配布形式）と
+[AGENTS.md](../AGENTS.md) の「Native packaging」を参照。
 
 ## 4. 実装ロードマップ
 
@@ -364,7 +399,8 @@ Flutter としては **Phase 1**（Basic〜BlendMode を `SpriteStudioView` で�
     （兄弟プレイヤーは「未バインドのサンプラが白を返す」に依存しているが、Flutter にその既定はない）。
   - **マスク**: Shape は writer にも対象にもなる。writer は**ポリゴンそのものがマスク＝カットアウト閾値なし**
     （§2-5「シェイプの特例」）。ただし `mask == 0` の writer 無効は別ルールなので生きる。
-  - **Arrow は SDK 側が不整合**（中心頂点が無いのに全プレイヤーがファンとして消費）。status.ja.md 参照。
+  - **Arrow は SDK 側が不整合**（中心頂点が無いのに全プレイヤーがファンとして消費）。本章末
+    §11-A「既知の不整合・要判断」参照。
 - **9-Slice（Runtime 側で計算済み・未実装）**: `local_vertices` に展開済み。
 - **Sound（Body）**: passed_event の `audios` を監視してアプリのオーディオで再生。
 
@@ -384,6 +420,55 @@ Flutter としては **Phase 1**（Basic〜BlendMode を `SpriteStudioView` で�
 
 - UV アニメ（平行移動・回転・スケール）は `FrameData.local_uvs` SoA に、Flip（`flip_h/v`・`img_flip_h/v`）は `local_vertices` SoA に計算済み。
   `Canvas.drawVertices` に頂点・UV をそのまま渡すだけで、Body 側の追加変換・反転は不要。
+
+## 11-A. 機能どうしの整合性（kind × 横断機能）
+
+§8–11 の各 kind が「PartColor / マスク writer / マスク対象 / α（Instance 連鎖）」を
+どう扱うかの一覧。**コードから機械的に確認した結果**であって、設計上の建前ではありません
+（確認方法も併記）。未実装（⏳/❌）項目の前向きな追跡は [ROADMAP.md](../ROADMAP.md) 側。
+
+| kind | PartColor (§10) | マスク writer (§9) | マスク対象 (§9) | α スケール (§8 Instance 連鎖) |
+|---|---|---|---|---|
+| **Normal** | ✅ シェーダで 4隅補間 | ✅ スプライトクアッド | ✅ | ✅ |
+| **Mask**（純粋マスク） | — 色を描かない | ✅ スプライトクアッド | — | — |
+| **Shape** | ✅ 頂点カラー（式バイパス）| ✅ ポリゴン・閾値なし | ✅ | ✅ |
+| **Mesh** | ⏳ TODO | ✅ 変形三角形・閾値なし（幾何=マスク）| ⏳ TODO | ✅ |
+| **Effect** | ❌ 非対応（plan が自前の色を持つ）| ❌ | ⏳ TODO | ✅ |
+| **Instance** | ⏳ TODO（フラグシップも未対応）| ❌ | ✅ §3-2-2 継承（子全体をゲート・単一レベル）| ✅ |
+| **Nines / Text** | ❌ kind 自体が未実装 | ❌ 除外 | ❌ | — |
+
+確認方法（再現手順）:
+
+* **マスク対象**: `_MaskContext.bitsForTarget` の呼び出し元は `_emitNormalBatch` /
+  `_emitShapeBatch` /（§3-2-2 継承の）`_emitInstanceBatch` の 3 箇所。前 2 者はパーツ単位の
+  ゲート、Instance は子アニメ**全体**を 1 つの rank でゲート（`drawFor(bits).composeSlot(world)`）。
+  → Mesh / Effect がマスク対象になってもテストされず素通しで描かれる（Mesh のマスク対象は varying 制約で TODO）。
+* **PartColor**: `PartColor.read` の呼び出し元は `_emitNormalBatch`（シェーダ経路）と
+  `GeometryBuilder.buildShapeParts`（頂点カラー経路）の 2 箇所のみ。
+* **マスク writer**: `MaskPartFlags.drawableWriter` ＝ `quadGeometry || shapeGeometry || meshGeometry`。
+  `quadGeometry` は Normal / Mask パーツ型、`shapeGeometry` は Shape、`meshGeometry` は Mesh パーツ型。
+  Shape / Mesh writer はテクセル閾値を持たず、幾何そのものを `plus`・AA off でカバレッジに描く。他（Text/Nines/Effect）は writer 収集で落とす。
+* **α スケール**: `DrawFrame.alphaOf` が一点集約なので、それを通る全経路
+  （`buildNormalParts` / `buildMeshGeometry` / `buildEffectCommand` / `buildShapeParts` /
+  `_emitInstanceBatch`）に届く。シェーダ経路だけは `pc.scaleAlpha(frame.alphaScale)` で別途適用
+  （PartColor の α には階層 α が事前合成済みなので再乗算してはいけないため）。
+
+### 既知の不整合・要判断
+
+* **Arrow シェイプ（SDK 側）**: ランタイムの `compute_shape_vertices` は Rectangle / Triangle / Star を
+  `[center, 周, 閉じ]` の**中心ファン**で出すのに、**Arrow だけ中心頂点なしの素の 7 点多角形**を出します
+  （`libs/ssruntime/src/core/geometry.rs`）。一方で全プレイヤー（Godot / Unity / Web / 本実装）は
+  `(0, i+1, i+2)` の中心ファンとして消費するため、**Arrow は矢印の外側が塗られます**
+  （5 枚のファン三角形のうち 2 枚が多角形外：数値確認済み）。
+  **修正は SDK 側が正しい**（Arrow にも中心＋閉じ頂点を足して count 7→9。12 スロットに収まる）。
+  そうすれば 4 プレイヤーすべてが同時に直ります。Body 側で個別対応すると、内部の頂点順に依存した
+  脆いコードが 4 リポジトリに散ります。Triangle / Rectangle / Star は影響ありません。追跡は
+  [ROADMAP.md](../ROADMAP.md) の Upstream 節。
+* **マスク writer のアンチエイリアス**: カバレッジは「数」であって絵ではないため、
+  writer のエッジが AA されると半端な値が**別の writer のビット**としてデコードされ得ます。
+  Shape / Mesh writer は `isAntiAlias = false` で描いていますが、既存のクアッド writer 経路
+  （`drawPath` ＋ シェーダ）は Paint 既定の AA のままです。実害はエッジ 1px に限られるものの、
+  同じ理由で AA を切るべきです（未対応・低優先。[ROADMAP.md](../ROADMAP.md) の Performance backlog）。
 
 ---
 

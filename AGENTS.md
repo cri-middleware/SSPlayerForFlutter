@@ -310,7 +310,8 @@ These were learned the hard way — respect them.
   - **Arrow is broken upstream**: the runtime emits it as a bare 7-point polygon
     with no center vertex, while every player (this one included) fans it — so
     2 of its 5 triangles paint outside the arrow. Fix belongs in the SDK (give
-    Arrow a center + closing vertex, count 7→9); see docs/status.ja.md.
+    Arrow a center + closing vertex, count 7→9); see docs/architecture.ja.md §11-A
+    "既知の不整合" and ROADMAP.md.
 * **PartColor alpha is either/or — the Brain pre-folds it (§1-3).** With a
   PartColor, the hierarchical alpha is already multiplied into `rgba.a`, so
   `a = texel.a * col.a` and re-multiplying `PartState.alpha` double-applies.
