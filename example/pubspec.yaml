@@ -32,4 +32,11 @@ flutter:
   assets:
     # Populated by `scripts/deploy-examples.sh` (stages SpriteStudio_Source/
     # then converts it here — the SsProjectSync convention the live-reload reuses).
+    # One dir per deployed project; the stem matches its .sspj (see deploy script).
+    # NB: a Flutter asset dir entry is NOT recursive, so every subdirectory the
+    # converter emits (font/, sound/ for reference textures/fonts/sounds) needs
+    # its own line. Ringo has no subdirs.
     - assets/spritestudio/overall/
+    - assets/spritestudio/overall/font/
+    - assets/spritestudio/overall/sound/
+    - assets/spritestudio/Ringo/

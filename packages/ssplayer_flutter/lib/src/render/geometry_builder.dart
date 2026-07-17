@@ -715,6 +715,29 @@ class GeometryBuilder {
     return out;
   }
 
+  /// Part [part]'s mesh vertices in world space, interleaved `[x,y,…]`, or null
+  /// when it has no *drawable* mesh geometry this frame. Mesh SoA is already
+  /// world-space (§8) so this is a straight copy — used for the coverage bbox of
+  /// a mesh clipping writer (§9). Requires a triangle-bearing index range too, so
+  /// the mask planner reserves a coverage bit only for a writer [_renderCoverage]
+  /// can actually rasterise (else a vertex-only part would fold phantom verts
+  /// into the bbox yet write nothing — an inert bit).
+  static Float32List? meshWorldOutlineOf(int part, DrawFrame frame) {
+    final mesh = frame.mesh;
+    if (mesh == null) return null;
+    final vr = mesh.vertexRange(part);
+    final ir = mesh.indexRange(part);
+    if (vr == null || ir == null) return null;
+    final n = vr.$2 - vr.$1;
+    if (n <= 0 || ir.$2 - ir.$1 < 3) return null; // no vertices / no triangle
+    final out = Float32List(n * 2);
+    for (var v = 0; v < n; v++) {
+      out[v * 2] = mesh.x[vr.$1 + v];
+      out[v * 2 + 1] = mesh.y[vr.$1 + v];
+    }
+    return out;
+  }
+
   static int _argb(double r, double g, double b, double a) {
     int ch(double v) => (v.clamp(0.0, 1.0) * 255.0).round();
     return (ch(a) << 24) | (ch(r) << 16) | (ch(g) << 8) | ch(b);

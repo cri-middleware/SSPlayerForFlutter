@@ -46,11 +46,16 @@ class SsTextureLoader {
     final unresolved = <String>[];
 
     await Future.wait(cellmaps.map((cm) async {
+      // Sampling is a cellmap property (design §7): honour its declared filter +
+      // wrap so drawVertices doesn't fall back to nearest-neighbour (jaggy).
+      final filterQuality = _filterQualityFor(cm);
+      final tileMode = _tileModeFor(cm);
       // 1. Embedded bytes take priority.
       final asset = embedded[cm.imagePathHash];
       final data = asset?.data;
       if (data != null && data.isNotEmpty) {
-        registry.register(cm.nameHash, await decodeImage(_asBytes(data)));
+        registry.register(cm.nameHash, await decodeImage(_asBytes(data)),
+            filterQuality: filterQuality, tileMode: tileMode);
         return;
       }
       // 2. Reference: resolve the sibling image from the asset bundle.
@@ -59,7 +64,8 @@ class SsTextureLoader {
         final assetPath = _joinAsset(baseAssetDir, path);
         try {
           final bytes = (await bnd.load(assetPath)).buffer.asUint8List();
-          registry.register(cm.nameHash, await decodeImage(bytes));
+          registry.register(cm.nameHash, await decodeImage(bytes),
+              filterQuality: filterQuality, tileMode: tileMode);
           return;
         } catch (_) {
           unresolved.add(assetPath);
@@ -71,6 +77,21 @@ class SsTextureLoader {
 
     return TextureLoadReport(unresolved);
   }
+
+  /// Cellmap `filterMode` → Flutter sampling: Nearest keeps crisp pixel-art,
+  /// Linear (the SpriteStudio default) is bilinear. These are plain single-value
+  /// enums, so `fromValue` is safe here (unlike the OR-combined `bit_flags`).
+  static ui.FilterQuality _filterQualityFor(ssab.CellMap cm) =>
+      cm.filterMode == ssab.TexFilterMode.Nearest
+          ? ui.FilterQuality.none
+          : ui.FilterQuality.low;
+
+  /// Cellmap `wrapMode` → [ui.TileMode] (default Clamp).
+  static ui.TileMode _tileModeFor(ssab.CellMap cm) => switch (cm.wrapMode) {
+        ssab.TexWrapMode.Repeat => ui.TileMode.repeated,
+        ssab.TexWrapMode.Mirror => ui.TileMode.mirror,
+        ssab.TexWrapMode.Clamp => ui.TileMode.clamp,
+      };
 
   /// Loads ONLY the embedded cellmap textures (no asset bundle access).
   static Future<TextureLoadReport> loadEmbedded(

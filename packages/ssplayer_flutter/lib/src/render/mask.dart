@@ -32,6 +32,7 @@ class MaskPartFlags {
     required this.visibleInsideMask,
     this.quadGeometry = true,
     this.shapeGeometry = false,
+    this.meshGeometry = false,
   });
 
   /// A part with no mask involvement at all (also the out-of-range fallback).
@@ -63,11 +64,19 @@ class MaskPartFlags {
   /// the two differ in both geometry *and* thresholding.
   final bool shapeGeometry;
 
+  /// A Mesh part (§8): its coverage is its deformed triangle mesh, taken from the
+  /// mesh SoA (already world-space). Like a shape it bypasses the alpha cutout
+  /// (§2-5) — Flutter fragment shaders take no per-vertex UV varying, so the mesh
+  /// texel alpha cannot be thresholded per fragment; the triangle geometry *is*
+  /// the mask. A slight over-cover versus a texel-cutout mesh, but a mesh
+  /// clipping writer (e.g. `Mesh-WriteMask-True`) now clips its targets instead
+  /// of being dropped.
+  final bool meshGeometry;
+
   /// Whether this part can write coverage at all — i.e. the coverage pass knows
-  /// how to rasterise its shape. Everything else (Mesh / Text / Nines) is
-  /// dropped as a writer rather than clipping its targets with a wrong-shaped
-  /// stand-in.
-  bool get drawableWriter => quadGeometry || shapeGeometry;
+  /// how to rasterise its shape. Text / Nines are still dropped as writers
+  /// rather than clipping their targets with a wrong-shaped stand-in.
+  bool get drawableWriter => quadGeometry || shapeGeometry || meshGeometry;
 
   /// `PartTypeMask || draw_as_mask` — writes coverage and draws NO colour.
   final bool pureMask;
@@ -120,6 +129,7 @@ class MaskPartFlags {
           quadGeometry: type == ssab.PartTypeTypeId.PartTypeNormal ||
               type == ssab.PartTypeTypeId.PartTypeMask,
           shapeGeometry: type == ssab.PartTypeTypeId.PartTypeShape,
+          meshGeometry: type == ssab.PartTypeTypeId.PartTypeMesh,
         );
       },
       growable: false,
@@ -277,12 +287,15 @@ class MaskPlan {
       final mask = frame.partByIndex[p]?.mask ?? 0.0;
       if (mask <= 0.0) continue;
 
-      // World outline: a shape's is its polygon, everything else's is the
-      // sprite quad. A shape part has no cell and so no `local_vertices`, which
-      // is why it cannot share the quad path here.
+      // World outline: a shape's is its polygon, a mesh's is its (world-space)
+      // vertices, everything else's is the sprite quad. A shape/mesh part has no
+      // cell and so no `local_vertices`, which is why they cannot share the quad
+      // path here.
       final outline = f.shapeGeometry
           ? GeometryBuilder.shapeWorldOutlineOf(p, frame)
-          : GeometryBuilder.worldCornersOf(p, frame);
+          : f.meshGeometry
+              ? GeometryBuilder.meshWorldOutlineOf(p, frame)
+              : GeometryBuilder.worldCornersOf(p, frame);
       if (outline == null) continue; // no geometry this frame — nothing to write
 
       writers.add(MaskWriter(
@@ -292,8 +305,11 @@ class MaskPlan {
         opInvert: f.maskInfluence,
         isClipping: f.isClipping,
         // A shape has no texel to threshold, so its whole polygon is the mask
-        // (§2-5「シェイプの特例」). -1 is the flagship's "never cut out" sentinel.
-        threshold: f.shapeGeometry
+        // (§2-5「シェイプの特例」); a mesh could threshold in principle but our
+        // coverage pass can't sample its per-vertex UV (no shader varyings), so
+        // it too falls back to geometry-as-mask. -1 is the flagship's "never cut
+        // out" sentinel.
+        threshold: f.shapeGeometry || f.meshGeometry
             ? noCutoutThreshold
             : ((255.0 - mask) / 255.0).clamp(0.0, 1.0),
       ));
@@ -358,14 +374,16 @@ class MaskPlan {
   /// The player-local → coverage-UV affine (§3-2-2), as the shader wants it:
   /// `[m00, m01, m10, m11]` with the offset in [uvOffset]. The box maps onto the
   /// full `[0,1]²` texture, so this is independent of the bitmap's pixel size.
-  Float32List get uvBasis => Float32List.fromList(<double>[
-        1.0 / bounds.width, 0.0, //
-        0.0, 1.0 / bounds.height,
-      ]);
+  /// Cached: it is read once per peeled target (and per masked instance child),
+  /// so recomputing it each access would allocate needlessly.
+  late final Float32List uvBasis = Float32List.fromList(<double>[
+    1.0 / bounds.width, 0.0, //
+    0.0, 1.0 / bounds.height,
+  ]);
 
-  /// Offset half of the [uvBasis] affine.
-  Float32List get uvOffset => Float32List.fromList(<double>[
-        -bounds.left / bounds.width,
-        -bounds.top / bounds.height,
-      ]);
+  /// Offset half of the [uvBasis] affine (cached, see [uvBasis]).
+  late final Float32List uvOffset = Float32List.fromList(<double>[
+    -bounds.left / bounds.width,
+    -bounds.top / bounds.height,
+  ]);
 }

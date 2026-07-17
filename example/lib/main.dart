@@ -38,24 +38,34 @@ class _PlayerPageState extends State<PlayerPage>
 
   // The current .ssab source. Starts on the bundled overall.sspj packs; drag &
   // drop a folder (or a .ssab) onto the window to swap to a filesystem source.
-  static const _bundledPacks = <String>[
-    'Shape',
-    'Instance',
-    'Effect',
-    'Mesh',
-    'Mask',
-    'PartsColor',
-    'Basic',
-    'BlendMode',
-    'Interpolation',
-  ];
+  //
+  // Bundled sources: asset dir → its packs. A bundle can't be enumerated at
+  // runtime (unlike a dropped folder), so the pack lists are declared here and
+  // kept in sync with what `scripts/deploy-examples.sh` converts. Each dir's
+  // stem matches its `.sspj` (see the deploy script / SsProjectSync convention).
+  static const _bundledSources = <String, List<String>>{
+    'assets/spritestudio/overall': <String>[
+      'Shape',
+      'Instance',
+      'Effect',
+      'Mesh',
+      'Mask',
+      'PartsColor',
+      'Basic',
+      'BlendMode',
+      'Interpolation',
+    ],
+    'assets/spritestudio/Ringo': <String>['Ringo', 'Ringo_tyu'],
+  };
+  static const _defaultSource = 'assets/spritestudio/overall';
+
   AssetBundle _bundle = rootBundle;
-  String _assetDir = 'assets/spritestudio/overall';
+  String _assetDir = _defaultSource;
   bool _dropped = false;
 
   // pack = a separate .ssab file in the current source directory.
-  List<String> _packs = _bundledPacks;
-  String _pack = 'Shape';
+  List<String> _packs = _bundledSources[_defaultSource]!;
+  String _pack = _bundledSources[_defaultSource]!.first;
 
   // Animations inside the currently-loaded pack, enumerated from the .ssab via
   // SpriteStudioPlayer.getAnimations(); the second dropdown switches between
@@ -64,6 +74,11 @@ class _PlayerPageState extends State<PlayerPage>
   String? _anim;
 
   bool _dragging = false;
+
+  // Pan/zoom of the animation within the view: drag to reposition, scroll or
+  // pinch to zoom (also handy for inspecting rendering up close). Reset via the
+  // AppBar's center-focus button.
+  final TransformationController _view = TransformationController();
 
   @override
   void initState() {
@@ -113,6 +128,22 @@ class _PlayerPageState extends State<PlayerPage>
       print('[ssplayer] FAILED: $e\n$st');
       if (mounted) setState(() => _status = 'failed: $e');
     }
+  }
+
+  // Switch between bundled sources (a deployed project dir, e.g. overall/Ringo).
+  // Reloads the resource+textures from the new dir and plays its first pack.
+  Future<void> _selectSource(String dir) async {
+    if (!_dropped && dir == _assetDir) return;
+    final packs = _bundledSources[dir]!;
+    setState(() {
+      _bundle = rootBundle;
+      _assetDir = dir;
+      _dropped = false;
+      _packs = packs;
+      _animations = const <String>[];
+      _anim = null;
+    });
+    await _load(packs.first);
   }
 
   // Switch animation within the loaded pack — no reload, just re-setup + play.
@@ -185,7 +216,7 @@ class _PlayerPageState extends State<PlayerPage>
   SpriteStudioPlayer get ssPlayer => _player;
 
   @override
-  String get ssAssetDir => 'assets/spritestudio/overall';
+  String get ssAssetDir => _assetDir;
 
   @override
   String get ssPack => _pack;
@@ -215,6 +246,7 @@ class _PlayerPageState extends State<PlayerPage>
 
   @override
   void dispose() {
+    _view.dispose();
     _player.dispose();
     super.dispose();
   }
@@ -226,11 +258,51 @@ class _PlayerPageState extends State<PlayerPage>
       appBar: AppBar(
         title: const Text('ssplayer_flutter'),
         actions: [
-          // Animation within the current pack (from player.getAnimations()).
+          // Reset the pan/zoom back to the centered, 1:1 view.
+          IconButton(
+            icon: const Icon(Icons.center_focus_strong),
+            tooltip: 'Reset view',
+            onPressed: () => _view.value = Matrix4.identity(),
+          ),
+          // Menus read left→right: sspj (source project) · ssab (pack) · anime.
+          // sspj = a bundled source = a deployed project dir (overall / Ringo).
+          // Hidden once a folder is dropped (that source isn't in the map).
+          if (!_dropped)
+            _labeledMenu(
+              'sspj',
+              DropdownButton<String>(
+                value: _assetDir,
+                onChanged: (v) {
+                  if (v != null) _selectSource(v);
+                },
+                items: [
+                  for (final dir in _bundledSources.keys)
+                    DropdownMenuItem<String>(
+                      value: dir,
+                      child: Text(dir.split('/').last),
+                    ),
+                ],
+              ),
+            ),
+          // ssab = a separate .ssab pack file in the current source directory.
+          _labeledMenu(
+            'ssab',
+            DropdownButton<String>(
+              value: _pack,
+              onChanged: (v) {
+                if (v != null && v != _pack) _load(v);
+              },
+              items: [
+                for (final p in _packs)
+                  DropdownMenuItem<String>(value: p, child: Text(p)),
+              ],
+            ),
+          ),
+          // anime = an animation within the current pack (player.getAnimations()).
           if (_animations.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: DropdownButton<String>(
+            _labeledMenu(
+              'anime',
+              DropdownButton<String>(
                 value: _anim,
                 hint: const Text('animation'),
                 onChanged: (v) {
@@ -242,20 +314,7 @@ class _PlayerPageState extends State<PlayerPage>
                 ],
               ),
             ),
-          // Pack = a separate .ssab file in the current source directory.
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: DropdownButton<String>(
-              value: _pack,
-              onChanged: (v) {
-                if (v != null && v != _pack) _load(v);
-              },
-              items: [
-                for (final p in _packs)
-                  DropdownMenuItem<String>(value: p, child: Text(p)),
-              ],
-            ),
-          ),
+          const SizedBox(width: 8),
         ],
       ),
       body: DropTarget(
@@ -264,13 +323,15 @@ class _PlayerPageState extends State<PlayerPage>
         onDragDone: (detail) {
           if (detail.files.isNotEmpty) _openDropped(detail.files.first.path);
         },
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                width: 400,
-                height: 400,
+        child: Column(
+          children: [
+            // The display area fills the window and resizes with it. Omitting
+            // width/height lets SpriteStudioView expand to the box constraints;
+            // the animation stays centered (drag/zoom to reframe).
+            Expanded(
+              child: Container(
+                margin: const EdgeInsets.all(8),
+                clipBehavior: Clip.hardEdge,
                 decoration: BoxDecoration(
                   color: Colors.black26,
                   border: Border.all(
@@ -278,30 +339,57 @@ class _PlayerPageState extends State<PlayerPage>
                     width: 3,
                   ),
                 ),
-                child: SpriteStudioView(
-                  player: _player,
-                  width: 400,
-                  height: 400,
+                // Drag to reposition, scroll/pinch to zoom (clipped to the box).
+                child: InteractiveViewer(
+                  transformationController: _view,
+                  minScale: 0.25,
+                  maxScale: 16,
+                  boundaryMargin: const EdgeInsets.all(double.infinity),
+                  child: SpriteStudioView(player: _player),
                 ),
               ),
-              const SizedBox(height: 16),
-              Text(_status),
-              const SizedBox(height: 4),
-              Text(
-                'source: $source  ·  drop a folder of .ssab here',
-                style: Theme.of(context).textTheme.bodySmall,
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+              child: Column(
+                children: [
+                  Text(_status),
+                  const SizedBox(height: 4),
+                  Text(
+                    'source: $source  ·  drag to move · scroll to zoom · drop a folder of .ssab here',
+                    style: Theme.of(context).textTheme.bodySmall,
+                    textAlign: TextAlign.center,
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () =>
-            _player.isPlaying ? _player.pause() : _player.play(),
-        child: const Icon(Icons.play_arrow),
+        // One-tap transport: pause when advancing, else resume (head-out when
+        // stopped/finished). setState refreshes the icon to match.
+        onPressed: () => setState(_player.togglePlayPause),
+        child: Icon((_player.isPlaying && !_player.isPaused)
+            ? Icons.pause
+            : Icons.play_arrow),
       ),
     );
   }
+
+  // A dropdown with a small inline role label (sspj / ssab / anime), kept on one
+  // row so it fits the AppBar's toolbar height.
+  Widget _labeledMenu(String label, Widget menu) => Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 6),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('$label:', style: Theme.of(context).textTheme.labelSmall),
+            const SizedBox(width: 4),
+            menu,
+          ],
+        ),
+      );
 }
 
 /// AssetBundle whose keys are absolute filesystem paths, so a dropped folder's

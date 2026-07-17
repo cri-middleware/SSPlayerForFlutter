@@ -349,6 +349,11 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable, InstanceChild {
 
   bool get isPlaying => ss_runtime_is_playing(_context);
 
+  /// Whether playback is paused. Note the Brain keeps [isPlaying] `true` while
+  /// paused (pause is a *hold*, not a stop), and `ss_runtime_pause` *toggles*
+  /// this — so callers must gate on it rather than blind-calling `pause()`.
+  bool get isPausing => ss_runtime_is_pausing(_context);
+
   /// Every configured loop has played. Sticky until the next play/setup, so
   /// callers wanting a one-shot notification must take the rising edge.
   bool get isFinished => ss_runtime_is_finished(_context);
@@ -618,6 +623,7 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable, InstanceChild {
     ui.Canvas canvas, {
     double? frameOverride,
     double alphaScale = 1.0,
+    _MaskDraw? inheritedMask,
   }) {
     // Last frame's coverage has been rasterised by now; release it.
     _coverage?.dispose();
@@ -677,18 +683,23 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable, InstanceChild {
     // none of that machinery is needed.
     final maskCtx = _buildMaskContext(frame, batches);
 
+    // A mask inherited from a parent instance (§3-2-2) reaches only the child's
+    // peel-maskable kinds — Normal and Shape. Mesh/Effect are not peeled (no quad
+    // affine / can't threshold a deformed-mesh UV), and nested Instances are
+    // deliberately single-level, so those child kinds escape the parent clip —
+    // the same kinds an own-mask can't gate either.
     for (final batch in batches) {
       switch (batch.kind) {
         case fbs.DrawBatchKind.Normal:
-          _emitNormalBatch(canvas, batch, frame, maskCtx);
+          _emitNormalBatch(canvas, batch, frame, maskCtx, inheritedMask);
         case fbs.DrawBatchKind.Mesh:
           _emitMeshBatch(canvas, batch, frame);
         case fbs.DrawBatchKind.Effect:
           _emitEffectBatch(canvas, batch, frame);
         case fbs.DrawBatchKind.Instance:
-          _emitInstanceBatch(canvas, batch, frame);
+          _emitInstanceBatch(canvas, batch, frame, maskCtx);
         case fbs.DrawBatchKind.Shape:
-          _emitShapeBatch(canvas, batch, frame, maskCtx);
+          _emitShapeBatch(canvas, batch, frame, maskCtx, inheritedMask);
         case fbs.DrawBatchKind.Mask: // §9: coverage only, never colour
         case fbs.DrawBatchKind.Nines: // TODO(phase 2): §11 9-slice
         case fbs.DrawBatchKind.Text: // no SDK render path
@@ -708,8 +719,8 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable, InstanceChild {
   /// The whole child occupies exactly the instance part's z-slot: it can never
   /// interleave with this player's other parts. Painting it recursively at this
   /// point in the batch loop reproduces that ordering for free.
-  void _emitInstanceBatch(
-      ui.Canvas canvas, fbs.DrawBatch batch, DrawFrame frame) {
+  void _emitInstanceBatch(ui.Canvas canvas, fbs.DrawBatch batch, DrawFrame frame,
+      _MaskContext? maskCtx) {
     for (var k = 0; k < batch.count; k++) {
       final rank = batch.startRank + k;
       if (rank >= frame.drawOrder.length) break;
@@ -727,12 +738,23 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable, InstanceChild {
       final alpha = frame.alphaOf(part);
       if (alpha <= 0.0) continue;
 
+      // §3-2-2: this player's mask reaches an instance child that is itself a
+      // mask target, gating the WHOLE sub-animation with the instance part's own
+      // rank + polarity (not the child's individual parts). The coverage + meta
+      // come from this player; only the UV affine is re-composed with the slot
+      // matrix so the child's local fragments sample the parent's coverage.
+      // Single-level (the child does not forward it to its own instances).
+      final ownBits = maskCtx?.bitsForTarget(rank, _flagsFor(part));
+      final inherited =
+          ownBits == null ? null : maskCtx!.drawFor(ownBits).composeSlot(world);
+
       canvas.save();
       canvas.transform(world);
       state.child._paintTree(
         canvas,
         frameOverride: state.childFrame,
         alphaScale: alpha,
+        inheritedMask: inherited,
       );
       canvas.restore();
     }
@@ -812,6 +834,23 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable, InstanceChild {
         continue;
       }
 
+      // A Mesh writer (§8): its deformed triangles are the mask. Same treatment
+      // as a shape — geometry-as-mask, no texel cutout (a Flutter shader can't
+      // sample the per-vertex mesh UV) — so it rasterises with a plain bit fill.
+      if (_flagsFor(writer.partIndex).meshGeometry) {
+        final geometry = _geometry.buildMeshGeometry(<int>[writer.partIndex], frame);
+        if (geometry == null) continue;
+        canvas.drawPath(
+          _trianglesPath(geometry),
+          ui.Paint()
+            ..blendMode = ui.BlendMode.plus
+            ..color = _bitColor(writer.bit)
+            ..isAntiAlias = false,
+        );
+        wrote = true;
+        continue;
+      }
+
       final quad = _geometry.buildPartColorQuad(writer.partIndex, frame);
       if (quad == null) continue;
       final hash = textureByRank[writer.drawRank];
@@ -853,7 +892,7 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable, InstanceChild {
   /// bitmap and must never draw their own colour, or the mask would read as a
   /// solid fill instead of a hole.
   void _emitNormalBatch(ui.Canvas canvas, fbs.DrawBatch batch, DrawFrame frame,
-      _MaskContext? maskCtx) {
+      _MaskContext? maskCtx, _MaskDraw? inheritedMask) {
     final start = batch.startRank;
     final count = batch.count;
     if (count == 0) return;
@@ -882,12 +921,18 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable, InstanceChild {
       if (flags.pureMask) continue;
       final part = frame.partByIndex[p];
       final pc = part == null ? null : PartColor.read(frame.frameData, part);
-      final maskBits = maskCtx?.bitsForTarget(rank, flags);
-      if (pc == null && maskBits == null) {
+      // This player's own mask wins per-part; a mask inherited from the parent
+      // instance (§3-2-2) applies to every other part of the child subtree. A
+      // part that is a target of BOTH keeps only its own test — the shader tests
+      // one coverage per fragment, so the inherited clip is dropped for it
+      // (a rare nested-mask case that would need a second peel pass to combine).
+      final ownBits = maskCtx?.bitsForTarget(rank, flags);
+      final mask = ownBits != null ? maskCtx!.drawFor(ownBits) : inheritedMask;
+      if (pc == null && mask == null) {
         run.add(p);
       } else {
         flushRun();
-        _drawPeeledPart(canvas, p, pc, frame, batch, blend, maskBits, maskCtx);
+        _drawPeeledPart(canvas, p, pc, frame, batch, blend, mask);
       }
     }
     flushRun();
@@ -908,7 +953,7 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable, InstanceChild {
   /// Pure-mask shapes never reach here: the Brain emits their colour batch as
   /// `kind == Mask`, and they are dropped anyway ([_flagsFor] / `pureMask`).
   void _emitShapeBatch(ui.Canvas canvas, fbs.DrawBatch batch, DrawFrame frame,
-      _MaskContext? maskCtx) {
+      _MaskContext? maskCtx, _MaskDraw? inheritedMask) {
     if (batch.count == 0 || frame.shape == null) return;
     final blend = blendModeFor(batch.blendType);
 
@@ -929,12 +974,13 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable, InstanceChild {
       final p = frame.drawOrder[rank];
       final flags = _flagsFor(p);
       if (flags.pureMask) continue; // coverage only, never colour
-      final maskBits = maskCtx?.bitsForTarget(rank, flags);
-      if (maskBits == null) {
+      final ownBits = maskCtx?.bitsForTarget(rank, flags);
+      final mask = ownBits != null ? maskCtx!.drawFor(ownBits) : inheritedMask;
+      if (mask == null) {
         run.add(p);
       } else {
         flushRun();
-        _drawMaskedShape(canvas, p, frame, blend, maskBits, maskCtx!);
+        _drawMaskedShape(canvas, p, frame, blend, mask);
       }
     }
     flushRun();
@@ -953,7 +999,7 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable, InstanceChild {
   /// (§2-1..§2-4 scope, polarity, invert/increment) that a copy of it would be a
   /// standing invitation to drift.
   void _drawMaskedShape(ui.Canvas canvas, int part, DrawFrame frame,
-      ui.BlendMode blend, MaskBits maskBits, _MaskContext maskCtx) {
+      ui.BlendMode blend, _MaskDraw mask) {
     final program = _partColorProgram.get();
     final geometry = _geometry.buildShapeParts(<int>[part], frame);
     if (geometry == null) return;
@@ -971,10 +1017,11 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable, InstanceChild {
     _setPartColorUniforms(shader, PartColor.identity, _unitQuad,
         texWidth: 1.0,
         texHeight: 1.0,
-        maskBits: maskBits,
-        plan: maskCtx.plan);
+        maskBits: mask.bits,
+        maskUvBasis: mask.uvBasis,
+        maskUvOffset: mask.uvOffset);
     shader.setImageSampler(0, _ensureWhitePixel());
-    shader.setImageSampler(1, maskCtx.coverage);
+    shader.setImageSampler(1, mask.coverage);
 
     canvas.drawVertices(geometry.toVertices(), ui.BlendMode.modulate,
         ui.Paint()..blendMode = blend..shader = shader);
@@ -1096,8 +1143,7 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable, InstanceChild {
     DrawFrame frame,
     fbs.DrawBatch batch,
     ui.BlendMode blend,
-    MaskBits? maskBits,
-    _MaskContext? maskCtx,
+    _MaskDraw? mask,
   ) {
     final program = _partColorProgram.get();
     final image = textures.imageFor(batch.textureHash);
@@ -1129,11 +1175,16 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable, InstanceChild {
     _setPartColorUniforms(shader, effective, quad,
         texWidth: image.width.toDouble(),
         texHeight: image.height.toDouble(),
-        maskBits: maskBits,
-        plan: maskCtx?.plan);
-    shader.setImageSampler(0, image);
+        maskBits: mask?.bits,
+        maskUvBasis: mask?.uvBasis,
+        maskUvOffset: mask?.uvOffset);
+    // The part's own texture wants bilinear like the batched ImageShader path —
+    // the peeled shader's sampler defaults to nearest (jaggy) otherwise. The
+    // coverage sampler (1) must stay nearest: its texels are bit fields, so any
+    // interpolation would corrupt the mask stencil decode.
+    shader.setImageSampler(0, image, filterQuality: ui.FilterQuality.low);
     shader.setImageSampler(
-        1, maskBits == null ? _ensureDummyCoverage() : maskCtx!.coverage);
+        1, mask == null ? _ensureDummyCoverage() : mask.coverage);
 
     canvas.drawPath(
         _quadPath(quad), ui.Paint()..blendMode = blend..shader = shader);
@@ -1192,7 +1243,8 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable, InstanceChild {
     required double texWidth,
     required double texHeight,
     MaskBits? maskBits,
-    MaskPlan? plan,
+    Float32List? maskUvBasis,
+    Float32List? maskUvOffset,
   }) {
     var i = 0;
     void f(double v) => shader.setFloat(i++, v);
@@ -1238,15 +1290,16 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable, InstanceChild {
     f(maskBits?.invert.toDouble() ?? 0.0);
     f((maskBits?.visibleInside ?? false) ? 1.0 : 0.0);
     f(maskBits == null ? 0.0 : 1.0);
-    // uMaskUv / uMaskOff — player-local → coverage UV (§3-2-2).
-    final basis = plan?.uvBasis;
-    final offset = plan?.uvOffset;
-    f(basis?[0] ?? 0.0);
-    f(basis?[1] ?? 0.0);
-    f(basis?[2] ?? 0.0);
-    f(basis?[3] ?? 0.0);
-    f(offset?[0] ?? 0.0);
-    f(offset?[1] ?? 0.0);
+    // uMaskUv / uMaskOff — local → coverage UV (§3-2-2). For an own mask this is
+    // `plan.uvBasis/uvOffset` (player-local → UV); for a mask inherited by an
+    // instance child it is that affine pre-composed with the slot matrix
+    // (child-local → UV), so the same shader serves both.
+    f(maskUvBasis?[0] ?? 0.0);
+    f(maskUvBasis?[1] ?? 0.0);
+    f(maskUvBasis?[2] ?? 0.0);
+    f(maskUvBasis?[3] ?? 0.0);
+    f(maskUvOffset?[0] ?? 0.0);
+    f(maskUvOffset?[1] ?? 0.0);
   }
 
   /// Writes the coverage-writer uniforms in the declaration order of
@@ -1379,6 +1432,50 @@ class _MaskContext {
   /// The mask test for the target at [rank], or null when it is unmasked.
   MaskBits? bitsForTarget(int rank, MaskPartFlags flags) =>
       plan.bitsFor(rank, flags);
+
+  /// A ready-to-draw bundle for a target of THIS player's own mask.
+  _MaskDraw drawFor(MaskBits bits) =>
+      _MaskDraw(bits, coverage, plan.uvBasis, plan.uvOffset);
+}
+
+/// Everything a peeled draw needs to run the mask replay: the resolved writer
+/// sets + polarity ([bits]), the coverage bitmap, and the local→coverage-UV
+/// affine. Unifies an *own* mask (from the player's own [MaskPlan]) and a mask
+/// **inherited** by an instance child (§3-2-2), whose affine is the parent's
+/// pre-composed with the slot matrix. The child gates its whole subtree with one
+/// of these, using the instance part's rank/polarity.
+class _MaskDraw {
+  const _MaskDraw(this.bits, this.coverage, this.uvBasis, this.uvOffset);
+
+  final MaskBits bits;
+  final ui.Image coverage;
+  final Float32List uvBasis;
+  final Float32List uvOffset;
+
+  /// Composes this player-local→UV mask with an instance slot matrix
+  /// (`world2dOf`, child-local → parent-local, column-major), yielding the
+  /// child-local → UV affine the child's fragments need (§3-2-2's
+  /// `M_child = M_parent · slot_xf`). [bits] is carried over unchanged — the
+  /// whole child is judged by the instance part's single resolved test.
+  _MaskDraw composeSlot(Float64List slot) {
+    final b = uvBasis;
+    final s0 = slot[0], s1 = slot[1], s4 = slot[4], s5 = slot[5];
+    final tx = slot[12], ty = slot[13];
+    return _MaskDraw(
+      bits,
+      coverage,
+      Float32List.fromList(<double>[
+        b[0] * s0 + b[1] * s1, // m00
+        b[0] * s4 + b[1] * s5, // m01
+        b[2] * s0 + b[3] * s1, // m10
+        b[2] * s4 + b[3] * s5, // m11
+      ]),
+      Float32List.fromList(<double>[
+        b[0] * tx + b[1] * ty + uvOffset[0],
+        b[2] * tx + b[3] * ty + uvOffset[1],
+      ]),
+    );
+  }
 }
 
 /// A `FragmentProgram` loaded lazily from an asset and cached process-wide.

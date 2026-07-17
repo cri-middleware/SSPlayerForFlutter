@@ -109,7 +109,15 @@ class SpriteStudioPlayer extends ChangeNotifier {
     bool loadTextures = true,
     Map<String, Uint8List>? instancePacks,
   }) async {
+    // Quiesce the clock and drop the old engine BEFORE the async fetch below.
+    // A still-running ticker (from a prior `play`) would otherwise fire
+    // `_onTick` during the await and drive the just-disposed internal
+    // ("used after dispose"); nulling it also makes `_onTick` no-op through the
+    // gap. Callers resume playback explicitly via `play`/`resume` (the ticker
+    // then restarts with a fresh `_lastElapsed`, so no delta jump).
+    if (_ticker.isActive) _ticker.stop();
     _internal?.dispose();
+    _internal = null;
     _lastTextureReport = null;
     _animeInfo = SsAnimeInfo(ssab);
 
@@ -215,24 +223,57 @@ class SpriteStudioPlayer extends ChangeNotifier {
     return ok;
   }
 
+  /// Starts (or restarts) playback from the head — the Brain's `play` is a
+  /// head-out, so this rewinds to the start frame. Use [resume] to continue a
+  /// paused animation in place.
   void play() {
-    _requireInternal().play();
+    final internal = _requireInternal();
+    internal.play();
     _prevFinished = false;
-    if (!_ticker.isActive) {
-      _lastElapsed = Duration.zero;
-      _ticker.start();
-    }
+    _startTicker();
+    notifyListeners();
   }
 
+  /// Pauses playback in place (idempotent). The Brain's `pause` merely *toggles*
+  /// its hold flag, so we gate on [isPaused] to avoid accidentally resuming.
   void pause() {
-    _requireInternal().pause();
+    final internal = _internal;
+    if (internal == null) return;
+    if (!internal.isPausing) internal.pause();
     if (_ticker.isActive) _ticker.stop();
+    notifyListeners();
   }
+
+  /// Resumes a paused animation in place (no head-out). If playback is stopped
+  /// or finished rather than paused, falls back to [play] (a fresh head-out).
+  void resume() {
+    final internal = _internal;
+    if (internal == null) return;
+    if (!internal.isPlaying) {
+      play();
+      return;
+    }
+    if (internal.isPausing) internal.pause(); // toggle the hold off
+    _prevFinished = false;
+    _startTicker();
+    notifyListeners();
+  }
+
+  /// One-tap transport for a play/pause button: pause when advancing, otherwise
+  /// [resume] (which itself head-outs when stopped/finished).
+  void togglePlayPause() => isPlaying && !isPaused ? pause() : resume();
 
   void stop() {
     _requireInternal().stop();
     if (_ticker.isActive) _ticker.stop();
     notifyListeners();
+  }
+
+  void _startTicker() {
+    if (!_ticker.isActive) {
+      _lastElapsed = Duration.zero;
+      _ticker.start();
+    }
   }
 
   void seek(double frame) {
@@ -253,7 +294,14 @@ class SpriteStudioPlayer extends ChangeNotifier {
   }
 
   double get frameNo => _internal?.frameNo ?? 0;
+
+  /// Whether the animation is active (playing or *paused*), i.e. not stopped and
+  /// not finished. Pair with [isPaused] to distinguish a live pause; a UI toggle
+  /// wanting "currently advancing" should check `isPlaying && !isPaused`.
   bool get isPlaying => _internal?.isPlaying ?? false;
+
+  /// Whether playback is paused in place (still [isPlaying], just held).
+  bool get isPaused => _internal?.isPausing ?? false;
 
   /// Draws the current frame — delegates to Layer 2's single paint path.
   void paint(ui.Canvas canvas, {ui.Rect? dst, ui.Size? sourceSize}) {
@@ -262,7 +310,10 @@ class SpriteStudioPlayer extends ChangeNotifier {
 
   void _onTick(Duration elapsed) {
     final internal = _internal;
-    if (internal == null || _disposed) return;
+    // Defence in depth: `load` stops the ticker before swapping the engine, but
+    // never drive a null or already-disposed internal even if a stray frame
+    // slips through (it would throw "used after dispose").
+    if (internal == null || internal.isDisposed || _disposed) return;
 
     final delta = _lastElapsed == Duration.zero
         ? Duration.zero
