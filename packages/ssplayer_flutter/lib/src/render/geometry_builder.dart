@@ -233,6 +233,22 @@ class DrawFrame {
           ? partByIndex[partIndex]
           : null;
 
+  List<fbs.PartAttributePartColor>? _partsColor;
+  bool _partsColorFetched = false;
+
+  /// The frame's `parts_color` vector, fetched once and cached (incl. a null
+  /// result). `frameData.partsColor` builds a fresh lazy list wrapper — and a
+  /// full-length backing cache on first index — every call, so reading it
+  /// through here instead of re-fetching per part ([PartColor.read]) shares one
+  /// wrapper across the whole frame. Pass the result to [PartColor.read].
+  List<fbs.PartAttributePartColor>? get partsColor {
+    if (!_partsColorFetched) {
+      _partsColor = frameData.partsColor;
+      _partsColorFetched = true;
+    }
+    return _partsColor;
+  }
+
   /// The hierarchical alpha for part [partIndex], clamped to 0..1 (1 if the part
   /// is not present in the `parts` vector), times this frame's [alphaScale].
   ///
@@ -736,6 +752,8 @@ class GeometryBuilder {
     final colors = _cols(vTotal);
     final indices = _idx(iTotal);
     var vPos = 0, cPos = 0, iPos = 0, base = 0;
+    // Fetch the frame's parts_color vector once (see [DrawFrame.partsColor]).
+    final partsColor = frame.partsColor;
 
     for (final p in parts) {
       final n = shape.countOf(p);
@@ -748,7 +766,7 @@ class GeometryBuilder {
       final m12 = frame.world[m + 12], m13 = frame.world[m + 13];
 
       final state = frame.partOf(p);
-      final pc = state == null ? null : PartColor.read(frame.frameData, state);
+      final pc = state == null ? null : PartColor.read(partsColor, state);
       // No PartColor → white at the part's alpha (§1-2-4's default), which also
       // picks up the instance chain's scale. With PartColor the corner alphas
       // already hold the hierarchical alpha, so only the chain scale is applied.

@@ -919,6 +919,8 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable, InstanceChild {
     final drawOrder = frame.drawOrder;
     final paint = _paintForBatch(batch);
     final blend = blendModeFor(batch.blendType);
+    // Fetch the frame's parts_color vector once (see [DrawFrame.partsColor]).
+    final partsColor = frame.partsColor;
 
     final run = <int>[];
     void flushRun() {
@@ -940,7 +942,7 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable, InstanceChild {
       // Coverage-only. It draws nothing, so it cannot split the run either.
       if (flags.pureMask) continue;
       final part = frame.partOf(p);
-      final pc = part == null ? null : PartColor.read(frame.frameData, part);
+      final pc = part == null ? null : PartColor.read(partsColor, part);
       // This player's own mask wins per-part; a mask inherited from the parent
       // instance (§3-2-2) applies to every other part of the child subtree. A
       // part that is a target of BOTH keeps only its own test — the shader tests

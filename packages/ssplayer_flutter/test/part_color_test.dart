@@ -134,8 +134,9 @@ void main() {
       final fd = player.getFrameData(player.frameNo);
       final parts = fd?.parts;
       if (fd == null || parts == null) continue;
+      final table = fd.partsColor;
       for (final p in parts) {
-        final pc = PartColor.read(fd, p);
+        final pc = PartColor.read(table, p);
         if (pc != null) {
           found = pc;
           break;
