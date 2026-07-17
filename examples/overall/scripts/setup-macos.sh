@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Regenerate the example's macOS Runner and ensure the drag-&-drop entitlement
-# is present. example/macos/ is gitignored (Flutter regenerates it via `flutter
+# is present. examples/overall/macos/ is gitignored (Flutter regenerates it via `flutter
 # create`), so rather than track a full copy of the entitlements this script
 # just applies the entitlement tweaks the app needs — idempotently, on top of
 # whatever Flutter's current template provides.
@@ -15,7 +15,7 @@
 #    libssconverter IN-PROCESS, both of which the sandbox confines to the app's
 #    container. Release.entitlements keeps the sandbox ON.
 #
-# Run from anywhere:  bash example/scripts/setup-macos.sh
+# Run from anywhere:  bash examples/overall/scripts/setup-macos.sh
 set -euo pipefail
 
 EXAMPLE_DIR="$(cd "$(dirname "$0")/.." && pwd)"

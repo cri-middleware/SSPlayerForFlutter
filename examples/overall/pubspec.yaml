@@ -3,7 +3,7 @@ description: Example app for ssplayer_flutter — plays tests/overall/overall.ss
 publish_to: none
 version: 0.1.0-dev.1
 
-# Part of the repo-root pub workspace (see ../pubspec.yaml).
+# Part of the repo-root pub workspace (see ../../pubspec.yaml).
 resolution: workspace
 
 environment:
@@ -15,12 +15,12 @@ dependencies:
   flutter:
     sdk: flutter
   ssplayer_flutter:
-    path: ../packages/ssplayer_flutter
+    path: ../../packages/ssplayer_flutter
   # Dev live-reload: the SsLiveReload mixin rides hot reload (desktop reconvert
   # in-process, device reload-only) + `dart run ssgen_flutter:ssreconvert` host
   # runner. Kept out of ssplayer_flutter so the runtime stays converter-free.
   ssgen_flutter:
-    path: ../packages/ssgen_flutter
+    path: ../../packages/ssgen_flutter
 
 dev_dependencies:
   flutter_test:

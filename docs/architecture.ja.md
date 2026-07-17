@@ -147,7 +147,7 @@ scripts/build-runtime.{sh,ps1}         # Rust ビルド ＋ 配置
 scripts/generate-ffigen-code.{sh,ps1}  # ffigen（C-API 変更時に手動実行 → commit）
 scripts/generate-fbs-code.{sh,ps1}     # flatc（.fbs 変更時のみ）
 packages/ssplayer_flutter/             # 配布 pub パッケージ（Flutter・ssruntime_dart 依存）
-example/                               # overall.sspj 検証用 Flutter アプリ
+examples/overall/                      # overall.sspj 検証用 Flutter アプリ
 ```
 
 ## 4. 実装ロードマップ

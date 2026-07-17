@@ -195,12 +195,12 @@ void main() {
 
   group('Instance.ssab (real converter output)', () {
     final ssabPath = _firstExisting([
-      'example/assets/spritestudio/overall/Instance.ssab',
-      '../../example/assets/spritestudio/overall/Instance.ssab',
+      'examples/overall/assets/spritestudio/overall/Instance.ssab',
+      '../../examples/overall/assets/spritestudio/overall/Instance.ssab',
     ]);
     final childPath = _firstExisting([
-      'example/assets/spritestudio/overall/Instance_SourceAnime.ssab',
-      '../../example/assets/spritestudio/overall/Instance_SourceAnime.ssab',
+      'examples/overall/assets/spritestudio/overall/Instance_SourceAnime.ssab',
+      '../../examples/overall/assets/spritestudio/overall/Instance_SourceAnime.ssab',
     ]);
 
     final assets = (ssabPath == null || childPath == null)

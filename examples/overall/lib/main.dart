@@ -208,7 +208,7 @@ class _PlayerPageState extends State<PlayerPage>
   // device reloads the fresh pack from the bundle. Opt-in via the
   // SS_LIVE_RELOAD define (see ssLiveReloadEnabled below). Recommended: run
   //   dart run ssgen_flutter:ssdev -d <device>
-  // from example/ — it wraps `flutter run`, injects the define, and on save
+  // from examples/overall/ — it wraps `flutter run`, injects the define, and on save
   // reconverts + hot-reloads for you. Manual: `flutter run
   // --dart-define=SS_LIVE_RELOAD=true`, then after a REAL edit (a `touch` is
   // byte-identical) run `dart run ssgen_flutter:ssreconvert` and press `r`.

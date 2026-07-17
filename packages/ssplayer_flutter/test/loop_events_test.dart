@@ -32,8 +32,8 @@ List<String> _collectEvents(SpriteStudioInternalPlayer player, int steps) {
 
 void main() {
   final ssabPath = _firstExisting([
-    'example/assets/spritestudio/overall/Basic.ssab',
-    '../../example/assets/spritestudio/overall/Basic.ssab',
+    'examples/overall/assets/spritestudio/overall/Basic.ssab',
+    '../../examples/overall/assets/spritestudio/overall/Basic.ssab',
   ]);
 
   SpriteStudioInternalPlayer? setup(int loop) {

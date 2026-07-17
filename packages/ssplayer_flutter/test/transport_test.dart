@@ -10,8 +10,8 @@ import 'package:ssplayer_flutter/ssplayer_flutter.dart';
 
 void main() {
   final ssabPath = _firstExisting([
-    'example/assets/spritestudio/overall/Basic.ssab',
-    '../../example/assets/spritestudio/overall/Basic.ssab',
+    'examples/overall/assets/spritestudio/overall/Basic.ssab',
+    '../../examples/overall/assets/spritestudio/overall/Basic.ssab',
   ]);
 
   testWidgets('pause holds in place, resume continues, and both are idempotent',

@@ -8,9 +8,9 @@
 # It loads the PREBUILT libssconverter over dart:ffi, so this needs NO Rust
 # toolchain — build the native libs via scripts/build-runtime.sh.
 # All the sibling players share this "Rust-free for customizers" philosophy.
-# Output lands in example/assets/spritestudio/<stem>/ (the SsProjectSync
+# Output lands in examples/overall/assets/spritestudio/<stem>/ (the SsProjectSync
 # convention — <stem> is the .sspj filename, so it matches what live-reload
-# regenerates; both dirs are referenced by example/pubspec.yaml).
+# regenerates; both dirs are referenced by examples/overall/pubspec.yaml).
 #
 # SDK location (for the source .sspj): $SSSDK, else ./SpriteStudio-SDK, else
 # ../SpriteStudio-SDK.
@@ -52,7 +52,7 @@ command -v dart >/dev/null || {
 #  1) SpriteStudio_Source/<stem>/ is the single source of truth the desktop
 #     live-reload (example reassemble()) reconverts on hot reload. Copy the
 #     project dir wholesale so its referenced .ssae/.ssce/.png travel with it.
-#  2) Convert into example/assets/spritestudio/<stem>/ — the same SsProjectSync
+#  2) Convert into examples/overall/assets/spritestudio/<stem>/ — the same SsProjectSync
 #     convention + location the hot-reload path reuses. The non-embedded
 #     converter also copies the referenced textures/fonts/sounds into the output,
 #     so this single call produces the complete asset tree.
@@ -64,10 +64,10 @@ deploy_project() {
     echo "deploy-examples.sh: $sdk_sub/$sspj not found (init the SpriteStudio-SDK submodule or set SSSDK)" >&2
     exit 1
   }
-  local stage="$ROOT_DIR/example/SpriteStudio_Source/$stem"
-  local out="$ROOT_DIR/example/assets/spritestudio/$stem"
+  local stage="$ROOT_DIR/examples/overall/SpriteStudio_Source/$stem"
+  local out="$ROOT_DIR/examples/overall/assets/spritestudio/$stem"
 
-  echo "Staging $sdk_sub -> example/SpriteStudio_Source/$stem/ ..."
+  echo "Staging $sdk_sub -> examples/overall/SpriteStudio_Source/$stem/ ..."
   rm -rf "$stage"
   mkdir -p "$stage"
   cp -R "$src_project/." "$stage/"
@@ -75,7 +75,7 @@ deploy_project() {
   echo "Converting SpriteStudio_Source/$stem/$sspj via ssconvert (Dart) ..."
   mkdir -p "$out"
   ( cd "$CONV_PKG" && dart run ssconverter_dart:ssconvert -o "$out" "$stage/$sspj" )
-  echo "   -> example/assets/spritestudio/$stem/"
+  echo "   -> examples/overall/assets/spritestudio/$stem/"
 }
 
 for entry in "${PROJECTS[@]}"; do

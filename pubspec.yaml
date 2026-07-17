@@ -19,7 +19,7 @@ workspace:
   - packages/ssgen_dart
   - packages/ssgen_flutter
   - packages/ssplayer_flutter
-  - example
+  - examples/overall
 
 # Melos must be a workspace dependency (its cli_launcher locates the workspace
 # only via a pubspec that depends on melos — a global `pub global activate`

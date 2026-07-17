@@ -2,7 +2,7 @@
 //
 // Requires:
 //   * scripts/build-runtime.sh   (produces native/libs/<host>/libssruntime.*)
-//   * scripts/deploy-examples.sh (produces example/assets/spritestudio/overall/*.ssab)
+//   * scripts/deploy-examples.sh (produces examples/overall/assets/spritestudio/overall/*.ssab)
 //   * SSRUNTIME_LIBRARY_PATH pointing at the built dylib, e.g.:
 //
 //   SSRUNTIME_LIBRARY_PATH=$PWD/native/libs/macos/libssruntime.framework/libssruntime \
@@ -22,8 +22,8 @@ void main() {
   // Resolve a sample .ssab relative to the package (the native library is
   // bundled by ssruntime_dart's native-assets hook — no path needed).
   final ssabPath = _firstExisting([
-    'example/assets/spritestudio/overall/Basic.ssab',
-    '../../example/assets/spritestudio/overall/Basic.ssab',
+    'examples/overall/assets/spritestudio/overall/Basic.ssab',
+    '../../examples/overall/assets/spritestudio/overall/Basic.ssab',
   ]);
 
   test('load → update → frame data → SoA returns geometry', () {

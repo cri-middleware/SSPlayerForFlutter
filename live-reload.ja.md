@@ -14,7 +14,7 @@
 
 | commit | 内容 |
 |---|---|
-| `ade19a5` | `SpriteStudioPlayer.reload()` ＋ `ssgen_dart` ＋ `ssconverter_dart` mobile-inert 化 ＋ example ＋ `example/scripts/setup-macos.sh` |
+| `ade19a5` | `SpriteStudioPlayer.reload()` ＋ `ssgen_dart` ＋ `ssconverter_dart` mobile-inert 化 ＋ example ＋ `examples/overall/scripts/setup-macos.sh` |
 | `9268c24` | `ssgen_flutter` dev ヘルパ（`SsLiveReload` mixin ＋ `dart run ssgen_flutter:ssreconvert`） |
 
 - **NEW（未コミットの作業中変更）**: `ssgen_flutter:ssdev` — `flutter run --machine` を内包する live-reload dev runner（source watch → stale reconvert → daemon `app.restart{fullRestart:false}`）。signal 不使用で **Windows 対応設計**。live-reload は **`SS_LIVE_RELOAD` define で opt-in**（ssdev が自動注入、mixin/example が gate）。**Android emulator で end-to-end 検証済み**（`dart run ssgen_flutter:ssdev -d emulator-5554`）。詳細は §7(b)。
@@ -82,15 +82,15 @@ ssplayer_flutter (L2-4 player; reload() を持つ; ★converter-FREE; 全PF)
    }
    ```
 3. **起動＝live-reload の opt-in**: `dart run ssgen_flutter:ssdev -d <device>`（推奨。`flutter run` を置き換え、`SS_LIVE_RELOAD` define を注入、保存で reconvert＋hot reload を1コマンド自動化）。手動なら `flutter run --dart-define=SS_LIVE_RELOAD=true` ＋ device では host で `dart run ssgen_flutter:ssreconvert` ＋ `r`。**define 無しの素の `flutter run` は art を reload しない**（通常の Dart hot reload のみ）。
-4. **macOS**: `bash example/scripts/setup-macos.sh`（Debug の App Sandbox を false に。理由は §5）。
+4. **macOS**: `bash examples/overall/scripts/setup-macos.sh`（Debug の App Sandbox を false に。理由は §5）。
 5. source を `SpriteStudio_Source/<project>/` に置く（`scripts/deploy-examples.sh` が overall を stage＋変換して雛形を作る）。
 
 ## 5. 既知の gotcha（ハマりどころ）
 
 - **macOS App Sandbox**: 既定 ON だと `Directory.current`＝コンテナ、かつプロジェクト実体の読み書き/変換が不可。
-  → **Debug のみ sandbox=false**（`example/scripts/setup-macos.sh`、`example/macos/` は gitignore/再生成なので
+  → **Debug のみ sandbox=false**（`examples/overall/scripts/setup-macos.sh`、`examples/overall/macos/` は gitignore/再生成なので
   スクリプトで冪等適用。Release は ON 維持）。
-- **`example/macos/` は gitignore** → entitlements 変更は commit されない。必ず setup スクリプト経由。
+- **`examples/overall/macos/` は gitignore** → entitlements 変更は commit されない。必ず setup スクリプト経由。
 - **新規 `.ssae`/パック追加**: Flutter は「新規 asset 追加を hot reload しない」。desktop は `_scanPacks`(dir走査)で
   ドロップダウンに出るが、**device は新 `.ssab` が manifest 変化＝再起動が必要**。
 - **`touch` は同一バイト**: 再変換は決定的なので `touch` では出力が変わらず「見た目不変」。実変化は**本物のアート編集**で。
@@ -139,16 +139,16 @@ ssplayer_flutter (L2-4 player; reload() を持つ; ★converter-FREE; 全PF)
 | `packages/ssgen_flutter/bin/ssdev.dart` | `dart run ssgen_flutter:ssdev` の薄い main（→ `runSsDev`） |
 | `packages/ssgen_flutter/lib/src/ssdev.dart` | ssdev 本体: `FlutterDaemon`(machine プロトコル)/`ChangeRunner`(debounce)/`SsDevOptions`/`withLiveReloadDefine`/`runSsDev` |
 | `packages/ssgen_flutter/lib/src/ss_defines.dart` | 共有 const `ssLiveReloadDefine`（`'SS_LIVE_RELOAD'`）。`ssgen_flutter.dart` から公開 export |
-| `example/lib/main.dart` | mixin 利用のドッグフーディング |
-| `example/scripts/setup-macos.sh` | Debug sandbox off（＋drag&drop entitlement） |
+| `examples/overall/lib/main.dart` | mixin 利用のドッグフーディング |
+| `examples/overall/scripts/setup-macos.sh` | Debug sandbox off（＋drag&drop entitlement） |
 | `scripts/deploy-examples.sh` | overall を `SpriteStudio_Source/` に stage＋`assets/spritestudio/overall/` へ変換 |
 
 ## 9. 動作確認レシピ（手元で再現）
 
 ```bash
 bash scripts/deploy-examples.sh          # source を stage＋変換
-bash example/scripts/setup-macos.sh             # macOS のみ: Debug sandbox off
-cd example
+bash examples/overall/scripts/setup-macos.sh             # macOS のみ: Debug sandbox off
+cd examples/overall
 
 # desktop（r 一発）
 flutter run -d macos
@@ -158,7 +158,7 @@ flutter run -d macos
 # device（host 再変換 → r の2手。ssdev(b) で1手に畳む予定）
 flutter emulators --launch ssplayer_test        # or apple_ios_simulator
 flutter run -d emulator-5554
-#  別ターミナル(example/): 編集して保存 → dart run ssgen_flutter:ssreconvert
+#  別ターミナル(examples/overall/): 編集して保存 → dart run ssgen_flutter:ssreconvert
 #  flutter run 側で r → 端末に反映
 ```
 

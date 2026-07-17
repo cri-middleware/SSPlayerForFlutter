@@ -17,8 +17,8 @@ void main() {
 
   test('paints a non-blank, textured frame', () async {
     final ssabPath = _firstExisting([
-      'example/assets/spritestudio/overall/Basic.ssab',
-      '../../example/assets/spritestudio/overall/Basic.ssab',
+      'examples/overall/assets/spritestudio/overall/Basic.ssab',
+      '../../examples/overall/assets/spritestudio/overall/Basic.ssab',
     ]);
     if (ssabPath == null) {
       markTestSkipped('Basic.ssab missing — run deploy-examples.sh');

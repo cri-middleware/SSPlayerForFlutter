@@ -98,7 +98,7 @@ git submodule update --init --recursive
 scripts/deploy-examples.sh
 
 # example を起動（libssruntime は hook/build.dart が自動DL）
-cd example && flutter run
+cd examples/overall && flutter run
 ```
 
 > ℹ️ プリビルドの自動DLは、SDK リリースが Flutter 向けアセット（`lib{ssruntime,ssconverter}-<os>[-<arch>]`）
@@ -134,8 +134,8 @@ scripts/build-runtime.sh             # 例: build-runtime.sh platform=macos buil
 
 # アセット生成 → example 起動
 scripts/deploy-examples.sh
-cd example && flutter run
-#   （初回の macOS ランナー生成: cd example && flutter create --platforms=macos . ）
+cd examples/overall && flutter run
+#   （初回の macOS ランナー生成: cd examples/overall && flutter create --platforms=macos . ）
 ```
 
 - **コード生成**: ffigen バインディング（`lib/src/*_bindings.g.dart`）は**コミット済み**。

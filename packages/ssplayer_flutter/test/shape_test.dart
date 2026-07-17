@@ -271,8 +271,8 @@ void main() {
 
   group('Shape.ssab (real converter output)', () {
     final ssabPath = _firstExisting([
-      'example/assets/spritestudio/overall/Shape.ssab',
-      '../../example/assets/spritestudio/overall/Shape.ssab',
+      'examples/overall/assets/spritestudio/overall/Shape.ssab',
+      '../../examples/overall/assets/spritestudio/overall/Shape.ssab',
     ]);
     final bytes = ssabPath == null
         ? null
