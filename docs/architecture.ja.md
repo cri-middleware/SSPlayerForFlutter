@@ -229,7 +229,7 @@ Flutter としては **Phase 1**（Basic〜BlendMode を `SpriteStudioView` で�
   `parts[]`（PartState）、プール（`cells` / `parts_color` / `vertices` / `deforms`）。
 - `DrawBatch`（inline struct）: `start_rank`, `count`, `texture_hash`(uint32), `vertex_count`, `index_count`, `blend_type`,
   `kind`（Normal/Shape/Instance/Effect/Mesh/Text/Nines/Mask）, `flags`（bit `0x01` = MASK_INFLUENCE）。テクスチャ＋ブレンド＋kind が連続する区間が 1 バッチ。
-- `BlendType → Paint.blendMode`: Mix→`srcOver` / Add→`plus` / Mul→`multiply` / Sub→（近似）/ その他→`srcOver`（フラグシップ準拠。非 premultiplied）。
+- `BlendType → Paint.blendMode`（`render/blend.dart`・**ssplayer-webgl** の `SSWebGLRenderer.applyBlend` 準拠）: premultiplied ソース＋不透明 dst で読むと大半は Skia の stock モードに**厳密一致** — Mix→`srcOver` / Add→`plus` / Mul・Mulalpha・Mul2→`multiply` / Screen・Screen2→`screen` / Exclusion→`exclusion`。Flutter の固定 enum で表せない Sub（reverse-subtract）と Invert（dst 置換 `Cs·(1-Cb)`）は `difference` で近似（各々が狙う暗色化／不透明オーバーレイ域では厳密。厳密再現にはフレームバッファ読み戻しが要る）。Div2・Overlay2 は upstream に GL 写像が無く→`srcOver`。
 
 **C. 頂点レイアウトとワールド変換（Flutter の要点）**:
 - 頂点は 1 パーツ 4 隅（lt/rt/lb/rb）＋必要時 center のローカル座標。`update_flag` に `AttributeVertex` か `AttributePartColor` がある時のみ

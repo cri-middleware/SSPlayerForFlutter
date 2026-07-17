@@ -3,15 +3,50 @@ import 'dart:ui' as ui;
 import 'package:ssruntime_dart/framedata.dart' as fbs;
 
 /// Framebuffer blend mapping (design §7B): the `Paint.blendMode` used for a
-/// batch's `drawVertices`.
+/// batch's `drawVertices` / peeled `drawPath`.
 ///
-/// Ports the Godot flagship `_apply_blend_material` and the sibling blend tables
-/// (Web `SSBlendModes`, Unity `SpriteStudioBlendTable`), which honor only
-/// Mix/Add/Mul/Sub and fall back to Mix for the other SS7 modes. Straight
-/// (non-premultiplied) alpha, matching the flagship.
+/// The ground truth is the **ssplayer-webgl** renderer (`SSWebGLRenderer.applyBlend`
+/// / `SSBlendModes`), which realises every SS blend as a fixed-function GL blend
+/// state `out = Cs·srcFactor + Cb·dstFactor` (RGB) with premultiplied source and a
+/// premultiplied-coverage alpha channel `[ONE, 1-SRC_ALPHA]`:
 ///
-///   Mix → srcOver,  Add → plus,  Mul → multiply,  Sub → (no exact stock mode;
-///   approximated), everything else → srcOver.
+///   | SS BlendType    | srcRGB          | dstRGB          | rgbEq           |
+///   |-----------------|-----------------|-----------------|-----------------|
+///   | Mix             | ONE             | 1-SRC_ALPHA     | ADD             |
+///   | Mul / Mulalpha  | DST_COLOR       | 1-SRC_ALPHA     | ADD             |
+///   | Add             | ONE             | ONE             | ADD             |
+///   | Sub             | ONE             | ONE             | REVERSE_SUBTRACT|
+///   | Screen          | 1-DST_COLOR     | ONE             | ADD             |
+///   | Exclusion       | 1-DST_COLOR     | 1-SRC_COLOR     | ADD             |
+///   | Invert          | 1-DST_COLOR     | ZERO            | ADD             |
+///
+/// Skia's stock separable [ui.BlendMode]s are defined on **premultiplied** colours,
+/// so — reading the table against a premultiplied source `Cs` — most rows have an
+/// *exact* stock equivalent (verified component-wise; the alpha channel matches too
+/// because these modes composite alpha as source-over, and SS renders onto an opaque
+/// target where `Cb`'s alpha is 1):
+///
+///   * Mix       → `srcOver`   (`Cs + Cb·(1-αs)`)
+///   * Add       → `plus`      (`Cs + Cb`, both clamp)
+///   * Mul/α/2   → `multiply`  (`Cs·Cb + Cb·(1-αs)`, Skia's premult multiply)
+///   * Screen/2  → `screen`    (`Cs + Cb - Cs·Cb`)
+///   * Exclusion → `exclusion` (`Cs + Cb - 2·Cs·Cb`)
+///
+/// Two rows have **no stock equivalent** — Flutter's fixed blend enum offers
+/// neither a reverse-subtract nor a "replace dst with `Cs·(1-Cb)`" — so they fall
+/// back to `difference` (`|Cs - Cb|`), the closest honest approximation:
+///
+///   * Sub    (`max(0, Cb - Cs)`)  → `difference` is exact wherever `Cb ≥ Cs`
+///     (the darkening regime Sub targets) and only diverges — giving `Cs - Cb`
+///     instead of clamping to black — in the opposite regime. Strictly closer than
+///     the old `darken` (`min(Cs, Cb)`), which is wrong across the whole range.
+///   * Invert (`Cs·(1-Cb)`)        → `difference` is *exact* for the white/opaque
+///     overlay these inversions are authored with (`|1 - Cb| = 1 - Cb`), diverging
+///     only for a partial/coloured source. Pixel-exact Sub/Invert would need a
+///     framebuffer read-back pass Flutter's immediate-mode canvas can't cheaply do.
+///
+/// Div2 / Overlay2 have no GL mapping in ssplayer-webgl either (its `default`
+/// clamps them to Mix), so they follow suit → `srcOver`.
 ///
 /// The 4-mode **PartColor** blend (§10) is a *shader-side* concern, unrelated to
 /// this framebuffer mapping; its coefficient table ([partColorCoef]) lives
@@ -22,13 +57,22 @@ ui.BlendMode blendModeFor(fbs.BlendType type) {
     case fbs.BlendType.Add:
       return ui.BlendMode.plus;
     case fbs.BlendType.Mul:
+    case fbs.BlendType.Mulalpha:
+    case fbs.BlendType.Mul2:
       return ui.BlendMode.multiply;
+    case fbs.BlendType.Screen:
+    case fbs.BlendType.Screen2:
+      return ui.BlendMode.screen;
+    case fbs.BlendType.Exclusion:
+      return ui.BlendMode.exclusion;
     case fbs.BlendType.Sub:
-      // No stock subtract BlendMode; darken is the closest approximation.
-      // Pixel-exact Sub needs a custom pass (Phase 2).
-      return ui.BlendMode.darken;
+    case fbs.BlendType.Invert:
+      // No stock reverse-subtract / dst-replace; difference is the closest
+      // approximation (exact for the darkening / opaque-overlay case each targets).
+      return ui.BlendMode.difference;
     case fbs.BlendType.Mix:
-    default:
+    case fbs.BlendType.Div2: // no GL mapping upstream → Mix
+    case fbs.BlendType.Overlay2: // no GL mapping upstream → Mix
       return ui.BlendMode.srcOver;
   }
 }

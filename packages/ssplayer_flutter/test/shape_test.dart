@@ -102,7 +102,7 @@ void main() {
         DrawFrame(
           frameData: fbs.FrameData(fbs.FrameDataObjectBuilder().toBytes()),
           drawOrder: const <int>[0],
-          partByIndex: const <int, fbs.PartState>{},
+          partByIndex: const [],
           world: world ?? _identityWorld(parts),
           local: Float32List(parts * DrawFrame.vertexStride),
           uv: Float32List(parts * DrawFrame.vertexStride),
@@ -210,7 +210,7 @@ void main() {
       final frame = DrawFrame(
         frameData: fbs.FrameData(fbs.FrameDataObjectBuilder().toBytes()),
         drawOrder: const <int>[0],
-        partByIndex: const <int, fbs.PartState>{},
+        partByIndex: const [],
         world: _identityWorld(1),
         local: Float32List(DrawFrame.vertexStride),
         uv: Float32List(DrawFrame.vertexStride),
@@ -230,7 +230,7 @@ void main() {
       final frame = DrawFrame(
         frameData: fbs.FrameData(fbs.FrameDataObjectBuilder().toBytes()),
         drawOrder: const <int>[0],
-        partByIndex: const <int, fbs.PartState>{},
+        partByIndex: const [],
         world: _identityWorld(1),
         local: Float32List(DrawFrame.vertexStride),
         uv: Float32List(DrawFrame.vertexStride),

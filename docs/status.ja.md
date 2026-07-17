@@ -38,7 +38,7 @@ SSPlayerForGodot の `ss_internal_player.cpp` レシピに準拠）。加えて 
 | **Mesh（§8）**（ワールド頂点 SoA・CSR スライス・index 再ベース・バッチ描画）| ✅ 実装・`test/mesh_test.dart` PASS |
 | ↳ Mesh の PartColor（Whole-only＝`lt` 一律）／ Mesh のマスク対象判定 | ⏳ TODO（シェーダが varying を取れずクアッドアフィンに乗らないため）|
 | **Effect（§8）**（Slot API・`EffectDrawPlan`・独立再生・パーツ α 合成）| ✅ 実装・`test/effect_test.dart` PASS |
-| ↳ コマンドの動的マージ（同一 cellmap＋blend の連続コマンド）| ⏳ 最適化 TODO（現状 1 コマンド＝1 ドロー。マージ時は index 再ベースが必要）|
+| ↳ コマンドの動的マージ（同一 cellmap＋blend の連続コマンド）| ✅ 実装（連続する同一キーのコマンドを 1 `drawVertices` に。`buildEffectGroup` が index 再ベース・16bit 上限でグループ分割。→ [ROADMAP.md](../ROADMAP.md#performance)）|
 | **Instance（§8）**（Slot API・子プレイヤー再帰・外部 `.ssab` 解決・α 伝搬）| ✅ 実装・`test/instance_test.dart` PASS・example で Instance.ssab 目視確認済み |
 | ↳ 再生属性（label/loop/speed/reverse/pingpong/independent）| ✅ **すべて Brain 側**（`ss_instance_slot_step` が解決）。Body は `PartAttributeInstance` を一切読まない |
 | ↳ Instance 配下へのマスク継承（§3-2-2＝親の `mask_local_to_uv * slot_xf` を子に渡す）| ⏳ TODO（子は自前のマスクは正しく描ける。親→子の継承のみ未実装）|

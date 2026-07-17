@@ -66,7 +66,7 @@ void main() {
     DrawFrame frame() => DrawFrame(
           frameData: fbs.FrameData(fbs.FrameDataObjectBuilder().toBytes()),
           drawOrder: const [0],
-          partByIndex: const {},
+          partByIndex: const [],
           world: Float32List.fromList(<double>[
             2, 0, 0, 0, //
             0, 3, 0, 0, //
@@ -122,6 +122,48 @@ void main() {
           texWidth: 64, texHeight: 32);
       // Values are already 0..quad_count*4 within the command.
       expect(g!.indices, <int>[0, 1, 2, 2, 1, 3, 4, 5, 6, 6, 5, 7]);
+    });
+
+    test('merges adjacent commands and rebases their per-command indices', () {
+      // Two commands, one quad each, sharing cellmap + blend. Each command's
+      // indices are 0-based WITHIN the command (the runtime's convention), so
+      // the group bake must rebase the second onto the first's 4 vertices.
+      final verts = <double>[];
+      final uvs = <double>[];
+      final colors = <double>[];
+      final indices = <int>[];
+      for (var cmd = 0; cmd < 2; cmd++) {
+        for (var c = 0; c < 4; c++) {
+          verts.addAll(<double>[cmd * 100.0 + c, cmd * 100.0 + c]);
+          uvs.addAll(<double>[c.isEven ? 0.0 : 1.0, c < 2 ? 0.0 : 1.0]);
+          colors.addAll(<double>[1, 1, 1, 1]);
+        }
+        indices.addAll(<int>[0, 1, 2, 2, 1, 3]); // 0-based within each command
+      }
+      final plan = efbs.EffectDrawPlan(efbs.EffectDrawPlanObjectBuilder(
+        commands: <efbs.EffectDrawCommandObjectBuilder>[
+          efbs.EffectDrawCommandObjectBuilder(
+              cellmapHash: 7, quadCount: 1, particleOffset: 0, blend: 0),
+          efbs.EffectDrawCommandObjectBuilder(
+              cellmapHash: 7, quadCount: 1, particleOffset: 1, blend: 0),
+        ],
+        vertStride: 2,
+        verts: verts,
+        uvs: uvs,
+        colors: colors,
+        indices: indices,
+      ).toBytes());
+
+      final g = GeometryBuilder().buildEffectGroup(
+          plan, plan.commands!, 0, frame(),
+          texWidth: 10, texHeight: 10);
+      expect(g, isNotNull);
+      expect(g!.positions.length, 8 * 2); // 2 quads × 4 verts × (x,y), one draw
+      // command 0's indices stay [0,1,2,2,1,3]; command 1's rebase by +4.
+      expect(g.indices, <int>[0, 1, 2, 2, 1, 3, 4, 5, 6, 6, 5, 7]);
+      // command 1's first vertex (100,100) → world (2·100+100, 3·100+200).
+      expect(g.positions[8], closeTo(300, 1e-6));
+      expect(g.positions[9], closeTo(500, 1e-6));
     });
 
     test('honours a vert_stride of 3 by skipping the z component', () {

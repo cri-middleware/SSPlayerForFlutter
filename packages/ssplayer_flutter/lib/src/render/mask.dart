@@ -284,7 +284,7 @@ class MaskPlan {
       // — the doc says `mask` 「カットアウト閾値を兼ねる。0 で writer 無効」, it
       // *doubles as* the threshold — so it still applies to a shape, which has
       // no cutout at all.
-      final mask = frame.partByIndex[p]?.mask ?? 0.0;
+      final mask = frame.partOf(p)?.mask ?? 0.0;
       if (mask <= 0.0) continue;
 
       // World outline: a shape's is its polygon, a mesh's is its (world-space)

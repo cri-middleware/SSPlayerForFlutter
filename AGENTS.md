@@ -163,9 +163,18 @@ These were learned the hard way — respect them.
   `build.rs` emits two headers per crate: `<crate>.h` (plain C — ffigen input +
   framework module-map umbrella) and `<crate>.hpp` (C++ — Godot); both ship in the
   release `include/`.
-* **Blend types**: only Mix/Add/Mul/Sub are honored (others → Mix), matching the
-  flagship; straight (non-premultiplied) alpha. `PartColor` needs a
-  `FragmentProgram` (Phase-1+), not stock `BlendMode`.
+* **Blend types (`render/blend.dart`, `blendModeFor`)**: the SS `BlendType` →
+  `ui.BlendMode` table is ported from **ssplayer-webgl** (`SSWebGLRenderer.applyBlend`),
+  which realises every mode as a fixed-function GL blend state. Read against a
+  premultiplied source + opaque dst, most rows have an **exact** stock Skia mode —
+  Mix→`srcOver`, Add→`plus`, Mul/Mulalpha/Mul2→`multiply`, Screen/Screen2→`screen`,
+  Exclusion→`exclusion`. The two Flutter's fixed enum can't express are Sub
+  (reverse-subtract) and Invert (dst-replace `Cs·(1-Cb)`) → both approximate to
+  `difference` (exact in the darkening / opaque-overlay regime each targets; a
+  pixel-exact pass would need a framebuffer read-back the immediate-mode canvas
+  lacks). Div2/Overlay2 have no upstream GL mapping → `srcOver`. Straight
+  (non-premultiplied) authoring alpha. The 4-mode **PartColor** blend (§10) is a
+  separate *shader-side* concern (`FragmentProgram`), not this framebuffer mapping.
 * **Flutter's fragment-shader dialect is NOT full GLSL.** `impellerc` rejects
   **integer bitwise operators** (`<<`, `>>`, `&`, `|`, `~`) and **`discard`** —
   runtime effects are SkSL *shaders*, which return a colour. Port bit twiddling

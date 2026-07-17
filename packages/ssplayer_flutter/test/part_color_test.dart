@@ -56,7 +56,7 @@ void main() {
       final frame = DrawFrame(
         frameData: fbs.FrameData(fbs.FrameDataObjectBuilder().toBytes()),
         drawOrder: const [0],
-        partByIndex: const {},
+        partByIndex: const [],
         world: world,
         local: local,
         uv: uv,
@@ -99,7 +99,7 @@ void main() {
       final frame = DrawFrame(
         frameData: fbs.FrameData(fbs.FrameDataObjectBuilder().toBytes()),
         drawOrder: const [0],
-        partByIndex: const {},
+        partByIndex: const [],
         world: world,
         local: local,
         uv: uv,
@@ -134,8 +134,9 @@ void main() {
       final fd = player.getFrameData(player.frameNo);
       final parts = fd?.parts;
       if (fd == null || parts == null) continue;
+      final table = fd.partsColor;
       for (final p in parts) {
-        final pc = PartColor.read(fd, p);
+        final pc = PartColor.read(table, p);
         if (pc != null) {
           found = pc;
           break;

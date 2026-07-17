@@ -100,18 +100,25 @@ class PartColor {
   final PartColorCorner lb;
   final PartColorCorner rb;
 
-  /// Resolves the PartColor for [part], or null when it has none.
+  /// Resolves the PartColor for [part] against [partsColor] (the frame's
+  /// `FrameData.parts_color` vector), or null when it has none.
+  ///
+  /// The caller passes the **already-fetched** vector rather than a `FrameData`
+  /// so it can be fetched ONCE per frame: `frameData.partsColor` builds a fresh
+  /// lazy list wrapper — and a full-length backing cache on first index — every
+  /// call, so re-fetching it here per part churned `O(pcParts × total)` throwaway
+  /// arrays each frame. `DrawFrame.partsColor` caches it; hand that in.
   ///
   /// Guarded by `part.part_color >= 0` (the sibling ports' `hasPc` test) rather
   /// than `update_flag` — reading the raw `update_flag` bitfield is the only safe
   /// way to test it (the generated `bit_flags` enum throws on OR-combined
   /// values), and the index alone is an equivalent, simpler signal.
-  static PartColor? read(fbs.FrameData frameData, fbs.PartState part) {
+  static PartColor? read(
+      List<fbs.PartAttributePartColor>? partsColor, fbs.PartState part) {
     final idx = part.partColor;
     if (idx < 0) return null;
-    final table = frameData.partsColor;
-    if (table == null || idx >= table.length) return null;
-    final pc = table[idx];
+    if (partsColor == null || idx >= partsColor.length) return null;
+    final pc = partsColor[idx];
     return PartColor(
       coef: partColorCoef(pc.blendType),
       lt: _corner(pc.lt),
