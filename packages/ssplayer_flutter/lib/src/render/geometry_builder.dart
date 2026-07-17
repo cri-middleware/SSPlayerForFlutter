@@ -131,10 +131,16 @@ class MeshBuffers {
 /// SoA are added here as their kinds are ported (Phase 2).
 ///
 /// [partByIndex] maps a part index (as found in [drawOrder]) to its
-/// [fbs.PartState]; the `parts` vector is not guaranteed part-index ordered, so
-/// the lookup is materialized once per frame. This is the seam where the §7D
-/// raw-`ByteData` fast path — reading `PartState` / `parts_color` by byte offset
-/// instead of via the FlatBuffers accessors — will slot in when it matters.
+/// [fbs.PartState], materialized once per frame because the `parts` vector is
+/// not guaranteed part-index ordered. It is a **dense list indexed by part
+/// index** (part indices are 0-based and contiguous — the same indexing
+/// `MaskPartFlags.readAll` relies on), not a `Map`: an array write + O(1) index
+/// read with no per-key hashing, and a single contiguous allocation per frame.
+/// Look parts up through [partOf], which bounds-checks (a `drawOrder` entry can
+/// name a part absent from this frame's `parts` vector); a slot is null for any
+/// index not present. This is the seam where the §7D raw-`ByteData` fast path —
+/// reading `PartState` / `parts_color` by byte offset instead of via the
+/// FlatBuffers accessors — will slot in when it matters.
 class DrawFrame {
   DrawFrame({
     required this.frameData,
@@ -165,12 +171,21 @@ class DrawFrame {
     final drawOrder = frameData.drawOrder;
     final parts = frameData.parts;
     if (drawOrder == null || parts == null) return null;
+    // Dense list keyed by part index — no hashing, one contiguous allocation.
+    // Sized to the largest index present (parts are 0-based/contiguous, but the
+    // vector may be a subset and is not index-ordered, so scan for the max).
+    var maxIndex = -1;
+    for (final p in parts) {
+      if (p.partIndex > maxIndex) maxIndex = p.partIndex;
+    }
+    final partByIndex = List<fbs.PartState?>.filled(maxIndex + 1, null);
+    for (final p in parts) {
+      if (p.partIndex >= 0) partByIndex[p.partIndex] = p;
+    }
     return DrawFrame(
       frameData: frameData,
       drawOrder: drawOrder,
-      partByIndex: <int, fbs.PartState>{
-        for (final p in parts) p.partIndex: p,
-      },
+      partByIndex: partByIndex,
       world: world,
       local: local,
       uv: uv,
@@ -182,7 +197,12 @@ class DrawFrame {
 
   final fbs.FrameData frameData;
   final List<int> drawOrder;
-  final Map<int, fbs.PartState> partByIndex;
+
+  /// Part states keyed by part index (dense; see the class doc). Read it through
+  /// [partOf] rather than indexing directly — an index out of range (a part in
+  /// `drawOrder` but absent from this frame's `parts`) must resolve to null, not
+  /// throw.
+  final List<fbs.PartState?> partByIndex;
   final Float32List world; // parts × 16
   final Float32List local; // parts × 10 (lt,rt,lb,rb,center)
   final Float32List uv; // parts × 10 (texture-pixel space)
@@ -205,6 +225,14 @@ class DrawFrame {
   static const int worldStride = 16;
   static const int vertexStride = 10; // local vertices and UVs share this
 
+  /// The [fbs.PartState] for [partIndex], or null when that index is not present
+  /// in this frame's `parts` vector (bounds-checked — a `drawOrder` entry may
+  /// name a part with no state this frame).
+  fbs.PartState? partOf(int partIndex) =>
+      (partIndex >= 0 && partIndex < partByIndex.length)
+          ? partByIndex[partIndex]
+          : null;
+
   /// The hierarchical alpha for part [partIndex], clamped to 0..1 (1 if the part
   /// is not present in the `parts` vector), times this frame's [alphaScale].
   ///
@@ -213,7 +241,7 @@ class DrawFrame {
   /// hierarchical alpha is pre-folded into the corner alphas (§1-3) and
   /// re-multiplying it would double-apply.
   double alphaOf(int partIndex) =>
-      (partByIndex[partIndex]?.alpha ?? 1.0).clamp(0.0, 1.0) * alphaScale;
+      (partOf(partIndex)?.alpha ?? 1.0).clamp(0.0, 1.0) * alphaScale;
 }
 
 /// A baked, ready-to-draw vertex block — the inspectable form of what
@@ -295,9 +323,39 @@ class PartColorQuad {
 /// Mesh / effect-quad builders and the 5-vertex center fan + PartColor CUSTOM0
 /// attributes (needed when `update_flag & (AttributeVertex | AttributePartColor)`)
 /// are Phase 2.
+///
+/// **Buffer reuse / aliasing contract.** The bake methods write into grow-only
+/// scratch buffers held on this instance rather than allocating fresh arrays per
+/// batch, so a steady-state frame does no per-batch vertex allocation. Two
+/// consequences the callers already honour:
+///  * the [MeshGeometry] returned by [buildMeshGeometry] / [buildShapeParts] /
+///    [buildEffectCommand] **aliases the scratch** — consume it (`toVertices()`,
+///    or read its arrays) BEFORE the next bake call on the same builder, which
+///    overwrites the scratch. Every call site does (draw / build a Path
+///    immediately); a `ui.Vertices` copies at construction so it is unaffected;
+///  * each [SpriteStudioInternalPlayer] owns its own builder, so an instance
+///    child's recursive paint never races the parent's scratch.
 class GeometryBuilder {
   /// Two triangles per quad: `lt,rt,lb,rb` → `{lt,rt,lb, rt,rb,lb}`.
   static const List<int> _quad = [0, 1, 2, 1, 3, 2];
+
+  // Grow-only scratch for the per-batch vertex arrays (see the class doc's
+  // reuse/aliasing contract). Separate cells because a single bake needs
+  // positions, UVs, colours and indices live at once; sized to the largest
+  // batch seen so far and never shrunk.
+  Float32List _posScratch = Float32List(0);
+  Float32List _uvScratch = Float32List(0);
+  Int32List _colScratch = Int32List(0);
+  Uint16List _idxScratch = Uint16List(0);
+
+  Float32List _pos(int n) =>
+      _posScratch.length >= n ? _posScratch : (_posScratch = Float32List(n));
+  Float32List _uvs(int n) =>
+      _uvScratch.length >= n ? _uvScratch : (_uvScratch = Float32List(n));
+  Int32List _cols(int n) =>
+      _colScratch.length >= n ? _colScratch : (_colScratch = Int32List(n));
+  Uint16List _idx(int n) =>
+      _idxScratch.length >= n ? _idxScratch : (_idxScratch = Uint16List(n));
 
   /// Bakes the given [parts] (part indices, already in draw order) into a single
   /// indexed [ui.Vertices]: for each part transforms its 4 local corners
@@ -317,10 +375,10 @@ class GeometryBuilder {
     final local = frame.local;
     final uv = frame.uv;
 
-    final positions = Float32List(count * 4 * 2); // 4 corners × (x,y)
-    final texCoords = Float32List(count * 4 * 2);
-    final colors = Int32List(count * 4);
-    final indices = Uint16List(count * 6); // 2 triangles per quad
+    final positions = _pos(count * 4 * 2); // 4 corners × (x,y)
+    final texCoords = _uvs(count * 4 * 2);
+    final colors = _cols(count * 4);
+    final indices = _idx(count * 6); // 2 triangles per quad
 
     var vBase = 0; // vertices emitted so far
     var fPos = 0; // float cursor into positions/texCoords
@@ -362,12 +420,18 @@ class GeometryBuilder {
     }
 
     if (vBase == 0) return null;
+    // Zero-copy views over the head of each scratch buffer, NOT `sublist` (which
+    // allocates a full copy): `ui.Vertices.raw` copies its inputs into engine
+    // memory at construction, so a view is safe and skips one array copy per
+    // buffer. A view spans `[0, n)` — the untouched tail (when a part was
+    // skipped, so `fPos < length`) is never referenced.
     return ui.Vertices.raw(
       ui.VertexMode.triangles,
-      positions.sublist(0, fPos),
-      textureCoordinates: texCoords.sublist(0, fPos),
-      colors: colors.sublist(0, cPos),
-      indices: indices.sublist(0, iPos),
+      Float32List.view(positions.buffer, positions.offsetInBytes, fPos),
+      textureCoordinates:
+          Float32List.view(texCoords.buffer, texCoords.offsetInBytes, fPos),
+      colors: Int32List.view(colors.buffer, colors.offsetInBytes, cPos),
+      indices: Uint16List.view(indices.buffer, indices.offsetInBytes, iPos),
     );
   }
 
@@ -411,10 +475,10 @@ class GeometryBuilder {
     // silently wrapping would corrupt the geometry.
     if (vTotal > 0xFFFF) return null;
 
-    final positions = Float32List(vTotal * 2);
-    final texCoords = Float32List(vTotal * 2);
-    final colors = Int32List(vTotal);
-    final indices = Uint16List(iTotal);
+    final positions = _pos(vTotal * 2);
+    final texCoords = _uvs(vTotal * 2);
+    final colors = _cols(vTotal);
+    final indices = _idx(iTotal);
 
     var vBase = 0; // vertices emitted so far (the index rebase)
     var fPos = 0;
@@ -447,11 +511,14 @@ class GeometryBuilder {
     }
 
     if (vBase == 0 || iPos == 0) return null;
+    // Zero-copy views (see `buildNormalParts`): the buffers are already
+    // exact-sized here, so the view spans the whole buffer in the common case
+    // and only trims when a corrupt CSR range was dropped mid-loop.
     return MeshGeometry(
-      positions: positions.sublist(0, fPos),
-      texCoords: texCoords.sublist(0, fPos),
-      colors: colors.sublist(0, cPos),
-      indices: indices.sublist(0, iPos),
+      positions: Float32List.view(positions.buffer, positions.offsetInBytes, fPos),
+      texCoords: Float32List.view(texCoords.buffer, texCoords.offsetInBytes, fPos),
+      colors: Int32List.view(colors.buffer, colors.offsetInBytes, cPos),
+      indices: Uint16List.view(indices.buffer, indices.offsetInBytes, iPos),
     );
   }
 
@@ -516,10 +583,10 @@ class GeometryBuilder {
     // part's hierarchical alpha in on top (the slot never sees it).
     final partAlpha = frame.alphaOf(part);
 
-    final positions = Float32List(vertexCount * 2);
-    final texCoords = Float32List(vertexCount * 2);
-    final colors = Int32List(vertexCount);
-    final indices = Uint16List(indexCount);
+    final positions = _pos(vertexCount * 2);
+    final texCoords = _uvs(vertexCount * 2);
+    final colors = _cols(vertexCount);
+    final indices = _idx(indexCount);
 
     for (var i = 0; i < vertexCount; i++) {
       final x = verts[vOff + i * stride];
@@ -543,11 +610,15 @@ class GeometryBuilder {
       indices[k] = v;
     }
 
+    // Views trim the shared scratch back to this command's exact size (see the
+    // class doc's reuse contract).
     return MeshGeometry(
-      positions: positions,
-      texCoords: texCoords,
-      colors: colors,
-      indices: indices,
+      positions:
+          Float32List.view(positions.buffer, positions.offsetInBytes, vertexCount * 2),
+      texCoords:
+          Float32List.view(texCoords.buffer, texCoords.offsetInBytes, vertexCount * 2),
+      colors: Int32List.view(colors.buffer, colors.offsetInBytes, vertexCount),
+      indices: Uint16List.view(indices.buffer, indices.offsetInBytes, indexCount),
     );
   }
 
@@ -615,9 +686,9 @@ class GeometryBuilder {
     }
     if (vTotal == 0 || iTotal == 0) return null;
 
-    final positions = Float32List(vTotal * 2);
-    final colors = Int32List(vTotal);
-    final indices = Uint16List(iTotal);
+    final positions = _pos(vTotal * 2);
+    final colors = _cols(vTotal);
+    final indices = _idx(iTotal);
     var vPos = 0, cPos = 0, iPos = 0, base = 0;
 
     for (final p in parts) {
@@ -630,7 +701,7 @@ class GeometryBuilder {
       final m4 = frame.world[m + 4], m5 = frame.world[m + 5];
       final m12 = frame.world[m + 12], m13 = frame.world[m + 13];
 
-      final state = frame.partByIndex[p];
+      final state = frame.partOf(p);
       final pc = state == null ? null : PartColor.read(frame.frameData, state);
       // No PartColor → white at the part's alpha (§1-2-4's default), which also
       // picks up the instance chain's scale. With PartColor the corner alphas
@@ -678,12 +749,13 @@ class GeometryBuilder {
     }
     if (vPos == 0 || iPos == 0) return null;
 
+    // Zero-copy views (see `buildNormalParts`).
     return MeshGeometry(
-      positions: positions.sublist(0, vPos),
+      positions: Float32List.view(positions.buffer, positions.offsetInBytes, vPos),
       // A Shape samples nothing; the caller pairs this with a white Paint.
       texCoords: null,
-      colors: colors.sublist(0, cPos),
-      indices: indices.sublist(0, iPos),
+      colors: Int32List.view(colors.buffer, colors.offsetInBytes, cPos),
+      indices: Uint16List.view(indices.buffer, indices.offsetInBytes, iPos),
     );
   }
 

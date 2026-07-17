@@ -69,7 +69,7 @@ void main() {
     DrawFrame frameWithWorld(List<double> m) => DrawFrame(
           frameData: _emptyFrameData(),
           drawOrder: const <int>[0],
-          partByIndex: const <int, fbs.PartState>{},
+          partByIndex: const [],
           world: Float32List.fromList(m),
           local: Float32List(10),
           uv: Float32List(10),
@@ -180,7 +180,7 @@ void main() {
       DrawFrame frameWith(double scale) => DrawFrame(
             frameData: _emptyFrameData(),
             drawOrder: const <int>[0],
-            partByIndex: const <int, fbs.PartState>{},
+            partByIndex: const [],
             world: Float32List(16),
             local: Float32List(10),
             uv: Float32List(10),

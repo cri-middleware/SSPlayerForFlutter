@@ -919,7 +919,7 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable, InstanceChild {
       final flags = _flagsFor(p);
       // Coverage-only. It draws nothing, so it cannot split the run either.
       if (flags.pureMask) continue;
-      final part = frame.partByIndex[p];
+      final part = frame.partOf(p);
       final pc = part == null ? null : PartColor.read(frame.frameData, part);
       // This player's own mask wins per-part; a mask inherited from the parent
       // instance (§3-2-2) applies to every other part of the child subtree. A

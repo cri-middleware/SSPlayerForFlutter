@@ -59,7 +59,7 @@ void main() {
     DrawFrame frameWith(MeshBuffers mesh) => DrawFrame(
           frameData: fbs.FrameData(fbs.FrameDataObjectBuilder().toBytes()),
           drawOrder: const [0, 2],
-          partByIndex: const {},
+          partByIndex: const [],
           world: Float32List(0),
           local: Float32List(0),
           uv: Float32List(0),
@@ -94,6 +94,30 @@ void main() {
       expect(g.texCoords!.sublist(6), <double>[16, 16, 24, 16, 16, 24]);
     });
 
+    test('reuses scratch across bakes: a smaller second bake trims cleanly', () {
+      // Item-2 buffer-reuse contract: the builder bakes into grow-only scratch,
+      // so a large bake followed by a smaller one on the SAME instance must
+      // return a view trimmed to the second bake's exact size — no stale tail
+      // from the first bake leaking through. Every real caller consumes a bake
+      // before the next, which the copy-out below models.
+      final builder = GeometryBuilder();
+      final frame = frameWith(twoPartMesh());
+
+      // Large bake: 2 parts → 6 verts, 6 indices. Copy it out (consume) BEFORE
+      // the next bake overwrites the shared scratch.
+      final big = builder.buildMeshGeometry(<int>[0, 2], frame)!;
+      final bigPositions = Float32List.fromList(big.positions);
+      expect(bigPositions.length, 12);
+      expect(big.indices, <int>[0, 1, 2, 3, 5, 4]);
+
+      // Smaller bake on the same builder: 1 part → 3 verts. Reuses the buffer
+      // (no re-grow) and must expose exactly 3 verts, not the 6 from before.
+      final small = builder.buildMeshGeometry(<int>[0], frame)!;
+      expect(small.positions.length, 6); // 3 verts × (x,y), trimmed
+      expect(small.positions, <double>[0, 0, 10, 0, 0, 10]);
+      expect(small.indices, <int>[0, 1, 2]); // no stale [3,5,4] tail
+    });
+
     test('vertex colour is white × the part alpha, ARGB-packed', () {
       final g =
           GeometryBuilder().buildMeshGeometry(<int>[0], frameWith(twoPartMesh()));
@@ -107,7 +131,7 @@ void main() {
       final frame = DrawFrame(
         frameData: fbs.FrameData(fbs.FrameDataObjectBuilder().toBytes()),
         drawOrder: const [0],
-        partByIndex: const {},
+        partByIndex: const [],
         world: Float32List(0),
         local: Float32List(0),
         uv: Float32List(0),

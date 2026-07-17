@@ -66,7 +66,7 @@ void main() {
     DrawFrame frame() => DrawFrame(
           frameData: fbs.FrameData(fbs.FrameDataObjectBuilder().toBytes()),
           drawOrder: const [0],
-          partByIndex: const {},
+          partByIndex: const [],
           world: Float32List.fromList(<double>[
             2, 0, 0, 0, //
             0, 3, 0, 0, //

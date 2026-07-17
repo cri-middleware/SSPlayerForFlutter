@@ -56,7 +56,7 @@ void main() {
       final frame = DrawFrame(
         frameData: fbs.FrameData(fbs.FrameDataObjectBuilder().toBytes()),
         drawOrder: const [0],
-        partByIndex: const {},
+        partByIndex: const [],
         world: world,
         local: local,
         uv: uv,
@@ -99,7 +99,7 @@ void main() {
       final frame = DrawFrame(
         frameData: fbs.FrameData(fbs.FrameDataObjectBuilder().toBytes()),
         drawOrder: const [0],
-        partByIndex: const {},
+        partByIndex: const [],
         world: world,
         local: local,
         uv: uv,
