@@ -30,6 +30,9 @@ import 'package:hooks/hooks.dart';
 ///      (macOS/iOS come as a `.framework`/`.xcframework`, so the Mach-O is pulled
 ///      out and its install id rewritten) — the path for a pub.dev consumer who
 ///      never touches Rust. Everything is cached under `outputDirectoryShared`.
+///      The release archive is a **flat tree rooted at `libs/<platform>/…`** (the
+///      old `output/dynamic/runtime/` wrapper was dropped in SDK PR #317); the
+///      per-target [_Target.zipEntrySuffix]s are anchored to that `libs/` root.
 void main(List<String> args) async {
   await build(args, (input, output) async {
     if (!input.config.buildCodeAssets) return;
@@ -55,7 +58,9 @@ class _Target {
   final String rel;
 
   /// The entry to pull out of `spritestudio-sdk-dynamic-libs.zip` (branch 3),
-  /// matched by suffix so the zip's leading directory doesn't have to be known.
+  /// anchored to the archive's flat `libs/<platform>/…` root. Matched with
+  /// `endsWith` (not equality) so an optional `./` prefix — or any future wrapper
+  /// directory the SDK might reintroduce — is still tolerated.
   final String zipEntrySuffix;
 
   /// Bare output file name (drives the extension the code asset needs).
@@ -98,7 +103,7 @@ _Target _targetFor(CodeConfig code) {
       // ("no longer shipped"). Pull the universal Mach-O out of it.
       return const _Target(
         'native/libs/macos/libssruntime.dylib',
-        'macos/libssruntime.framework/Versions/A/libssruntime',
+        'libs/macos/libssruntime.framework/Versions/A/libssruntime',
         'libssruntime.dylib',
         _Extract.machoId,
       );
@@ -141,7 +146,7 @@ _Target _targetFor(CodeConfig code) {
       final slice = device ? 'ios-arm64' : 'ios-arm64_x86_64-simulator';
       return _Target(
         'native/libs/ios/$dir/$arch/libssruntime.dylib',
-        'libssruntime.xcframework/$slice/libssruntime.framework/libssruntime',
+        'libs/ios/libssruntime.xcframework/$slice/libssruntime.framework/libssruntime',
         'libssruntime.dylib',
         device ? _Extract.machoId : _Extract.lipoThin,
         lipoArch: device ? null : arch,
