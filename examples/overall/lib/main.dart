@@ -203,15 +203,17 @@ class _PlayerPageState extends State<PlayerPage>
     ..sort();
 
   // --- Dev live-reload (the SsLiveReload mixin) --------------------------
-  // Rides Flutter's own hot reload to also rebuild the SpriteStudio art —
-  // desktop reconverts the stale SpriteStudio_Source projects in-process,
-  // device reloads the fresh pack from the bundle. Opt-in via the
-  // SS_LIVE_RELOAD define (see ssLiveReloadEnabled below). Recommended: run
-  //   dart run ssgen_flutter:ssdev -d <device>
-  // from examples/overall/ — it wraps `flutter run`, injects the define, and on save
-  // reconverts + hot-reloads for you. Manual: `flutter run
-  // --dart-define=SS_LIVE_RELOAD=true`, then after a REAL edit (a `touch` is
-  // byte-identical) run `dart run ssgen_flutter:ssreconvert` and press `r`.
+  // Hot-swaps the SpriteStudio art in place, playhead preserved. Opt-in via the
+  // SS_LIVE_RELOAD define (see ssLiveReloadEnabled below).
+  //   Desktop: run a watcher alongside the app — it reconverts the stale
+  //     SpriteStudio_Source projects and PUSHES the pack over the VM Service (no
+  //     `r`, IDE-debugger friendly):
+  //       flutter run -d macos --dart-define=SS_LIVE_RELOAD=true \
+  //         --vmservice-out-file=/tmp/ss.uri
+  //       dart run ssgen_flutter:sswatch --vmservice-uri-file=/tmp/ss.uri
+  //   Device (iOS/Android): reconvert on the host and let `r` DevFS-sync it —
+  //       dart run ssgen_flutter:ssdev -d <device>   (wraps `flutter run`)
+  //     then edit & save. (A `touch` is byte-identical, so edit for real.)
   @override
   SpriteStudioPlayer get ssPlayer => _player;
 

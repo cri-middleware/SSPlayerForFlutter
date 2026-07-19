@@ -29,9 +29,13 @@ dependencies:
   # iOS/Android its ssconverter_dart dependency is mobile-inert (no code asset).
   ssgen_dart:
     path: ../ssgen_dart
-  # Filesystem watcher for the `ssdev` runner (watch SpriteStudio_Source →
-  # reconvert + hot reload). Host dev-tool only.
+  # Filesystem watcher for the `ssdev` / `sswatch` runners (watch
+  # SpriteStudio_Source → reconvert + hot reload). Host dev-tool only.
   watcher: ^1.1.0
+  # VM Service client for the `sswatch` runner: connect to a running app's Dart
+  # VM Service and call its `ext.ssgen.reload` extension to push a fresh pack —
+  # no `flutter run` ownership, so it coexists with an IDE debug session.
+  vm_service: ^15.2.0
 
 dev_dependencies:
   flutter_test:

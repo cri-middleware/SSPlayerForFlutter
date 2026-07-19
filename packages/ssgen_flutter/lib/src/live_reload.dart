@@ -1,30 +1,35 @@
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart' show CachingAssetBundle, rootBundle;
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter/widgets.dart';
-import 'package:ssgen_dart/ssgen_dart.dart';
 import 'package:ssplayer_flutter/ssplayer_flutter.dart';
 
+import 'dev_channel.dart';
 import 'ss_defines.dart';
 
-/// Wires SpriteStudio dev live-reload into a [State]: on Flutter's hot reload
-/// (`State.reassemble`), rebuild the art and hot-swap it in place — so pressing
-/// `r` (or an IDE Dart-save) also picks up SpriteStudio edits.
+/// Wires SpriteStudio dev live-reload into a [State] and hot-swaps the current
+/// pack in place, with the playhead / animation / play state preserved
+/// ([SpriteStudioPlayer.reload]).
 ///
-/// **Desktop** (host): reconvert only the STALE `SpriteStudio_Source` projects
-/// via the host `libssconverter` ([SsProjectSync]), then reload the current pack
-/// from the regenerated assets. One gesture (`r`) does everything.
+/// **Desktop** (host): reload is driven by the VM-Service **push channel**
+/// ([SsDevChannel]) — run `dart run ssgen_flutter:sswatch` (or `ssdev`)
+/// alongside the app. On save it reconverts the stale `SpriteStudio_Source`
+/// projects (host `libssconverter`) and pushes the fresh pack straight to this
+/// player: no `r`, and it works under an IDE debugger. The mixin just registers
+/// this target with the channel — there is no in-process reconvert on
+/// `reassemble` anymore.
 ///
-/// **Device** (iOS/Android): the device can't run the host converter, so this
-/// only reloads the current pack from `rootBundle`. The developer reconverts on
-/// the host — `dart run ssgen_flutter:ssreconvert` — and `r` DevFS-syncs the
-/// fresh `.ssab` to the device.
+/// **Device** (iOS/Android): the device can't run the host converter and can't
+/// read a host path, so device reload still rides Flutter's own hot reload
+/// (`State.reassemble`): reconvert on the host with `dart run
+/// ssgen_flutter:ssreconvert` (or the `ssdev` device runner) and `r` DevFS-syncs the
+/// fresh `.ssab`, which this reloads from `rootBundle`. (A later release moves
+/// device onto the push channel too; see the live-reload design doc.)
 ///
 /// Implement [ssPlayer], [ssAssetDir], [ssPack]; everything else has a default.
-/// The playhead / animation / play state survive the swap
-/// ([SpriteStudioPlayer.reload]). Debug-only by construction — `reassemble` only
-/// fires on hot reload. Not supported on web (as with the runtime).
+/// Debug-only by construction (the push channel and `reassemble` only exist in
+/// debug). Not supported on web (as with the runtime).
 ///
 /// ```dart
 /// class _MyPageState extends State<MyPage> with SsLiveReload<MyPage> {
@@ -34,83 +39,72 @@ import 'ss_defines.dart';
 ///   @override void ssOnLiveReloaded() => setState(() {});
 /// }
 /// ```
-mixin SsLiveReload<T extends StatefulWidget> on State<T> {
+mixin SsLiveReload<T extends StatefulWidget> on State<T>
+    implements SsLiveReloadTarget {
   /// The player to hot-swap.
+  @override
   SpriteStudioPlayer get ssPlayer;
 
-  /// The current pack's asset directory — the [SsProjectSync] output for the
-  /// project, e.g. `assets/spritestudio/overall` (a `rootBundle` key prefix; on
-  /// desktop it is resolved under [ssProjectRoot]). Keep it the convention
-  /// directory; suspend live-reload via [ssLiveReloadEnabled] for other sources.
+  /// The current pack's asset directory — the reconvert output for the project,
+  /// e.g. `assets/spritestudio/overall` (a `rootBundle` key prefix). Keep it the
+  /// convention directory; suspend live-reload via [ssLiveReloadEnabled] for
+  /// other sources.
+  @override
   String get ssAssetDir;
 
   /// The current pack — the `.ssab` stem, e.g. `PartsColor`.
+  @override
   String get ssPack;
 
   /// Gate live-reload (default: debug builds launched with the SpriteStudio
-  /// live-reload define). `ssdev` injects it; otherwise pass
+  /// live-reload define). `ssdev`/`sswatch` inject it; otherwise pass
   /// `--dart-define=SS_LIVE_RELOAD=true`. So a plain `flutter run` does normal
-  /// Dart hot reload without reconverting art. Return false to suspend it (e.g.
+  /// Dart hot reload without touching the art. Return false to suspend it (e.g.
   /// while a drag-dropped source is shown); override to `kDebugMode` to always
-  /// reconvert on hot reload.
+  /// accept a live-reload.
+  @override
   bool get ssLiveReloadEnabled =>
       kDebugMode && const bool.fromEnvironment(ssLiveReloadDefine);
 
-  /// The project root holding `SpriteStudio_Source/` (desktop reconvert).
-  /// Defaults to `--dart-define=SS_PROJECT_ROOT` else a walk-up from the
-  /// executable (holds for `flutter run` debug builds; a macOS app's
-  /// `Directory.current` is its sandbox container, not the project).
-  String? get ssProjectRoot => _resolveProjectRoot();
-
   /// Called after a successful live-reload — e.g. `setState(() {})`.
+  @override
   void ssOnLiveReloaded() {}
 
   /// Called when a live-reload throws.
+  @override
   void ssOnLiveReloadError(Object error) {}
 
   bool _busy = false;
 
   @override
+  void initState() {
+    super.initState();
+    // Join the VM-Service push channel so `sswatch`/`ssdev` can hot-swap this
+    // player without `r` — this is the desktop reload path. Inert with no
+    // watcher connected.
+    SsDevChannel.instance.register(this);
+  }
+
+  @override
+  void dispose() {
+    SsDevChannel.instance.unregister(this);
+    super.dispose();
+  }
+
+  @override
   void reassemble() {
     super.reassemble();
-    if (!ssLiveReloadEnabled) return;
-    if (_isDesktop) {
-      _desktopReconvertReload();
-    } else if (!kIsWeb) {
-      _deviceReload();
-    }
+    // Desktop reload comes from the push channel (SsDevChannel), not reassemble.
+    // On a device, reassemble is still how an `r`-synced `.ssab` is reloaded.
+    if (!ssLiveReloadEnabled || kIsWeb || _isDesktop) return;
+    _deviceReload();
   }
 
   static bool get _isDesktop =>
       !kIsWeb && (Platform.isMacOS || Platform.isWindows || Platform.isLinux);
 
-  Future<void> _desktopReconvertReload() async {
-    if (_busy) return; // single-flight: don't overlap reload()/load()
-    _busy = true;
-    try {
-      final root = ssProjectRoot;
-      if (root == null) return;
-      // Reconvert only the stale projects, then reload the current pack from its
-      // (possibly regenerated) output under the same convention directory.
-      await const SsProjectSync().reconvert(projectRoot: root);
-      final dir = '$root/$ssAssetDir';
-      final file = File('$dir/$ssPack.ssab');
-      if (!file.existsSync()) return;
-      await ssPlayer.reload(
-        await file.readAsBytes(),
-        bundle: _FileBundle(), // fresh instance → no stale cached bytes
-        baseAssetDir: dir,
-      );
-      if (mounted) ssOnLiveReloaded();
-    } catch (e) {
-      if (mounted) ssOnLiveReloadError(e);
-    } finally {
-      _busy = false;
-    }
-  }
-
   Future<void> _deviceReload() async {
-    if (_busy) return;
+    if (_busy) return; // single-flight: don't overlap reload()/load()
     _busy = true;
     try {
       final key = '$ssAssetDir/$ssPack.ssab';
@@ -126,27 +120,4 @@ mixin SsLiveReload<T extends StatefulWidget> on State<T> {
       _busy = false;
     }
   }
-
-  static String? _resolveProjectRoot() {
-    const sub = SsProjectSyncConfig.defaultSourceSubdir;
-    const override = String.fromEnvironment('SS_PROJECT_ROOT');
-    if (override.isNotEmpty) {
-      return Directory('$override/$sub').existsSync() ? override : null;
-    }
-    var dir = File(Platform.resolvedExecutable).parent;
-    for (var i = 0; i < 12; i++) {
-      if (Directory('${dir.path}/$sub').existsSync()) return dir.path;
-      final parent = dir.parent;
-      if (parent.path == dir.path) break;
-      dir = parent;
-    }
-    return null;
-  }
-}
-
-/// AssetBundle whose keys are absolute filesystem paths (desktop FS reads).
-class _FileBundle extends CachingAssetBundle {
-  @override
-  Future<ByteData> load(String key) async =>
-      ByteData.sublistView(await File(key).readAsBytes());
 }
