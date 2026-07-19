@@ -50,8 +50,12 @@ plugins:
           name: 日本語
           build: true
 
-# Audience-tiered navigation (mirrors SSPlayerForUnity): library users read the
-# "For Users" tab and never need to touch the Rust/SDK/build material below it.
+# Two-tier, audience-first navigation: everything an app developer needs — playback,
+# Flame, and the .sspj→.ssab / live-reload automation — lives under "For Users"; the
+# Rust/SDK/native internals sit under the developer tab. (There is deliberately no
+# middle "customization" tier: unlike a game engine, a Flutter UI player has no
+# audience that extends the Player itself, so the asset/automation pages that a
+# sibling player would file under "Customization" live under "For Users" here.)
 nav:
   - Home: index.md
   - For Users:
@@ -59,14 +63,12 @@ nav:
       - Quick Start: guide/quickstart.md
       - Playback & Events: guide/playback.md
       - Flame Integration: guide/flame.md
-  - Customization & Automation:
-      - Overview: customize/index.md
-      - Preparing Assets (.sspj → .ssab): customize/conversion.md
-      - Native Runtime: customize/native-runtime.md
-      - Live Reload: customize/live-reload.md
+      - Preparing Assets (.sspj → .ssab): guide/conversion.md
+      - Live Reload: guide/live-reload.md
   - For Player & SDK Developers:
       - Architecture: contributing/architecture.md
       - Build Guide: contributing/build.md
+      - Native Runtime: contributing/native-runtime.md
       - Releasing: contributing/releasing.md
       - Roadmap & Limitations: contributing/roadmap.md
   - Packages: packages.md

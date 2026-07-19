@@ -79,4 +79,4 @@ _player.onComplete = () {
 ## Live updates during development
 
 To hot-swap a re-exported `.ssab` without losing transport state, see
-[Live Reload](../customize/live-reload.md).
+[Live Reload](live-reload.md).

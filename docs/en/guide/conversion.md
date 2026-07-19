@@ -54,7 +54,7 @@ dart run ssconverter_dart:ssconvert -e -o out_emb/ path/to/project.sspj  # embed
 | **Embedded** | `-e` | A single self-contained `.ssab` with textures baked in | Shipping — one file per animation, nothing else to bundle |
 
 Load a reference-form `.ssab` with `baseAssetDir` so the sibling images resolve; an embedded `.ssab`
-needs none. See [Quick Start](../guide/quickstart.md).
+needs none. See [Quick Start](quickstart.md).
 
 ### In a build / CI pipeline
 

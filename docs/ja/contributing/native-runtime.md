@@ -55,4 +55,4 @@ hooks:
 Flutter の描画スタック（L2–L4: SoA → `ui.Vertices` bake、`paint`、ウィジェット）は `ssplayer_flutter`
 にあり、ランタイムとその FlatBuffers フレームデータはそれに依存しません。
 
-レイヤ構成は [アーキテクチャ](../contributing/architecture.md) を参照してください。
+レイヤ構成は [アーキテクチャ](architecture.md) を参照してください。

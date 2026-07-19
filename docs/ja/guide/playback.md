@@ -79,4 +79,4 @@ _player.onComplete = () {
 ## 開発中のライブ更新
 
 再エクスポートした `.ssab` をトランスポート状態を保ったまま差し替えるには、
-[ライブリロード](../customize/live-reload.md) を参照してください。
+[ライブリロード](live-reload.md) を参照してください。

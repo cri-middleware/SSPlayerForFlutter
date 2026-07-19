@@ -51,6 +51,6 @@ setup.
 
 ## Next steps
 
-- **No `.ssab` file yet?** → [CLI Conversion (`.sspj` → `.ssab`)](../customize/conversion.md) to build
+- **No `.ssab` file yet?** → [CLI Conversion (`.sspj` → `.ssab`)](conversion.md) to build
   one from your SpriteStudio project.
 - **Already have an `.ssab`?** → [Quick Start](quickstart.md) to load and play it in a widget.

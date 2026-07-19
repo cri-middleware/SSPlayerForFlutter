@@ -21,4 +21,4 @@ dart doc
 - **`SpriteStudioView`** (L4) — the `RenderBox` widget. See [Quick Start](guide/quickstart.md).
 - **`SpriteStudioComponent`** (`ssplayer_flame`) — Flame adapter. See [Flame Integration](guide/flame.md).
 - **`SsAnimeInfo`** — enumerate animation / cellmap names from `.ssab` bytes.
-- **`SsConverter` / `ssconvert`** (`ssconverter_dart`) — see [CLI Conversion](customize/conversion.md).
+- **`SsConverter` / `ssconvert`** (`ssconverter_dart`) — see [CLI Conversion](guide/conversion.md).

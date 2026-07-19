@@ -2,7 +2,7 @@
 
 For developing the core (the Rust runtime or the Player itself). **App users and customizers do not
 need this** — the native libraries are auto-downloaded (see
-[Native Runtime](../customize/native-runtime.md)).
+[Native Runtime](native-runtime.md)).
 
 ## Prerequisites
 

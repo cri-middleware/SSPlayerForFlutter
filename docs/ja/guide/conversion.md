@@ -54,7 +54,7 @@ dart run ssconverter_dart:ssconvert -e -o out_emb/ path/to/project.sspj  # embed
 | **embedded** | `-e` | テクスチャを内包した自己完結の `.ssab` | 配布 —— アニメ 1 本 = 1 ファイル |
 
 参照形式の `.ssab` は `baseAssetDir` を渡して兄弟画像を解決します。embedded なら不要です。
-[クイックスタート](../guide/quickstart.md) を参照。
+[クイックスタート](quickstart.md) を参照。
 
 ### ビルド / CI パイプラインで
 

@@ -16,8 +16,7 @@ Read only as far as your goal — the tabs are ordered so app developers never n
 
 | You are… | Goal | Start here |
 |---|---|---|
-| **A Flutter app developer** | Just play an animation in your app | [**For Users → Installation**](guide/install.md) |
-| **Customizing / automating** | Convert your own `.sspj`, bring your own runtime, live reload | [**Customization & Automation**](customize/index.md) |
+| **A Flutter app developer** | Play an animation — and convert your own `.sspj` or live-reload edits as you go | [**For Users → Installation**](guide/install.md) |
 | **A Player / SDK developer** | Extend the Rust runtime / Player, or contribute | [**For Player & SDK Developers**](contributing/architecture.md) |
 
 ## Highlights
@@ -26,4 +25,5 @@ Read only as far as your goal — the tabs are ordered so app developers never n
 - **Native drawing** — `dart:ffi` into a Rust runtime, rendered via `Canvas.drawVertices`. Not a WebView, not a video decode.
 - **Composes with the widget tree — and [Flame](guide/flame.md)** — `SpriteStudioView` is a plain `RenderBox`.
 - **Sub-frame interpolation** — smooth motion that follows the display refresh rate, not a fixed fps.
+- **Bring your own art** — convert `.sspj` → `.ssab` from a [CLI or CI](guide/conversion.md), and **[live-reload](guide/live-reload.md)** edits into the running app.
 See [Packages](packages.md) for the published packages and [API Reference](api.md) for the generated API docs.

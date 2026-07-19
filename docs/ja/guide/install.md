@@ -51,6 +51,6 @@ dependencies:
 
 ## 次のステップ
 
-- **まだ `.ssab` が無い** → [CLI 変換（`.sspj` → `.ssab`）](../customize/conversion.md) で SpriteStudio
+- **まだ `.ssab` が無い** → [CLI 変換（`.sspj` → `.ssab`）](conversion.md) で SpriteStudio
   プロジェクトから生成します。
 - **`.ssab` がある** → [クイックスタート](quickstart.md) でウィジェットに読み込んで再生します。

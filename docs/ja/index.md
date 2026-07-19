@@ -17,8 +17,7 @@
 
 | あなたは… | 目的 | ここから |
 |---|---|---|
-| **Flutter アプリ開発者** | アプリでアニメを再生するだけ | [**利用者 → インストール**](guide/install.md) |
-| **カスタマイズ／自動化** | 自分の `.sspj` を変換・ランタイム差し替え・ライブリロード | [**カスタマイズと自動化**](customize/index.md) |
+| **Flutter アプリ開発者** | アニメを再生 —— 自分の `.sspj` の変換やライブリロードもここ | [**利用者 → インストール**](guide/install.md) |
 | **Player / SDK 開発者** | Rust ランタイム / Player を拡張・貢献 | [**Player / SDK 開発者向け**](contributing/architecture.md) |
 
 ## ハイライト
@@ -27,4 +26,5 @@
 - **ネイティブ描画** —— `dart:ffi` で Rust ランタイムを駆動し `Canvas.drawVertices` で描画。WebView でも動画デコードでもありません。
 - **ウィジェットツリーに、[Flame](guide/flame.md) にも合成** —— `SpriteStudioView` は普通の `RenderBox`。
 - **サブフレーム補間** —— ディスプレイのリフレッシュレートに追従する滑らかなモーション（固定 fps ではありません）。
+- **自分の素材を** —— `.sspj` → `.ssab` を [CLI / CI](guide/conversion.md) で変換し、編集を [ライブリロード](guide/live-reload.md) で実行中アプリへ反映。
 公開パッケージは [パッケージ](packages.md)、生成 API ドキュメントは [API リファレンス](api.md) を参照してください。

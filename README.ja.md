@@ -27,7 +27,7 @@
 - [インストール](docs/ja/guide/install.md)
 - [クイックスタート](docs/ja/guide/quickstart.md)
 - [Flame 連携](docs/ja/guide/flame.md)
-- [CLI 変換（`.sspj` → `.ssab`）](docs/ja/customize/conversion.md)
+- [CLI 変換（`.sspj` → `.ssab`）](docs/ja/guide/conversion.md)
 
 ## 📦 パッケージ
 

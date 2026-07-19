@@ -4,7 +4,7 @@ The shortest path from an `.ssab` file to a playing animation in a widget.
 
 !!! note "This page assumes you already have an `.ssab`"
     If you only have a SpriteStudio project (`.sspj`), first build an `.ssab` with
-    [CLI Conversion (`.sspj` → `.ssab`)](../customize/conversion.md).
+    [CLI Conversion (`.sspj` → `.ssab`)](conversion.md).
 
 ## 1. Add the asset
 
@@ -61,7 +61,7 @@ class _MyState extends State<MyWidget> with SingleTickerProviderStateMixin {
 !!! tip "Textures: embedded vs. reference"
     An **embedded** `.ssab` (built with `ssconvert -e`) carries its textures, so `baseAssetDir` is
     optional. A **reference** `.ssab` points at sibling image files — pass `baseAssetDir` so they
-    resolve. See [CLI Conversion](../customize/conversion.md).
+    resolve. See [CLI Conversion](conversion.md).
 
 Sub-frame interpolation is **on by default**, so motion stays smooth regardless of frame rate.
 

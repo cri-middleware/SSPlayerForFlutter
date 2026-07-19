@@ -27,7 +27,7 @@ For installation, the asset pipeline, and API references, see the MkDocs documen
 - [Installation](docs/en/guide/install.md)
 - [Quick Start](docs/en/guide/quickstart.md)
 - [Flame Integration](docs/en/guide/flame.md)
-- [CLI Conversion (`.sspj` → `.ssab`)](docs/en/customize/conversion.md)
+- [CLI Conversion (`.sspj` → `.ssab`)](docs/en/guide/conversion.md)
 
 ## 📦 Packages
 

@@ -21,4 +21,4 @@ dart doc
 - **`SpriteStudioView`**（L4）—— `RenderBox` ウィジェット。[クイックスタート](guide/quickstart.md) を参照。
 - **`SpriteStudioComponent`**（`ssplayer_flame`）—— Flame アダプタ。[Flame 連携](guide/flame.md) を参照。
 - **`SsAnimeInfo`** —— `.ssab` バイト列からアニメーション / セルマップ名を列挙。
-- **`SsConverter` / `ssconvert`**（`ssconverter_dart`）—— [アセット準備](customize/conversion.md) を参照。
+- **`SsConverter` / `ssconvert`**（`ssconverter_dart`）—— [アセット準備](guide/conversion.md) を参照。
