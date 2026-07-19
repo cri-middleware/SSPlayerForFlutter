@@ -25,7 +25,7 @@ class RingoGame extends FlameGame {
     add(
       SpriteStudioComponent.asset(
         'assets/overall/Basic.ssab',
-        baseAssetDir: 'assets/overall', // 兄弟 PNG 用。embedded なら省略
+        baseAssetDir: 'assets/overall', // 同じフォルダの PNG 用。embedded なら省略
         position: Vector2(200, 200),
         anchor: Anchor.center,
         loop: -1,
@@ -44,7 +44,7 @@ class RingoGame extends FlameGame {
 | 引数 | 既定 | 説明 |
 |---|---|---|
 | `animation` | パック先頭 | 読み込み時に選択するアニメ |
-| `baseAssetDir` | `null` | 兄弟の参照テクスチャがあるフォルダ（embedded なら省略） |
+| `baseAssetDir` | `null` | 参照テクスチャ（PNG/WebP）があるフォルダ（embedded なら省略） |
 | `loop` | `-1` | ループ回数（`-1` 無限、`n` は n 回） |
 | `speed` | `1.0` | 再生速度倍率 |
 | `subFrame` | `true` | サブフレーム補間 |

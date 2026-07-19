@@ -75,7 +75,7 @@ class _MyState extends State<MyWidget> with SingleTickerProviderStateMixin {
     final bytes = (await rootBundle.load('assets/overall/Basic.ssab'))
         .buffer.asUint8List();
     final animName = SsAnimeInfo(bytes).animationNames.first;
-    // reference テクスチャ（兄弟 PNG）は baseAssetDir を渡す。embedded は自動解決。
+    // reference テクスチャ（同じフォルダの PNG）は baseAssetDir を渡す。embedded は自動解決。
     await _player.load(bytes, animationName: animName, baseAssetDir: 'assets/overall');
     _player..loop = -1..play();
   }

@@ -8,7 +8,7 @@
 
 ## 1. アセットを追加する
 
-`.ssab`（参照テクスチャ形式なら兄弟の PNG / WebP も）をアプリのアセットに置き、`pubspec.yaml` に
+`.ssab`（参照テクスチャ形式なら同じフォルダの PNG / WebP も）をアプリのアセットに置き、`pubspec.yaml` に
 フォルダを宣言します。
 
 ```yaml
@@ -33,7 +33,7 @@ class _MyState extends State<MyWidget> with SingleTickerProviderStateMixin {
     final bytes = (await rootBundle.load('assets/overall/Basic.ssab'))
         .buffer.asUint8List();
     final animName = SsAnimeInfo(bytes).animationNames.first;
-    // reference テクスチャ（兄弟 PNG）は baseAssetDir を渡す。embedded は自動解決。
+    // reference テクスチャ（同じフォルダの PNG）は baseAssetDir を渡す。embedded は自動解決。
     await _player.load(bytes, animationName: animName, baseAssetDir: 'assets/overall');
     _player..loop = -1..play();
   }
@@ -60,7 +60,7 @@ class _MyState extends State<MyWidget> with SingleTickerProviderStateMixin {
 
 !!! tip "テクスチャ: embedded と reference"
     **embedded** な `.ssab`（`ssconvert -e` で生成）はテクスチャを内包するので `baseAssetDir` は
-    任意です。**reference** な `.ssab` は兄弟の画像ファイルを参照するので、`baseAssetDir` を渡して
+    任意です。**reference** な `.ssab` は同じフォルダの画像ファイルを参照するので、`baseAssetDir` を渡して
     解決させます。→ [CLI 変換](conversion.md)。
 
 サブフレーム補間は**既定でオン**なので、フレームレートに関係なく滑らかに動きます。

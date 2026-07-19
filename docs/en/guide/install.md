@@ -13,9 +13,12 @@ delivered automatically through Dart **native assets** — there is no CocoaPods
 | Other platforms | Windows / Linux build from source; Web is on the roadmap |
 | Native toolchain | None — the Brain is downloaded prebuilt by the `ssruntime_dart` build hook |
 
-## Install from a GitHub Releases bundle (recommended)
+## Installation methods
 
-Until the packages are on pub.dev, install from the release bundle:
+There are two ways to add the packages. Until the first pub.dev release, use the **GitHub Releases
+bundle** (Method 1).
+
+### Method 1 — GitHub Releases bundle (recommended, available now)
 
 1. Download the latest bundle from
    [**GitHub Releases**](https://github.com/cri-middleware/SSPlayerForFlutter/releases/latest).
@@ -32,12 +35,21 @@ dependencies:
 
 4. Run `flutter pub get`.
 
-!!! note "🚧 Before the first release"
-    The Releases download goes live once the first release is published. Once the packages are on
-    pub.dev this becomes a plain `ssplayer_flutter: ^x.y.z` — no `vendor/` step.
-
 Building a game with [Flame](https://flame-engine.org/)? Also add `ssplayer_flame` from the same
 bundle (see [Flame Integration](flame.md)).
+
+### Method 2 — From pub.dev
+
+Once the packages are published, installation becomes a single hosted dependency — no `vendor/` step:
+
+```yaml
+dependencies:
+  ssplayer_flutter: ^x.y.z
+```
+
+!!! warning "🚧 Under construction"
+    The packages are not on pub.dev yet, so this method is not available. Use **Method 1** for now —
+    this section will be filled in with the real version once the first release is published.
 
 !!! tip "Developing the core?"
     Building `libssruntime` from Rust source, or hacking on the Player itself, is covered separately
