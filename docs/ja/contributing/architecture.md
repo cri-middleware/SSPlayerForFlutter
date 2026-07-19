@@ -1,0 +1,57 @@
+# アーキテクチャ
+
+SpriteStudioPlayer for Flutter は、SpriteStudio-SDK の **Brain** に対する **Body** です。Brain
+（`libssruntime`、Rust `no_std`）が `.ssab` を読み込んで時間を進め、フレームごとの **SoA バッファ**
+（ワールド行列・ローカル頂点 / UV）と、**`DrawBatch`** プランを載せた FlatBuffers の **`FrameData`**
+を出力します。Body はそれを `dart:ffi` で受け取り、バッチごとに 1 回の `Canvas.drawVertices` として
+実行します。保持シーングラフは持たず、毎フレーム作り直します。
+
+## 4 レイヤー
+
+```mermaid
+flowchart TD
+    L4["L4 · 描画アダプタ<br/>SpriteStudioView (RenderBox) · SpriteStudioComponent (Flame)"]
+    L3["L3 · SpriteStudioPlayer<br/>ChangeNotifier · トランスポート · イベント · Ticker / advance"]
+    L2["L2 · SpriteStudioInternalPlayer<br/>Widget 非依存 · FFI ライフサイクル · SoA → ui.Vertices bake · paint"]
+    L1["L1 · ffigen @Native バインディング<br/>(ssruntime_dart パッケージ)"]
+    Brain["Brain · libssruntime (Rust)"]
+    L4 --> L3 --> L2 --> L1 --> Brain
+```
+
+**下方向への厳格な依存**で、下のレイヤーほど Brain に近い。各レイヤーの役割は 1 つずつ:
+
+| レイヤー | 役割 | 所在 |
+|---|---|---|
+| **L4** | 描画アダプタ —— `SpriteStudioView`（`RenderBox`）と Flame の `SpriteStudioComponent` | `ssplayer_flutter`, `ssplayer_flame` |
+| **L3** | `SpriteStudioPlayer` —— トランスポート / イベント。vsync モードでは `Ticker`、外部クロックでは `advance` | `ssplayer_flutter` |
+| **L2** | `SpriteStudioInternalPlayer` —— FFI Resource/Context ライフサイクル、SoA → `ui.Vertices` bake、`paint` = `DrawBatch.kind` ディスパッチ | `ssplayer_flutter` |
+| **L1** | ffigen `@Native` C-API バインディング + ランタイム FlatBuffers | `ssruntime_dart` |
+
+**L2 は Widget 非依存**に保つことで、ヘッドレス / Flame / 将来の `flutter_gpu` バックエンドから再利用
+できます。
+
+## どこに何があるか
+
+- **L1** —— `ssruntime_dart`（純 Dart・非 Flutter）: `@Native` C-API バインディング + ランタイム
+  FlatBuffers（`framedata` / `effect_draw_plan`）。ネイティブは `hook/build.dart` が同梱。
+- **L2–L4** —— `ssplayer_flutter`（公開 API のバレル。L1 は `ssruntime_dart` から直接 import）。
+- **Flame L4** —— `ssplayer_flame`（コアが `flame` を巻き込まないよう別パッケージ）。
+- **コンバータ** —— `ssconverter_dart`（ホスト `.sspj` → `.ssab`、デスクトップ専用）。
+
+一覧と pub.dev 上の役割は [パッケージ](../packages.md) を参照してください。
+
+## 描画モデル
+
+Brain が `DrawBatch` プランを出し、`paint` は `DrawBatch.kind`
+（`Normal / Mesh / Effect / Instance / Shape`）で分岐して、各バッチを 1 つの indexed `ui.Vertices` に
+bake します。イミディエイトモードで毎フレーム作り直すため、性能のレバーは **毎フレームのアロケーション**
+と **ドローコール数** です（バッチのまとめ方ではありません —— それは既に Brain のプランと一致）。
+最適化の状況は [ロードマップと制約](roadmap.md) を参照。
+
+## 設計ドキュメント一次情報
+
+リポジトリ構成・毎フレームの描画レシピ・kind ごとのルール・コード検証済みの
+**kind × 横断機能マトリクス（§11-A）** は
+[`docs/architecture.ja.md`](https://github.com/cri-middleware/SSPlayerForFlutter/blob/main/docs/architecture.ja.md)
+が一次情報です。実装規約・FFI 寿命の不変条件・Native Assets 同梱の注意は
+[`AGENTS.md`](https://github.com/cri-middleware/SSPlayerForFlutter/blob/main/AGENTS.md) にあります。

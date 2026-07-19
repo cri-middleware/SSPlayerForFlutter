@@ -1,50 +1,67 @@
-# SpriteStudioPlayer for Flutter
+[**English**](./README.md) | [**日本語**](./README.ja.md)
 
-**OPTPiX SpriteStudio 7 のアニメーション（`.ssab`）を Flutter でそのまま再生。**
+# SpriteStudio Player for Flutter
 
-[SpriteStudio-SDK](https://github.com/cri-middleware/SpriteStudio-SDK) の Rust ランタイム
-（**Brain** = `libssruntime`）を `dart:ffi` で駆動し、`.ssab` を読み込んで `Canvas.drawVertices`
-で描画する **Body**（`ssplayer_flutter`）を提供します。ボーン・メッシュ変形・エフェクトを専用
-エディタで作り、完成アニメを Flutter アプリに載せるだけ。
+**Give your Flutter app editor-crafted 2D raster animation — rigged by an artist, played with a single widget, and not one line of animation code.**
 
-## ✨ Why SpriteStudio × Flutter?
+▶️ **[Try the example app](./examples/overall/)** — the bundled SpriteStudio animations rendered straight onto the Flutter canvas. 🚧 Prebuilt binaries download automatically once the first SDK release is published.
 
-- **絵を動かす。** 呼吸・まばたき、髪や服の揺れ、派手な斬撃・魔法エフェクト — モーションは専用
-  エディタ（SpriteStudio 7）で視覚的に作り、プレイヤーは再生するだけ。手書きのアニメーション不要。
-- **動画より軽い代替。** 固定 fps の `.webm`/`.mp4` に頼る場面を、実行時に自由スケール・シームレス
-  ループ・ゲームに反応する軽量ネイティブ再生で置き換えます。
-- **フレームレート非依存の滑らかさ。** サブフレーム補間で表示タイミングちょうどに各フレームを描画。
-- **Widget として自然に合成。** `SpriteStudioView` は普通の `RenderBox` ウィジェット。
+A player that renders **[OPTPiX SpriteStudio 7](https://www.webtech.co.jp/spritestudio/)** animations (`.ssab`) directly in [Flutter](https://flutter.dev/). SpriteStudio 7 is a professional 2D **raster** (sprite) animation editor — bone rigs, mesh deformation, and particle effects over hand-drawn sprite art. Your artist builds the motion visually; this player just plays the finished file, drawing it natively to the Flutter `Canvas` — no `AnimationController` to hand-write, no spritesheet to slice, no video to decode.
 
-## 📚 ドキュメント
+## ✨ Why SpriteStudio Player?
 
-- [アーキテクチャ設計（`docs/architecture.ja.md`）](./docs/architecture.ja.md) — 設計意図の一次情報・リポジトリ構成（§3）・kind × 横断機能の整合性（§11-A）
-- [今後のロードマップ（`ROADMAP.md`）](./ROADMAP.md) — Normal / PartColor / Mask / Mesh / Effect / Instance / Shape / Flame アダプタは出荷済み。今後の作業（Nines・Text・BoxFit・性能・SDK 待ち）はこちら
-- [実装者向け規約・要注意点（`AGENTS.md`）](./AGENTS.md) — FFI 寿命 / ネイティブ同梱（Native Assets）/ UV ピクセル座標 / `updateFlag` の罠 ほか
+- **Bring sprites — and whole scenes — to life, with zero animation code.** Breathing and blinking, swaying hair and clothes, flashy slash and magic effects. Instead of hand-wiring `AnimationController` / `Tween` / `AnimatedBuilder` or hand-slicing a spritesheet, the motion is authored visually in a dedicated editor (SpriteStudio 7) and the player just plays it — bone rigs, mesh deform, and particles included. And it is not limited to a single mascot: compose entire animated **UIs, HUDs, and full scenes** in the editor and render them as one — a scope narrower vector-icon tools don't reach.
+- **Raster sprite animation, drawn natively — not vector, not video.** It rigs and deforms **raster sprite art**, so hand-painted characters and game sprites animate exactly as authored — a different fit from vector animation tools, and lighter than shipping a `.gif` or `.mp4`. Playback runs on `dart:ffi` into a Rust runtime and draws through `Canvas.drawVertices` — not a WebView, not a video decode — scaling freely at runtime, looping seamlessly, and reacting to your app instead of merely playing back.
+- **Composes with the widget tree — and with Flame.** `SpriteStudioView` is a plain `RenderBox` widget, so you position, transform, and clip it exactly like any other widget. Building a game? The separate [`ssplayer_flame`](./packages/ssplayer_flame) adapter drops the same animation into a `FlameGame` as a `PositionComponent`.
+- **Smooth motion, not locked to a frame rate.** **Sub-frame interpolation** renders each frame at its exact display time, so motion follows your display's refresh rate and playback speed — smoother than a fixed-fps flipbook or a baked video.
+- **A seamless edit-to-runtime loop.** Live reload watches your `.sspj` during `flutter run`: save in SpriteStudio 7, hot-reload, and only the changed project is re-converted and appears live in your app — no manual export step.
+## 📚 Documentation
 
-### 目的別ガイド（読む範囲は目的まででOK）
+For installation, the asset pipeline, and API references, see the MkDocs documentation site.
 
-| あなたは… | 目的 | 読む範囲 |
+- [**Documentation site (hosted)**](https://cri-middleware.github.io/SSPlayerForFlutter/) — 🚧 live after the first release
+- [**Documentation (English)**](./docs/en/index.md)
+- [**ドキュメント (日本語)**](./docs/ja/index.md)
+
+### Quick Links
+- [Installation](docs/en/guide/install.md)
+- [Quick Start](docs/en/guide/quickstart.md)
+- [Flame Integration](docs/en/guide/flame.md)
+- [CLI Conversion (`.sspj` → `.ssab`)](docs/en/guide/conversion.md)
+
+## 📦 Packages
+
+This monorepo publishes the following packages to pub.dev.
+
+| Purpose | Package | Kind |
 |---|---|---|
-| **利用者** | アプリでアニメを動かすだけ | 下の **1. Quick Start** |
-| **カスタマー** | 自分の環境でビルド／アセットを差し替え | **1 + 2** 章 |
-| **SDK / Player 開発者** | コア（Rust ランタイム / Player）を拡張・貢献 | 全章 + [AGENTS.md](./AGENTS.md) + [docs/](./docs/) |
-
-## 📦 パッケージ
-
-このリポジトリは 3 つのパッケージを含みます。
-
-| 目的 | パッケージ | 種別 |
-|---|---|---|
-| アニメ再生（ランタイム描画） | [`ssplayer_flutter`](./packages/ssplayer_flutter) | Flutter パッケージ（全プラットフォーム・`ssruntime_dart` に依存） |
-| ランタイム FFI バインディング（Layer 1） | [`ssruntime_dart`](./packages/ssruntime_dart) | 純 Dart（renderer 非依存コア） |
-| `.sspj` → `.ssab` 変換（CLI / ライブラリ） | [`ssconverter_dart`](./packages/ssconverter_dart) | 純 Dart（デスクトップ専用のホストツール） |
+| Animation playback (runtime rendering) | [`ssplayer_flutter`](./packages/ssplayer_flutter) | Flutter package (all platforms; depends on `ssruntime_dart`) |
+| [Flame](https://flame-engine.org/) game-engine adapter | [`ssplayer_flame`](./packages/ssplayer_flame) | Flutter package (`SpriteStudioComponent`) |
+| Runtime FFI bindings (Layer 1) | [`ssruntime_dart`](./packages/ssruntime_dart) | Pure Dart (renderer-agnostic core) |
+| `.sspj` → `.ssab` conversion (CLI / library) | [`ssconverter_dart`](./packages/ssconverter_dart) | Pure Dart (desktop-only host tool) |
+| Live reload for the edit-to-runtime loop | [`ssgen_flutter`](./packages/ssgen_flutter) | Flutter dev tooling |
 
 ---
 
-## 🚀 1. Quick Start（利用者）
+## 🚀 1. Quick Start (For Users)
 
-アプリに組み込むときの最小コードです。`.ssab` は事前に用意します（[2 章](#-2-リポジトリで試すカスタマー)の `ssconvert` で生成）。
+The minimal code to embed a `.ssab` animation in your app. (You supply the `.ssab` — build one from a `.sspj` with `ssconvert`, see [section 2](#-2-run-from-source--convert-your-own-for-customizers).)
+
+Add the dependency. **Until the packages are on pub.dev**, download the latest bundle from
+[GitHub Releases](https://github.com/cri-middleware/SSPlayerForFlutter/releases/latest), extract it
+into your project (e.g. `vendor/`), and reference it with a path dependency:
+
+```yaml
+# pubspec.yaml
+dependencies:
+  ssplayer_flutter:
+    # From the GitHub Releases bundle, extracted into your project. The packages/ layout is
+    # preserved, so the transitive ssruntime_dart dependency resolves automatically.
+    path: vendor/SSPlayerForFlutter/packages/ssplayer_flutter
+```
+
+> 🚧 The Releases download goes live once the first release is published. Once the packages are on
+> pub.dev, this becomes a plain `ssplayer_flutter: ^x.y.z`.
 
 ```dart
 class _MyState extends State<MyWidget> with SingleTickerProviderStateMixin {
@@ -60,7 +77,7 @@ class _MyState extends State<MyWidget> with SingleTickerProviderStateMixin {
     final bytes = (await rootBundle.load('assets/overall/Basic.ssab'))
         .buffer.asUint8List();
     final animName = SsAnimeInfo(bytes).animationNames.first;
-    // reference テクスチャ（兄弟 PNG）は baseAssetDir を渡す。embedded は自動解決。
+    // For reference textures (sibling PNGs), pass baseAssetDir; embedded assets resolve automatically.
     await _player.load(bytes, animationName: animName, baseAssetDir: 'assets/overall');
     _player..loop = -1..play();
   }
@@ -74,90 +91,76 @@ class _MyState extends State<MyWidget> with SingleTickerProviderStateMixin {
 }
 ```
 
-> ⚠️ ネイティブ Brain（`libssruntime`）が必要です。これは依存先 `ssruntime_dart` の
-> **Native Assets**（`hook/build.dart`）がアプリに自動同梱します（プラグイン／framework 配線は不要）。
-> `hook/build.dart` はピン留めした SDK リリースからプリビルドを**自動ダウンロード**するので
-> Rust ツールチェーンは不要です（ソースからビルドする場合のみ `scripts/build-runtime.*`）。当面は
-> このリポジトリを git 依存で参照してください（[2 章](#-2-リポジトリで試すカスタマー)）。pub.dev 公開は今後。
+> ⚠️ The native Brain (`libssruntime`) is required. It is bundled automatically by the
+> **native assets** hook (`hook/build.dart`) of the `ssruntime_dart` dependency — no plugin or
+> framework wiring. The hook **auto-downloads** the prebuilt binary from the pinned SDK release,
+> so no Rust toolchain is needed (build from source only if you want to — `scripts/build-runtime.*`).
 
-## 🛠 2. リポジトリで試す（カスタマー）
+## 🛠 2. Run from Source & Convert Your Own (For Customizers)
 
-サンプル起動と、自分の `.sspj` の変換まで。**Rust ツールチェーンは不要** — ネイティブ
-（`libssruntime` / `libssconverter`）は各パッケージの `hook/build.dart` が、ピン留めした
-SDK リリースからプリビルドを自動ダウンロードして同梱します（手動の取得手順はありません）。
+Launch the example, and convert your own `.sspj`. **No Rust toolchain required** — each package's
+`hook/build.dart` downloads the prebuilt native libraries (`libssruntime` / `libssconverter`) from
+the pinned SDK release and bundles them.
 
 ```bash
-# クローン + サブモジュール
 git clone https://github.com/cri-middleware/SSPlayerForFlutter.git
 cd SSPlayerForFlutter
 git submodule update --init --recursive
 
-# example 用アセット（.ssab）を Dart の ssconvert で生成
-#   （libssconverter は hook/build.dart が自動DL。Rust 不要）
+# Generate example assets (.ssab) with the Dart ssconvert (libssconverter auto-downloads; no Rust)
 scripts/deploy-examples.sh
 
-# example を起動（libssruntime は hook/build.dart が自動DL）
+# Run the example (libssruntime auto-downloads)
 cd examples/overall && flutter run
 ```
 
-> ℹ️ プリビルドの自動DLは、SDK リリースが Flutter 向けアセット（`lib{ssruntime,ssconverter}-<os>[-<arch>]`）
-> を公開してから有効になります。それまでは 3 章の `scripts/build-runtime.*`（Rust 必要）で
-> ネイティブを用意してください。自前ビルドの dylib を差し込む場合は各アプリの `pubspec.yaml` の
-> `hooks.user_defines.<pkg>.lib<name>` で指定できます。
+Windows uses the `.ps1` variant of each script. To supply your own locally-built dylib, point
+`hooks.user_defines.<pkg>.lib<name>` in the app's `pubspec.yaml` at it.
 
-Windows は各スクリプトの `.ps1` を使います。
+### Convert your own `.sspj`
 
-### 自分の `.sspj` を変換する
-
-`ssconverter_dart` の CLI で `.sspj` → `.ssab`（`-e` で自己完結の embedded 出力。配布向け）。
+Use the `ssconverter_dart` CLI (`-e` produces a self-contained embedded `.ssab`, ideal for shipping):
 
 ```bash
-dart run ssconverter_dart:ssconvert    -o out/     path/to/project.sspj  # 参照テクスチャ形式
-dart run ssconverter_dart:ssconvert -e -o out_emb/ path/to/project.sspj  # embedded（配布向け）
+dart run ssconverter_dart:ssconvert    -o out/     path/to/project.sspj  # reference-texture form
+dart run ssconverter_dart:ssconvert -e -o out_emb/ path/to/project.sspj  # embedded (for distribution)
 ```
 
-## ⚙️ 3. フル開発環境（SDK / Player 開発者）
+## ⚙️ 3. Full Build Environment (For SDK / Player Developers)
 
-コア（Rust ランタイム / Player）を開発する場合。
+To develop the core (Rust runtime / Player).
 
-**前提**: Rust（`rustup`）、Flutter 3.38+ / Dart 3.10+（Native Assets が標準。ネイティブ Brain 同梱に
-CocoaPods／vendored framework は不要）。`flatc` は `.fbs` を再生成するときだけ。cbindgen は SDK の
-`build.rs` が build-dependency として使うため個別導入不要。
+**Prerequisites**: Rust (`rustup`), Flutter 3.38+ / Dart 3.10+ (native assets is standard — no CocoaPods /
+vendored framework to embed the Brain). `flatc` only when regenerating `.fbs`; cbindgen is pulled in as a
+build-dependency by the SDK's `build.rs`, so no separate install.
 
 ```bash
 git submodule update --init --recursive
 
-# ネイティブをソースからビルド（C ヘッダのコピーまで。ffigen は別ステップ）
-scripts/build-runtime.sh             # 例: build-runtime.sh platform=macos build=release
-#   C-API を変えたらバインディング再生成 → commit: scripts/generate-ffigen-code.sh
+# Build the native libs from source (copies C headers too; ffigen is a separate step)
+scripts/build-runtime.sh             # e.g. build-runtime.sh platform=macos build=release
+#   After a C-API change, regenerate bindings and commit: scripts/generate-ffigen-code.sh
 
-# アセット生成 → example 起動
+# Generate assets, then run the example
 scripts/deploy-examples.sh
 cd examples/overall && flutter run
-#   （初回の macOS ランナー生成: cd examples/overall && flutter create --platforms=macos . ）
 ```
 
-- **コード生成**: ffigen バインディング（`lib/src/*_bindings.g.dart`）は**コミット済み**。
-  C-API を変えたら `generate-ffigen-code.*` を実行して再生成 → commit（`build-runtime` は
-  もう自動実行しません）。`.fbs` スキーマを変えたときは `generate-fbs-code.*`（flatc）。
-  クロスビルド（android/ios/web）は `SpriteStudio-SDK/scripts/release-*` に委譲します。
-- **テスト**（`packages/ssplayer_flutter/`）:
-  ```bash
-  flutter test   # Native Assets が hook/build.dart 経由で Brain を自動同梱。env 変数は不要
-  ```
-  `ssruntime_dart` / `ssconverter_dart` は各パッケージで `dart test`（同じく hook がネイティブを解決）。
-- **規約・設計**: [AGENTS.md](./AGENTS.md)（実装規約・要注意点・Native Assets 同梱） /
-  [docs/architecture.ja.md](./docs/architecture.ja.md)（設計・リポジトリ構成 §3・kind × 横断機能の整合性 §11-A） /
-  [ROADMAP.md](./ROADMAP.md)（今後の作業）。
+See [AGENTS.md](./AGENTS.md) (implementation rules, gotchas, native-asset packaging),
+[docs/architecture.ja.md](./docs/architecture.ja.md) (design, repository layout, kind × cross-cutting
+feature matrix), and [ROADMAP.md](./ROADMAP.md) (upcoming work) for the full developer guide.
 
-## 🔗 関連リポジトリ
+## 🔗 Related Repositories
 
-- [SpriteStudio-SDK](https://github.com/cri-middleware/SpriteStudio-SDK) — Rust ランタイム / コンバータ / `.fbs` スキーマ（Brain）
-- 兄弟プレイヤー: [Godot](https://github.com/cri-middleware/SSPlayerForGodot) ／
-  [Unity](https://github.com/cri-middleware/SSPlayerForUnity) ／
-  [Web](https://github.com/cri-middleware/SSPlayerForWeb) ／
+- [SpriteStudio-SDK](https://github.com/cri-middleware/SpriteStudio-SDK) — the Rust runtime / converter / `.fbs` schemas (the Brain)
+- Sibling players: [Godot](https://github.com/cri-middleware/SSPlayerForGodot) ·
+  [Unity](https://github.com/cri-middleware/SSPlayerForUnity) ·
+  [Web](https://github.com/cri-middleware/SSPlayerForWeb) ·
   [Ren'Py](https://github.com/cri-middleware/SSPlayerForRenPy)
 
-## 📄 ライセンス
+## 📄 License
 
-`SpriteStudio-SDK` のライセンスに従います（[`SpriteStudio-SDK/LICENSE.md`](./SpriteStudio-SDK/LICENSE.md)）。
+This project follows the license of `SpriteStudio-SDK`
+([`SpriteStudio-SDK/LICENSE.md`](./SpriteStudio-SDK/LICENSE.md)). For the bundled native runtime and
+other third-party components, see the `THIRD-PARTY-LICENSES.*.md` notices under each package's
+`native/libs/`.
