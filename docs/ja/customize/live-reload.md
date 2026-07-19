@@ -20,15 +20,18 @@
 
 1. アプリ実行中、ホストの watcher が `SpriteStudio_Source/` ディレクトリを監視します。
 2. 保存すると、変更されたプロジェクトが `.ssab` に再変換されます（mtime で stale 判定 —— 変わったものだけ）。
-3. 新しいパックが実行中のアプリに届きます。
-    - **デスクトップ** —— VM Service 経由で直接 push（キー操作不要・IDE デバッガと両立）。
-    - **デバイス（iOS / Android）** —— Flutter のホットリロード経由で配信。
+3. 新しいパックが実行中のアプリへ **VM Service 経由で直接 push** されます（キー操作不要・IDE
+   デバッガと両立。デスクトップ／デバイスで同じ仕組み）。
+    - **デスクトップ** —— 再変換した `.ssab` をアプリがその場で読み込みます。
+    - **デバイス（iOS / Android）** —— テクスチャ内包の embedded `.ssab` をバイトで送ります
+      （端末はホストのパスを読めないため）。
 4. プレイヤーが `reload()` を呼び、再生状態を保ったままリソースを差し替えます。
 
 ## 有効化（レシピ）
 
 1. アプリの `pubspec.yaml` に `ssgen_flutter` を追加。
-2. `State` に `SsLiveReload` を mix-in し、プレイヤーと現在のパックを指定します。
+2. `State` に `SsLiveReload` を mix-in し、プレイヤーと現在のパックを指定します（mixin は
+   プレイヤーを push チャネルに登録するだけです）。
 
     ```dart
     class _MyPageState extends State<MyPage>
@@ -40,21 +43,31 @@
     }
     ```
 
-3. **起動時に opt-in**（define なしの素の `flutter run` はアートを再変換しません）:
-    - **デスクトップ** —— `--dart-define=SS_LIVE_RELOAD=true`（＋ VM Service URI を出力）を付けて起動し、
-      別ターミナルで watcher を attach: `dart run ssgen_flutter:sswatch`。
-    - **デバイス** —— `dart run ssgen_flutter:ssdev -d <device>` が `flutter run` を置き換え、define を
-      注入し、保存で再変換＋ホットリロードします。
+3. `sswatch` を実行します。ツールも機構（VM Service push）も一つで、**起動の仕方だけ**選びます
+   （`SS_LIVE_RELOAD` define で opt-in。define なしの素の `flutter run` はアートを再変換しません）。
+
+    ```bash
+    # 1コマンド（flutter run を内包し、define も自動注入）
+    dart run ssgen_flutter:sswatch --run -d macos                 # デスクトップ
+    dart run ssgen_flutter:sswatch --run -d <emulator> --device   # デバイス（embedded push）
+
+    # IDE で起動する場合（デバッガを維持したまま attach）——
+    #   起動側に --dart-define=SS_LIVE_RELOAD=true --vmservice-out-file=/tmp/ss.uri を付け、
+    dart run ssgen_flutter:sswatch --vmservice-uri-file=/tmp/ss.uri   # デバイスは末尾に --device
+    ```
+
+    デバイスは端末で変換できないため、ホストで動く `sswatch` が embedded `.ssab` をバイトで送ります。
 
 ソースプロジェクトは `SpriteStudio_Source/<project>/` に置きます。実際の編集を保存してください
-（`touch` は同一バイトになり、見た目は変わりません）。
+（`touch` は同一バイトで見た目が変わらない上、watcher が拾わないこともあります）。
 
 ## プラットフォーム状況
 
 | プラットフォーム | 経路 | 状況 |
 |---|---|---|
-| macOS デスクトップ | VM Service push | end-to-end 検証済み |
-| iOS / Android | ホットリロード / `reassemble` | 動作 |
-| Windows / Linux デスクトップ | VM Service push | 見込みあり（OS 非依存）・未検証 |
+| macOS デスクトップ | VM Service push（file） | end-to-end 検証済み |
+| Android | VM Service push（embedded） | end-to-end 検証済み（emulator） |
+| iOS | VM Service push（embedded） | 見込みあり・未検証 |
+| Windows / Linux デスクトップ | VM Service push（file） | 見込みあり（OS 非依存）・未検証 |
 
 単発の手動変換なら [アセットの準備](conversion.md) を参照してください。
