@@ -1,7 +1,7 @@
 # Roadmap & Limitations
 
-The rendering kinds shipped so far — **Normal, PartColor, Mask, Mesh, Effect, Instance, Shape** — plus
-the Flame adapter cover the core feature set. This page summarizes what remains and what to be aware
+The rendering features shipped so far — the five draw kinds (**Normal, Mesh, Effect, Instance,
+Shape**) plus **PartColor** and **Mask** — and the Flame adapter cover the core feature set. This page summarizes what remains and what to be aware
 of when shipping; the live, detailed roadmap is
 [`ROADMAP.md`](https://github.com/cri-middleware/SSPlayerForFlutter/blob/main/ROADMAP.md).
 

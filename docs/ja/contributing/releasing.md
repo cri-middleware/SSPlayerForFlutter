@@ -45,8 +45,10 @@ Melos は各パッケージの直近 `<package>-v<version>` タグ以降のコ�
   含まれず、リリース時にやることはありません。
 - **Melos はピン留めした workspace dev-dependency**（`>=7.0.0 <7.8.2`。7.8.2 は ffigen のピンと衝突する
   `cli_util` を引き込む）。`dart run melos …` で起動します。
-- **ツールチェーンはピン留め**（`release.yml` とルートの `environment:` で Flutter 3.44.6 / Dart 3.12.2）。
-  ローカルの更新に合わせて両方まとめて上げます。
+- **CI のツールチェーンはピン留め**（`release.yml` で Flutter 3.44.6 / Dart 3.12.2）。パッケージの
+  `environment:` は対応**下限**（`sdk: >=3.10.0`、Flutter `>=3.38.0`）のみを宣言します —— 意図的に
+  低くし、利用者を CI と同一バージョンに縛りません。ローカルのツールチェーン更新に合わせて
+  `release.yml` のピンを上げます。
 
 一次情報の手順書（パッケージごとの初回セットアップ・`RELEASE_PAT` シークレット含む）は
 [`docs/RELEASING.md`](https://github.com/cri-middleware/SSPlayerForFlutter/blob/main/docs/RELEASING.md)

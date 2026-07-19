@@ -45,8 +45,10 @@ constraint bump.
   the published archive — nothing to do at release time.
 - **Melos is a pinned workspace dev-dependency** (`>=7.0.0 <7.8.2`; 7.8.2 pulls a `cli_util` that
   conflicts with ffigen's pin). Invoke via `dart run melos …`.
-- **Toolchain is pinned** (Flutter 3.44.6 / Dart 3.12.2 in `release.yml` and the root `environment:`);
-  bump both together.
+- **CI toolchain is pinned** in `release.yml` (Flutter 3.44.6 / Dart 3.12.2). The package
+  `environment:` declares only the support *floor* (`sdk: >=3.10.0`, Flutter `>=3.38.0`) — deliberately
+  lower, so consumers aren't forced onto the exact CI version. Bump the `release.yml` pin as your local
+  toolchain moves.
 
 The authoritative, step-by-step runbook — including one-time per-package setup and the `RELEASE_PAT`
 secret — is

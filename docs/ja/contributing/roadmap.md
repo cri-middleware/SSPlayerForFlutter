@@ -1,7 +1,7 @@
 # ロードマップと制約
 
-これまでに出荷した描画 kind —— **Normal / PartColor / Mask / Mesh / Effect / Instance / Shape** ——
-と Flame アダプタで、中核の機能セットはカバーしています。このページは残りの作業と、出荷時に留意する
+これまでに出荷した描画機能 —— 5 つの描画 kind（**Normal / Mesh / Effect / Instance / Shape**）に
+**PartColor** と **Mask** を加えたもの —— と Flame アダプタで、中核の機能セットはカバーしています。このページは残りの作業と、出荷時に留意する
 点の要約です。詳細な最新ロードマップは
 [`ROADMAP.md`](https://github.com/cri-middleware/SSPlayerForFlutter/blob/main/ROADMAP.md) を参照。
 

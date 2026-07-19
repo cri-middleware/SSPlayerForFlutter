@@ -31,7 +31,7 @@ For installation, the asset pipeline, and API references, see the MkDocs documen
 
 ## 📦 Packages
 
-This monorepo publishes the following packages to pub.dev.
+This monorepo will publish the following packages to pub.dev 🚧 (not yet published — see the Quick Start above).
 
 | Purpose | Package | Kind |
 |---|---|---|
@@ -39,7 +39,8 @@ This monorepo publishes the following packages to pub.dev.
 | [Flame](https://flame-engine.org/) game-engine adapter | [`ssplayer_flame`](./packages/ssplayer_flame) | Flutter package (`SpriteStudioComponent`) |
 | Runtime FFI bindings (Layer 1) | [`ssruntime_dart`](./packages/ssruntime_dart) | Pure Dart (renderer-agnostic core) |
 | `.sspj` → `.ssab` conversion (CLI / library) | [`ssconverter_dart`](./packages/ssconverter_dart) | Pure Dart (desktop-only host tool) |
-| Live reload for the edit-to-runtime loop | [`ssgen_flutter`](./packages/ssgen_flutter) | Flutter dev tooling |
+| Reconvert-only-stale host lib (powers `ssgen_flutter`) | [`ssgen_dart`](./packages/ssgen_dart) | Pure Dart (desktop host lib) |
+| Live reload for the edit-to-runtime loop | [`ssgen_flutter`](./packages/ssgen_flutter) | Flutter dev tooling (on `ssgen_dart`) |
 
 ---
 
