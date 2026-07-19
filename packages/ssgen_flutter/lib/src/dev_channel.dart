@@ -100,12 +100,29 @@ class SsDevChannel {
     _extensionRegistered = true;
     try {
       developer.registerExtension(extensionMethod, _onReload);
+      developer.registerExtension(ssTargetsExtensionMethod, _onTargets);
     } catch (e) {
       // Already registered by another isolate, or the service is unavailable —
       // harmless for a dev-only channel.
       _extensionRegistered = false;
-      debugPrint('[ssgen] could not register $extensionMethod: $e');
+      debugPrint('[ssgen] could not register dev extensions: $e');
     }
+  }
+
+  /// `ext.ssgen.targets` — reports each enabled target's current pack so the
+  /// host can push a byte blob for exactly what is on screen (device mode).
+  Future<developer.ServiceExtensionResponse> _onTargets(
+    String method,
+    Map<String, String> params,
+  ) async {
+    final targets = [
+      for (final t in _targets)
+        if (t.ssLiveReloadEnabled)
+          {'assetDir': t.ssAssetDir, 'pack': t.ssPack},
+    ];
+    return developer.ServiceExtensionResponse.result(
+      jsonEncode({'targets': targets}),
+    );
   }
 
   Future<developer.ServiceExtensionResponse> _onReload(

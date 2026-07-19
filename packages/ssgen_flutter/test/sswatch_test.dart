@@ -2,6 +2,53 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ssgen_flutter/sswatch.dart';
 
 void main() {
+  group('--run passthrough', () {
+    test('collects unrecognized args for flutter run', () {
+      final o = SsWatchOptions.parse(['--run', '-d', 'macos', '--profile']);
+      expect(o.run, isTrue);
+      expect(o.passthrough, ['-d', 'macos', '--profile']);
+    });
+
+    test('--run off by default; device flag still peeled from passthrough', () {
+      final o = SsWatchOptions.parse(['-d', 'emulator-5554', '--device']);
+      expect(o.run, isFalse);
+      expect(o.device, isTrue);
+      expect(o.passthrough, ['-d', 'emulator-5554']);
+    });
+  });
+
+  group('withLiveReloadDefine', () {
+    test('appends the define when absent', () {
+      expect(withLiveReloadDefine(['-d', 'macos']), [
+        '-d',
+        'macos',
+        '--dart-define=SS_LIVE_RELOAD=true',
+      ]);
+    });
+
+    test('leaves an existing define untouched (any value)', () {
+      final args = ['--dart-define=SS_LIVE_RELOAD=false', '-d', 'macos'];
+      expect(withLiveReloadDefine(args), same(args));
+    });
+  });
+
+  group('ChangeRunner', () {
+    test('coalesces a burst into a single run', () async {
+      var runs = 0;
+      final r = ChangeRunner(
+        debounce: const Duration(milliseconds: 20),
+        onChange: () async => runs++,
+      );
+      r
+        ..bump()
+        ..bump()
+        ..bump();
+      await Future<void>.delayed(const Duration(milliseconds: 60));
+      expect(runs, 1);
+      r.dispose();
+    });
+  });
+
   group('SsWatchOptions.parse', () {
     test('defaults when no flags given', () {
       final o = SsWatchOptions.parse([]);
@@ -41,6 +88,19 @@ void main() {
     test('--help / -h sets help', () {
       expect(SsWatchOptions.parse(['--help']).help, isTrue);
       expect(SsWatchOptions.parse(['-h']).help, isTrue);
+    });
+
+    test('device flags default off / parse when given', () {
+      final off = SsWatchOptions.parse([]);
+      expect(off.device, isFalse);
+      expect(off.embeddedDir, isNull);
+
+      final on = SsWatchOptions.parse([
+        '--device',
+        '--embedded-dir=/tmp/emb',
+      ]);
+      expect(on.device, isTrue);
+      expect(on.embeddedDir, '/tmp/emb');
     });
 
     test('a bad --debounce keeps the default', () {

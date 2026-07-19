@@ -1,13 +1,12 @@
 name: ssgen_flutter
 description: >-
   Flutter dev-tooling for SpriteStudio live-reload. A State mixin (SsLiveReload)
-  that rides Flutter's hot reload: on desktop it reconverts the stale
-  SpriteStudio_Source projects in-process (ssgen_dart -> host libssconverter) and
-  hot-swaps the current pack (ssplayer_flutter's reload); on iOS/Android it
-  reloads the current pack from the bundle (the host converts + `r` DevFS-syncs).
-  Ships a `dart run ssgen_flutter:ssreconvert` host runner for device targets.
-  DEV ONLY: add this only in apps that want in-app live-reload — the
-  ssplayer_flutter runtime itself stays converter-free.
+  registers with an in-app VM-Service dev channel (SsDevChannel); the `sswatch`
+  host runner watches SpriteStudio_Source, reconverts the stale projects
+  (ssgen_dart -> host libssconverter) and pushes the fresh pack to the running
+  app over the VM Service (ssplayer_flutter's reload) — no `r`, IDE-debugger
+  friendly, desktop and device. DEV ONLY: add this only in apps that want in-app
+  live-reload — the ssplayer_flutter runtime itself stays converter-free.
 version: 7.0.0-alpha.1
 repository: https://github.com/cri-middleware/SSPlayerForFlutter
 publish_to: none # not yet published to pub.dev
@@ -29,8 +28,8 @@ dependencies:
   # iOS/Android its ssconverter_dart dependency is mobile-inert (no code asset).
   ssgen_dart:
     path: ../ssgen_dart
-  # Filesystem watcher for the `ssdev` / `sswatch` runners (watch
-  # SpriteStudio_Source → reconvert + hot reload). Host dev-tool only.
+  # Filesystem watcher for the `sswatch` runner (watch SpriteStudio_Source →
+  # reconvert + push). Host dev-tool only.
   watcher: ^1.1.0
   # VM Service client for the `sswatch` runner: connect to a running app's Dart
   # VM Service and call its `ext.ssgen.reload` extension to push a fresh pack —

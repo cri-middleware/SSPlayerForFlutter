@@ -1,35 +1,31 @@
-import 'dart:io';
-
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter/widgets.dart';
 import 'package:ssplayer_flutter/ssplayer_flutter.dart';
 
 import 'dev_channel.dart';
 import 'ss_defines.dart';
 
-/// Wires SpriteStudio dev live-reload into a [State] and hot-swaps the current
-/// pack in place, with the playhead / animation / play state preserved
-/// ([SpriteStudioPlayer.reload]).
+/// Wires SpriteStudio dev live-reload into a [State]: registers this player's
+/// current pack with the VM-Service dev push channel ([SsDevChannel]) so the
+/// `sswatch` host runner can hot-swap it in place — playhead / animation / play
+/// state preserved ([SpriteStudioPlayer.reload]) — on desktop and device alike,
+/// with no `r` and the IDE debugger left attached.
 ///
-/// **Desktop** (host): reload is driven by the VM-Service **push channel**
-/// ([SsDevChannel]) — run `dart run ssgen_flutter:sswatch` (or `ssdev`)
-/// alongside the app. On save it reconverts the stale `SpriteStudio_Source`
-/// projects (host `libssconverter`) and pushes the fresh pack straight to this
-/// player: no `r`, and it works under an IDE debugger. The mixin just registers
-/// this target with the channel — there is no in-process reconvert on
-/// `reassemble` anymore.
+/// Run the watcher alongside the app:
+/// ```
+/// dart run ssgen_flutter:sswatch --run -d macos            # own flutter run
+/// dart run ssgen_flutter:sswatch --run -d <emu> --device   # device (embedded)
+/// dart run ssgen_flutter:sswatch --vmservice-uri-file=<f>  # attach (IDE)
+/// ```
+/// On save it reconverts the stale `SpriteStudio_Source` projects (host
+/// `libssconverter`) and pushes the fresh pack to this player over the VM
+/// Service. The mixin itself only registers/unregisters the target; the reload
+/// is delivered by the channel, so a plain `flutter run` without `sswatch` does
+/// ordinary Dart hot reload and leaves the art alone.
 ///
-/// **Device** (iOS/Android): the device can't run the host converter and can't
-/// read a host path, so device reload still rides Flutter's own hot reload
-/// (`State.reassemble`): reconvert on the host with `dart run
-/// ssgen_flutter:ssreconvert` (or the `ssdev` device runner) and `r` DevFS-syncs the
-/// fresh `.ssab`, which this reloads from `rootBundle`. (A later release moves
-/// device onto the push channel too; see the live-reload design doc.)
-///
-/// Implement [ssPlayer], [ssAssetDir], [ssPack]; everything else has a default.
-/// Debug-only by construction (the push channel and `reassemble` only exist in
-/// debug). Not supported on web (as with the runtime).
+/// Implement [ssPlayer], [ssAssetDir], [ssPack]; the rest has a default.
+/// Debug-only by construction (the push channel only exists in debug). Not
+/// supported on web (as with the runtime).
 ///
 /// ```dart
 /// class _MyPageState extends State<MyPage> with SsLiveReload<MyPage> {
@@ -46,9 +42,9 @@ mixin SsLiveReload<T extends StatefulWidget> on State<T>
   SpriteStudioPlayer get ssPlayer;
 
   /// The current pack's asset directory — the reconvert output for the project,
-  /// e.g. `assets/spritestudio/overall` (a `rootBundle` key prefix). Keep it the
-  /// convention directory; suspend live-reload via [ssLiveReloadEnabled] for
-  /// other sources.
+  /// e.g. `assets/spritestudio/overall` (a `rootBundle` key prefix; also the key
+  /// the host uses to route a `file` vs embedded push). Keep it the convention
+  /// directory; suspend live-reload via [ssLiveReloadEnabled] for other sources.
   @override
   String get ssAssetDir;
 
@@ -57,7 +53,7 @@ mixin SsLiveReload<T extends StatefulWidget> on State<T>
   String get ssPack;
 
   /// Gate live-reload (default: debug builds launched with the SpriteStudio
-  /// live-reload define). `ssdev`/`sswatch` inject it; otherwise pass
+  /// live-reload define). `sswatch --run` injects it; otherwise pass
   /// `--dart-define=SS_LIVE_RELOAD=true`. So a plain `flutter run` does normal
   /// Dart hot reload without touching the art. Return false to suspend it (e.g.
   /// while a drag-dropped source is shown); override to `kDebugMode` to always
@@ -74,14 +70,12 @@ mixin SsLiveReload<T extends StatefulWidget> on State<T>
   @override
   void ssOnLiveReloadError(Object error) {}
 
-  bool _busy = false;
-
   @override
   void initState() {
     super.initState();
-    // Join the VM-Service push channel so `sswatch`/`ssdev` can hot-swap this
-    // player without `r` — this is the desktop reload path. Inert with no
-    // watcher connected.
+    // Join the VM-Service push channel so `sswatch` can hot-swap this player
+    // (desktop file push / device embedded-bytes push). Inert with no watcher
+    // connected; a release build has no VM Service, so this never fires there.
     SsDevChannel.instance.register(this);
   }
 
@@ -89,35 +83,5 @@ mixin SsLiveReload<T extends StatefulWidget> on State<T>
   void dispose() {
     SsDevChannel.instance.unregister(this);
     super.dispose();
-  }
-
-  @override
-  void reassemble() {
-    super.reassemble();
-    // Desktop reload comes from the push channel (SsDevChannel), not reassemble.
-    // On a device, reassemble is still how an `r`-synced `.ssab` is reloaded.
-    if (!ssLiveReloadEnabled || kIsWeb || _isDesktop) return;
-    _deviceReload();
-  }
-
-  static bool get _isDesktop =>
-      !kIsWeb && (Platform.isMacOS || Platform.isWindows || Platform.isLinux);
-
-  Future<void> _deviceReload() async {
-    if (_busy) return; // single-flight: don't overlap reload()/load()
-    _busy = true;
-    try {
-      final key = '$ssAssetDir/$ssPack.ssab';
-      rootBundle.evict(key); // belt-and-braces; Flutter also evicts changed keys
-      final data = await rootBundle.load(key);
-      final bytes =
-          data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
-      await ssPlayer.reload(bytes, bundle: rootBundle, baseAssetDir: ssAssetDir);
-      if (mounted) ssOnLiveReloaded();
-    } catch (e) {
-      if (mounted) ssOnLiveReloadError(e);
-    } finally {
-      _busy = false;
-    }
   }
 }

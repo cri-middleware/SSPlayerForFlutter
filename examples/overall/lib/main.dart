@@ -203,17 +203,17 @@ class _PlayerPageState extends State<PlayerPage>
     ..sort();
 
   // --- Dev live-reload (the SsLiveReload mixin) --------------------------
-  // Hot-swaps the SpriteStudio art in place, playhead preserved. Opt-in via the
-  // SS_LIVE_RELOAD define (see ssLiveReloadEnabled below).
-  //   Desktop: run a watcher alongside the app — it reconverts the stale
-  //     SpriteStudio_Source projects and PUSHES the pack over the VM Service (no
-  //     `r`, IDE-debugger friendly):
-  //       flutter run -d macos --dart-define=SS_LIVE_RELOAD=true \
-  //         --vmservice-out-file=/tmp/ss.uri
-  //       dart run ssgen_flutter:sswatch --vmservice-uri-file=/tmp/ss.uri
-  //   Device (iOS/Android): reconvert on the host and let `r` DevFS-sync it —
-  //       dart run ssgen_flutter:ssdev -d <device>   (wraps `flutter run`)
-  //     then edit & save. (A `touch` is byte-identical, so edit for real.)
+  // Hot-swaps the SpriteStudio art in place, playhead preserved — no `r`. The
+  // mixin just registers this player with the VM-Service push channel; run the
+  // `sswatch` host runner alongside the app (opt-in via the SS_LIVE_RELOAD
+  // define, injected by --run):
+  //   Desktop (file push):    dart run ssgen_flutter:sswatch --run -d macos
+  //   Device  (embedded push): dart run ssgen_flutter:sswatch --run -d <emu> --device
+  //   IDE (attach, keep the debugger): launch from the IDE with
+  //     --dart-define=SS_LIVE_RELOAD=true --vmservice-out-file=/tmp/ss.uri, then
+  //     dart run ssgen_flutter:sswatch --vmservice-uri-file=/tmp/ss.uri [--device]
+  // Then edit & save a SpriteStudio_Source file (a `touch` is byte-identical, so
+  // edit for real to see a visible change).
   @override
   SpriteStudioPlayer get ssPlayer => _player;
 
@@ -224,7 +224,7 @@ class _PlayerPageState extends State<PlayerPage>
   String get ssPack => _pack;
 
   // Live-reload is opt-in: only when launched with the SpriteStudio define
-  // (`ssdev` injects it; else `--dart-define=SS_LIVE_RELOAD=true`). Also
+  // (`sswatch --run` injects it; else `--dart-define=SS_LIVE_RELOAD=true`). Also
   // suspended while a drag-dropped (non-convention) source is shown.
   @override
   bool get ssLiveReloadEnabled =>
