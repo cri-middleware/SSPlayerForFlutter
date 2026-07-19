@@ -3,7 +3,7 @@ import 'dart:ui' show Canvas, Rect, Size;
 
 import 'package:flame/components.dart';
 import 'package:flutter/foundation.dart' show VoidCallback;
-import 'package:flutter/services.dart' show AssetBundle, rootBundle;
+import 'package:flutter/services.dart' show AssetBundle;
 import 'package:ssplayer_flutter/ssplayer_flutter.dart';
 
 /// Layer 4 — the Flame drawing adapter (sibling to the Widget-based
@@ -24,16 +24,18 @@ import 'package:ssplayer_flutter/ssplayer_flutter.dart';
 /// Anchor.center` if you want [position] to be the centre) to place it in a box.
 ///
 /// ```dart
-/// // In your FlameGame.onLoad:
+/// // In your FlameGame.onLoad — straight from a bundled asset key; sibling
+/// // reference textures resolve from the key's own folder:
+/// add(SpriteStudioComponent.asset('assets/hero.ssab'));
+/// // …or from in-memory bytes (network, device push): pass baseAssetDir for
+/// // reference textures, since there is no key to derive it from.
 /// final bytes = (await rootBundle.load('assets/hero.ssab'))
 ///     .buffer.asUint8List();
 /// add(SpriteStudioComponent(
 ///   ssab: bytes,
-///   baseAssetDir: 'assets',        // reference textures live next to the .ssab
+///   baseAssetDir: 'assets',
 ///   position: Vector2(200, 300),
 /// ));
-/// // …or straight from a bundled asset key:
-/// add(SpriteStudioComponent.asset('assets/hero.ssab', baseAssetDir: 'assets'));
 /// ```
 class SpriteStudioComponent extends PositionComponent {
   /// Plays the in-memory `.ssab` [ssab].
@@ -80,12 +82,12 @@ class SpriteStudioComponent extends PositionComponent {
         );
 
   /// Plays a bundled `.ssab` resolved by asset key in [onLoad] (via [bundle],
-  /// else the root bundle). [baseAssetDir] is the folder holding the sibling
-  /// reference textures — usually the asset's own directory.
+  /// else the root bundle). Sibling reference textures and instance packs
+  /// resolve from the key's own folder — no `baseAssetDir` needed. For a shared
+  /// atlas elsewhere, or bytes with no asset key, use the default ctor.
   SpriteStudioComponent.asset(
     String assetPath, {
     String? animation,
-    String? baseAssetDir,
     AssetBundle? bundle,
     int loop = -1,
     double speed = 1.0,
@@ -105,7 +107,6 @@ class SpriteStudioComponent extends PositionComponent {
   }) : this._(
           assetPath: assetPath,
           animation: animation,
-          baseAssetDir: baseAssetDir,
           bundle: bundle,
           loop: loop,
           speed: speed,
@@ -154,8 +155,10 @@ class SpriteStudioComponent extends PositionComponent {
   /// Animation to select on load; when null the pack's first animation plays.
   final String? animation;
 
-  /// Folder holding the sibling reference textures (design §16C); null for
-  /// embedded-texture packs. Mirrors [SpriteStudioPlayer.load].
+  /// Folder holding the sibling reference textures (design §16C) for the default
+  /// (bytes) ctor; null for embedded-texture packs. Mirrors
+  /// [SpriteStudioPlayer.load]. The [SpriteStudioComponent.asset] ctor ignores
+  /// this and derives the folder from the asset key.
   final String? baseAssetDir;
 
   /// Bundle the `.ssab` (and, for [SpriteStudioComponent.asset], the asset key)
@@ -198,13 +201,22 @@ class SpriteStudioComponent extends PositionComponent {
       ..onComplete = onComplete
       ..onLoop = onLoop;
 
-    final bytes = _bytes ?? await _resolveBytes();
-    await player.load(
-      bytes,
-      animationName: animation,
-      baseAssetDir: baseAssetDir,
-      bundle: bundle,
-    );
+    // Route by ctor: in-memory bytes keep the explicit baseAssetDir; an asset
+    // key delegates to loadAsset, which derives the texture/pack folder from it.
+    if (_bytes != null) {
+      await player.load(
+        _bytes,
+        animationName: animation,
+        baseAssetDir: baseAssetDir,
+        bundle: bundle,
+      );
+    } else {
+      await player.loadAsset(
+        _assetPath!,
+        animationName: animation,
+        bundle: bundle,
+      );
+    }
 
     // The component may have been removed while we awaited the fetch/decode.
     if (isRemoving || isRemoved) {
@@ -228,11 +240,6 @@ class SpriteStudioComponent extends PositionComponent {
       ..subFrame = subFrame;
     if (autoStart) player.play();
     _player = player;
-  }
-
-  Future<Uint8List> _resolveBytes() async {
-    final data = await (bundle ?? rootBundle).load(_assetPath!);
-    return data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
   }
 
   @override

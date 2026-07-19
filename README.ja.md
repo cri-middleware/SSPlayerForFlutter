@@ -72,12 +72,13 @@ class _MyState extends State<MyWidget> with SingleTickerProviderStateMixin {
   }
 
   Future<void> _init() async {
-    final bytes = (await rootBundle.load('assets/overall/Basic.ssab'))
-        .buffer.asUint8List();
-    final animName = SsAnimeInfo(bytes).animationNames.first;
-    // reference テクスチャ（同じフォルダの PNG）は baseAssetDir を渡す。embedded は自動解決。
-    await _player.load(bytes, animationName: animName, baseAssetDir: 'assets/overall');
-    _player..loop = -1..play();
+    // loadAsset がバイト列を読み、reference テクスチャ（同じフォルダの PNG）を
+    // キー自身のフォルダから解決します。baseAssetDir は不要（embedded も同じ）。
+    await _player.loadAsset('assets/overall/Basic.ssab');
+    _player
+      ..setupAnimation(_player.getAnimations().first)
+      ..loop = -1
+      ..play();
   }
 
   @override

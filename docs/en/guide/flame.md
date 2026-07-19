@@ -24,8 +24,9 @@ class RingoGame extends FlameGame {
   Future<void> onLoad() async {
     add(
       SpriteStudioComponent.asset(
+        // Sibling reference textures resolve from the key's own folder — no
+        // baseAssetDir needed (embedded packs work the same way).
         'assets/overall/Basic.ssab',
-        baseAssetDir: 'assets/overall', // sibling PNGs; omit for embedded packs
         position: Vector2(200, 200),
         anchor: Anchor.center,
         loop: -1,
@@ -35,15 +36,17 @@ class RingoGame extends FlameGame {
 }
 ```
 
-`SpriteStudioComponent.asset(path, …)` loads the `.ssab` from the asset bundle in `onLoad`. To play
-bytes you already hold, use the default constructor: `SpriteStudioComponent(ssab: myBytes, …)`.
+`SpriteStudioComponent.asset(path, …)` loads the `.ssab` from the asset bundle in `onLoad` and
+resolves sibling reference textures from the key's own folder. To play bytes you already hold — or to
+point reference textures at a shared atlas elsewhere — use the default constructor
+`SpriteStudioComponent(ssab: myBytes, baseAssetDir: …)`.
 
 ## Key constructor options
 
 | Option | Default | Description |
 |---|---|---|
 | `animation` | first in pack | Animation to select on load |
-| `baseAssetDir` | `null` | Folder with sibling reference textures (omit for embedded packs) |
+| `baseAssetDir` | `null` | Folder with sibling reference textures, for the default (bytes) ctor. The `.asset` ctor ignores it and derives the folder from the key. |
 | `loop` | `-1` | Loop count (`-1` forever, `n` plays *n* times) |
 | `speed` | `1.0` | Playback speed multiplier |
 | `subFrame` | `true` | Sub-frame interpolation |

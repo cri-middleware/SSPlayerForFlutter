@@ -71,6 +71,34 @@ void main() {
     expect(distinct.length, greaterThan(2),
         reason: 'expected textured content, not a flat fill');
   });
+
+  test('SpriteStudioComponent.asset resolves textures with no baseAssetDir',
+      () async {
+    final ssabPath = _firstExisting([
+      'examples/flame/assets/spritestudio/Ringo/Ringo.ssab',
+      '../../examples/flame/assets/spritestudio/Ringo/Ringo.ssab',
+    ]);
+    if (ssabPath == null) {
+      markTestSkipped('Ringo.ssab missing — run scripts/deploy-examples.sh');
+      return;
+    }
+
+    // The asset key IS the ssab's filesystem path here, so loadAsset derives the
+    // sibling-texture folder from it — no baseAssetDir passed. _DiskBundle then
+    // serves `<dir>/Ringo.png` straight from disk.
+    final component = SpriteStudioComponent.asset(
+      ssabPath,
+      bundle: _DiskBundle(),
+      size: Vector2(512, 512),
+    );
+    addTearDown(() => component.player?.dispose());
+
+    await component.onLoad();
+    expect(component.player, isNotNull, reason: 'onLoad builds the player');
+    expect(component.player!.lastTextureReport, isNotNull);
+    expect(component.player!.lastTextureReport!.isComplete, isTrue,
+        reason: 'derived base should resolve Ringo\'s reference textures');
+  });
 }
 
 String? _firstExisting(List<String> paths) {

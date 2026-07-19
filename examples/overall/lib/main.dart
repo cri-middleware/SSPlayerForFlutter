@@ -96,12 +96,10 @@ class _PlayerPageState extends State<PlayerPage>
       // The ssab and its sibling textures are resolved through the same bundle:
       // rootBundle (asset keys) for bundled packs, or _FileBundle (absolute
       // filesystem paths) for a dropped folder.
+      // overall.ssab uses REFERENCE textures (sibling PNGs); loadAsset reads the
+      // bytes and derives the texture folder from the key's own directory.
       final assetPath = '$_assetDir/$pack.ssab';
-      final ByteData data = await _bundle.load(assetPath);
-      final Uint8List bytes =
-          data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
-      // overall.ssab uses REFERENCE textures (sibling PNGs) → pass baseAssetDir.
-      await _player.load(bytes, bundle: _bundle, baseAssetDir: _assetDir);
+      await _player.loadAsset(assetPath, bundle: _bundle);
       // Guard against a newer selection winning the race while we awaited.
       if (!mounted || _pack != pack) return;
       // Enumerate the pack's animations and start on the first one.

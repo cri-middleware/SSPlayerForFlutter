@@ -64,8 +64,8 @@ graph LR
 | **参照** | *(既定)* | 同じフォルダの PNG / WebP を参照する `.ssab` | ローカルでの反復、テクスチャの共有 |
 | **embedded** | `-e` / `--embedded` | テクスチャを内包した自己完結の `.ssab` | 配布 —— アニメ 1 本 = 1 ファイル |
 
-参照形式の `.ssab` は `baseAssetDir` を渡して同じフォルダのテクスチャ画像を解決します。embedded なら
-不要です。[クイックスタート](quickstart.md) を参照。
+どちらの形式も読み込み方は同じです。`loadAsset('…/Foo.ssab')` が reference の画像をキー自身の
+フォルダから解決し、embedded は自身に内包します。[クイックスタート](quickstart.md) を参照。
 
 ## 変換ルートを選ぶ
 
@@ -172,8 +172,8 @@ ssconverter-cli project.sspj --embedded       # テクスチャを .ssab に内�
      assets:
        - assets/spritestudio/
    ```
-3. 読み込みます —— 参照形式なら `baseAssetDir` を渡してテクスチャを解決します。
-   [クイックスタート](quickstart.md) を参照。
+3. `loadAsset('assets/spritestudio/…/Foo.ssab')` で読み込みます —— reference テクスチャはキー
+   自身のフォルダから解決されます（`baseAssetDir` は自動導出）。[クイックスタート](quickstart.md) を参照。
 
 CI では手順 1 をビルドの一部としてスクリプト化します —— example アプリの
 [`scripts/deploy-examples.sh`](https://github.com/cri-middleware/SSPlayerForFlutter/blob/main/scripts/deploy-examples.sh)

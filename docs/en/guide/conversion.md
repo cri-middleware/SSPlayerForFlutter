@@ -64,8 +64,8 @@ Decide this **first** — every route below can emit the `.ssab` in either form:
 | **Reference** | *(default)* | An `.ssab` that references sibling PNG / WebP files | Iterating locally; share textures across packs |
 | **Embedded** | `-e` / `--embedded` | A single self-contained `.ssab` with textures baked in | Shipping — one file per animation, nothing else to bundle |
 
-Load a reference-form `.ssab` with `baseAssetDir` so the sibling images resolve; an embedded `.ssab`
-needs none. See [Quick Start](quickstart.md).
+Either form loads the same way: `loadAsset('…/Foo.ssab')` resolves sibling reference images from the
+key's own folder, and an embedded `.ssab` carries its own. See [Quick Start](quickstart.md).
 
 ## Choosing a conversion route
 
@@ -169,8 +169,8 @@ importer does this for you):
      assets:
        - assets/spritestudio/
    ```
-3. Load it — pass `baseAssetDir` for reference form so the textures resolve. See
-   [Quick Start](quickstart.md).
+3. Load it with `loadAsset('assets/spritestudio/…/Foo.ssab')` — reference textures resolve from the
+   key's own folder (`baseAssetDir` auto-derived). See [Quick Start](quickstart.md).
 
 In CI, script step 1 as part of the build — that is exactly what
 [`scripts/deploy-examples.sh`](https://github.com/cri-middleware/SSPlayerForFlutter/blob/main/scripts/deploy-examples.sh)

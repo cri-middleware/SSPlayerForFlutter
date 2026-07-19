@@ -30,12 +30,13 @@ class _MyState extends State<MyWidget> with SingleTickerProviderStateMixin {
   }
 
   Future<void> _init() async {
-    final bytes = (await rootBundle.load('assets/overall/Basic.ssab'))
-        .buffer.asUint8List();
-    final animName = SsAnimeInfo(bytes).animationNames.first;
-    // reference テクスチャ（同じフォルダの PNG）は baseAssetDir を渡す。embedded は自動解決。
-    await _player.load(bytes, animationName: animName, baseAssetDir: 'assets/overall');
-    _player..loop = -1..play();
+    // loadAsset がアセットバンドルからバイト列を読み、reference テクスチャ（同じフォルダの
+    // PNG）をキー自身のフォルダから解決します。baseAssetDir は不要（embedded も同じ）。
+    await _player.loadAsset('assets/overall/Basic.ssab');
+    _player
+      ..setupAnimation(_player.getAnimations().first)
+      ..loop = -1
+      ..play();
   }
 
   @override
@@ -52,16 +53,17 @@ class _MyState extends State<MyWidget> with SingleTickerProviderStateMixin {
 | ステップ | 役割 |
 |---|---|
 | `SpriteStudioPlayer(vsync: this)` | 自前の `Ticker` を持つプレイヤーを生成。`vsync` を省くとクロックを自分で駆動できます（[再生とイベント](playback.md)）。 |
-| `SsAnimeInfo(bytes).animationNames` | `.ssab` 内のアニメ名を列挙して選べます。 |
-| `load(bytes, animationName:, baseAssetDir:)` | バイト列をネイティブランタイムに渡し、アニメを選択してテクスチャを解決します。 |
+| `loadAsset('assets/overall/Basic.ssab')` | アセットバンドルからバイト列を読み、ネイティブランタイムへ渡し、reference テクスチャをキー自身のフォルダから解決します。 |
+| `getAnimations()` / `setupAnimation` | 読み込んだ `.ssab` 内のアニメ名を列挙して選択します。 |
 | `loop = -1` | 無限ループ（`n > 0` は n 回。[再生とイベント](playback.md)）。 |
 | `play()` | トランスポートを開始します。 |
 | `SpriteStudioView(player:, width:, height:)` | 普通の `RenderBox` ウィジェット。他のウィジェットと同じく配置・変形・クリップできます。 |
 
 !!! tip "テクスチャ: embedded と reference"
-    **embedded** な `.ssab`（`ssconvert -e` で生成）はテクスチャを内包するので `baseAssetDir` は
-    任意です。**reference** な `.ssab` は同じフォルダの画像ファイルを参照するので、`baseAssetDir` を渡して
-    解決させます。→ [CLI 変換](conversion.md)。
+    どちらのモードも追加引数なしで解決します。**embedded** な `.ssab`（`ssconvert -e` で生成）は
+    画像を内包し、**reference** な `.ssab` は同じフォルダの画像ファイルを参照して `loadAsset` が
+    キー自身のフォルダから解決します。別フォルダの共有アトラスのときだけ低レベルの
+    `load(bytes, baseAssetDir:)` を使います。→ [CLI 変換](conversion.md)。
 
 サブフレーム補間は**既定でオン**なので、フレームレートに関係なく滑らかに動きます。
 

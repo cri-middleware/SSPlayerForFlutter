@@ -30,12 +30,14 @@ class _MyState extends State<MyWidget> with SingleTickerProviderStateMixin {
   }
 
   Future<void> _init() async {
-    final bytes = (await rootBundle.load('assets/overall/Basic.ssab'))
-        .buffer.asUint8List();
-    final animName = SsAnimeInfo(bytes).animationNames.first;
-    // For reference textures (sibling PNGs), pass baseAssetDir; embedded assets resolve automatically.
-    await _player.load(bytes, animationName: animName, baseAssetDir: 'assets/overall');
-    _player..loop = -1..play();
+    // loadAsset reads the bytes from the asset bundle and resolves sibling
+    // reference textures from the key's own folder — no baseAssetDir needed
+    // (embedded-texture packs work the same way).
+    await _player.loadAsset('assets/overall/Basic.ssab');
+    _player
+      ..setupAnimation(_player.getAnimations().first)
+      ..loop = -1
+      ..play();
   }
 
   @override
@@ -52,16 +54,17 @@ class _MyState extends State<MyWidget> with SingleTickerProviderStateMixin {
 | Step | Purpose |
 |---|---|
 | `SpriteStudioPlayer(vsync: this)` | Creates the player with its own `Ticker`. Omit `vsync` to drive the clock yourself (see [Playback & Events](playback.md)). |
-| `SsAnimeInfo(bytes).animationNames` | Lists the animations inside the `.ssab` so you can pick one. |
-| `load(bytes, animationName:, baseAssetDir:)` | Hands the bytes to the native runtime, selects the animation, and resolves textures. |
+| `loadAsset('assets/overall/Basic.ssab')` | Reads the bytes from the asset bundle, hands them to the native runtime, and resolves sibling reference textures from the key's own folder. |
+| `getAnimations()` / `setupAnimation` | Lists the animations inside the loaded `.ssab` and selects one. |
 | `loop = -1` | Loops forever (`n > 0` plays *n* times; see [Playback & Events](playback.md)). |
 | `play()` | Starts the transport. |
 | `SpriteStudioView(player:, width:, height:)` | A plain `RenderBox` widget — position, transform, and clip it like any widget. |
 
 !!! tip "Textures: embedded vs. reference"
-    An **embedded** `.ssab` (built with `ssconvert -e`) carries its textures, so `baseAssetDir` is
-    optional. A **reference** `.ssab` points at sibling image files — pass `baseAssetDir` so they
-    resolve. See [CLI Conversion](conversion.md).
+    Both texture modes resolve with no extra argument: an **embedded** `.ssab` (built with
+    `ssconvert -e`) carries its images, and a **reference** `.ssab` points at sibling files that
+    `loadAsset` resolves from the key's own folder. Only a shared atlas in a *different* folder needs
+    the low-level `load(bytes, baseAssetDir:)`. See [CLI Conversion](conversion.md).
 
 Sub-frame interpolation is **on by default**, so motion stays smooth regardless of frame rate.
 

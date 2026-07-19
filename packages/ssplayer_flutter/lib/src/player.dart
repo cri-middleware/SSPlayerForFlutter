@@ -2,7 +2,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
-import 'package:flutter/services.dart' show AssetBundle;
+import 'package:flutter/services.dart' show AssetBundle, rootBundle;
 
 import 'instance_loader.dart';
 import 'internal_player.dart';
@@ -104,10 +104,46 @@ class SpriteStudioPlayer extends ChangeNotifier {
   InstancePackLoadResult? get lastInstanceReport => _lastInstanceReport;
   InstancePackLoadResult? _lastInstanceReport;
 
+  /// Loads a `.ssab` **by asset key** — the front door for a bundled animation.
+  /// Reads the bytes from [bundle] (or the root bundle) and derives the base
+  /// directory for sibling **reference textures** and **instance packs**
+  /// (`<dir>/<pack>.ssab`) from the key's own folder — so the usual "everything
+  /// in one directory" layout needs no extra argument. Otherwise identical to
+  /// [load].
+  ///
+  /// Only a *non-derivable* layout needs [load] directly: a shared atlas in
+  /// another folder, or bytes that never came from an asset key (a network
+  /// download, a device-push live-reload) — those pass `baseAssetDir` explicitly.
+  Future<void> loadAsset(
+    String assetKey, {
+    String? animationName,
+    TextureRegistry? textures,
+    AssetBundle? bundle,
+    bool loadTextures = true,
+    Map<String, Uint8List>? instancePacks,
+  }) async {
+    final bnd = bundle ?? rootBundle;
+    final data = await bnd.load(assetKey);
+    final bytes = data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
+    await load(
+      bytes,
+      animationName: animationName,
+      textures: textures,
+      baseAssetDir: _assetDirOf(assetKey),
+      bundle: bnd,
+      loadTextures: loadTextures,
+      instancePacks: instancePacks,
+    );
+  }
+
   /// Loads a `.ssab`, prepares [animationName], and (by default) decodes its
-  /// cellmap textures — both embedded and reference modes (design §16C). For
+  /// cellmap textures — both embedded and reference modes (design §16C).
+  ///
+  /// Low-level primitive: takes the bytes directly, so it stays agnostic to
+  /// their source (asset bundle, filesystem, network, device push). For
   /// reference textures pass [baseAssetDir] (the asset folder that holds the
-  /// sibling images) and optionally a [bundle].
+  /// sibling images) and optionally a [bundle]. Most callers loading a bundled
+  /// asset want [loadAsset], which reads the bytes and derives [baseAssetDir].
   ///
   /// Returns once textures are loaded; the widget repaints when it resolves.
   Future<void> load(
@@ -178,6 +214,42 @@ class SpriteStudioPlayer extends ChangeNotifier {
           <String>[for (final r in reports) ...r.unresolved]);
       notifyListeners();
     }
+  }
+
+  /// [reload] counterpart of [loadAsset]: re-reads the bytes for [assetKey] and
+  /// derives the texture/pack base from its folder, preserving transport.
+  ///
+  /// A bundle caches by key, so this first [AssetBundle.evict]s [assetKey] to
+  /// pick up *changed on-disk* bytes — the "re-read this asset" semantics. The
+  /// live-reload loop instead drives [reload] with bytes the watcher already
+  /// fetched, so this method is convenience-only.
+  Future<void> reloadAsset(
+    String assetKey, {
+    TextureRegistry? textures,
+    AssetBundle? bundle,
+    bool loadTextures = true,
+    Map<String, Uint8List>? instancePacks,
+  }) async {
+    final bnd = bundle ?? rootBundle;
+    bnd.evict(assetKey);
+    final data = await bnd.load(assetKey);
+    final bytes = data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
+    await reload(
+      bytes,
+      textures: textures,
+      baseAssetDir: _assetDirOf(assetKey),
+      bundle: bnd,
+      loadTextures: loadTextures,
+      instancePacks: instancePacks,
+    );
+  }
+
+  /// Parent directory of an asset key (`a/b/c.ssab` → `a/b`); `''` for a bare
+  /// key or one anchored at the root (`/c.ssab`). Fed as the derived
+  /// `baseAssetDir`; the loaders treat an empty base as "join is a no-op".
+  static String _assetDirOf(String assetKey) {
+    final i = assetKey.lastIndexOf('/');
+    return i <= 0 ? '' : assetKey.substring(0, i);
   }
 
   /// Live-swaps the resource to [ssab] while **preserving transport** — the

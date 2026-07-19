@@ -101,6 +101,8 @@ class SsInstanceLoader {
   static String _joinAsset(String base, String path) {
     final b = base.endsWith('/') ? base.substring(0, base.length - 1) : base;
     final p = path.startsWith('/') ? path.substring(1) : path;
-    return '$b/$p';
+    // A derived base is empty for a root-level `.ssab`; joining must not prepend
+    // a leading '/', which would miss the asset key.
+    return b.isEmpty ? p : '$b/$p';
   }
 }

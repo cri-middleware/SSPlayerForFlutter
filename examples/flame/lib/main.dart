@@ -57,9 +57,9 @@ class SpriteStudioGame extends FlameGame {
   @override
   Future<void> onLoad() async {
     _ringo = SpriteStudioComponent.asset(
+      // Ringo uses REFERENCE textures (sibling Ringo.png); the asset ctor
+      // resolves them from the key's own folder, so no baseAssetDir is needed.
       'assets/spritestudio/Ringo/Ringo.ssab',
-      // Ringo uses REFERENCE textures (sibling Ringo.png) → point at its dir.
-      baseAssetDir: 'assets/spritestudio/Ringo',
       // anchor.center ⇒ `position` IS the animation's world origin on screen
       // (SpriteStudio origins are centered).
       anchor: Anchor.center,
