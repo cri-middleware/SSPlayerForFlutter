@@ -31,8 +31,7 @@ class _MyState extends State<MyWidget> with SingleTickerProviderStateMixin {
 
   Future<void> _init() async {
     // loadAsset reads the bytes from the asset bundle and resolves sibling
-    // reference textures from the key's own folder — no baseAssetDir needed
-    // (embedded-texture packs work the same way).
+    // reference textures from the key's own folder (embedded packs too).
     await _player.loadAsset('assets/overall/Basic.ssab');
     _player
       ..setupAnimation(_player.getAnimations().first)
@@ -63,8 +62,7 @@ class _MyState extends State<MyWidget> with SingleTickerProviderStateMixin {
 !!! tip "Textures: embedded vs. reference"
     Both texture modes resolve with no extra argument: an **embedded** `.ssab` (built with
     `ssconvert -e`) carries its images, and a **reference** `.ssab` points at sibling files that
-    `loadAsset` resolves from the key's own folder. Only a shared atlas in a *different* folder needs
-    the low-level `load(bytes, baseAssetDir:)`. See [CLI Conversion](conversion.md).
+    `loadAsset` resolves from the key's own folder. See [CLI Conversion](conversion.md).
 
 Sub-frame interpolation is **on by default**, so motion stays smooth regardless of frame rate.
 

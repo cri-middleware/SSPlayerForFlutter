@@ -173,7 +173,7 @@ ssconverter-cli project.sspj --embedded       # テクスチャを .ssab に内�
        - assets/spritestudio/
    ```
 3. `loadAsset('assets/spritestudio/…/Foo.ssab')` で読み込みます —— reference テクスチャはキー
-   自身のフォルダから解決されます（`baseAssetDir` は自動導出）。[クイックスタート](quickstart.md) を参照。
+   自身のフォルダから解決されます。[クイックスタート](quickstart.md) を参照。
 
 CI では手順 1 をビルドの一部としてスクリプト化します —— example アプリの
 [`scripts/deploy-examples.sh`](https://github.com/cri-middleware/SSPlayerForFlutter/blob/main/scripts/deploy-examples.sh)

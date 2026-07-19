@@ -24,8 +24,7 @@ class RingoGame extends FlameGame {
   Future<void> onLoad() async {
     add(
       SpriteStudioComponent.asset(
-        // reference テクスチャはキー自身のフォルダから解決するので baseAssetDir は
-        // 不要（embedded も同じ）。
+        // reference テクスチャはキー自身のフォルダから解決します（embedded も同じ）。
         'assets/overall/Basic.ssab',
         position: Vector2(200, 200),
         anchor: Anchor.center,
@@ -37,16 +36,14 @@ class RingoGame extends FlameGame {
 ```
 
 `SpriteStudioComponent.asset(path, …)` は `onLoad` でアセットバンドルから `.ssab` を読み込み、
-reference テクスチャをキー自身のフォルダから解決します。すでに手元にあるバイト列を再生する場合、
-または別フォルダの共有アトラスを参照させたい場合は、既定コンストラクタ
-`SpriteStudioComponent(ssab: myBytes, baseAssetDir: …)` を使います。
+reference テクスチャをキー自身のフォルダから解決します。すでに手元にあるバイト列を再生する場合は、
+既定コンストラクタ `SpriteStudioComponent(ssab: myBytes)` を使います。
 
 ## 主なコンストラクタ引数
 
 | 引数 | 既定 | 説明 |
 |---|---|---|
 | `animation` | パック先頭 | 読み込み時に選択するアニメ |
-| `baseAssetDir` | `null` | 参照テクスチャ（PNG/WebP）があるフォルダ。既定（バイト列）コンストラクタ用。`.asset` は無視してキーから導出します。 |
 | `loop` | `-1` | ループ回数（`-1` 無限、`n` は n 回） |
 | `speed` | `1.0` | 再生速度倍率 |
 | `subFrame` | `true` | サブフレーム補間 |

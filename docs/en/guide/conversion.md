@@ -170,7 +170,7 @@ importer does this for you):
        - assets/spritestudio/
    ```
 3. Load it with `loadAsset('assets/spritestudio/…/Foo.ssab')` — reference textures resolve from the
-   key's own folder (`baseAssetDir` auto-derived). See [Quick Start](quickstart.md).
+   key's own folder. See [Quick Start](quickstart.md).
 
 In CI, script step 1 as part of the build — that is exactly what
 [`scripts/deploy-examples.sh`](https://github.com/cri-middleware/SSPlayerForFlutter/blob/main/scripts/deploy-examples.sh)

@@ -31,7 +31,7 @@ class _MyState extends State<MyWidget> with SingleTickerProviderStateMixin {
 
   Future<void> _init() async {
     // loadAsset がアセットバンドルからバイト列を読み、reference テクスチャ（同じフォルダの
-    // PNG）をキー自身のフォルダから解決します。baseAssetDir は不要（embedded も同じ）。
+    // PNG）をキー自身のフォルダから解決します（embedded も同じ）。
     await _player.loadAsset('assets/overall/Basic.ssab');
     _player
       ..setupAnimation(_player.getAnimations().first)
@@ -62,8 +62,7 @@ class _MyState extends State<MyWidget> with SingleTickerProviderStateMixin {
 !!! tip "テクスチャ: embedded と reference"
     どちらのモードも追加引数なしで解決します。**embedded** な `.ssab`（`ssconvert -e` で生成）は
     画像を内包し、**reference** な `.ssab` は同じフォルダの画像ファイルを参照して `loadAsset` が
-    キー自身のフォルダから解決します。別フォルダの共有アトラスのときだけ低レベルの
-    `load(bytes, baseAssetDir:)` を使います。→ [CLI 変換](conversion.md)。
+    キー自身のフォルダから解決します。→ [CLI 変換](conversion.md)。
 
 サブフレーム補間は**既定でオン**なので、フレームレートに関係なく滑らかに動きます。
 
