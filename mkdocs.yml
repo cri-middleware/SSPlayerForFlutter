@@ -1,0 +1,100 @@
+site_name: SpriteStudioPlayer for Flutter
+site_description: "Play OPTPiX SpriteStudio 7 animations (.ssab) natively in Flutter"
+site_author: "CRI Middleware Co., Ltd."
+site_url: "https://cri-middleware.github.io/SSPlayerForFlutter/"
+repo_name: "cri-middleware/SSPlayerForFlutter"
+repo_url: "https://github.com/cri-middleware/SSPlayerForFlutter"
+edit_uri: "edit/main/docs/"
+
+# Internal design docs live at docs/ root and are referenced by code/AGENTS.md —
+# keep them in the repo but out of the published site.
+exclude_docs: |
+  architecture.ja.md
+  RELEASING.md
+
+theme:
+  name: material
+  language: en
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: blue grey
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: blue grey
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - content.code.copy
+
+plugins:
+  - search
+  - callouts
+  - i18n:
+      docs_structure: folder
+      languages:
+        - locale: en
+          name: English
+          default: true
+          build: true
+        - locale: ja
+          name: 日本語
+          build: true
+
+# Audience-tiered navigation (mirrors SSPlayerForUnity): library users read the
+# "For Users" tab and never need to touch the Rust/SDK/build material below it.
+nav:
+  - Home: index.md
+  - For Users:
+      - Installation: guide/install.md
+      - Quick Start: guide/quickstart.md
+      - Playback & Events: guide/playback.md
+      - Flame Integration: guide/flame.md
+  - Customization & Automation:
+      - Overview: customize/index.md
+      - Preparing Assets (.sspj → .ssab): customize/conversion.md
+      - Native Runtime: customize/native-runtime.md
+      - Live Reload: customize/live-reload.md
+  - For Player & SDK Developers:
+      - Architecture: contributing/architecture.md
+      - Build Guide: contributing/build.md
+      - Releasing: contributing/releasing.md
+      - Roadmap & Limitations: contributing/roadmap.md
+  - Packages: packages.md
+  - API Reference: api.md
+  - License:
+      - License: license/index.md
+      - Third-Party Notices: license/third-party.md
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+
+extra:
+  alternate:
+    - name: English
+      link: ./
+      lang: en
+    - name: 日本語
+      link: ./ja/
+      lang: ja
