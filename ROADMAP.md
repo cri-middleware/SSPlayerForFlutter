@@ -105,6 +105,24 @@ draw-call count of *peeled* shader parts.
 
 ## ☐ Player-only features (no SDK dependency)
 
+- ☑ **UserData / Signal / Audio events** — decode the timeline events the Brain
+  reports (`ss_runtime_get_passed_event_*`) into plain Dart and dispatch them
+  per-event on L3 as `onUserData` / `onSignal` / `onAudio` (design §6C, matching
+  the Godot/Unity `user_data` / `signal` / `audio` callbacks). The raw
+  `onEvents(indices)` escape hatch stays. Decode lives in
+  `SsAnimeInfo.decodePassedEvents`, keyed by the current animation (the indices
+  are relative to *its* `events()`). Audio is trigger-only — the player hands you
+  the sound to play and never produces sound itself. Frame-skip and sub-frame are
+  the Brain's job: `update` enumerates every integer frame crossed (skip is
+  default-on) and collects each frame's events, so a large step delivers all
+  skipped-frame events in one poll and sub-frame sampling never double-fires — the
+  Body just polls the batch once and dispatches each. Not yet covered: events on
+  Instance *children* (only the root context is polled) and the `set_frame_no`
+  seek gap (§18). Tests: `test/event_test.dart` (pure decode incl. the Signal
+  param union), `test/event_e2e_test.dart` (real `UserData.ssab` / `Signal.ssab` /
+  `Sound.ssab`), `test/event_frameskip_test.dart` (frame-skip batching + sub-frame
+  single-fire). Demoed in `examples/overall` (the `UserData` / `Signal` / `Sound`
+  packs show the latest event).
 - ☐ **Label / frame-range / index playback** — play a named label range, a
   start-offset, or by animation index. Labels already ship in the `.ssab`
   FlatBuffers payload, so no SDK change is needed; add `play_range` / `play_by_index`

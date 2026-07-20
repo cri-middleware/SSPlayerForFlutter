@@ -1,6 +1,17 @@
 import 'dart:typed_data';
+import 'dart:ui' as ui;
 
+import 'event.dart';
 import 'ssab/ssab.g.dart' as ssab;
+
+/// The UserData / Signal / Audio events crossed on one `advance`, decoded from
+/// the pack (design §6C). Returned by [SsAnimeInfo.decodePassedEvents] and
+/// dispatched per-event by [SpriteStudioPlayer].
+typedef SsPassedEvents = ({
+  List<SsUserData> userData,
+  List<SsSignal> signals,
+  List<SsAudioEvent> audios,
+});
 
 /// Read-only metadata about a `.ssab` animation pack, parsed directly from the
 /// bytes via the Dart FlatBuffers accessors.
@@ -40,4 +51,154 @@ class SsAnimeInfo {
           .whereType<String>()
           .toList(growable: false) ??
       const <String>[];
+
+  // --- Events (§6C) --------------------------------------------------------
+
+  // The passed-event indices the Brain reports are relative to the *current*
+  // animation's `events()` list, so resolution is per animation. Cache the last
+  // lookup: events are polled every frame that carries one, always for the same
+  // animation until it is switched.
+  String? _lastAnimName;
+  ssab.AnimationData? _lastAnim;
+
+  ssab.AnimationData? _animationByName(String name) {
+    if (name == _lastAnimName) return _lastAnim;
+    ssab.AnimationData? found;
+    final anims = _root.animations;
+    if (anims != null) {
+      for (final a in anims) {
+        if (a.name == name) {
+          found = a;
+          break;
+        }
+      }
+    }
+    _lastAnimName = name;
+    _lastAnim = found;
+    return found;
+  }
+
+  /// Decodes the events at [indices] — the raw indices the Brain reported for
+  /// [animationName] (see [SpriteStudioInternalPlayer.passedEventIndices]) — into
+  /// flat, per-event lists (design §6C). Unknown animations, out-of-range
+  /// indices, and inactive signals are dropped. Returns empty lists when there
+  /// is nothing to decode.
+  SsPassedEvents decodePassedEvents(String animationName, List<int> indices) {
+    if (indices.isEmpty) return _emptyEvents;
+    final events = _animationByName(animationName)?.events;
+    if (events == null) return _emptyEvents;
+
+    final userData = <SsUserData>[];
+    final signals = <SsSignal>[];
+    final audios = <SsAudioEvent>[];
+    for (final idx in indices) {
+      if (idx < 0 || idx >= events.length) continue;
+      final frame = events[idx];
+      final us = frame.users;
+      if (us != null) {
+        for (final u in us) {
+          userData.add(_decodeUser(u));
+        }
+      }
+      final sigs = frame.signals;
+      if (sigs != null) {
+        for (final s in sigs) {
+          final decoded = _decodeSignal(s);
+          if (decoded != null) signals.add(decoded);
+        }
+      }
+      final auds = frame.audios;
+      if (auds != null) {
+        for (final a in auds) {
+          final decoded = _decodeAudio(a);
+          if (decoded != null) audios.add(decoded);
+        }
+      }
+    }
+    return (userData: userData, signals: signals, audios: audios);
+  }
+
+  static const SsPassedEvents _emptyEvents = (
+    userData: <SsUserData>[],
+    signals: <SsSignal>[],
+    audios: <SsAudioEvent>[],
+  );
+
+  static SsUserData _decodeUser(ssab.EventUserData e) {
+    final v = e.value;
+    final r = v?.rect;
+    final p = v?.point;
+    return SsUserData(
+      partIndex: e.partIndex,
+      integer: v?.integer?.value,
+      rect: r == null ? null : ui.Rect.fromLTRB(r.x1, r.y1, r.x2, r.y2),
+      point: p == null ? null : ui.Offset(p.v1, p.v2),
+      string: v?.str,
+    );
+  }
+
+  static SsSignal? _decodeSignal(ssab.EventSignal e) {
+    final v = e.value;
+    // Match the sibling players: an inactive signal is not surfaced.
+    if (v == null || !v.active) return null;
+    final params = <SsSignalParam>[];
+    final ps = v.params;
+    if (ps != null) {
+      for (final p in ps) {
+        final id = p.paramId;
+        if (id == null) continue;
+        params.add(SsSignalParam(paramId: id, value: _paramValue(p)));
+      }
+    }
+    return SsSignal(
+      partIndex: e.partIndex,
+      commandId: v.commandId ?? '',
+      params: params,
+    );
+  }
+
+  // `SignalCommandParam.value` returns the union entry chosen by `valueType`.
+  static Object? _paramValue(ssab.SignalCommandParam p) {
+    final val = p.value;
+    if (val is ssab.BoolValueEntry) return val.value;
+    if (val is ssab.IntValueEntry) return val.value;
+    if (val is ssab.FloatValueEntry) return val.value;
+    if (val is ssab.StringValueEntry) return val.value;
+    return null; // None / unset
+  }
+
+  static SsAudioEvent? _decodeAudio(ssab.EventAudio e) {
+    final v = e.value;
+    if (v == null) return null;
+    return SsAudioEvent(
+      partIndex: e.partIndex,
+      soundName: v.soundName,
+      soundNameHash: v.soundNameHash,
+      soundListNameHash: v.soundListNameHash,
+      loopNum: v.loopNum,
+    );
+  }
+
+  // --- Sound resolution (§6C audio) ----------------------------------------
+
+  Map<int, String>? _soundFilePaths;
+
+  /// The pack-relative file path for the sound with [soundNameHash] (i.e.
+  /// [SsAudioEvent.soundNameHash]) — e.g. `sound/foo.mp3` — resolved from the
+  /// pack's `SoundList`s, or null if unknown. Lets an app turn an `onAudio`
+  /// trigger into a playable file without re-parsing the `.ssab`; playback
+  /// itself remains the app's responsibility (design §6C).
+  String? soundFilePath(int soundNameHash) =>
+      (_soundFilePaths ??= _buildSoundFilePaths())[soundNameHash];
+
+  Map<int, String> _buildSoundFilePaths() {
+    final out = <int, String>{};
+    for (final list in _root.soundLists ?? const <ssab.SoundList>[]) {
+      for (final f in list.tableData ?? const <ssab.SoundFile>[]) {
+        final path = f.filePath;
+        if (path != null) out[f.nameHash] = path;
+      }
+    }
+    return out;
+  }
 }

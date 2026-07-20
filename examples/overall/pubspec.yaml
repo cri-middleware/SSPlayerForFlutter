@@ -21,6 +21,7 @@ dependencies:
   # runner. Kept out of ssplayer_flutter so the runtime stays converter-free.
   ssgen_flutter:
     path: ../../packages/ssgen_flutter
+  audioplayers: ^6.8.1
 
 dev_dependencies:
   flutter_test:

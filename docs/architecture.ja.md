@@ -245,13 +245,19 @@ Flutter としては **Phase 1**（Basic〜BlendMode を `SpriteStudioView` で�
   [再生制御とイベント処理](../SpriteStudio-SDK/libs/ssruntime/docs/30_core/20_playback_control.ja.md) 参照。
   有効フレーム範囲は `[start_frame, end_frame+1)` の半開区間。末尾クランプ不要。
 
-**C. イベント処理（ポーリング）**:
+**C. イベント処理（ポーリング・実装済み）**:
 - `ss_runtime_update` の後、`ss_runtime_get_passed_event_count(context)` と `ss_runtime_get_passed_event_index(context, i)` で
-  「このフレームで通過したイベント」のインデックスを取得し、Body が `.ssab` の `events()` を FlatBuffers でパースして
+  「このフレームで通過したイベント」のインデックスを取得し（L2 `passedEventIndices()`）、Body が `.ssab` の `events()` を FlatBuffers でパースして
   `users()`（UserData）/ `signals()`（型付きパラメータ）/ `audios()`（音声指示）を読む。
-- `SpriteStudioPlayer` は `onUserData` / `onSignal` / `onComplete` / `onLoop` として Stream / コールバック公開。UI isolate 上で同期ディスパッチ。
-- **音声非依存**: `audios()` はトリガのみ。実際の再生はアプリ側の責務。
-- **制限（§18）**: `set_frame_no` によるシークは、旧→新フレーム間のイベントを取りこぼす。
+  デコードは `SsAnimeInfo.decodePassedEvents(animationName, indices)`（`src/ssab_info.dart`）に集約。
+  **通過インデックスは「現在 setup 中のアニメの `events()`」への添字**なので、root[0] 固定ではなく現在アニメを名前で解決する（`events` は `AnimationData` 単位）。
+- `SpriteStudioPlayer`（L3）は `onUserData` / `onSignal` / `onAudio`（イベント単位・§6C 兄弟移植の `user_data`/`signal`/`audio` に対応）＋ `onComplete` / `onLoop` を公開。生インデックスの `onEvents` も互換で残す。UI isolate 上で同期ディスパッチ。FlatBuffers 型は公開 API に漏らさず、プレーン Dart 値型（`SsUserData`/`SsSignal`/`SsSignalParam`/`SsAudioEvent`、`src/event.dart`）へデコードして渡す。Signal は `active==false` を落とし、param の Union は `bool/int/double/String/null` へ展開。
+- **音声非依存**: `audios()` はトリガのみ。実際の再生はアプリ側の責務。`onAudio` は鳴らすべき音（名前/ハッシュ・`loopNum`）を渡すだけで、Player は音を出さない。`loopNum` は**再生回数**（`>=1`。SS 音声に無限ループは無い＝名前に反して繰り返し回数、SDK `90_audio`）で、アプリがその回数だけ鳴らす。`SpriteStudioPlayer.soundFilePath(hash)`（→`SsAnimeInfo`）で `soundNameHash` を `SoundList` のファイルパス（例 `sound/foo.mp3`）へ解決できる。`examples/overall` が audioplayers で N 回再生を実演（コアは音声非依存のまま）。
+- **フレームスキップ / サブフレームは Brain 側が担保（Body は毎回まとめて poll するだけ）**: `ss_runtime_update(delta)` が「この update で**通過した整数フレーム**」を列挙し（`playback_controller.rs` の `passed_frames`。フレームスキップは**既定 ON**）、各フレームのイベントを収集する（`lib.rs` `collect_events` が `frame_index` を二分探索）。
+  - **フレームスキップ**: 大きな `delta` で複数フレームを飛び越えても、跨いだ全フレーム（ループ境界含む）のイベントが 1 回の poll にまとまって届く。Body 側でフレーム単位に刻む必要はない（`passedEventIndices()` を 1 回読んで全件ディスパッチ）。
+  - **サブフレーム**: イベントは整数 `frame_index` キーで、`passed_frames` は整数フレームのみ。小数（補間）位置ではイベントは発火せず、各整数フレームは通過時に 1 回だけ報告される（終端/折返しフレームは再 push しない＝多重発火しない）。Flutter の `subFrame` は `get_frame_data` の描画サンプリング専用で、イベント収集には無関係。
+  - 検証: `test/event_frameskip_test.dart`（1 回の大 `advance` が複数フレームのイベントをまとめて届ける／4ms サブフレーム刻みでも各イベントは 1 回だけ）。
+- **未対応（現状）**: Instance 子のイベント（root コンテキストのみポーリング）。**制限（§18）**: `set_frame_no` によるシークは、旧→新フレーム間のイベントを取りこぼす（`update` は収集するが `seek` は収集しない）。
 
 ## 7. レンダリングループとバッチ描画
 
@@ -408,7 +414,7 @@ Flutter としては **Phase 1**（Basic〜BlendMode を `SpriteStudioView` で�
   - **Arrow は SDK 側が不整合**（中心頂点が無いのに全プレイヤーがファンとして消費）。本章末
     §11-A「既知の不整合・要判断」参照。
 - **9-Slice（Runtime 側で計算済み・未実装）**: `local_vertices` に展開済み。
-- **Sound（Body）**: passed_event の `audios` を監視してアプリのオーディオで再生。
+- **Sound（Body・実装済み）**: passed_event の `audios` を `onAudio`（§6C）で公開し、アプリのオーディオで再生する。Player 自身は音を出さない（トリガのみ）。
 
 ## 12. アニメーションブレンド / ミキシング
 

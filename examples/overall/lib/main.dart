@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:audioplayers/audioplayers.dart';
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
@@ -36,6 +38,18 @@ class _PlayerPageState extends State<PlayerPage>
   late final SpriteStudioPlayer _player;
   String _status = 'loading…';
 
+  // The most recent timeline event (§6C), shown under the status line so the
+  // UserData / Signal / Sound packs visibly demonstrate onUserData / onSignal /
+  // onAudio.
+  String _lastEvent = '';
+
+  // Audio playback lives in the app, not the player (audio-independent, §6C).
+  // Fire-and-forget: a throwaway player per trigger, so re-triggers (the anim
+  // loops) and different sounds simply overlap — no channels, no playback-side
+  // state. Tracked only to dispose them with the widget; each self-disposes when
+  // it finishes.
+  final Set<AudioPlayer> _audioPlayers = <AudioPlayer>{};
+
   // The current .ssab source. Starts on the bundled overall.sspj packs; drag &
   // drop a folder (or a .ssab) onto the window to swap to a filesystem source.
   //
@@ -54,6 +68,11 @@ class _PlayerPageState extends State<PlayerPage>
       'Basic',
       'BlendMode',
       'Interpolation',
+      // Carries timeline events (§6C): UserData / Signal markers and Audio
+      // triggers surfaced via onUserData / onSignal / onAudio (see _lastEvent).
+      'UserData',
+      'Signal',
+      'Sound',
     ],
     'assets/spritestudio/Ringo': <String>['Ringo', 'Ringo_tyu'],
   };
@@ -83,14 +102,76 @@ class _PlayerPageState extends State<PlayerPage>
   @override
   void initState() {
     super.initState();
-    _player = SpriteStudioPlayer(vsync: this);
+    _player = SpriteStudioPlayer(vsync: this)
+      // Surface the decoded timeline events (§6C). Set once — the callbacks
+      // persist across loadAsset, so switching packs keeps them wired.
+      ..onAudio = (a) {
+        _showEvent('♪ audio: "${a.soundName}" ×${a.loopNum}');
+        _playAudio(a);
+      }
+      ..onUserData = (u) {
+        final str = u.string != null ? ' "${u.string}"' : '';
+        _showEvent('userData @part ${u.partIndex}$str');
+      }
+      ..onSignal = (s) {
+        _showEvent('signal "${s.commandId}"');
+      };
     _load(_pack);
+  }
+
+  // Store the latest timeline event for display. Fires on the UI isolate from
+  // the player's per-frame event dispatch, so a plain setState is safe.
+  void _showEvent(String text) {
+    if (mounted) setState(() => _lastEvent = text);
+  }
+
+  // Play an audio trigger (§6C). The player only says WHAT to play; the app
+  // decides HOW — here: fire it and forget it. Each trigger gets its own
+  // throwaway player, so re-triggers (the anim loops) and different sounds just
+  // overlap, with no channel bookkeeping and no "is it already playing" state.
+  // `loopNum` is a play count (>= 1; SpriteStudio has no infinite loop), and
+  // audioplayers has no "play N times", so replay on completion until spent,
+  // then discard the player.
+  //
+  // Spec note (SDK 90_audio): audio should only play on FORWARD playback — the
+  // Brain also reports events when running in reverse, which audio backends
+  // rarely support. This demo only ever plays forward, so it needs no guard;
+  // an app that reverses would gate on its own playback direction here.
+  Future<void> _playAudio(SsAudioEvent a) async {
+    // Only bundled packs ship their sounds as app assets. A drag-dropped folder
+    // would need filesystem playback, which this demo skips.
+    if (_dropped) return;
+    final rel = _player.soundFilePath(a.soundNameHash); // e.g. sound/foo.mp3
+    if (rel == null) return;
+    // AssetSource paths are relative to the `assets/` root, so drop that prefix.
+    final root = _assetDir.startsWith('assets/')
+        ? _assetDir.substring('assets/'.length)
+        : _assetDir;
+    final source = AssetSource('$root/$rel');
+
+    final player = AudioPlayer();
+    _audioPlayers.add(player);
+    var remaining = (a.loopNum < 1 ? 1 : a.loopNum) - 1;
+    late final StreamSubscription<void> sub;
+    sub = player.onPlayerComplete.listen((_) {
+      if (remaining > 0) {
+        remaining--; // still owe plays — loopNum is a count, so replay
+        player.play(source);
+      } else {
+        sub.cancel();
+        _audioPlayers.remove(player);
+        player.dispose();
+      }
+    });
+    await player.setReleaseMode(ReleaseMode.stop);
+    await player.play(source);
   }
 
   Future<void> _load(String pack) async {
     setState(() {
       _pack = pack;
       _status = 'loading "$pack"…';
+      _lastEvent = '';
     });
     try {
       // The ssab and its sibling textures are resolved through the same bundle:
@@ -246,6 +327,10 @@ class _PlayerPageState extends State<PlayerPage>
 
   @override
   void dispose() {
+    for (final p in _audioPlayers.toList()) {
+      p.dispose();
+    }
+    _audioPlayers.clear();
     _view.dispose();
     _player.dispose();
     super.dispose();
@@ -354,6 +439,18 @@ class _PlayerPageState extends State<PlayerPage>
               child: Column(
                 children: [
                   Text(_status),
+                  // Latest timeline event (§6C) — non-empty for the UserData /
+                  // Signal / Sound packs. Reserve the row so layout is stable.
+                  SizedBox(
+                    height: 20,
+                    child: Text(
+                      _lastEvent,
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodyMedium
+                          ?.copyWith(color: Theme.of(context).colorScheme.primary),
+                    ),
+                  ),
                   const SizedBox(height: 4),
                   Text(
                     'source: $source  ·  drag to move · scroll to zoom · drop a folder of .ssab here',

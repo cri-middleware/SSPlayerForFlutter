@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart' show AssetBundle, rootBundle;
 
+import 'event.dart';
 import 'instance_loader.dart';
 import 'internal_player.dart';
 import 'ssab_info.dart';
@@ -64,8 +65,23 @@ class SpriteStudioPlayer extends ChangeNotifier {
     _internal?.subFrame = value;
   }
 
-  /// Invoked (on the UI isolate) with the event indices passed each frame.
+  /// Invoked (on the UI isolate) with the raw event indices passed each frame.
+  /// Low-level escape hatch; most callers want the decoded [onUserData] /
+  /// [onSignal] / [onAudio] callbacks below instead.
   SsEventCallback? onEvents;
+
+  /// Fired (on the UI isolate) for each **UserData** marker crossed this frame,
+  /// decoded from the pack for [currentAnimation] (design §6C).
+  SsUserDataCallback? onUserData;
+
+  /// Fired for each active **Signal** crossed this frame (§6C). Inactive
+  /// signals are not surfaced.
+  SsSignalCallback? onSignal;
+
+  /// Fired for each **Audio** trigger crossed this frame (§6C). SpriteStudio
+  /// audio is trigger-only: this hands you the sound to play, but the player
+  /// never produces sound itself — play it with your own audio stack.
+  SsAudioCallback? onAudio;
 
   /// Fired once every configured loop has played. Never fires while [loop] is
   /// infinite, nor on a commanded [stop].
@@ -88,6 +104,14 @@ class SpriteStudioPlayer extends ChangeNotifier {
   /// switch animation without reloading the resource or its textures.
   List<String> getAnimations() =>
       _animeInfo?.animationNames ?? const <String>[];
+
+  /// Resolves an [SsAudioEvent.soundNameHash] (from an [onAudio] trigger) to its
+  /// pack-relative sound file path — e.g. `sound/foo.mp3` — or null before
+  /// [load] / if unknown. Convenience over [SsAnimeInfo.soundFilePath] for
+  /// playing audio triggers; the player stays audio-independent (design §6C), so
+  /// you feed the path to your own audio stack.
+  String? soundFilePath(int soundNameHash) =>
+      _animeInfo?.soundFilePath(soundNameHash);
 
   /// The animation currently selected via [load] or [setupAnimation] (null
   /// before any is chosen). [reload] uses it to restore selection across a
@@ -422,7 +446,10 @@ class SpriteStudioPlayer extends ChangeNotifier {
     internal.update(delta);
 
     final passed = internal.passedEventIndices();
-    if (passed.isNotEmpty) onEvents?.call(passed);
+    if (passed.isNotEmpty) {
+      onEvents?.call(passed);
+      _dispatchDecodedEvents(passed);
+    }
 
     // `isLooped` is a pulse the runtime clears on entry to every update, so it
     // is read verbatim. `isFinished` is a sticky state, so it goes through a
@@ -437,6 +464,34 @@ class SpriteStudioPlayer extends ChangeNotifier {
     _prevFinished = finished;
 
     notifyListeners();
+  }
+
+  /// Decodes the raw [passed] event indices for [currentAnimation] and fires
+  /// the per-event callbacks (design §6C). Skips the decode entirely when no
+  /// decoded callback is registered, and when no animation is selected (the
+  /// indices are relative to the current animation's `events()`).
+  void _dispatchDecodedEvents(List<int> passed) {
+    if (onUserData == null && onSignal == null && onAudio == null) return;
+    final anim = _currentAnimation;
+    final info = _animeInfo;
+    if (anim == null || info == null) return;
+
+    final decoded = info.decodePassedEvents(anim, passed);
+    if (onUserData != null) {
+      for (final u in decoded.userData) {
+        onUserData!(u);
+      }
+    }
+    if (onSignal != null) {
+      for (final s in decoded.signals) {
+        onSignal!(s);
+      }
+    }
+    if (onAudio != null) {
+      for (final a in decoded.audios) {
+        onAudio!(a);
+      }
+    }
   }
 
   SpriteStudioInternalPlayer _requireInternal() =>
