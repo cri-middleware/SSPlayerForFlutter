@@ -1,4 +1,3 @@
-import 'dart:ffi' as ffi;
 import 'dart:typed_data';
 
 import 'package:ssruntime_dart/ssruntime_dart.dart';
@@ -118,7 +117,7 @@ class InstancePart {
 abstract class InstanceChild {
   /// The child's runtime Context. `ss_instance_slot_step` steps **this**, while
   /// the `EventInstance` is resolved against the *parent's* context.
-  ffi.Pointer<ffi.Void> get instanceContext;
+  SsContext get instanceContext;
 
   /// The child's current frame, read back after [instancePlay] snaps it.
   double get instanceFrameNo;
@@ -158,7 +157,7 @@ class InstanceSlot<T extends InstanceChild> {
   /// The opaque `InstanceSlot` from `ss_instance_slot_create()`. Unlike an
   /// effect slot it binds no resource at construction — `step` takes the child
   /// context per call.
-  final ffi.Pointer<ffi.Void> slot;
+  final SsInstanceSlot slot;
   final T child;
 
   /// The frame the last [InstanceSlots.step] left the child on — what `paint`
@@ -180,7 +179,7 @@ class InstanceSlot<T extends InstanceChild> {
   ///
   /// Known SDK limitation: independent playback is undefined under reverse
   /// playback and seek (a monotonic real-time clock cannot rewind).
-  bool get isIndependent => ss_instance_slot_is_independent(slot);
+  bool get isIndependent => ssRuntime.instanceSlotIsIndependent(slot);
 }
 
 /// Owns one `InstanceSlot` + child player per instance part (§8).
@@ -210,8 +209,8 @@ class InstanceSlots<T extends InstanceChild> {
     for (final part in parts) {
       final child = childFor(part);
       if (child == null) continue;
-      final slot = ss_instance_slot_create();
-      if (slot == ffi.nullptr) {
+      final slot = ssRuntime.createInstanceSlot();
+      if (slot == null) {
         child.instanceDispose();
         continue;
       }
@@ -240,7 +239,7 @@ class InstanceSlots<T extends InstanceChild> {
   /// invisible to the Brain (the `EventInstance` identity is unchanged) and a
   /// finite-loop independent child freezes at its end frame.
   void step(
-    ffi.Pointer<ffi.Void> parentContext, {
+    SsContext parentContext, {
     required double parentFrame,
     required double deltaMs,
     required bool parentLooped,
@@ -248,15 +247,17 @@ class InstanceSlots<T extends InstanceChild> {
     final deltaSeconds = deltaMs / 1000.0;
     for (final entry in _slots.entries) {
       final state = entry.value;
-      // Slot index == part index: the ssab keys EventInstance by part_index.
-      final ev = ss_runtime_get_active_event_instance(parentContext, entry.key);
-      final r = ss_instance_slot_step(
+      // Slot index == part index: the ssab keys EventInstance by part_index. The
+      // backend fetches the active EventInstance against the parent context and
+      // steps the child in one call ([SsRuntime.stepInstanceSlot]).
+      final r = ssRuntime.stepInstanceSlot(
         state.slot,
-        ev,
+        parentContext,
+        entry.key,
         state.child.instanceContext,
-        parentFrame,
-        deltaSeconds,
-        parentLooped,
+        parentFrame: parentFrame,
+        deltaSeconds: deltaSeconds,
+        parentLooped: parentLooped,
       );
 
       // A transition means a new EventInstance edge. `step` has configured the
@@ -274,11 +275,11 @@ class InstanceSlots<T extends InstanceChild> {
       // clock we just snapped. Every other tick the returned value is the
       // freshly stepped one.
       final childFrame =
-          r.transitioned ? state.child.instanceFrameNo : r.child_frame_no;
+          r.transitioned ? state.child.instanceFrameNo : r.childFrameNo;
       state.childFrame = childFrame;
       // The child's animation clock is the Brain's; its effects and nested
       // instances still need their own tick, at the frame it was just moved to.
-      state.child.instanceStepSlots(childFrame, deltaMs, r.child_looped);
+      state.child.instanceStepSlots(childFrame, deltaMs, r.childLooped);
     }
   }
 
@@ -294,7 +295,7 @@ class InstanceSlots<T extends InstanceChild> {
   /// from the right place.
   void reset() {
     for (final state in _slots.values) {
-      ss_instance_slot_reset(state.slot);
+      ssRuntime.resetInstanceSlot(state.slot);
       state.childFrame = 0.0;
       state.visible = false;
       state.child.instanceStop();
@@ -307,7 +308,7 @@ class InstanceSlots<T extends InstanceChild> {
       // The child borrows nothing from the slot, but mirror the flagship's
       // order anyway: player first, then the slot that drove it.
       state.child.instanceDispose();
-      ss_instance_slot_destroy(state.slot);
+      ssRuntime.destroyInstanceSlot(state.slot);
     }
     _slots.clear();
   }

@@ -1,4 +1,3 @@
-import 'dart:ffi' as ffi;
 import 'dart:typed_data';
 
 import 'package:ssruntime_dart/effect_draw_plan.dart' as efbs;
@@ -51,12 +50,12 @@ class EffectPart {
 class EffectSlots {
   EffectSlots(this._resource, this.parts);
 
-  final ffi.Pointer<ffi.Void> _resource;
+  final SsResource _resource;
 
   /// Every effect-hosting part in the pack ([EffectPart.readAll]).
   final List<EffectPart> parts;
 
-  final Map<int, ffi.Pointer<ffi.Void>> _slots = <int, ffi.Pointer<ffi.Void>>{};
+  final Map<int, SsEffectSlot?> _slots = <int, SsEffectSlot?>{};
   final Map<int, efbs.EffectDrawPlan> _plans = <int, efbs.EffectDrawPlan>{};
 
   /// True when the pack hosts no effects at all — the caller then skips the
@@ -76,7 +75,7 @@ class EffectSlots {
   /// loop **edge** for this update (`ss_runtime_is_looped` is reset at the top of
   /// each update), which re-arms a synced effect so it re-fires next cycle.
   void step(
-    ffi.Pointer<ffi.Void> context, {
+    SsContext context, {
     required double parentFrame,
     required double deltaSeconds,
     required double fps,
@@ -84,27 +83,25 @@ class EffectSlots {
   }) {
     for (final part in parts) {
       final slot = _slotFor(part);
-      if (slot == ffi.nullptr) continue;
+      if (slot == null) continue;
 
-      final event = ss_runtime_get_active_effect_event(context, part.partIndex);
-      final result = ss_effect_slot_step(
+      final result = ssRuntime.stepEffectSlot(
         slot,
-        event,
-        parentFrame,
-        deltaSeconds,
-        fps,
-        parentLooped,
-        true, // y_flip: Flutter is Y-Down; the Brain mirrors the particles once
-        2, // vert_stride: (x, y) pairs — read plan.vertStride back to be sure
+        context,
+        part.partIndex,
+        parentFrame: parentFrame,
+        deltaSeconds: deltaSeconds,
+        fps: fps,
+        parentLooped: parentLooped,
+        yFlip: true, // Flutter is Y-Down; the Brain mirrors the particles once
+        vertStride: 2, // (x, y) pairs — read plan.vertStride back to be sure
       );
 
-      if (result.visible &&
-          result.draw_plan_buf != ffi.nullptr &&
-          result.draw_plan_len > 0) {
+      final plan = result.drawPlan;
+      if (plan != null) {
         // Zero-copy view over the slot's builder; invalid once this slot steps
         // again, so it is only read during the paint that follows this update.
-        _plans[part.partIndex] = efbs.EffectDrawPlan(
-            result.draw_plan_buf.asTypedList(result.draw_plan_len));
+        _plans[part.partIndex] = efbs.EffectDrawPlan(plan);
       } else {
         _plans.remove(part.partIndex);
       }
@@ -118,12 +115,12 @@ class EffectSlots {
   /// re-fires its effect. Emitter caches and the resource binding survive.
   void reset() {
     for (final slot in _slots.values) {
-      if (slot != ffi.nullptr) ss_effect_slot_reset(slot);
+      if (slot != null) ssRuntime.resetEffectSlot(slot);
     }
     _plans.clear();
   }
 
-  ffi.Pointer<ffi.Void> _slotFor(EffectPart part) =>
+  SsEffectSlot? _slotFor(EffectPart part) =>
       _slots.putIfAbsent(part.partIndex, () {
         // Seed = part_index ^ effect_name_hash, the flagship's exact formula:
         // deterministic (no clock, no RNG) yet different per part, so two parts
@@ -131,12 +128,12 @@ class EffectSlots {
         // overrides it entirely for effects authored with `is_lock_rand_seed`.
         final seed = (part.partIndex ^ part.effectNameHash) & 0xFFFFFFFF;
         // A null return (bad effect data) is cached too — do not retry per frame.
-        return ss_effect_slot_create(_resource, part.effectNameHash, seed);
+        return ssRuntime.createEffectSlot(_resource, part.effectNameHash, seed);
       });
 
   void dispose() {
     for (final slot in _slots.values) {
-      if (slot != ffi.nullptr) ss_effect_slot_destroy(slot);
+      if (slot != null) ssRuntime.destroyEffectSlot(slot);
     }
     _slots.clear();
     _plans.clear();

@@ -21,7 +21,10 @@
 #   packages/ssconverter_dart/native/libs/LICENSE.md
 # No macos framework / macos/Frameworks symlink: native assets replace the
 # CocoaPods framework path (Flutter re-wraps the bare dylib at build time).
-# (NB: ios/web outputs still land under ssplayer_flutter/native/libs pending a
+# Web is the exception: it has no build hook / native asset, so `platform=web`
+# builds the wasm-bindgen `web` runtime and places it as a Flutter ASSET under
+# packages/ssplayer_flutter/assets/runtime-web/ (loaded via dart:js_interop).
+# (NB: ios output still lands under ssplayer_flutter/native/libs pending a
 # follow-up migration; host desktop platforms use the layout above.)
 #
 # After building, this copies the SDK build.rs-emitted plain-C headers into
@@ -256,14 +259,55 @@ switch ($PLATFORM) {
     }
 
     "web" {
-        Invoke-Release "release-web" $BUILD_MODE
-        $webSrc  = Join-Path $SdkDir "pkg/runtime-web/$BUILD_MODE"
-        $webDest = Join-Path $LibsDir "web"
-        New-Item -ItemType Directory -Force -Path $webDest | Out-Null
-        if (Test-Path (Join-Path $webSrc "*")) {
-            Copy-Item -Recurse -Force (Join-Path $webSrc "*") $webDest
+        # Flutter web has NO build hooks / native assets and NO dart:ffi, so the
+        # Brain cannot ship as a native-asset dylib. Instead it ships as the SDK's
+        # wasm-bindgen `web` build (a .wasm + JS glue), bundled as a plain Flutter
+        # ASSET in ssplayer_flutter and driven from Dart over dart:js_interop
+        # (lib/src/runtime_api.dart -> web backend). This branch builds the runtime
+        # crate to wasm and places the two files where pubspec.yaml's `assets:`
+        # expects them. Only the runtime is needed here (converter-web is a separate
+        # concern for ssconverter_dart), so we invoke wasm-pack directly rather than
+        # the SDK's release-web.sh, which also builds the nosimd + converter packages.
+        if (-not (Get-Command wasm-pack -ErrorAction SilentlyContinue)) {
+            Write-Error "build-runtime.ps1: wasm-pack not found - install it with: cargo install wasm-pack  (+ rustup target add wasm32-unknown-unknown)"
         }
-        Write-Host "   -> native/libs/web/"
+        $wpMode    = if ($BUILD_MODE -eq "debug") { "--dev" } else { "--release" }
+        $simdOut   = Join-Path $SdkDir "pkg/runtime-web/$BUILD_MODE"
+        $nosimdOut = Join-Path $SdkDir "pkg/runtime-web-nosimd/$BUILD_MODE"
+        Push-Location $SdkDir
+        try {
+            # Primary build: inherits the SDK's repo-wide `+simd128` (its
+            # .cargo/config.toml) — the fast path for modern browsers. NB:
+            # wasm-pack's --out-dir is relative to the CRATE dir (libs/ssruntime),
+            # so ../../ anchors it at the SDK-root pkg/ (as the SDK's release-web.sh).
+            & wasm-pack build libs/ssruntime $wpMode --target web `
+                --out-dir "../../pkg/runtime-web/$BUILD_MODE" -- --features web --no-default-features
+            if ($LASTEXITCODE) { throw "wasm-pack build (simd) failed" }
+            # nosimd fallback: override `+simd128` with `-simd128`, for engines
+            # without stable SIMD (e.g. RPG Maker MZ's NW.js). Same source + same
+            # wasm-bindgen, so the JS glue matches — only the `_bg.wasm` differs,
+            # and loadSsRuntime() picks it via a WebAssembly.validate(simd128) probe.
+            $savedRustflags = $env:RUSTFLAGS
+            $env:RUSTFLAGS = "-C target-feature=-simd128"
+            try {
+                & wasm-pack build libs/ssruntime $wpMode --target web `
+                    --out-dir "../../pkg/runtime-web-nosimd/$BUILD_MODE" -- --features web --no-default-features
+                if ($LASTEXITCODE) { throw "wasm-pack build (nosimd) failed" }
+            } finally {
+                if ($null -eq $savedRustflags) { Remove-Item Env:\RUSTFLAGS -ErrorAction SilentlyContinue }
+                else { $env:RUSTFLAGS = $savedRustflags }
+            }
+        } finally { Pop-Location }
+        $assetDir = Join-Path $PkgDir "assets/runtime-web"
+        New-Item -ItemType Directory -Force -Path $assetDir | Out-Null
+        # Ship one JS glue (simd's) + both binaries (simd + nosimd).
+        Copy-Item (Join-Path $simdOut "ssruntime.js") (Join-Path $assetDir "ssruntime.js") -Force
+        Copy-Item (Join-Path $simdOut "ssruntime_bg.wasm") (Join-Path $assetDir "ssruntime_bg.wasm") -Force
+        Copy-Item (Join-Path $nosimdOut "ssruntime_bg.wasm") (Join-Path $assetDir "ssruntime_bg.nosimd.wasm") -Force
+        if ((Get-FileHash (Join-Path $simdOut "ssruntime.js")).Hash -ne (Get-FileHash (Join-Path $nosimdOut "ssruntime.js")).Hash) {
+            Write-Warning "build-runtime.ps1: simd/nosimd JS glue differ; the shared ssruntime.js may not drive the nosimd wasm."
+        }
+        Write-Host "   -> packages/ssplayer_flutter/assets/runtime-web/ (ssruntime.js + ssruntime_bg.wasm + ssruntime_bg.nosimd.wasm)"
     }
 
     default { Write-Error "build-runtime.ps1: unknown platform '$PLATFORM'" }

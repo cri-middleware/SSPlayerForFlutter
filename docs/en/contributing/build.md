@@ -10,6 +10,7 @@ need this** — the native libraries are auto-downloaded (see
 |---|---|
 | Rust (`rustup`) | Building the native libs from source |
 | Flutter 3.38+ / Dart 3.10+ | Always (native assets is stable and default-on) |
+| `wasm-pack` + `wasm32-unknown-unknown` target | Only for the **web** target (`cargo install wasm-pack`; `rustup target add wasm32-unknown-unknown`) |
 | `flatc` | Only when regenerating a `.fbs` schema |
 | cbindgen | Never install manually — it is a build-dependency of the SDK's `build.rs` |
 
@@ -30,8 +31,49 @@ scripts/deploy-examples.sh
 cd examples/overall && flutter run    # expect [ssplayer] OK + on-screen animation
 ```
 
-Windows uses the `.ps1` variant of each script. Cross-builds for android / ios / web are delegated to
+Windows uses the `.ps1` variant of each script. Cross-builds for android / ios are delegated to
 `SpriteStudio-SDK/scripts/release-*`; `build-runtime` itself builds the host target directly.
+
+## Web (developer preview)
+
+The web target has **no `dart:ffi` and no native assets**, so the Brain cannot ship as a dylib.
+Instead it is built as the SDK's wasm-bindgen `web` build (a `.wasm` + JS glue) and bundled as a plain
+Flutter **asset**, then driven from Dart over `dart:js_interop`.
+
+**Setup — build the wasm runtime** (needs `wasm-pack` + the `wasm32-unknown-unknown` target):
+
+```bash
+scripts/build-runtime.sh platform=web        # + build=release (default) | debug
+# → packages/ssplayer_flutter/assets/runtime-web/
+#     {ssruntime.js, ssruntime_bg.wasm, ssruntime_bg.nosimd.wasm}
+```
+
+Two wasm binaries are built from the same source: `ssruntime_bg.wasm` (SIMD, the fast path) and
+`ssruntime_bg.nosimd.wasm` (fallback for WASM engines without stable SIMD, e.g. the NW.js in RPG
+Maker MZ). They share **one** wasm-bindgen JS glue (`ssruntime.js`); `loadSsRuntime` picks the right
+binary at runtime via a `WebAssembly.validate` SIMD probe.
+
+Like the native dylibs, the built wasm is **git-ignored** — every developer (re)builds it with the
+line above; a `git clean` removes it.
+
+**Run:**
+
+```bash
+cd examples/overall
+flutter run -d chrome          # default CanvasKit renderer
+flutter run -d chrome --wasm   # Skwasm renderer (WebAssembly build mode)
+```
+
+!!! warning "🚧 Developer preview"
+    The web **runtime backend** is wired: `lib/src/runtime_api.dart` is the seam, with a `dart:ffi`
+    backend (`native_runtime.dart`) and a `dart:js_interop` backend (`web_runtime.dart`) selected by
+    conditional export, so Layer 2 (`internal_player.dart` etc.) compiles without `dart:ffi`.
+    `flutter build web` / `flutter run -d chrome` now build and render — every render kind
+    (Normal / Shape / Mesh / Effect / Instance), the shader paths (PartColor / mask), framebuffer
+    blend, and the timeline event callbacks (UserData / Signal / Audio) are verified on CanvasKit.
+    Web stays a **debug-grade `drawVertices` path** (mobile / desktop are the ones headed for
+    `flutter_gpu`), with the SIMD / nosimd wasm auto-selected at load. The native-assets build hooks
+    no-op cleanly on web (nothing to configure).
 
 !!! note "First macOS runner"
     If `examples/overall/macos/` is missing, generate it once:

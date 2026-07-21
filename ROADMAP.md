@@ -171,6 +171,36 @@ draw-call count of *peeled* shader parts.
   verified on the iOS simulator and Android emulator; a code-signed `iphoneos`
   slice and the 32-bit ARM ABI at runtime are still unconfirmed (see the
   native-packaging notes in `CLAUDE.md`).
+- 🕒 **Web wasm distribution for pub.dev** — the web target ships the Brain as the
+  SDK's wasm-bindgen build, bundled as a Flutter **asset**
+  (`ssplayer_flutter/assets/runtime-web/{ssruntime.js,ssruntime_bg.wasm}`, loaded
+  over `dart:js_interop`; there is no `dart:ffi` / native-asset on web). It is
+  currently **git-ignored and built on demand** (`scripts/build-runtime.sh
+  platform=web`), so a pub.dev consumer with no Rust toolchain cannot obtain it —
+  **this must be settled before `ssplayer_flutter`'s `publish_to: none` is
+  lifted.**
+  - **Leaning A — commit the built wasm** and ship it as the (already-declared)
+    asset, alongside its `THIRD-PARTY-LICENSES.ssruntime.md`. Unlike the native
+    dylibs — an OS×arch matrix (multi-MB) that the build hook git-ignores and
+    *downloads* per target — the wasm is one small, target-independent pair
+    (~330 KB; ~660 KB with the nosimd variant), so committing is simpler and gives
+    the same "consumer needs no Rust" guarantee with no runtime fetch and offline
+    support.
+  - **Open concern (why deferred):** a committed binary must be rebuilt +
+    re-committed on every SDK pin bump (`_sdkVersion` in
+    `ssruntime_dart/hook/build.dart`) and kept in lockstep with ssruntime's
+    release cadence — weigh the binary-in-git churn, and consider a CI check that
+    the committed wasm equals a fresh build of the pinned SDK (mirroring the hook's
+    SHA256 verify).
+  - **Alternative B — runtime fetch** from a CORS + `application/wasm` CDN. The
+    `loadSsRuntime([moduleUrl])` seam already accepts a URL, so this is migratable
+    later; it wins only when the blob grows large or must update out-of-band (it is
+    exactly how Flutter itself ships CanvasKit). Caveats: CORS, wasm MIME /
+    streaming compile, an always-up host, CSP allow-listing, no offline.
+  - **The native build-hook path cannot be reused here:** hooks don't run for web
+    builds (`config.buildCodeAssets` is false, so `hook/build.dart` early-returns)
+    and the upstream wasm `CodeAsset` (dart-lang/native#156) is still open — when
+    it lands, a true hook-parity path opens.
 
 ## Upstream (not a Player task)
 

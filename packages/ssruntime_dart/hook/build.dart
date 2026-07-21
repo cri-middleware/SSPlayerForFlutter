@@ -35,6 +35,12 @@ import 'package:hooks/hooks.dart';
 ///      per-target [_Target.zipEntrySuffix]s are anchored to that `libs/` root.
 void main(List<String> args) async {
   await build(args, (input, output) async {
+    // No native code assets on this target — most importantly the WEB build,
+    // where dart:ffi does not exist. Web instead loads the Brain as the SDK's
+    // wasm-bindgen build, bundled as a Flutter asset by ssplayer_flutter and
+    // driven over dart:js_interop (see ssruntime_dart's runtime_api.dart), so
+    // this hook contributes nothing there. Returning here also keeps a web build
+    // from reaching _targetFor, which (correctly) throws for a non-native OS.
     if (!input.config.buildCodeAssets) return;
 
     final target = _targetFor(input.config.code);

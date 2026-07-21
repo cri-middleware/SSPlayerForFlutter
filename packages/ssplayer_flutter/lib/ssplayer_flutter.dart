@@ -54,3 +54,8 @@ export 'src/render/mask.dart'
 // Layer 1 — the raw dart:ffi C-API (the "escape hatch") lives in the pure-Dart
 // `ssruntime_dart` package as native-assets `@Native` functions. Import it
 // directly for low-level access: `package:ssruntime_dart/ssruntime_dart.dart`.
+
+// Web bootstrap: on the web the Brain is a wasm module loaded asynchronously, so
+// call `await loadSsRuntime()` once (e.g. in `main`, before `runApp`) before any
+// player is created. A no-op on native, where the native asset resolves eagerly.
+export 'package:ssruntime_dart/ssruntime_dart.dart' show loadSsRuntime;

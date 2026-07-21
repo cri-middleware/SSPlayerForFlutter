@@ -13,7 +13,16 @@
 /// all go through these functions.
 library;
 
-// The Layer-1 C-API: top-level `@ffi.Native(assetId: 'package:ssruntime_dart/
-// ssruntime')` functions (`ss_runtime_*`, `ss_resource_*`, `ss_context_*`),
-// `SS_RUNTIME_INVALID_HANDLE`, and the runtime structs.
-export 'src/ssruntime_bindings.g.dart';
+// Layer-1 runtime abstraction (platform-agnostic) + the compile-time-selected
+// backend singleton `ssRuntime`: native `dart:ffi` where it exists, otherwise the
+// web `dart:js_interop` backend. Layer 2 talks only to this, so it carries no
+// `dart:ffi` and compiles for the web.
+export 'src/runtime_api.dart';
+export 'src/native_runtime.dart'
+    if (dart.library.js_interop) 'src/web_runtime.dart';
+
+// The raw Layer-1 C-API (`@ffi.Native` functions + runtime structs) is
+// intentionally NOT re-exported here: it is `dart:ffi`-only, and this barrel must
+// stay `dart:ffi`-free so Layer 2 compiles for the web. All callers go through
+// `ssRuntime` ([SsRuntime]); the native backend (`src/native_runtime.dart`) is
+// the sole importer of the raw bindings.

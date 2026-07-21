@@ -1,0 +1,10 @@
+# The wasm-bindgen `web` build of libssruntime (the Brain), bundled as a Flutter
+# asset for the web target. Built from the SpriteStudio-SDK submodule — NOT
+# committed, exactly like the native dylibs under ssruntime_dart/native/libs.
+# ssruntime_bg.wasm is the SIMD build; *.nosimd.wasm is the fallback for engines
+# without stable WASM SIMD (loadSsRuntime picks one at runtime). One shared JS
+# glue (ssruntime.js) drives either binary. Regenerate with:
+#     scripts/build-runtime.sh platform=web
+ssruntime.js
+ssruntime_bg.wasm
+ssruntime_bg.nosimd.wasm

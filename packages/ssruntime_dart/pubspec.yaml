@@ -20,9 +20,12 @@ dependencies:
   # Dart FlatBuffers runtime for the flatc-generated runtime accessors
   # (lib/src/fbs/framedata.g.dart, effect_draw_plan.g.dart).
   flat_buffers: ^25.9.23
+  # calloc/malloc + toNativeUtf8 for the native SsRuntime backend
+  # (src/native_runtime.dart). Only imported on non-web targets — the web backend
+  # is dart:ffi-free — so this never reaches a web build.
+  ffi: ^2.1.0
   # Native-assets build hook (hook/build.dart): bundles the prebuilt libssruntime
   # as a code asset so @Native bindings resolve it (no DynamicLibrary / no Rust).
-  # (Only dart:ffi is used in this package — package:ffi is not needed.)
   hooks: ^2.0.2
   code_assets: ^1.2.1
   archive: ^4.0.9

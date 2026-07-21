@@ -41,6 +41,16 @@ flutter:
   # dependency via native assets (its hook/build.dart bundles the code asset), so
   # there is no vendored framework / podspec / platform glue here.
 
+  # Web target: dart:ffi / native assets do not exist on the web, so the Brain is
+  # delivered as the SDK's wasm-bindgen `web` build (SpriteStudio-SDK
+  # release-web.sh → runtime-web) and driven from Dart over dart:js_interop. The
+  # module is bundled as a plain Flutter asset and loaded at runtime; native
+  # builds tree-shake these out (they only ship where dart.library.js_interop is).
+  assets:
+    - assets/runtime-web/ssruntime.js
+    - assets/runtime-web/ssruntime_bg.wasm
+    - assets/runtime-web/ssruntime_bg.nosimd.wasm
+
   # Fragment shaders, loaded lazily (only once a part actually needs one), so
   # animations that use neither PartColor nor masks pay nothing and keep the
   # stock batched textured path. Consumers get them as

@@ -22,8 +22,10 @@
 # iOS uses bare per-slice dylibs, NOT an xcframework:
 #   native/libs/ios/iphoneos/arm64/libssruntime.dylib          (device)
 #   native/libs/ios/iphonesimulator/{arm64,x86_64}/libssruntime.dylib  (simulator)
-# hook/build.dart picks one by (targetSdk, arch). (NB: web output is still a
-# follow-up; host desktop platforms use the layout above.)
+# hook/build.dart picks one by (targetSdk, arch). Web is the exception: it has
+# no build hook / native asset, so `platform=web` builds the wasm-bindgen `web`
+# runtime and places it as a Flutter ASSET under
+# packages/ssplayer_flutter/assets/runtime-web/ (loaded via dart:js_interop).
 #
 # After building, this copies the SDK build.rs-emitted plain-C headers into
 # native/include/. The ffigen bindings are COMMITTED (like the .fbs accessors), so
@@ -201,10 +203,46 @@ case "$PLATFORM" in
     done ;;
 
   web)
-    bash "$SDK_DIR/scripts/release-web.sh" "$BUILD_MODE"
-    mkdir -p "$LIBS_DIR/web"
-    cp -R "$SDK_DIR/pkg/runtime-web/$BUILD_MODE/"* "$LIBS_DIR/web/" 2>/dev/null || true
-    echo "   -> native/libs/web/" ;;
+    # Flutter web has NO build hooks / native assets and NO dart:ffi, so the
+    # Brain cannot ship as a native-asset dylib. Instead it ships as the SDK's
+    # wasm-bindgen `web` build (a .wasm + JS glue), bundled as a plain Flutter
+    # ASSET in ssplayer_flutter and driven from Dart over dart:js_interop
+    # (lib/src/runtime_api.dart → web backend). This branch builds the runtime
+    # crate to wasm and places the two files where pubspec.yaml's `assets:`
+    # expects them. Only the runtime is needed here (converter-web is a separate
+    # concern for ssconverter_dart), so we invoke wasm-pack directly rather than
+    # the SDK's release-web.sh, which also builds the nosimd + converter packages.
+    if ! command -v wasm-pack >/dev/null 2>&1; then
+      echo "build-runtime.sh: wasm-pack not found — install it with:" >&2
+      echo "    cargo install wasm-pack        # + rustup target add wasm32-unknown-unknown" >&2
+      exit 3
+    fi
+    WP_MODE="--release"; [ "$BUILD_MODE" = "debug" ] && WP_MODE="--dev"
+    SIMD_OUT="$SDK_DIR/pkg/runtime-web/$BUILD_MODE"
+    NOSIMD_OUT="$SDK_DIR/pkg/runtime-web-nosimd/$BUILD_MODE"
+    # Primary build: inherits the SDK's repo-wide `+simd128` (its .cargo/config.toml)
+    # — the fast path for modern browsers. NB: wasm-pack's --out-dir is relative to
+    # the CRATE dir (libs/ssruntime), so ../../ anchors it at the SDK-root pkg/
+    # (same as the SDK's own release-web.sh).
+    ( cd "$SDK_DIR" && wasm-pack build libs/ssruntime "$WP_MODE" --target web \
+        --out-dir "../../pkg/runtime-web/$BUILD_MODE" -- --features web --no-default-features )
+    # nosimd fallback: override `+simd128` with `-simd128`, for WASM engines
+    # without stable SIMD (e.g. the NW.js bundled with RPG Maker MZ). Same source
+    # + same wasm-bindgen, so the JS glue is interface-identical to the simd build
+    # — only the `_bg.wasm` differs, and loadSsRuntime() picks it at runtime via a
+    # WebAssembly.validate(simd128) probe. We therefore ship one JS glue (simd's)
+    # plus both binaries (simd as ssruntime_bg.wasm, nosimd as *.nosimd.wasm).
+    ( cd "$SDK_DIR" && RUSTFLAGS="-C target-feature=-simd128" wasm-pack build libs/ssruntime "$WP_MODE" \
+        --target web --out-dir "../../pkg/runtime-web-nosimd/$BUILD_MODE" -- --features web --no-default-features )
+    ASSET_DIR="$PKG_DIR/assets/runtime-web"
+    mkdir -p "$ASSET_DIR"
+    cp "$SIMD_OUT/ssruntime.js"       "$ASSET_DIR/ssruntime.js"
+    cp "$SIMD_OUT/ssruntime_bg.wasm"  "$ASSET_DIR/ssruntime_bg.wasm"
+    cp "$NOSIMD_OUT/ssruntime_bg.wasm" "$ASSET_DIR/ssruntime_bg.nosimd.wasm"
+    # Guard the "one JS glue drives both binaries" assumption we ship on.
+    cmp -s "$SIMD_OUT/ssruntime.js" "$NOSIMD_OUT/ssruntime.js" || \
+      echo "build-runtime.sh: WARN — simd/nosimd JS glue differ; the shared ssruntime.js may not drive the nosimd wasm." >&2
+    echo "   -> packages/ssplayer_flutter/assets/runtime-web/ (ssruntime.js + ssruntime_bg.wasm + ssruntime_bg.nosimd.wasm)" ;;
 
   *) echo "build-runtime.sh: unknown platform '$PLATFORM'" >&2; exit 2 ;;
 esac

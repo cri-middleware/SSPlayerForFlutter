@@ -1,7 +1,10 @@
 import 'dart:ffi' as ffi;
 
 import 'package:test/test.dart';
-import 'package:ssruntime_dart/ssruntime_dart.dart';
+// The raw @Native bindings are no longer re-exported from the public barrel (it
+// must stay dart:ffi-free so Layer 2 compiles for the web); this native-only
+// smoke test reaches them directly.
+import 'package:ssruntime_dart/src/ssruntime_bindings.g.dart';
 
 /// Smoke test for the native-assets `@Native` bindings.
 ///

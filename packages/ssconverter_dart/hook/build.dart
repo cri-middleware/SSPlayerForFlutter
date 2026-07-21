@@ -35,6 +35,9 @@ import 'package:hooks/hooks.dart';
 ///      per-target [_Target.zipEntrySuffix]s are anchored to that `libs/` root.
 void main(List<String> args) async {
   await build(args, (input, output) async {
+    // WEB has no code assets (buildCodeAssets == false) and no dart:ffi, so this
+    // hook no-ops there; the converter is desktop-only regardless. (Mobile is
+    // handled just below by emitting no asset rather than throwing.)
     if (!input.config.buildCodeAssets) return;
 
     // Desktop-only host tool. On iOS/Android emit NO code asset (mobile-inert)

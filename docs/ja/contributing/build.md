@@ -9,6 +9,7 @@
 |---|---|
 | Rust（`rustup`） | ネイティブをソースからビルドするとき |
 | Flutter 3.38+ / Dart 3.10+ | 常時（Native Assets が標準・既定で有効） |
+| `wasm-pack` ＋ `wasm32-unknown-unknown` ターゲット | **web** ターゲットのときだけ（`cargo install wasm-pack`；`rustup target add wasm32-unknown-unknown`） |
 | `flatc` | `.fbs` スキーマを再生成するときだけ |
 | cbindgen | 手動導入不要 —— SDK の `build.rs` の build-dependency |
 
@@ -29,8 +30,49 @@ scripts/deploy-examples.sh
 cd examples/overall && flutter run    # [ssplayer] OK ＋ 画面にアニメーションが出れば成功
 ```
 
-Windows は各スクリプトの `.ps1` を使います。android / ios / web のクロスビルドは
+Windows は各スクリプトの `.ps1` を使います。android / ios のクロスビルドは
 `SpriteStudio-SDK/scripts/release-*` に委譲します（`build-runtime` 自体はホストターゲットを直接ビルド）。
+
+## Web（開発者プレビュー）
+
+web ターゲットは **`dart:ffi` も Native Assets も無い**ため、Brain を dylib として同梱できません。
+代わりに SDK の wasm-bindgen `web` ビルド（`.wasm` ＋ JS グルー）を作り、素の Flutter **アセット**として
+同梱し、Dart から `dart:js_interop` で駆動します。
+
+**セットアップ — wasm ランタイムをビルド**（`wasm-pack` ＋ `wasm32-unknown-unknown` ターゲットが必要）:
+
+```bash
+scripts/build-runtime.sh platform=web        # ＋ build=release（既定）| debug
+# → packages/ssplayer_flutter/assets/runtime-web/
+#     {ssruntime.js, ssruntime_bg.wasm, ssruntime_bg.nosimd.wasm}
+```
+
+同じソースから wasm を2つビルドします: `ssruntime_bg.wasm`（SIMD・高速パス）と
+`ssruntime_bg.nosimd.wasm`（安定 SIMD が無い WASM エンジン向けフォールバック、例: RPG ツクール MZ の
+NW.js）。両者は **1つ**の wasm-bindgen JS グルー（`ssruntime.js`）を共有し、`loadSsRuntime` が実行時に
+`WebAssembly.validate` の SIMD プローブで適切なバイナリを選びます。
+
+ネイティブ dylib と同様、ビルド済み wasm は **git-ignore** されます —— 各開発者が上記で（再）ビルドし、
+`git clean` で消えます。
+
+**実行:**
+
+```bash
+cd examples/overall
+flutter run -d chrome          # 既定 CanvasKit レンダラ
+flutter run -d chrome --wasm   # Skwasm レンダラ（WebAssembly ビルドモード）
+```
+
+!!! warning "🚧 開発者プレビュー"
+    web の**ランタイムバックエンド**は配線済みです。継ぎ目は `lib/src/runtime_api.dart` で、`dart:ffi`
+    バックエンド（`native_runtime.dart`）と `dart:js_interop` バックエンド（`web_runtime.dart`）を
+    条件付き export で切り替えるため、Layer 2（`internal_player.dart` ほか）は `dart:ffi` 無しで
+    コンパイルできます。`flutter build web` / `flutter run -d chrome` はビルド・描画まで通り、全描画
+    kind（Normal / Shape / Mesh / Effect / Instance）、シェーダ経路（PartColor / マスク）、framebuffer
+    ブレンド、タイムラインイベントのコールバック（UserData / Signal / Audio）を CanvasKit 上で確認済みです。
+    web は **デバッグ用途の `drawVertices` 経路**の位置づけ（`flutter_gpu` へ向かうのは mobile / desktop）で、
+    SIMD / nosimd の wasm はロード時に自動選択されます。Native Assets の build hook は web で正しく no-op
+    します（設定不要）。
 
 !!! note "初回の macOS ランナー"
     `examples/overall/macos/` が無ければ一度だけ生成:

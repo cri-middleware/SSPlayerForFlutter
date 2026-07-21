@@ -1,0 +1,542 @@
+// The js_interop shapes below mirror the wasm-bindgen `web` API 1:1, so their
+// external members keep the JS methods' snake_case names on purpose.
+// ignore_for_file: non_constant_identifier_names
+
+import 'dart:js_interop';
+import 'dart:js_interop_unsafe';
+import 'dart:typed_data';
+
+import 'runtime_api.dart';
+
+/// Web (`dart:js_interop`) backend of [SsRuntime].
+///
+/// Drives the SDK's wasm-bindgen `web` build (`ssruntime.js` + `ssruntime_bg.wasm`,
+/// bundled as a Flutter asset by `ssplayer_flutter`). Handles are the wasm-bindgen
+/// JS objects; SoA buffers are typed-array views over the wasm `memory.buffer`,
+/// re-created on every read because `memory.grow` detaches the backing
+/// `ArrayBuffer`.
+///
+/// The wasm module loads asynchronously but [SsRuntime] is synchronous, so the
+/// app must `await loadSsRuntime(url)` once before creating a player on the web.
+final SsRuntime ssRuntime = _WebRuntime();
+
+// --- Module loading --------------------------------------------------------
+
+/// Default asset path of the wasm-bindgen module, as Flutter serves a package
+/// asset. Resolved against [Uri.base] so it is an absolute URL (a bare
+/// `assets/…` specifier is rejected by `import()`) and honours the app's base
+/// href. Callers may override the whole URL.
+const _defaultModulePath =
+    'assets/packages/ssplayer_flutter/assets/runtime-web/ssruntime.js';
+
+JSObject? _module;
+JSObject? _memory; // the WebAssembly.Memory (its .buffer detaches on grow)
+
+/// Dynamically imports and initialises the wasm-bindgen module. Idempotent.
+/// Must complete before any [SsRuntime] call on the web.
+Future<void> loadSsRuntime([String? moduleUrl]) async {
+  if (_module != null) return;
+  final jsUrl = moduleUrl ?? Uri.base.resolve(_defaultModulePath).toString();
+  // Prefer the SIMD build; fall back to the nosimd binary on WASM engines
+  // without stable SIMD (e.g. the NW.js bundled with RPG Maker MZ). The two
+  // builds share one wasm-bindgen JS glue — only the `_bg.wasm` differs — so we
+  // pick the wasm URL here and hand it to init, resolved against the JS module
+  // URL so a caller-supplied `moduleUrl` keeps its sibling wasm.
+  final wasmName =
+      _wasmSupportsSimd() ? 'ssruntime_bg.wasm' : 'ssruntime_bg.nosimd.wasm';
+  final wasmUrl = Uri.parse(jsUrl).resolve(wasmName).toString();
+  final mod = (await importModule(jsUrl.toJS).toDart);
+  // wasm-bindgen `--target web`: the default export is the init function. Passing
+  // the wasm URL makes it `fetch` that binary; it resolves to the InitOutput
+  // (which carries the `memory`). callAsFunction's first arg is `thisArg`.
+  final init = mod.getProperty('default'.toJS) as JSFunction;
+  final out =
+      (await (init.callAsFunction(null, wasmUrl.toJS) as JSPromise).toDart)
+          as JSObject;
+  _memory = out.getProperty('memory'.toJS) as JSObject;
+  _module = mod;
+}
+
+/// Whether this WASM engine supports the SIMD (`simd128`) proposal. Validates a
+/// tiny module that uses `i8x16.splat` — the standard probe from
+/// GoogleChromeLabs/wasm-feature-detect. Returns false (→ nosimd binary) if SIMD
+/// is unsupported or `WebAssembly.validate` is somehow unavailable.
+bool _wasmSupportsSimd() {
+  try {
+    final wasm = globalContext.getProperty('WebAssembly'.toJS) as JSObject;
+    final probe = Uint8List.fromList(const [
+      0, 97, 115, 109, 1, 0, 0, 0, 1, 5, 1, 96, 0, 1, 123, //
+      3, 2, 1, 0, 10, 10, 1, 8, 0, 65, 0, 253, 15, 26, 11,
+    ]).toJS;
+    return (wasm.callMethod('validate'.toJS, probe) as JSBoolean).toDart;
+  } catch (_) {
+    return false;
+  }
+}
+
+JSObject get _mod => _module ??
+    (throw StateError(
+        'ssruntime_dart: call `await loadSsRuntime()` before using the web '
+        'runtime.'));
+
+JSFunction _class(String name) => _mod.getProperty(name.toJS) as JSFunction;
+
+// --- Typed-array views over wasm memory (fresh each call; grow detaches) -----
+
+@JS('Float32Array')
+extension type _F32View._(JSFloat32Array _) implements JSFloat32Array {
+  external _F32View(JSArrayBuffer buffer, int byteOffset, int length);
+}
+
+@JS('Uint32Array')
+extension type _U32View._(JSUint32Array _) implements JSUint32Array {
+  external _U32View(JSArrayBuffer buffer, int byteOffset, int length);
+}
+
+@JS('Int32Array')
+extension type _I32View._(JSInt32Array _) implements JSInt32Array {
+  external _I32View(JSArrayBuffer buffer, int byteOffset, int length);
+}
+
+@JS('Uint8Array')
+extension type _U8View._(JSUint8Array _) implements JSUint8Array {
+  external _U8View(JSArrayBuffer buffer, int byteOffset, int length);
+}
+
+JSArrayBuffer get _buffer => _memory!.getProperty('buffer'.toJS) as JSArrayBuffer;
+
+Float32List _f32(int ptr, int len) =>
+    len == 0 ? Float32List(0) : _F32View(_buffer, ptr, len).toDart;
+Uint32List _u32(int ptr, int len) =>
+    len == 0 ? Uint32List(0) : _U32View(_buffer, ptr, len).toDart;
+Int32List _i32(int ptr, int len) =>
+    len == 0 ? Int32List(0) : _I32View(_buffer, ptr, len).toDart;
+Uint8List _u8(int ptr, int len) =>
+    len == 0 ? Uint8List(0) : _U8View(_buffer, ptr, len).toDart;
+
+// --- js_interop shapes of the wasm-bindgen classes -------------------------
+
+extension type _JsCtx(JSObject _) implements JSObject {
+  external bool bind_resource(JSObject resource);
+  external void set_render_mode(int mode);
+  external void set_coordinate_system(int system);
+  external void setup_animation(String name); // Result → throws on error
+  external void play();
+  external void pause();
+  external void stop();
+  external bool is_playing();
+  external bool is_pausing();
+  external bool is_finished();
+  external bool is_looped();
+  external double get_frame_no();
+  external int get_start_frame();
+  external int get_end_frame();
+  external int get_fps();
+  external void set_loop(int loops);
+  external void set_animation_speed(double rate);
+  external void set_frame_rate(int fps);
+  external void set_frame_no(double frame);
+  external double update(double delta);
+  external int get_frame_data_buf(double frameNo);
+  external int get_frame_data_len(double frameNo);
+  external int get_world_matrices_buf();
+  external int get_world_matrices_len();
+  external int get_local_vertices_buf();
+  external int get_local_vertices_len();
+  external int get_local_uvs_buf();
+  external int get_local_uvs_len();
+  external int get_cell_meta_buf();
+  external int get_cell_meta_len();
+  external int get_mesh_vertices_x_buf();
+  external int get_mesh_vertices_x_len();
+  external int get_mesh_vertices_y_buf();
+  external int get_mesh_vertices_y_len();
+  external int get_mesh_uvs_buf();
+  external int get_mesh_uvs_len();
+  external int get_mesh_indices_buf();
+  external int get_mesh_indices_len();
+  external int get_mesh_vertex_offsets_buf();
+  external int get_mesh_vertex_offsets_len();
+  external int get_mesh_index_offsets_buf();
+  external int get_mesh_index_offsets_len();
+  external int get_shape_vertices_buf();
+  external int get_shape_vertices_len();
+  external int get_shape_vertex_box_coords_buf();
+  external int get_shape_vertex_box_coords_len();
+  external int get_shape_vertex_counts_buf();
+  external int get_shape_vertex_counts_len();
+  external int get_passed_event_count();
+  external int get_passed_event_index(int index);
+  external JSObject get_active_effect_event(int slotIndex);
+  external JSObject get_active_event_instance(int slotIndex);
+  external void free();
+}
+
+extension type _JsRes(JSObject _) implements JSObject {
+  external void free();
+}
+
+extension type _JsEffect(JSObject _) implements JSObject {
+  external bool step(JSObject ev, double parentFrame, double deltaSeconds,
+      double fps, bool parentLooped, bool yFlip, int vertStride);
+  external int get_draw_plan_buf();
+  external int get_draw_plan_len();
+  external void reset();
+  external void free();
+}
+
+extension type _JsInstance(JSObject _) implements JSObject {
+  // web/mod.rs SSRuntimeInstanceSlot::step — (ev, child_ctx, parent_frame,
+  // delta_seconds, parent_looped); NO previous_child_frame (the slot tracks it
+  // internally, same as the native C-API).
+  external bool step(JSObject ev, JSObject childCtx, double parentFrame,
+      double deltaSeconds, bool parentLooped);
+  external bool transitioned();
+  external double child_frame_no();
+  external bool child_looped();
+  external bool is_independent();
+  external void reset();
+  external void free();
+}
+
+// --- Opaque handle wrappers ------------------------------------------------
+
+class _WebContext implements SsContext {
+  _WebContext(this.js);
+  final _JsCtx js;
+}
+
+class _WebResource implements SsResource {
+  _WebResource(this.js);
+  final _JsRes js;
+}
+
+class _WebEffectSlot implements SsEffectSlot {
+  _WebEffectSlot(this.js);
+  final _JsEffect js;
+}
+
+class _WebInstanceSlot implements SsInstanceSlot {
+  _WebInstanceSlot(this.js);
+  final _JsInstance js;
+}
+
+class _WebRuntime implements SsRuntime {
+  // GC backstop: no NativeFinalizer on the web. wasm-bindgen objects hold wasm
+  // memory that only `free()` releases; explicit dispose is the real path, so a
+  // dart:core Finalizer is a best-effort backstop that frees on collection.
+  final Finalizer<JSObject> _finalizer = Finalizer<JSObject>((js) {
+    try {
+      js.callMethod('free'.toJS);
+    } catch (_) {}
+  });
+
+  _JsCtx _ctx(SsContext c) => (c as _WebContext).js;
+  _JsRes _res(SsResource r) => (r as _WebResource).js;
+
+  @override
+  SsResource? createResourceCopy(Uint8List ssab) {
+    if (ssab.isEmpty) {
+      throw ArgumentError.value(ssab, 'ssab', 'must not be empty');
+    }
+    try {
+      // `new SSRuntimeResource(data)` copies the bytes into wasm memory (Result
+      // → throws on a bad pack).
+      final js = _class('SSRuntimeResource')
+          .callAsConstructor<JSObject>(ssab.toJS) as _JsRes;
+      return _WebResource(js);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  @override
+  void destroyResource(SsResource resource) => _res(resource).free();
+
+  @override
+  SsContext? createContext() {
+    final js = _class('SSRuntimeContext').callAsConstructor<JSObject>() as _JsCtx;
+    return _WebContext(js);
+  }
+
+  @override
+  void destroyContext(SsContext context) => _ctx(context).free();
+
+  @override
+  bool bindResource(SsContext context, SsResource resource) =>
+      _ctx(context).bind_resource(_res(resource));
+
+  @override
+  void setRenderMode(SsContext context, int mode) =>
+      _ctx(context).set_render_mode(mode);
+
+  @override
+  void setCoordinateSystem(SsContext context, int system) =>
+      _ctx(context).set_coordinate_system(system);
+
+  @override
+  void registerForGc(Object owner,
+      {required SsContext context, required SsResource resource}) {
+    _finalizer.attach(owner, _ctx(context), detach: owner);
+    _finalizer.attach(owner, _res(resource), detach: owner);
+  }
+
+  @override
+  void unregisterFromGc(Object owner) => _finalizer.detach(owner);
+
+  @override
+  bool setupAnimation(SsContext context, String name) {
+    try {
+      _ctx(context).setup_animation(name);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  @override
+  int hashString(String name) =>
+      (_mod.callMethod('ss_runtime_hash_string'.toJS, name.toJS) as JSNumber)
+          .toDartInt;
+
+  @override
+  void play(SsContext context) => _ctx(context).play();
+
+  @override
+  void pause(SsContext context) => _ctx(context).pause();
+
+  @override
+  void stop(SsContext context) => _ctx(context).stop();
+
+  @override
+  bool isPlaying(SsContext context) => _ctx(context).is_playing();
+
+  @override
+  bool isPausing(SsContext context) => _ctx(context).is_pausing();
+
+  @override
+  bool isFinished(SsContext context) => _ctx(context).is_finished();
+
+  @override
+  bool isLooped(SsContext context) => _ctx(context).is_looped();
+
+  @override
+  double frameNo(SsContext context) => _ctx(context).get_frame_no();
+
+  @override
+  int startFrame(SsContext context) => _ctx(context).get_start_frame();
+
+  @override
+  int endFrame(SsContext context) => _ctx(context).get_end_frame();
+
+  @override
+  int fps(SsContext context) => _ctx(context).get_fps();
+
+  @override
+  void setLoop(SsContext context, int count) => _ctx(context).set_loop(count);
+
+  @override
+  void setSpeed(SsContext context, double rate) =>
+      _ctx(context).set_animation_speed(rate);
+
+  @override
+  void setFrameRate(SsContext context, int fps) =>
+      _ctx(context).set_frame_rate(fps);
+
+  @override
+  void seek(SsContext context, double frame) =>
+      _ctx(context).set_frame_no(frame);
+
+  @override
+  double update(SsContext context, double deltaMs) =>
+      _ctx(context).update(deltaMs);
+
+  @override
+  Uint8List? getFrameData(SsContext context, double frameNo) {
+    final c = _ctx(context);
+    // The web API returns a Result that THROWS when no animation/frame is set
+    // (e.g. a paint that races ahead of the async .ssab load); the native C-API
+    // returns null there. Mirror native so the Body's null path handles it.
+    try {
+      final len = c.get_frame_data_len(frameNo);
+      if (len == 0) return null;
+      return _u8(c.get_frame_data_buf(frameNo), len);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  @override
+  Float32List worldMatrices(SsContext context) {
+    final c = _ctx(context);
+    return _f32(c.get_world_matrices_buf(), c.get_world_matrices_len());
+  }
+
+  @override
+  Float32List localVertices(SsContext context) {
+    final c = _ctx(context);
+    return _f32(c.get_local_vertices_buf(), c.get_local_vertices_len());
+  }
+
+  @override
+  Float32List localUvs(SsContext context) {
+    final c = _ctx(context);
+    return _f32(c.get_local_uvs_buf(), c.get_local_uvs_len());
+  }
+
+  @override
+  Float32List cellMeta(SsContext context) {
+    final c = _ctx(context);
+    return _f32(c.get_cell_meta_buf(), c.get_cell_meta_len());
+  }
+
+  @override
+  Float32List meshVerticesX(SsContext context) {
+    final c = _ctx(context);
+    return _f32(c.get_mesh_vertices_x_buf(), c.get_mesh_vertices_x_len());
+  }
+
+  @override
+  Float32List meshVerticesY(SsContext context) {
+    final c = _ctx(context);
+    return _f32(c.get_mesh_vertices_y_buf(), c.get_mesh_vertices_y_len());
+  }
+
+  @override
+  Float32List meshUvs(SsContext context) {
+    final c = _ctx(context);
+    return _f32(c.get_mesh_uvs_buf(), c.get_mesh_uvs_len());
+  }
+
+  @override
+  Int32List meshIndices(SsContext context) {
+    final c = _ctx(context);
+    return _i32(c.get_mesh_indices_buf(), c.get_mesh_indices_len());
+  }
+
+  @override
+  Uint32List meshVertexOffsets(SsContext context) {
+    final c = _ctx(context);
+    return _u32(c.get_mesh_vertex_offsets_buf(), c.get_mesh_vertex_offsets_len());
+  }
+
+  @override
+  Uint32List meshIndexOffsets(SsContext context) {
+    final c = _ctx(context);
+    return _u32(c.get_mesh_index_offsets_buf(), c.get_mesh_index_offsets_len());
+  }
+
+  @override
+  Float32List shapeVertices(SsContext context) {
+    final c = _ctx(context);
+    return _f32(c.get_shape_vertices_buf(), c.get_shape_vertices_len());
+  }
+
+  @override
+  Float32List shapeVertexBoxCoords(SsContext context) {
+    final c = _ctx(context);
+    return _f32(c.get_shape_vertex_box_coords_buf(),
+        c.get_shape_vertex_box_coords_len());
+  }
+
+  @override
+  Int32List shapeVertexCounts(SsContext context) {
+    final c = _ctx(context);
+    return _i32(c.get_shape_vertex_counts_buf(), c.get_shape_vertex_counts_len());
+  }
+
+  @override
+  int passedEventCount(SsContext context) =>
+      _ctx(context).get_passed_event_count();
+
+  @override
+  int passedEventIndex(SsContext context, int index) =>
+      _ctx(context).get_passed_event_index(index);
+
+  @override
+  SsEffectSlot? createEffectSlot(
+      SsResource resource, int effectNameHash, int seed) {
+    try {
+      final create = _class('SSRuntimeEffectSlot').getProperty('create'.toJS)
+          as JSFunction;
+      final js = create.callAsFunction(null, _res(resource),
+          effectNameHash.toJS, seed.toJS) as _JsEffect?;
+      return js == null ? null : _WebEffectSlot(js);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  @override
+  void resetEffectSlot(SsEffectSlot slot) =>
+      (slot as _WebEffectSlot).js.reset();
+
+  @override
+  void destroyEffectSlot(SsEffectSlot slot) =>
+      (slot as _WebEffectSlot).js.free();
+
+  @override
+  SsEffectStep stepEffectSlot(
+    SsEffectSlot slot,
+    SsContext context,
+    int slotIndex, {
+    required double parentFrame,
+    required double deltaSeconds,
+    required double fps,
+    required bool parentLooped,
+    required bool yFlip,
+    required int vertStride,
+  }) {
+    final s = (slot as _WebEffectSlot).js;
+    final ev = _ctx(context).get_active_effect_event(slotIndex);
+    final visible =
+        s.step(ev, parentFrame, deltaSeconds, fps, parentLooped, yFlip, vertStride);
+    final len = visible ? s.get_draw_plan_len() : 0;
+    return SsEffectStep(
+      visible: visible,
+      drawPlan: len > 0 ? _u8(s.get_draw_plan_buf(), len) : null,
+    );
+  }
+
+  @override
+  SsInstanceSlot? createInstanceSlot() {
+    final create =
+        _class('SSRuntimeInstanceSlot').getProperty('create'.toJS) as JSFunction;
+    final js = create.callAsFunction() as _JsInstance;
+    return _WebInstanceSlot(js);
+  }
+
+  @override
+  void resetInstanceSlot(SsInstanceSlot slot) =>
+      (slot as _WebInstanceSlot).js.reset();
+
+  @override
+  void destroyInstanceSlot(SsInstanceSlot slot) =>
+      (slot as _WebInstanceSlot).js.free();
+
+  @override
+  bool instanceSlotIsIndependent(SsInstanceSlot slot) =>
+      (slot as _WebInstanceSlot).js.is_independent();
+
+  @override
+  SsInstanceStep stepInstanceSlot(
+    SsInstanceSlot slot,
+    SsContext parentContext,
+    int slotIndex,
+    SsContext childContext, {
+    required double parentFrame,
+    required double deltaSeconds,
+    required bool parentLooped,
+  }) {
+    final s = (slot as _WebInstanceSlot).js;
+    final ev = _ctx(parentContext).get_active_event_instance(slotIndex);
+    final visible = s.step(
+        ev, _ctx(childContext), parentFrame, deltaSeconds, parentLooped);
+    return SsInstanceStep(
+      visible: visible,
+      transitioned: s.transitioned(),
+      childFrameNo: s.child_frame_no(),
+      childLooped: s.child_looped(),
+    );
+  }
+}

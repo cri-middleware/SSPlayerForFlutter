@@ -1,9 +1,6 @@
-import 'dart:ffi' as ffi;
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
-
-import 'package:ffi/ffi.dart';
 
 import 'package:ssruntime_dart/effect_draw_plan.dart' as efbs;
 import 'package:ssruntime_dart/ssruntime_dart.dart';
@@ -28,7 +25,7 @@ const double _maxCoverageDim = 1024.0;
 /// per-frame `FrameData` + SoA buffers from the Brain, and (will) bake them
 /// into `ui.Vertices` for `Canvas.drawVertices`. It is `dispose`-able and
 /// reusable from higher layers (Player) or headless tests.
-class SpriteStudioInternalPlayer implements ffi.Finalizable, InstanceChild {
+class SpriteStudioInternalPlayer implements InstanceChild {
   SpriteStudioInternalPlayer._(
     this._context,
     this._resource,
@@ -41,12 +38,11 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable, InstanceChild {
     // runtime makes destroy order irrelevant. The Brain owns its own copy of
     // the `.ssab` bytes (copy mode), so there is no Body-side buffer to keep
     // alive or leak on the GC-only path.
-    _contextFinalizer.attach(this, _context.cast(), detach: this);
-    _resourceFinalizer.attach(this, _resource.cast(), detach: this);
+    ssRuntime.registerForGc(this, context: _context, resource: _resource);
   }
 
-  ffi.Pointer<ffi.Void> _context;
-  ffi.Pointer<ffi.Void> _resource;
+  SsContext _context;
+  SsResource _resource;
 
   /// texture_hash → decoded image / shader. Populated by the caller.
   final TextureRegistry textures;
@@ -158,23 +154,9 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable, InstanceChild {
   bool _disposed = false;
   bool get isDisposed => _disposed;
 
-  // Reused scratch cells for the SoA out-parameters (avoid per-frame alloc).
-  final ffi.Pointer<ffi.Pointer<ffi.Float>> _outFloatPtr =
-      calloc<ffi.Pointer<ffi.Float>>();
-  final ffi.Pointer<ffi.Pointer<ffi.Uint8>> _outBytePtr =
-      calloc<ffi.Pointer<ffi.Uint8>>();
-  final ffi.Pointer<ffi.Pointer<ffi.Uint32>> _outU32Ptr =
-      calloc<ffi.Pointer<ffi.Uint32>>();
-  final ffi.Pointer<ffi.Pointer<ffi.Int32>> _outI32Ptr =
-      calloc<ffi.Pointer<ffi.Int32>>();
-  final ffi.Pointer<ffi.Size> _outLen = calloc<ffi.Size>();
-
-  // Native-assets: the finalizer function pointers come from the @Native
-  // bindings (no DynamicLibrary). Constant, so shared statically.
-  static final ffi.NativeFinalizer _contextFinalizer = ffi.NativeFinalizer(
-      ffi.Native.addressOf<ffi.NativeFinalizerFunction>(ss_runtime_destroy));
-  static final ffi.NativeFinalizer _resourceFinalizer = ffi.NativeFinalizer(
-      ffi.Native.addressOf<ffi.NativeFinalizerFunction>(ss_resource_destroy));
+  // The SoA out-parameter scratch cells and the Context/Resource NativeFinalizers
+  // moved into the native SsRuntime backend (ssruntime_dart) so this layer is
+  // dart:ffi-free and compiles for the web. GC backstop is [SsRuntime.registerForGc].
 
   /// Loads `ssab` into a fresh Context, binds it, and recursively spawns any
   /// instance children (§8).
@@ -195,45 +177,34 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable, InstanceChild {
     TextureRegistry? textures,
     Map<int, Uint8List>? instancePacks,
   }) {
-    // `TypedData.address` gives a pointer straight into `ssab`'s Dart-heap
-    // backing store; it is only valid as the argument of a *leaf* @Native call
-    // (`ss_resource_create_copy` is marked leaf in ffigen.yaml). It requires a
-    // non-empty list.
-    if (ssab.isEmpty) {
-      throw ArgumentError.value(ssab, 'ssab', 'must not be empty');
-    }
-
-    // Zero-copy hand-off: the Brain copies the bytes onto its own heap inside
-    // this call and never retains the pointer, so we pass `ssab` directly — no
-    // Body-side malloc/memcpy. A leaf call reaches no safepoint, so the GC can
-    // not move the list mid-call and the pointer stays valid for the whole
-    // call. (Copy is also the only mode that works on the Web/WASM path, where
-    // the Body's and Brain's memory spaces differ.) ffigen types the C
-    // `const unsigned char *` as Pointer<UnsignedChar>, hence the .cast().
-    final resource = ss_resource_create_copy(ssab.address.cast(), ssab.length);
-    if (resource == ffi.nullptr) {
+    // Copy mode: the Brain copies the bytes onto its own heap and retains no
+    // pointer into `ssab` (the native backend does a zero-copy leaf hand-off).
+    // Copy is also the only mode that works on the Web/WASM path, where the
+    // Body's and Brain's memory spaces differ. Rejects an empty list.
+    final resource = ssRuntime.createResourceCopy(ssab);
+    if (resource == null) {
       throw StateError('ss_resource_create_copy returned null (bad .ssab?)');
     }
 
-    final context = ss_runtime_create();
-    if (context == ffi.nullptr) {
-      ss_resource_destroy(resource);
+    final context = ssRuntime.createContext();
+    if (context == null) {
+      ssRuntime.destroyResource(resource);
       throw StateError('ss_runtime_create returned null');
     }
-    if (!ss_runtime_bind_resource(context, resource)) {
-      ss_runtime_destroy(context);
-      ss_resource_destroy(resource);
+    if (!ssRuntime.bindResource(context, resource)) {
+      ssRuntime.destroyContext(context);
+      ssRuntime.destroyResource(resource);
       throw StateError('ss_runtime_bind_resource failed');
     }
 
     // Direct render mode (the default): the Brain fills the SoA buffers this
     // Body reads and skips redundant FrameData vertices/cells/deforms
     // (render_loop §2). The Godot flagship relies on the same default.
-    ss_runtime_set_render_mode(context, 0);
+    ssRuntime.setRenderMode(context, 0);
     // Coordinate system = 1 (Y-Down) like the flagship: the Brain applies the
     // flip once, so the Body must NOT flip again. Origin/unit are left at the
     // runtime defaults (Center / Pixel) — the flagship sets neither.
-    ss_context_set_coordinate_system(context, 1); // 1 = Y-Down
+    ssRuntime.setCoordinateSystem(context, 1); // 1 = Y-Down
 
     final registry = textures ?? TextureRegistry();
     final player = SpriteStudioInternalPlayer._(
@@ -307,31 +278,19 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable, InstanceChild {
   /// Selects the animation to play by name and rewinds to frame 0.
   bool setupAnimation(String name) {
     _ensureAlive();
-    final cName = name.toNativeUtf8();
-    try {
-      final ok = ss_runtime_setup_animation(_context, cName.cast());
-      // A different animation has different effect/instance keys — drop each
-      // slot's "last started key" memory so the new animation fires its own.
-      if (ok) _resetSlots();
-      return ok;
-    } finally {
-      malloc.free(cName);
-    }
+    final ok = ssRuntime.setupAnimation(_context, name);
+    // A different animation has different effect/instance keys — drop each
+    // slot's "last started key" memory so the new animation fires its own.
+    if (ok) _resetSlots();
+    return ok;
   }
 
   /// Canonical name→id hash (never re-implement FNV-1a on the Dart side).
-  int hashString(String name) {
-    final cName = name.toNativeUtf8();
-    try {
-      return ss_runtime_hash_string(cName.cast());
-    } finally {
-      malloc.free(cName);
-    }
-  }
+  int hashString(String name) => ssRuntime.hashString(name);
 
   void play() {
     _ensureAlive();
-    ss_runtime_play(_context);
+    ssRuntime.play(_context);
     // An explicit head-out: without this the slot debounces the first key as
     // "the one I already started" and a replayed animation never re-fires.
     _resetSlots();
@@ -347,35 +306,35 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable, InstanceChild {
 
   void pause() {
     _ensureAlive();
-    ss_runtime_pause(_context);
+    ssRuntime.pause(_context);
   }
 
   void stop() {
     _ensureAlive();
-    ss_runtime_stop(_context);
+    ssRuntime.stop(_context);
   }
 
-  bool get isPlaying => ss_runtime_is_playing(_context);
+  bool get isPlaying => ssRuntime.isPlaying(_context);
 
   /// Whether playback is paused. Note the Brain keeps [isPlaying] `true` while
   /// paused (pause is a *hold*, not a stop), and `ss_runtime_pause` *toggles*
   /// this — so callers must gate on it rather than blind-calling `pause()`.
-  bool get isPausing => ss_runtime_is_pausing(_context);
+  bool get isPausing => ssRuntime.isPausing(_context);
 
   /// Every configured loop has played. Sticky until the next play/setup, so
   /// callers wanting a one-shot notification must take the rising edge.
-  bool get isFinished => ss_runtime_is_finished(_context);
+  bool get isFinished => ssRuntime.isFinished(_context);
 
-  bool get isLooped => ss_runtime_is_looped(_context);
-  double get frameNo => ss_runtime_get_frame_no(_context);
-  int get startFrame => ss_runtime_get_start_frame(_context);
-  int get endFrame => ss_runtime_get_end_frame(_context);
-  int get fps => ss_runtime_get_fps(_context);
+  bool get isLooped => ssRuntime.isLooped(_context);
+  double get frameNo => ssRuntime.frameNo(_context);
+  int get startFrame => ssRuntime.startFrame(_context);
+  int get endFrame => ssRuntime.endFrame(_context);
+  int get fps => ssRuntime.fps(_context);
 
-  set loop(int count) => ss_runtime_set_loop(_context, count);
-  set speed(double rate) => ss_runtime_set_animation_speed(_context, rate);
-  set frameRate(int fps) => ss_runtime_set_frame_rate(_context, fps);
-  void seek(double frame) => ss_runtime_set_frame_no(_context, frame);
+  set loop(int count) => ssRuntime.setLoop(_context, count);
+  set speed(double rate) => ssRuntime.setSpeed(_context, rate);
+  set frameRate(int fps) => ssRuntime.setFrameRate(_context, fps);
+  void seek(double frame) => ssRuntime.seek(_context, frame);
 
   // --- Per-frame update ----------------------------------------------------
 
@@ -388,7 +347,7 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable, InstanceChild {
 
   double updateMs(double deltaMs) {
     _ensureAlive();
-    final frame = ss_runtime_update(_context, deltaMs);
+    final frame = ssRuntime.update(_context, deltaMs);
     // `is_looped` is per-update (cleared at the top of each update), so it is
     // the loop *edge* the slots want, not "looping is enabled".
     _stepSlots(frame, deltaMs, isLooped);
@@ -448,45 +407,25 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable, InstanceChild {
   /// it within the current frame.
   fbs.FrameData? getFrameData(double frameNo) {
     _ensureAlive();
-    _outBytePtr.value = ffi.nullptr;
-    _outLen.value = 0;
-    // ffigen out-params are Pointer<Pointer<UnsignedChar>> / Pointer<UintPtr>;
-    // cast our ergonomic Uint8/Size scratch cells at the boundary.
-    ss_runtime_get_frame_data(
-        _context, frameNo, _outBytePtr.cast(), _outLen.cast());
-    final data = _outBytePtr.value;
-    final len = _outLen.value;
-    if (data == ffi.nullptr || len == 0) return null;
+    final bytes = ssRuntime.getFrameData(_context, frameNo);
+    if (bytes == null) return null;
     // Zero-copy typed view over the Brain buffer; FrameData reads it in place.
-    return fbs.FrameData(data.asTypedList(len));
+    return fbs.FrameData(bytes);
   }
 
   // --- SoA buffers (zero-copy typed views, valid until next update) -------
 
-  Float32List _soaFloats(
-      void Function(ffi.Pointer<ffi.Void>,
-              ffi.Pointer<ffi.Pointer<ffi.Float>>, ffi.Pointer<ffi.UintPtr>)
-          getter) {
-    _outFloatPtr.value = ffi.nullptr;
-    _outLen.value = 0;
-    getter(_context, _outFloatPtr, _outLen.cast());
-    final data = _outFloatPtr.value;
-    final len = _outLen.value;
-    if (data == ffi.nullptr || len == 0) return Float32List(0);
-    return data.asTypedList(len);
-  }
-
   /// Per-part 4×4 world matrices (parts × 16 floats).
-  Float32List worldMatrices() => _soaFloats(ss_runtime_get_world_matrices);
+  Float32List worldMatrices() => ssRuntime.worldMatrices(_context);
 
   /// Per-part local vertices (parts × 10 floats: lt,rt,lb,rb,center).
-  Float32List localVertices() => _soaFloats(ss_runtime_get_local_vertices);
+  Float32List localVertices() => ssRuntime.localVertices(_context);
 
   /// Per-part local UVs (parts × 10 floats: lt,rt,lb,rb,center in texture pixels).
-  Float32List localUvs() => _soaFloats(ss_runtime_get_local_uvs);
+  Float32List localUvs() => ssRuntime.localUvs(_context);
 
   /// Per-part cell meta (parts × 6: pivot_x,pivot_y,w,h,rect_left,rect_top).
-  Float32List cellMeta() => _soaFloats(ss_runtime_get_cell_meta);
+  Float32List cellMeta() => ssRuntime.cellMeta(_context);
 
   // --- Mesh SoA (§8) -------------------------------------------------------
   //
@@ -497,68 +436,41 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable, InstanceChild {
   // non-mesh part has an empty range. Empty under Indirect render mode (we set
   // Direct at load).
 
-  Uint32List _soaU32(
-      void Function(ffi.Pointer<ffi.Void>,
-              ffi.Pointer<ffi.Pointer<ffi.Uint32>>, ffi.Pointer<ffi.UintPtr>)
-          getter) {
-    _outU32Ptr.value = ffi.nullptr;
-    _outLen.value = 0;
-    getter(_context, _outU32Ptr, _outLen.cast());
-    final data = _outU32Ptr.value;
-    final len = _outLen.value;
-    if (data == ffi.nullptr || len == 0) return Uint32List(0);
-    return data.asTypedList(len);
-  }
-
-  Int32List _soaI32(
-      void Function(ffi.Pointer<ffi.Void>,
-              ffi.Pointer<ffi.Pointer<ffi.Int32>>, ffi.Pointer<ffi.UintPtr>)
-          getter) {
-    _outI32Ptr.value = ffi.nullptr;
-    _outLen.value = 0;
-    getter(_context, _outI32Ptr, _outLen.cast());
-    final data = _outI32Ptr.value;
-    final len = _outLen.value;
-    if (data == ffi.nullptr || len == 0) return Int32List(0);
-    return data.asTypedList(len);
-  }
-
   /// Mesh per-vertex X coordinates, **world space**, all parts concatenated.
-  Float32List meshVerticesX() => _soaFloats(ss_runtime_get_mesh_vertices_x);
+  Float32List meshVerticesX() => ssRuntime.meshVerticesX(_context);
 
   /// Mesh per-vertex Y coordinates (SoA companion to [meshVerticesX]).
-  Float32List meshVerticesY() => _soaFloats(ss_runtime_get_mesh_vertices_y);
+  Float32List meshVerticesY() => ssRuntime.meshVerticesY(_context);
 
   /// Mesh per-vertex UVs in **texture-pixel** space, interleaved `[u,v,…]` and
   /// sliced by [meshVertexOffsets] (so vertex `v` is at `2v`, `2v+1`). Static.
-  Float32List meshUvs() => _soaFloats(ss_runtime_get_mesh_uvs);
+  Float32List meshUvs() => ssRuntime.meshUvs(_context);
 
   /// Mesh triangle indices, **part-local and 0-based**, sliced by
   /// [meshIndexOffsets]. Static.
-  Int32List meshIndices() => _soaI32(ss_runtime_get_mesh_indices);
+  Int32List meshIndices() => ssRuntime.meshIndices(_context);
 
   /// CSR prefix sum into [meshVerticesX] / [meshVerticesY] / [meshUvs].
-  Uint32List meshVertexOffsets() =>
-      _soaU32(ss_runtime_get_mesh_vertex_offsets);
+  Uint32List meshVertexOffsets() => ssRuntime.meshVertexOffsets(_context);
 
   /// CSR prefix sum into [meshIndices].
-  Uint32List meshIndexOffsets() => _soaU32(ss_runtime_get_mesh_index_offsets);
+  Uint32List meshIndexOffsets() => ssRuntime.meshIndexOffsets(_context);
 
   // --- Shape SoA (§11) -----------------------------------------------------
 
   /// Shape polygon vertices in **local** space, interleaved `[x,y,…]` at a fixed
   /// stride of 24 floats per part ([ShapeBuffers.stride]) — not CSR like the
   /// mesh. Apply the world matrix; pivot and the Y-Down flip are already in.
-  Float32List shapeVertices() => _soaFloats(ss_runtime_get_shape_vertices);
+  Float32List shapeVertices() => ssRuntime.shapeVertices(_context);
 
   /// Normalised `[fx,fy,…]` box coordinates paired with [shapeVertices], same
   /// stride — the weights for per-vertex PartColor.
   Float32List shapeVertexBoxCoords() =>
-      _soaFloats(ss_runtime_get_shape_vertex_box_coords);
+      ssRuntime.shapeVertexBoxCoords(_context);
 
   /// Live vertex count per part for [shapeVertices]. The only valid slice: a
   /// Shape batch's `vertex_count` / `index_count` are 0.
-  Int32List shapeVertexCounts() => _soaI32(ss_runtime_get_shape_vertex_counts);
+  Int32List shapeVertexCounts() => ssRuntime.shapeVertexCounts(_context);
 
   // --- Effects (§8) --------------------------------------------------------
 
@@ -592,10 +504,10 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable, InstanceChild {
   /// update. The caller resolves user data / signals / audio from the ssab.
   List<int> passedEventIndices() {
     _ensureAlive();
-    final count = ss_runtime_get_passed_event_count(_context);
+    final count = ssRuntime.passedEventCount(_context);
     if (count <= 0) return const [];
     return List<int>.generate(
-        count, (i) => ss_runtime_get_passed_event_index(_context, i));
+        count, (i) => ssRuntime.passedEventIndex(_context, i));
   }
 
   // --- Rendering -----------------------------------------------------------
@@ -1406,7 +1318,7 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable, InstanceChild {
   // --- InstanceChild (§8): this player driven as another's instance child ---
 
   @override
-  ffi.Pointer<ffi.Void> get instanceContext => _context;
+  SsContext get instanceContext => _context;
 
   @override
   double get instanceFrameNo => frameNo;
@@ -1456,22 +1368,9 @@ class SpriteStudioInternalPlayer implements ffi.Finalizable, InstanceChild {
     // their own Context/Resource and are torn down recursively from here.
     _effects.dispose();
     _instances.dispose();
-    _contextFinalizer.detach(this);
-    _resourceFinalizer.detach(this);
-
-    if (_context != ffi.nullptr) {
-      ss_runtime_destroy(_context);
-      _context = ffi.nullptr;
-    }
-    if (_resource != ffi.nullptr) {
-      ss_resource_destroy(_resource);
-      _resource = ffi.nullptr;
-    }
-    calloc.free(_outFloatPtr);
-    calloc.free(_outBytePtr);
-    calloc.free(_outU32Ptr);
-    calloc.free(_outI32Ptr);
-    calloc.free(_outLen);
+    ssRuntime.unregisterFromGc(this);
+    ssRuntime.destroyContext(_context);
+    ssRuntime.destroyResource(_resource);
 
     _partColorShaders.dispose();
     _maskWriteShaders.dispose();

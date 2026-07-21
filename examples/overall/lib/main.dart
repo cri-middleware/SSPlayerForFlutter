@@ -4,14 +4,20 @@ import 'dart:typed_data';
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:desktop_drop/desktop_drop.dart';
-import 'package:flutter/foundation.dart' show kDebugMode;
+import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'
     show AssetBundle, CachingAssetBundle, rootBundle;
 import 'package:ssgen_flutter/ssgen_flutter.dart';
 import 'package:ssplayer_flutter/ssplayer_flutter.dart';
 
-void main() => runApp(const ExampleApp());
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  // On the web the Brain is a wasm module fetched at runtime; await it before the
+  // player is created. A no-op on native (the native asset resolves eagerly).
+  await loadSsRuntime();
+  runApp(const ExampleApp());
+}
 
 class ExampleApp extends StatelessWidget {
   const ExampleApp({super.key});
@@ -102,6 +108,13 @@ class _PlayerPageState extends State<PlayerPage>
   @override
   void initState() {
     super.initState();
+    // Web deep-link: `?pack=Effect` opens straight on that pack (used by the
+    // docs "live preview" pages and for per-pack render checks). Native ignores
+    // it. Falls back to the default first pack when absent/unknown.
+    if (kIsWeb) {
+      final wanted = Uri.base.queryParameters['pack'];
+      if (wanted != null && _packs.contains(wanted)) _pack = wanted;
+    }
     _player = SpriteStudioPlayer(vsync: this)
       // Surface the decoded timeline events (§6C). Set once — the callbacks
       // persist across loadAsset, so switching packs keeps them wired.
