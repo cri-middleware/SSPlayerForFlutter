@@ -564,10 +564,58 @@ Flutter としては **Phase 1**（Basic〜BlendMode を `SpriteStudioView` で�
 - ブレンド制約: 同一 `.ssab` 内のみ・セル整合が必要・α は primary が上書き・per-source イベント閾値（§12）。
 
 **B. Flutter 固有のトレードオフ**:
-- **A. シングルコピー**: `Vertices.raw` がエンジン内部へ 1 度コピー。SoA は `asTypedList` で受けて追加コピー/GC を排除（さらに削るなら `flutter_gpu`）。
-- **B. UI isolate シングルスレッド**: DrawBatch 消費・`drawVertices` 記録・`M·v` ベイクは UI スレッドで直列。大量表示ではボトルネック（別 Isolate / `flutter_gpu` を検討）。
+- **A. シングルコピー**: `Vertices.raw` がエンジン内部へ 1 度コピー。SoA は `asTypedList` で受けて追加コピー/GC を排除（さらに削るなら `flutter_gpu` バックエンド＝§19。実装済み）。
+- **B. UI isolate シングルスレッド**: DrawBatch 消費・`drawVertices` 記録・`M·v` ベイクは UI スレッドで直列。大量表示ではボトルネック（別 Isolate、または `flutter_gpu` バックエンド＝§19 で peel の fan-out を畳む）。
 - **C. Web は別コードパス**: `dart:ffi` 不可 → WASM ＋ JS interop。性能・並列性がネイティブと分岐。
 - **D. マスク・saveLayer の負荷**: カバレッジビットマップ方式（§9）はオフスクリーン＋2 パスで重い。矩形クリップは `clipRect` に落とす。
 - **E. FFI クラッシュ**: ポインタ寿命管理ミスはセグフォールト（Dart 例外にならない）。`dispose` ＋ `NativeFinalizer` ＋ Debug 時の状態バリデーションで防波堤。
 - **F. Hot reload / Hot restart**: Dart 状態と乖離してネイティブ状態が残存しうる。ロードを冪等にし、Hot restart 検知時にネイティブ状態をリセットできる経路を用意。Context は必ず dispose。
 - **G. 物理アタリ判定なし**: 毎フレーム変形メッシュに追従するコライダ生成は非現実的。特定パーツ座標を公開する追従アンカーを提供し、`Positioned` / 当たり矩形 / Flame HitboxComponent に接続する。
+
+## 19. flutter_gpu レンダーバックエンド（第二のレンダーバックエンド）
+
+L2 の描画を「どうピクセルにするか」だけ差し替えられる **`RenderBackend` シーム**の上に、
+`Canvas.drawVertices` 版（`CanvasBackend`）と **flutter_gpu (Impeller) 版（`FlutterGpuBackend`）**の
+2 実装を持つ。選択は L3/L4 の `SpriteStudioBackend`（既定 **`auto`**: Impeller があれば gpu、無ければ /
+Web は常に Canvas）。**全 kind が Canvas とバイト単位で一致**し、macOS・iOS（Metal）・Android（Vulkan）の
+実機で `examples/overall/integration_test/gpu_backend_test.dart`（両 backend を pixel 比較, `rgbMeanDiff=0.00`）
+により検証済み。§18-B の「さらに削るなら / 別 Isolate や flutter_gpu を検討」はこの節で実現している。
+
+**シーム（`lib/src/render/backend/`）**: `RenderBackend`（`beginFrame`/`finish`/`emit{Normal,Mesh,Shape,Effect}`/
+`renderCoverage`/`pushTransform`/`popTransform`/`releaseCoverage`/`rewindShaderPools`）。`_paintTree` の
+バッチループ・mask プリパス・instance 再帰は backend 非依存の制御フローとして L2 に 1 本だけ残し、ピクセル操作だけ委譲。
+`CanvasBackend` は旧 L2 描画の behavior-preserving 抽出（既存テスト不変）。per-player データは `RenderHost`
+（geometry/textures/flagsFor/effectPlanFor/hasEffects）で渡す。`MaskContext`/`MaskDraw` は両 backend 共有。
+
+**フレームの流れ（GPU）**: オンスクリーン描画先が無いため、`beginFrame` で widget サイズの render-target texture と
+**正射影 MVP**（player-local Y-Down → NDC。反転は `_kNdcYSign` の 1 定数に集約＝Metal/Vulkan 双方で正）を用意し、
+各 `emit*` が `RenderPass` にドローを積み、`finish` で submit → `target.asImage()` → `canvas.drawImage(dst)` で合成。
+L2/L3/L4 の `paint(canvas,{dst,sourceSize})` シグネチャは不変（分岐は L2 内に閉じる）。
+
+**パイプライン / シェーダ（`shaders/gpu/*.vert|frag`, 素の GLSL）**:
+- **sprite**: Normal/Mesh/Effect（テクスチャ×premult 頂点色）。Shape は 1×1 白テクスチャ＋uv=0 で per-vertex 色を通す。
+- **partcolor**（§10/§9）: 頂点で quad-local `(s,t)` を varying 出力 → フラグメントで**真の bilinear**、mask replay は
+  **整数ビット演算**。**fan-out 崩し**＝連続する peeled パーツを `a_part` インデックス＋`vec4[]` UBO 配列（40/バッチ、
+  impellerc の UBO 上限 6208B 制約）で **1 ドロー**に畳む。
+- **mask_write**（§9）: `renderCoverage` が別 command buffer で coverage texture に writers を加算描画（bits を R/G/B）。
+  coverage-mvp は `MaskPlan.uvBasis/uvOffset` 由来で main pass のサンプルと厳密整合。
+- **shapemask**: マスク対象 Shape（per-vertex 色を coverage でゲート）。
+
+**横断機能の実装差分**:
+- **blend（§per-batch）**: 固定機能 `ColorBlendEquation` で Mix→srcOver・Add→plus・Sub→reverseSubtract・
+  **Screen→厳密**（`Cs+Cd·(1-Cs)`）・Mul→`src×dst`（不透明時厳密）。Exclusion/Invert/透明 Multiply のみ
+  framebuffer 読取が要り未対応（実コンテンツには発散モードとして現れない）。
+- **mask coverage（§9）**: Canvas の `toImageSync` を GPU render pass 化。coverage は `MaskContext`/`MaskDraw` の
+  `coverageHandle`（不透明 `gpu.Texture`, web-safe な `Object?`）に載せて運ぶため、instance 子の継承マスク（§3-2-2）は
+  親 coverage、own マスクは子 coverage を正しくサンプル（共有フィールドの上書き無し）。生存は `_frameCoverages`。
+- **instance（§8）**: 子は親 backend を共有し、`pushTransform` が world 行列を MVP スタックに合成（`_mul4x4`）して
+  同一 render target へ再帰描画。
+- **テクスチャ**: `ui.Image.toByteData(rawRgba, premult)` → `createTexture(hostVisible)` + `overwrite`、hash でキャッシュ。
+  非同期のためロード直後の数フレームは未完テクスチャをスキップ。
+
+**配布 / Web 安全性**: シェーダは `hook/build.dart`（`flutter_gpu_shaders`/`impellerc`）が `.shaderbundle` にコンパイル
+（pubspec `flutter: assets:` に `build/shaderbundles/…` を列挙＝Flutter 3.44 では DataAsset が bundle されないため legacy 経路）。
+`FlutterGpuBackend` は条件付きインポートで **web ビルドから tree-shake**（`dart:ffi` を持ち込まない）。probe（`gpu.gpuContext`
+の try/catch）で Impeller 不在時は Canvas フォールバック。
+
+**未対応（実用影響なし）**: Exclusion/Invert/透明 Multiply の framebuffer 読取ブレンド、`Nines`/`Text`（両 backend 共通）。
