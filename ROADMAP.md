@@ -163,10 +163,22 @@ draw-call count of *peeled* shader parts.
 
 ## 🕒 Deferred ("あとで")
 
-- 🕒 **`flutter_gpu` renderer backend** — a lower-level Body path (the Flutter
-  analogue of the SDK's own `ssplayer-wgpu`, Phase 3) that could give shaded parts
-  per-vertex data and so unblock the peeled-fan-out item above. Deferred until
-  `flutter_gpu` stabilises and the fan-out cost is shown to matter in a real title.
+- ☑ **`flutter_gpu` renderer backend** — shipped as an opt-in second `RenderBackend`
+  behind `SpriteStudioBackend` (default `auto`: flutter_gpu where Impeller is
+  available, Canvas otherwise / always on Web). It renders every kind — Normal,
+  Mesh, Shape, Effect, PartColor, Mask, Instance — into an offscreen Impeller
+  render target and composites it back with `canvas.drawImage`, **byte-for-byte
+  identical to the Canvas backend** — verified on-device on **macOS + iOS (Metal)
+  and Android (Vulkan)** by an integration test comparing both backends
+  pixel-by-pixel (`examples/overall/integration_test/gpu_backend_test.dart`; Web
+  falls back to Canvas and tree-shakes flutter_gpu out entirely). The peeled
+  PartColor/mask fan-out is collapsed into batched draws via per-vertex attributes
+  + a UBO array — the win this backlog item existed for. Per-batch blend maps the
+  fixed-function-expressible SS modes exactly (Mix/Add/Sub/Screen and
+  Multiply-over-opaque). **Remaining (all edge cases):** a framebuffer-read shader
+  for the rare Exclusion / Invert / Multiply-over-transparency modes; masked
+  instance-child inheritance (§3-2-2); and `Nines`/`Text` (unimplemented in both
+  backends). See `docs/architecture.ja.md`.
 - 🕒 **Physical iOS device + `armeabi-v7a` runtime verification** — the example is
   verified on the iOS simulator and Android emulator; a code-signed `iphoneos`
   slice and the 32-bit ARM ABI at runtime are still unconfirmed (see the

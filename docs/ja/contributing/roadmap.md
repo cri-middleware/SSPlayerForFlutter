@@ -16,7 +16,10 @@
 - ☐ **パーツ単位のランタイム上書き**（色 / セル / 表示）—— SDK の Override Layer API は出荷済みで、
   Player 側の口（`setPartColor` / `setPartCell` / `setPartVisible`）が残作業。
 - ⛔ **インスタンス動的差し替え・シーケンス（`.ssqb`）再生・群衆描画** —— SDK Phase 3 待ち。
-- 🕒 **`flutter_gpu` バックエンド** —— peeled シェーダのドローコール分散を解消しうる低レベル経路。
+- ☑ **`flutter_gpu` バックエンド** —— `SpriteStudioBackend`（既定 `auto`: Impeller では flutter_gpu、
+  それ以外／Web は Canvas）で選べる 2 つ目のレンダーバックエンド。全 kind を Canvas とバイト単位で同一に描画し
+  （**macOS・iOS（Metal）・Android（Vulkan）で実機検証済**）、下記の peeled fan-out をバッチ描画に畳む。
+  残るは Exclusion/Invert/透明 Multiply の framebuffer 読取ブレンドのみ。
 
 ## パフォーマンス
 

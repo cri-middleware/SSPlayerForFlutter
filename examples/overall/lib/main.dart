@@ -11,6 +11,14 @@ import 'package:flutter/services.dart'
 import 'package:ssgen_flutter/ssgen_flutter.dart';
 import 'package:ssplayer_flutter/ssplayer_flutter.dart';
 
+/// flutter_gpu bring-up switch. Run with `--dart-define=SS_BACKEND=gpu` to drive
+/// the flutter_gpu backend (Impeller; mobile/desktop) instead of the Canvas
+/// default. `gpu` falls back to Canvas where flutter_gpu is unavailable.
+const String _backendName =
+    String.fromEnvironment('SS_BACKEND', defaultValue: 'canvas');
+SpriteStudioBackend get _selectedBackend =>
+    _backendName == 'gpu' ? SpriteStudioBackend.gpu : SpriteStudioBackend.canvas;
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // On the web the Brain is a wasm module fetched at runtime; await it before the
@@ -115,7 +123,11 @@ class _PlayerPageState extends State<PlayerPage>
       final wanted = Uri.base.queryParameters['pack'];
       if (wanted != null && _packs.contains(wanted)) _pack = wanted;
     }
-    _player = SpriteStudioPlayer(vsync: this)
+    // Render backend selector for the flutter_gpu bring-up: run with
+    // `--dart-define=SS_BACKEND=gpu` to exercise the flutter_gpu backend
+    // (mobile/desktop only; falls back to Canvas where Impeller is unavailable),
+    // otherwise the default Canvas path. Lets the same pack be A/B-compared.
+    _player = SpriteStudioPlayer(vsync: this, backend: _selectedBackend)
       // Surface the decoded timeline events (§6C). Set once — the callbacks
       // persist across loadAsset, so switching packs keeps them wired.
       ..onAudio = (a) {

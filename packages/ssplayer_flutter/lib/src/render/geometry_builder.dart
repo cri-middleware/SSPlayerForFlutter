@@ -293,6 +293,28 @@ class MeshGeometry {
       );
 }
 
+/// An interleaved vertex block for the flutter_gpu path — 8 floats per vertex
+/// `[x, y, u, v, r, g, b, a]` (world-space XY, normalised UV, premultiplied
+/// RGBA) plus 16-bit quad indices. Built by
+/// [GeometryBuilder.buildNormalInterleaved]; the [vertices]/[indices] views
+/// alias grow-only scratch, so copy them into a `DeviceBuffer` before the next
+/// bake. This is the GPU sibling of [MeshGeometry.toVertices] (which packs the
+/// parallel arrays a `ui.Vertices` wants); the compute is shared, only the
+/// output layout differs.
+class InterleavedGeometry {
+  const InterleavedGeometry(
+      this.vertices, this.indices, this.vertexCount, this.indexCount);
+
+  /// `vertexCount * 8` floats, tightly interleaved in attribute location order.
+  final Float32List vertices;
+
+  /// `indexCount` 16-bit indices.
+  final Uint16List indices;
+
+  final int vertexCount;
+  final int indexCount;
+}
+
 /// Per-part quad + affine map for the PartColor shader path (parts_color §1).
 ///
 /// The four world-transformed corners drive a fill path; `origin` + `inv` map a
@@ -335,10 +357,12 @@ class PartColorQuad {
 /// dispatches on `DrawBatch.kind`, and draws the returned vertices; this class
 /// only bakes them.
 ///
-/// Phase 1 implements [buildNormalBatch] (the Normal quad path). The Shape /
-/// Mesh / effect-quad builders and the 5-vertex center fan + PartColor CUSTOM0
-/// attributes (needed when `update_flag & (AttributeVertex | AttributePartColor)`)
-/// are Phase 2.
+/// Bakes every draw kind: Normal ([buildNormalParts]), Mesh ([buildMeshGeometry]),
+/// Shape ([buildShapeParts]), Effect ([buildEffectGroup]), plus the PartColor quad
+/// ([buildPartColorQuad]). Each has a `…Interleaved` sibling
+/// ([buildNormalInterleaved] etc.) that packs one tightly-interleaved attribute
+/// buffer for the flutter_gpu backend, sharing this class's compute (world
+/// transform, corner-colour bilerp, UV) so the two outputs cannot drift.
 ///
 /// **Buffer reuse / aliasing contract.** The bake methods write into grow-only
 /// scratch buffers held on this instance rather than allocating fresh arrays per
@@ -448,6 +472,366 @@ class GeometryBuilder {
           Float32List.view(texCoords.buffer, texCoords.offsetInBytes, fPos),
       colors: Int32List.view(colors.buffer, colors.offsetInBytes, cPos),
       indices: Uint16List.view(indices.buffer, indices.offsetInBytes, iPos),
+    );
+  }
+
+  // Grow-only scratch for the interleaved flutter_gpu vertex bake (8 floats per
+  // vertex). Separate from the parallel-array scratch above; the index scratch
+  // ([_idx]) is shared (a player uses one backend, so the two bakes never
+  // interleave). Pure typed-data — no flutter_gpu here, so it stays web-safe.
+  Float32List _interScratch = Float32List(0);
+  Float32List _inter(int n) =>
+      _interScratch.length >= n ? _interScratch : (_interScratch = Float32List(n));
+
+  /// Bakes [parts] into a single **interleaved** vertex block for the flutter_gpu
+  /// Normal path: 8 floats per vertex `[x, y, u, v, r, g, b, a]` — world-
+  /// transformed position, UV **normalised** by [texWidth]/[texHeight], and a
+  /// **premultiplied** white×alpha colour (so `texel * colour` in the fragment
+  /// shader matches the Canvas `drawVertices(..., BlendMode.modulate, ...)`
+  /// reference, where a premultiplied texel is scaled by the vertex alpha).
+  ///
+  /// Mirrors [buildNormalParts] (same world transform `x'=m0·x+m4·y+m12`) but
+  /// packs one tightly-interleaved buffer + 16-bit quad indices, which is what a
+  /// `DeviceBuffer` binds. Returns null when nothing was emitted. The returned
+  /// views alias grow-only scratch — consume (copy into a `DeviceBuffer`) before
+  /// the next bake.
+  InterleavedGeometry? buildNormalInterleaved(List<int> parts, DrawFrame frame,
+      {required double texWidth, required double texHeight}) {
+    final count = parts.length;
+    if (count == 0) return null;
+
+    final world = frame.world;
+    final local = frame.local;
+    final uv = frame.uv;
+
+    final verts = _inter(count * 4 * 8); // 4 corners × 8 floats
+    final indices = _idx(count * 6);
+    final invW = texWidth > 0 ? 1.0 / texWidth : 0.0;
+    final invH = texHeight > 0 ? 1.0 / texHeight : 0.0;
+
+    var vBase = 0; // vertices emitted
+    var fp = 0; // float cursor into verts
+    var ip = 0; // index cursor
+
+    for (var k = 0; k < count; k++) {
+      final p = parts[k];
+
+      final m = p * DrawFrame.worldStride;
+      final v = p * DrawFrame.vertexStride;
+      if (m + 16 > world.length || v + 8 > local.length || v + 8 > uv.length) {
+        continue;
+      }
+
+      // Premultiplied white × alpha = (a, a, a, a): the exact colour Skia's
+      // `modulate` produces from a premultiplied texel and a straight white×α
+      // vertex colour (see the doc above).
+      final a = frame.alphaOf(p);
+
+      final m0 = world[m], m1 = world[m + 1];
+      final m4 = world[m + 4], m5 = world[m + 5];
+      final m12 = world[m + 12], m13 = world[m + 13];
+
+      for (var c = 0; c < 4; c++) {
+        final lx = local[v + c * 2];
+        final ly = local[v + c * 2 + 1];
+        verts[fp] = m0 * lx + m4 * ly + m12; // x
+        verts[fp + 1] = m1 * lx + m5 * ly + m13; // y
+        verts[fp + 2] = uv[v + c * 2] * invW; // u (normalised)
+        verts[fp + 3] = uv[v + c * 2 + 1] * invH; // v (normalised)
+        verts[fp + 4] = a; // r (premultiplied)
+        verts[fp + 5] = a; // g
+        verts[fp + 6] = a; // b
+        verts[fp + 7] = a; // a
+        fp += 8;
+      }
+      for (final q in _quad) {
+        indices[ip++] = vBase + q;
+      }
+      vBase += 4;
+    }
+
+    if (vBase == 0) return null;
+    return InterleavedGeometry(
+      Float32List.view(verts.buffer, verts.offsetInBytes, fp),
+      Uint16List.view(indices.buffer, indices.offsetInBytes, ip),
+      vBase,
+      ip,
+    );
+  }
+
+  /// Interleaved flutter_gpu bake of mesh [parts] (§8) — the GPU sibling of
+  /// [buildMeshGeometry]. Mesh verts are **already world-space** (no matrix);
+  /// UVs are normalised by [texWidth]/[texHeight] and the colour is premultiplied
+  /// white×alpha `(a,a,a,a)`. Part-local indices are rebased. Returns null when
+  /// nothing was emitted. Views alias scratch — consume before the next bake.
+  InterleavedGeometry? buildMeshInterleaved(List<int> parts, DrawFrame frame,
+      {required double texWidth, required double texHeight}) {
+    final mesh = frame.mesh;
+    if (mesh == null || mesh.isEmpty || parts.isEmpty) return null;
+
+    var vTotal = 0;
+    var iTotal = 0;
+    for (final p in parts) {
+      final vr = mesh.vertexRange(p);
+      final ir = mesh.indexRange(p);
+      if (vr == null || ir == null) continue;
+      vTotal += vr.$2 - vr.$1;
+      iTotal += ir.$2 - ir.$1;
+    }
+    if (vTotal == 0 || iTotal == 0 || vTotal > 0xFFFF) return null;
+
+    final verts = _inter(vTotal * 8);
+    final indices = _idx(iTotal);
+    final invW = texWidth > 0 ? 1.0 / texWidth : 0.0;
+    final invH = texHeight > 0 ? 1.0 / texHeight : 0.0;
+
+    var vBase = 0;
+    var fp = 0;
+    var ip = 0;
+    for (final p in parts) {
+      final vr = mesh.vertexRange(p);
+      final ir = mesh.indexRange(p);
+      if (vr == null || ir == null) continue;
+      final a = frame.alphaOf(p);
+      for (var v = vr.$1; v < vr.$2; v++) {
+        verts[fp] = mesh.x[v]; // already world-space
+        verts[fp + 1] = mesh.y[v];
+        verts[fp + 2] = mesh.uv[v * 2] * invW;
+        verts[fp + 3] = mesh.uv[v * 2 + 1] * invH;
+        verts[fp + 4] = a;
+        verts[fp + 5] = a;
+        verts[fp + 6] = a;
+        verts[fp + 7] = a;
+        fp += 8;
+      }
+      final vCount = vr.$2 - vr.$1;
+      for (var i = ir.$1; i < ir.$2; i++) {
+        final local = mesh.indices[i];
+        if (local < 0 || local >= vCount) continue;
+        indices[ip++] = vBase + local;
+      }
+      vBase += vCount;
+    }
+    if (vBase == 0 || ip == 0) return null;
+    return InterleavedGeometry(
+      Float32List.view(verts.buffer, verts.offsetInBytes, fp),
+      Uint16List.view(indices.buffer, indices.offsetInBytes, ip),
+      vBase,
+      ip,
+    );
+  }
+
+  /// Interleaved flutter_gpu bake of shape [parts] (§11) — the GPU sibling of
+  /// [buildShapeParts]. A Shape samples no texture, so UV is `(0,0)` (the caller
+  /// binds a 1×1 white texel and the `texel * colour` shader collapses to the
+  /// colour). Per-vertex colour is baked here — plain = premultiplied white×alpha,
+  /// PartColor = the bilinear box-coord gradient, premultiplied — so a
+  /// PartColored Shape needs no shader on the GPU path (only a *mask-target*
+  /// shape does, which is peeled later). Center-first fan. Returns null when empty.
+  InterleavedGeometry? buildShapeInterleaved(List<int> parts, DrawFrame frame) {
+    final shape = frame.shape;
+    if (shape == null || parts.isEmpty) return null;
+
+    var vTotal = 0;
+    var iTotal = 0;
+    for (final p in parts) {
+      final n = shape.countOf(p);
+      if (n == 0) continue;
+      vTotal += n;
+      iTotal += (n - 2) * 3;
+    }
+    if (vTotal == 0 || iTotal == 0 || vTotal > 0xFFFF) return null;
+
+    final verts = _inter(vTotal * 8);
+    final indices = _idx(iTotal);
+    final partsColor = frame.partsColor;
+
+    var fp = 0;
+    var ip = 0;
+    var base = 0;
+    for (final p in parts) {
+      final n = shape.countOf(p);
+      if (n == 0) continue;
+
+      final m = p * DrawFrame.worldStride;
+      if (m + 16 > frame.world.length) continue;
+      final m0 = frame.world[m], m1 = frame.world[m + 1];
+      final m4 = frame.world[m + 4], m5 = frame.world[m + 5];
+      final m12 = frame.world[m + 12], m13 = frame.world[m + 13];
+
+      final state = frame.partOf(p);
+      final pc = state == null ? null : PartColor.read(partsColor, state);
+      final tinted = pc?.scaleAlpha(frame.alphaScale);
+      final plainA = frame.alphaOf(p); // premult white×alpha = (a,a,a,a)
+
+      final o = p * ShapeBuffers.stride;
+      for (var v = 0; v < n; v++) {
+        final lx = shape.vertices[o + 2 * v];
+        final ly = shape.vertices[o + 2 * v + 1];
+        verts[fp] = m0 * lx + m4 * ly + m12;
+        verts[fp + 1] = m1 * lx + m5 * ly + m13;
+        verts[fp + 2] = 0.0;
+        verts[fp + 3] = 0.0;
+
+        double r, g, b, a;
+        if (tinted == null) {
+          r = plainA;
+          g = plainA;
+          b = plainA;
+          a = plainA;
+        } else {
+          final fx = shape.boxCoords[o + 2 * v];
+          final fy = shape.boxCoords[o + 2 * v + 1];
+          final wLT = (1.0 - fx) * (1.0 - fy);
+          final wRT = fx * (1.0 - fy);
+          final wLB = (1.0 - fx) * fy;
+          final wRB = fx * fy;
+          final sr = tinted.lt.r * wLT +
+              tinted.rt.r * wRT +
+              tinted.lb.r * wLB +
+              tinted.rb.r * wRB;
+          final sg = tinted.lt.g * wLT +
+              tinted.rt.g * wRT +
+              tinted.lb.g * wLB +
+              tinted.rb.g * wRB;
+          final sb = tinted.lt.b * wLT +
+              tinted.rt.b * wRT +
+              tinted.lb.b * wLB +
+              tinted.rb.b * wRB;
+          final sa = tinted.lt.a * wLT +
+              tinted.rt.a * wRT +
+              tinted.lb.a * wLB +
+              tinted.rb.a * wRB;
+          // Straight → premultiplied (Skia premultiplies the Canvas vertex
+          // colour before the white-paint modulate, so the drawn colour is this).
+          a = sa.clamp(0.0, 1.0);
+          r = (sr * sa).clamp(0.0, 1.0);
+          g = (sg * sa).clamp(0.0, 1.0);
+          b = (sb * sa).clamp(0.0, 1.0);
+        }
+        verts[fp + 4] = r;
+        verts[fp + 5] = g;
+        verts[fp + 6] = b;
+        verts[fp + 7] = a;
+        fp += 8;
+      }
+      for (var t = 0; t < n - 2; t++) {
+        indices[ip++] = base;
+        indices[ip++] = base + t + 1;
+        indices[ip++] = base + t + 2;
+      }
+      base += n;
+    }
+    if (base == 0 || ip == 0) return null;
+    return InterleavedGeometry(
+      Float32List.view(verts.buffer, verts.offsetInBytes, fp),
+      Uint16List.view(indices.buffer, indices.offsetInBytes, ip),
+      base,
+      ip,
+    );
+  }
+
+  /// Like [buildShapeInterleaved] but for a **masked** Shape — the vertex is
+  /// `[pos.xy, rgba]` (6 floats, no UV) because the masked-Shape pipeline samples
+  /// no texture (a Shape is coloured by its vertices; the shader only gates it on
+  /// the coverage). Premultiplied colour, center-first fan. Returns null if empty.
+  InterleavedGeometry? buildShapeColorInterleaved(
+      List<int> parts, DrawFrame frame) {
+    final shape = frame.shape;
+    if (shape == null || parts.isEmpty) return null;
+
+    var vTotal = 0;
+    var iTotal = 0;
+    for (final p in parts) {
+      final n = shape.countOf(p);
+      if (n == 0) continue;
+      vTotal += n;
+      iTotal += (n - 2) * 3;
+    }
+    if (vTotal == 0 || iTotal == 0 || vTotal > 0xFFFF) return null;
+
+    final verts = _inter(vTotal * 6);
+    final indices = _idx(iTotal);
+    final partsColor = frame.partsColor;
+
+    var fp = 0;
+    var ip = 0;
+    var base = 0;
+    for (final p in parts) {
+      final n = shape.countOf(p);
+      if (n == 0) continue;
+
+      final m = p * DrawFrame.worldStride;
+      if (m + 16 > frame.world.length) continue;
+      final m0 = frame.world[m], m1 = frame.world[m + 1];
+      final m4 = frame.world[m + 4], m5 = frame.world[m + 5];
+      final m12 = frame.world[m + 12], m13 = frame.world[m + 13];
+
+      final state = frame.partOf(p);
+      final pc = state == null ? null : PartColor.read(partsColor, state);
+      final tinted = pc?.scaleAlpha(frame.alphaScale);
+      final plainA = frame.alphaOf(p);
+
+      final o = p * ShapeBuffers.stride;
+      for (var v = 0; v < n; v++) {
+        final lx = shape.vertices[o + 2 * v];
+        final ly = shape.vertices[o + 2 * v + 1];
+        verts[fp] = m0 * lx + m4 * ly + m12;
+        verts[fp + 1] = m1 * lx + m5 * ly + m13;
+
+        double r, g, b, a;
+        if (tinted == null) {
+          r = plainA;
+          g = plainA;
+          b = plainA;
+          a = plainA;
+        } else {
+          final fx = shape.boxCoords[o + 2 * v];
+          final fy = shape.boxCoords[o + 2 * v + 1];
+          final wLT = (1.0 - fx) * (1.0 - fy);
+          final wRT = fx * (1.0 - fy);
+          final wLB = (1.0 - fx) * fy;
+          final wRB = fx * fy;
+          final sr = tinted.lt.r * wLT +
+              tinted.rt.r * wRT +
+              tinted.lb.r * wLB +
+              tinted.rb.r * wRB;
+          final sg = tinted.lt.g * wLT +
+              tinted.rt.g * wRT +
+              tinted.lb.g * wLB +
+              tinted.rb.g * wRB;
+          final sb = tinted.lt.b * wLT +
+              tinted.rt.b * wRT +
+              tinted.lb.b * wLB +
+              tinted.rb.b * wRB;
+          final sa = tinted.lt.a * wLT +
+              tinted.rt.a * wRT +
+              tinted.lb.a * wLB +
+              tinted.rb.a * wRB;
+          a = sa.clamp(0.0, 1.0);
+          r = (sr * sa).clamp(0.0, 1.0);
+          g = (sg * sa).clamp(0.0, 1.0);
+          b = (sb * sa).clamp(0.0, 1.0);
+        }
+        verts[fp + 2] = r;
+        verts[fp + 3] = g;
+        verts[fp + 4] = b;
+        verts[fp + 5] = a;
+        fp += 6;
+      }
+      for (var t = 0; t < n - 2; t++) {
+        indices[ip++] = base;
+        indices[ip++] = base + t + 1;
+        indices[ip++] = base + t + 2;
+      }
+      base += n;
+    }
+    if (base == 0 || ip == 0) return null;
+    return InterleavedGeometry(
+      Float32List.view(verts.buffer, verts.offsetInBytes, fp),
+      Uint16List.view(indices.buffer, indices.offsetInBytes, ip),
+      base,
+      ip,
     );
   }
 
@@ -681,6 +1065,59 @@ class GeometryBuilder {
       texCoords: Float32List.view(texCoords.buffer, texCoords.offsetInBytes, fPos),
       colors: Int32List.view(colors.buffer, colors.offsetInBytes, cPos),
       indices: Uint16List.view(indices.buffer, indices.offsetInBytes, iPos),
+    );
+  }
+
+  /// Interleaved flutter_gpu bake of an effect command group (§8) — the GPU
+  /// sibling of [buildEffectGroup]. Reuses that bake (world transform, per-command
+  /// index rebase, colour fold) and repacks its output: UVs back to **normalised**
+  /// 0..1 (the Canvas path scales them to texture pixels for the identity
+  /// ImageShader; the GPU sampler wants normalised), and the straight ARGB colour
+  /// premultiplied. Returns null when nothing was emitted.
+  InterleavedGeometry? buildEffectGroupInterleaved(
+    efbs.EffectDrawPlan plan,
+    List<efbs.EffectDrawCommand> cmds,
+    int part,
+    DrawFrame frame, {
+    required double texWidth,
+    required double texHeight,
+  }) {
+    final g = buildEffectGroup(plan, cmds, part, frame,
+        texWidth: texWidth, texHeight: texHeight);
+    if (g == null) return null;
+    final tc = g.texCoords;
+    if (tc == null) return null; // an effect group always has UVs
+    final cols = g.colors;
+
+    final n = g.positions.length ~/ 2; // vertex count
+    final verts = _inter(n * 8);
+    final invW = texWidth > 0 ? 1.0 / texWidth : 0.0;
+    final invH = texHeight > 0 ? 1.0 / texHeight : 0.0;
+
+    var fp = 0;
+    for (var i = 0; i < n; i++) {
+      verts[fp] = g.positions[i * 2];
+      verts[fp + 1] = g.positions[i * 2 + 1];
+      verts[fp + 2] = tc[i * 2] * invW; // texture-pixel → normalised
+      verts[fp + 3] = tc[i * 2 + 1] * invH;
+      final argb = cols[i];
+      final a = ((argb >> 24) & 0xFF) / 255.0;
+      final r = ((argb >> 16) & 0xFF) / 255.0;
+      final gg = ((argb >> 8) & 0xFF) / 255.0;
+      final b = (argb & 0xFF) / 255.0;
+      verts[fp + 4] = r * a; // straight → premultiplied
+      verts[fp + 5] = gg * a;
+      verts[fp + 6] = b * a;
+      verts[fp + 7] = a;
+      fp += 8;
+    }
+    // g.indices is already a rebased 16-bit view (over a different scratch cell),
+    // so it is carried through unchanged.
+    return InterleavedGeometry(
+      Float32List.view(verts.buffer, verts.offsetInBytes, fp),
+      g.indices,
+      n,
+      g.indices.length,
     );
   }
 
