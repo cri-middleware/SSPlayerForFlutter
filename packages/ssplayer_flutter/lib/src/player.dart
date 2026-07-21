@@ -7,6 +7,7 @@ import 'package:flutter/services.dart' show AssetBundle, rootBundle;
 import 'event.dart';
 import 'instance_loader.dart';
 import 'internal_player.dart';
+import 'render/backend/backend_kind.dart';
 import 'ssab_info.dart';
 import 'texture_loader.dart';
 import 'texture_registry.dart';
@@ -32,9 +33,17 @@ typedef SsEventCallback = void Function(List<int> passedEventIndices);
 class SpriteStudioPlayer extends ChangeNotifier {
   SpriteStudioPlayer({
     TickerProvider? vsync,
-  }) {
+    SpriteStudioBackend backend = SpriteStudioBackend.auto,
+  }) : _backend = backend {
     _ticker = vsync?.createTicker(_onTick);
   }
+
+  /// Which render backend the L2 player draws with. Defaults to
+  /// [SpriteStudioBackend.auto]: the flutter_gpu backend where Impeller is
+  /// available (mobile/desktop), falling back to Canvas otherwise (always on the
+  /// Web). Pass [SpriteStudioBackend.canvas] to force the reference path. Fixed
+  /// for the player's life and re-applied across [reload].
+  final SpriteStudioBackend _backend;
 
   /// The self-clock used by the Widget path. Null when the player is
   /// **externally clocked** (constructed without a `vsync`): the host drives
@@ -209,6 +218,7 @@ class SpriteStudioPlayer extends ChangeNotifier {
       ssab,
       textures: textures,
       instancePacks: packs.packs,
+      backend: _backend,
     );
     _internal = internal;
     internal.subFrame = _subFrame;

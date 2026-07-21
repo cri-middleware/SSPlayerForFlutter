@@ -1,0 +1,34 @@
+{
+  "SpriteVertex": {
+    "type": "vertex",
+    "file": "shaders/gpu/sprite.vert"
+  },
+  "SpriteFragment": {
+    "type": "fragment",
+    "file": "shaders/gpu/sprite.frag"
+  },
+  "PartColorVertex": {
+    "type": "vertex",
+    "file": "shaders/gpu/partcolor.vert"
+  },
+  "PartColorFragment": {
+    "type": "fragment",
+    "file": "shaders/gpu/partcolor.frag"
+  },
+  "MaskWriteVertex": {
+    "type": "vertex",
+    "file": "shaders/gpu/mask_write.vert"
+  },
+  "MaskWriteFragment": {
+    "type": "fragment",
+    "file": "shaders/gpu/mask_write.frag"
+  },
+  "ShapeMaskVertex": {
+    "type": "vertex",
+    "file": "shaders/gpu/shapemask.vert"
+  },
+  "ShapeMaskFragment": {
+    "type": "fragment",
+    "file": "shaders/gpu/shapemask.frag"
+  }
+}

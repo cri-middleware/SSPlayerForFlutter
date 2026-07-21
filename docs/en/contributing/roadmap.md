@@ -16,7 +16,12 @@ phase first), or 🕒 **Deferred**.
 - ☐ **Per-part runtime overrides** (color / cell / visibility) — the SDK Override Layer API is
   shipped; the Player-side surface (`setPartColor` / `setPartCell` / `setPartVisible`) is pending.
 - ⛔ **Dynamic instance swap · Sequence (`.ssqb`) playback · crowd rendering** — blocked on SDK Phase 3.
-- 🕒 **`flutter_gpu` backend** — a lower-level path that could unblock peeled-shader draw-call fan-out.
+- ☑ **`flutter_gpu` backend** — an opt-in second render backend behind
+  `SpriteStudioBackend` (default `auto`: flutter_gpu on Impeller, Canvas otherwise / always on Web),
+  rendering every kind byte-for-byte identical to the Canvas path — verified on-device on macOS + iOS
+  (Metal) and Android (Vulkan) — and collapsing the peeled-shader fan-out below into batched draws. Only
+  a framebuffer-read shader for the rare Exclusion/Invert/Multiply-over-transparency blend modes remains.
+  See [`ROADMAP.md`](https://github.com/cri-middleware/SSPlayerForFlutter/blob/main/ROADMAP.md).
 
 ## Performance
 
@@ -25,8 +30,10 @@ matching the Brain's plan, and adjacent batches can't merge without breaking z-o
 (a) per-frame allocation to *build* each batch and (b) the draw-call count of *peeled* shader parts.
 Allocation hygiene (zero-copy vertex views, reused scratch buffers, dense per-part lookup, effect
 command merging) has already shipped. The remaining big lever — peeled PartColor / mask draw-call
-fan-out — is **structurally bounded by Flutter's shader model** (fragment shaders take no per-vertex
-varyings, so `drawVertices` can't feed a shader), which is why the `flutter_gpu` backlog item exists.
+fan-out — is **structurally bounded by Flutter's shader model on the Canvas path** (fragment shaders
+take no per-vertex varyings, so `drawVertices` can't feed a shader); the **`flutter_gpu` backend lifts
+that limit** — it carries the per-part data as per-vertex attributes + a UBO array and collapses the
+fan-out into batched draws.
 See [`ROADMAP.md`](https://github.com/cri-middleware/SSPlayerForFlutter/blob/main/ROADMAP.md#performance).
 
 ## Known limitations

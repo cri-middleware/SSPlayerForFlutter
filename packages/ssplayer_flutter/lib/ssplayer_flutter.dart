@@ -11,6 +11,9 @@ export 'src/render/sprite_studio_view.dart';
 
 // Layer 3 — user-facing controller.
 export 'src/player.dart' show SpriteStudioPlayer, SsEventCallback;
+// Render backend selector (Canvas default / flutter_gpu opt-in). Passed to the
+// SpriteStudioPlayer constructor.
+export 'src/render/backend/backend_kind.dart' show SpriteStudioBackend;
 export 'src/event.dart'
     show
         SsUserData,

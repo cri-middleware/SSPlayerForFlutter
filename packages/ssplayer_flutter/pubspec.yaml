@@ -30,6 +30,19 @@ dependencies:
   # member during dev (prerelease-inclusive caret so 7.0.0-alpha.1 satisfies it).
   # Publish ssruntime_dart to pub.dev before publishing this package.
   ssruntime_dart: ^7.0.0-alpha.1
+  # Optional flutter_gpu render backend (mobile/desktop; NOT web). SDK-bundled
+  # low-level GPU API over Impeller. Imported ONLY behind a conditional import
+  # (render/backend/) so web / non-Impeller builds tree-shake it out — it pulls
+  # dart:ffi, which does not exist on web. Runtime selection falls back to the
+  # Canvas backend when Impeller is unavailable (see backend capability probe).
+  flutter_gpu:
+    sdk: flutter
+  # Build-time: hook/build.dart compiles the flutter_gpu vertex/fragment shaders
+  # into a .shaderbundle via impellerc (buildShaderBundleJson). A REGULAR dep
+  # (not dev): the build hook runs at *consumer* build time, so its imports must
+  # resolve for consumers too — same reason ssruntime_dart lists hooks/code_assets
+  # under dependencies. Pinned tight because flutter_gpu is an early-preview API.
+  flutter_gpu_shaders: ^0.5.1
 
 dev_dependencies:
   flutter_test:
@@ -50,6 +63,13 @@ flutter:
     - assets/runtime-web/ssruntime.js
     - assets/runtime-web/ssruntime_bg.wasm
     - assets/runtime-web/ssruntime_bg.nosimd.wasm
+    # flutter_gpu shader bundle, compiled by hook/build.dart (impellerc) into
+    # build/shaderbundles/ (gitignored, regenerated every build). Listed here so
+    # the legacy shader-bundle delivery bundles it as a normal asset; loaded at
+    # runtime via ShaderLibrary.fromAsset(
+    # 'packages/ssplayer_flutter/build/shaderbundles/ssplayer.shaderbundle').
+    # Only used by the flutter_gpu backend on Impeller; harmless elsewhere.
+    - build/shaderbundles/ssplayer.shaderbundle
 
   # Fragment shaders, loaded lazily (only once a part actually needs one), so
   # animations that use neither PartColor nor masks pay nothing and keep the

@@ -26,6 +26,11 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  # On-device (macOS/iOS/Android) render checks for the flutter_gpu backend —
+  # the headless flutter_tester has no Impeller context, so the GPU round-trip
+  # can only be pixel-verified here. Run: `flutter test integration_test -d macos`.
+  integration_test:
+    sdk: flutter
   flutter_lints: ^6.0.0
 
 flutter:
