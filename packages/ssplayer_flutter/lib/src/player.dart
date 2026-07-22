@@ -8,6 +8,7 @@ import 'event.dart';
 import 'instance_loader.dart';
 import 'internal_player.dart';
 import 'render/backend/backend_kind.dart';
+import 'render/part_override.dart';
 import 'ssab_info.dart';
 import 'texture_loader.dart';
 import 'texture_registry.dart';
@@ -113,6 +114,16 @@ class SpriteStudioPlayer extends ChangeNotifier {
   /// switch animation without reloading the resource or its textures.
   List<String> getAnimations() =>
       _animeInfo?.animationNames ?? const <String>[];
+
+  /// Names of the cellmaps in the loaded `.ssab`, without the `.ssce`
+  /// extension (empty before [load]) — the first half of what
+  /// [setPartCellOverride] needs.
+  List<String> getCellmaps() => _animeInfo?.cellmapNames ?? const <String>[];
+
+  /// Names of the cells inside [cellmapName] (empty before [load] / unknown
+  /// cellmap) — the other half. Both names go to [setPartCellOverride] as-is.
+  List<String> getCells(String cellmapName) =>
+      _animeInfo?.cellNames(cellmapName) ?? const <String>[];
 
   /// Resolves an [SsAudioEvent.soundNameHash] (from an [onAudio] trigger) to its
   /// pack-relative sound file path — e.g. `sound/foo.mp3` — or null before
@@ -502,6 +513,161 @@ class SpriteStudioPlayer extends ChangeNotifier {
         onAudio!(a);
       }
     }
+  }
+
+  // --- Part overrides (§65 Override Layer) ---------------------------------
+  //
+  // Thin transport over Layer 2, plus the one thing this layer owes the caller:
+  // a repaint. An override changes the pose WITHOUT changing the frame number,
+  // so on a paused (or externally clocked, or simply idle) player nothing would
+  // redraw and the API would look broken — the flagship players hit the same
+  // trap through their frame caches (§65-5-1). Every successful set/clear here
+  // therefore notifies listeners; a rejected call does not (nothing changed).
+  //
+  // The Brain owns the override table and re-applies it itself, so these are
+  // one-shot calls — never drive them from a per-frame callback. Precedence and
+  // lifecycle are [SsOverridePriority]'s to explain.
+  //
+  // All of these no-op (returning false) before [load]; unlike the transport
+  // calls they do not throw, because an override is a "best effort now" request
+  // and a UI that fires one while the pack is still loading is not a bug.
+  //
+  // They also no-op until an animation is selected — [load] with an
+  // `animationName`, or a [setupAnimation] call. The Brain only sizes its
+  // override table there, so a load with no animation leaves every index out of
+  // range even though [partNames] already resolves. Note the ordering trap that
+  // follows: [setupAnimation] CLEARS every override that is not
+  // [SsOverridePriority.permanent], so overrides are applied *after* choosing
+  // the animation, never before.
+
+  /// Pack-level part names / name→index lookup, or an empty table before
+  /// [load]. Part indices are stable within one `.ssab`, so resolving a name
+  /// once and reusing the index is the intended pattern.
+  PartNameTable get partNames => _internal?.partNames ?? PartNameTable.empty;
+
+  /// Resolves [name] to its part index, or -1 when unknown / before [load].
+  int partIndexOf(String name) => _internal?.partIndexOf(name) ?? -1;
+
+  /// Force-hides a part, or reverts it to the animation. See
+  /// [SpriteStudioInternalPlayer.setPartVisibilityOverride] for the cascade and
+  /// instance-child caveats.
+  bool setPartVisibilityOverride(int partIndex, bool hide,
+          {bool cascade = false}) =>
+      _override((i) =>
+          i.setPartVisibilityOverride(partIndex, hide, cascade: cascade));
+
+  /// By-name form of [setPartVisibilityOverride].
+  bool setPartVisibilityOverrideByName(String partName, bool hide,
+          {bool cascade = false}) =>
+      _override((i) => i.setPartVisibilityOverrideByName(partName, hide,
+          cascade: cascade));
+
+  /// Clears a part's visibility override (revert to the animation).
+  bool clearPartVisibilityOverride(int partIndex) =>
+      _override((i) => i.clearPartVisibilityOverride(partIndex));
+
+  /// By-name form of [clearPartVisibilityOverride].
+  bool clearPartVisibilityOverrideByName(String partName) =>
+      _override((i) => i.clearPartVisibilityOverrideByName(partName));
+
+  /// Overrides a part's colour (one value to all four corners). Normal parts
+  /// only; [color] is plain 8-bit sRGB and its alpha must not be pre-folded —
+  /// see [SpriteStudioInternalPlayer.setPartColorOverride].
+  bool setPartColorOverride(int partIndex, SsBlendOp blendOp, ui.Color color,
+          {SsOverridePriority priority =
+              SsOverridePriority.holdUntilNextAnimation}) =>
+      _override((i) => i.setPartColorOverride(partIndex, blendOp, color,
+          priority: priority));
+
+  /// By-name form of [setPartColorOverride].
+  bool setPartColorOverrideByName(
+          String partName, SsBlendOp blendOp, ui.Color color,
+          {SsOverridePriority priority =
+              SsOverridePriority.holdUntilNextAnimation}) =>
+      _override((i) => i.setPartColorOverrideByName(partName, blendOp, color,
+          priority: priority));
+
+  /// Four-corner (gradient) form of [setPartColorOverride]; corner order is the
+  /// Brain's `lt, rt, lb, rb`.
+  bool setPartColorOverrideCorners(
+    int partIndex,
+    SsBlendOp blendOp, {
+    required ui.Color leftTop,
+    required ui.Color rightTop,
+    required ui.Color leftBottom,
+    required ui.Color rightBottom,
+    SsOverridePriority priority = SsOverridePriority.holdUntilNextAnimation,
+  }) =>
+      _override((i) => i.setPartColorOverrideCorners(partIndex, blendOp,
+          leftTop: leftTop,
+          rightTop: rightTop,
+          leftBottom: leftBottom,
+          rightBottom: rightBottom,
+          priority: priority));
+
+  /// By-name form of [setPartColorOverrideCorners].
+  bool setPartColorOverrideCornersByName(
+    String partName,
+    SsBlendOp blendOp, {
+    required ui.Color leftTop,
+    required ui.Color rightTop,
+    required ui.Color leftBottom,
+    required ui.Color rightBottom,
+    SsOverridePriority priority = SsOverridePriority.holdUntilNextAnimation,
+  }) =>
+      _override((i) => i.setPartColorOverrideCornersByName(partName, blendOp,
+          leftTop: leftTop,
+          rightTop: rightTop,
+          leftBottom: leftBottom,
+          rightBottom: rightBottom,
+          priority: priority));
+
+  /// Clears a part's colour override (revert to the animation).
+  bool clearPartColorOverride(int partIndex) =>
+      _override((i) => i.clearPartColorOverride(partIndex));
+
+  /// By-name form of [clearPartColorOverride].
+  bool clearPartColorOverrideByName(String partName) =>
+      _override((i) => i.clearPartColorOverrideByName(partName));
+
+  /// Makes a part draw a different cell ([cellmapName] without `.ssce`).
+  /// Resolved immediately — an unknown cell returns false. Two empty names
+  /// revert the part to the animation.
+  bool setPartCellOverride(int partIndex, String cellmapName, String cellName,
+          {SsOverridePriority priority =
+              SsOverridePriority.holdUntilNextAnimation}) =>
+      _override((i) => i.setPartCellOverride(partIndex, cellmapName, cellName,
+          priority: priority));
+
+  /// By-name form of [setPartCellOverride].
+  bool setPartCellOverrideByName(
+          String partName, String cellmapName, String cellName,
+          {SsOverridePriority priority =
+              SsOverridePriority.holdUntilNextAnimation}) =>
+      _override((i) => i.setPartCellOverrideByName(
+          partName, cellmapName, cellName,
+          priority: priority));
+
+  /// Clears a part's cell override (revert to the animation).
+  bool clearPartCellOverride(int partIndex) =>
+      _override((i) => i.clearPartCellOverride(partIndex));
+
+  /// By-name form of [clearPartCellOverride].
+  bool clearPartCellOverrideByName(String partName) =>
+      _override((i) => i.clearPartCellOverrideByName(partName));
+
+  /// Clears every per-part override on this player.
+  bool clearAllPartOverrides() => _override((i) => i.clearAllPartOverrides());
+
+  /// Runs one override call against the live engine and repaints on success.
+  /// Returns false (without notifying) before [load], after [dispose], or when
+  /// the Brain rejected the call.
+  bool _override(bool Function(SpriteStudioInternalPlayer) apply) {
+    final internal = _internal;
+    if (internal == null || internal.isDisposed || _disposed) return false;
+    if (!apply(internal)) return false;
+    notifyListeners();
+    return true;
   }
 
   SpriteStudioInternalPlayer _requireInternal() =>

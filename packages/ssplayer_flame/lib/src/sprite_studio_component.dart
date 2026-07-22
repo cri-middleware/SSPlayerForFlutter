@@ -192,6 +192,13 @@ class SpriteStudioComponent extends PositionComponent {
   /// The underlying player — null until [onLoad] completes, then the full L3
   /// transport surface (`pause`, `seek`, `setupAnimation`, `getAnimations`, …).
   /// The clock is Flame's, so do NOT expect a Ticker; state still lives here.
+  ///
+  /// Part overrides (§65) are reached the same way — `player!.setPartColorOverride`
+  /// and friends, with [SsBlendOp] / [SsOverridePriority] re-exported by this
+  /// package. They are deliberately not mirrored onto the component: the Brain
+  /// owns the override table, so there is no component-side state to keep in
+  /// sync and a passthrough would only be a second name for the same call.
+  /// Note they need an animation selected first, which [onLoad] does.
   SpriteStudioPlayer? get player => _player;
 
   @override

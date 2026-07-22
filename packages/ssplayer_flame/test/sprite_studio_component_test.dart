@@ -72,6 +72,41 @@ void main() {
         reason: 'expected textured content, not a flat fill');
   });
 
+  test('part overrides reach the Brain through the component\'s player',
+      () async {
+    final ssabPath = _firstExisting([
+      'examples/flame/assets/spritestudio/Ringo/Ringo.ssab',
+      '../../examples/flame/assets/spritestudio/Ringo/Ringo.ssab',
+    ]);
+    if (ssabPath == null) {
+      markTestSkipped('Ringo.ssab missing — run scripts/deploy-examples.sh');
+      return;
+    }
+
+    // The adapter adds no override API of its own — it re-exports the core one
+    // and hands out the L3 player. This asserts that path actually works from
+    // Flame, including the enums coming through this package's barrel, and that
+    // `onLoad`'s animation selection satisfies the override table's precondition.
+    final component = SpriteStudioComponent.asset(
+      ssabPath,
+      bundle: _DiskBundle(),
+      size: Vector2(512, 512),
+    );
+    addTearDown(() => component.player?.dispose());
+    await component.onLoad();
+
+    final player = component.player!;
+    final apple = player.partIndexOf('apple');
+    expect(apple, greaterThanOrEqualTo(0));
+    expect(
+        player.setPartColorOverride(apple, SsBlendOp.mul,
+            const ui.Color(0xBF0033FF),
+            priority: SsOverridePriority.permanent),
+        isTrue);
+    expect(player.setPartVisibilityOverrideByName('heta', true), isTrue);
+    expect(player.clearAllPartOverrides(), isTrue);
+  });
+
   test('SpriteStudioComponent.asset resolves textures with no baseAssetDir',
       () async {
     final ssabPath = _firstExisting([
