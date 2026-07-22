@@ -44,6 +44,22 @@ class SsAnimeInfo {
           .toList(growable: false) ??
       const <String>[];
 
+  /// Names of the cells inside [cellmapName] (empty when the pack has no such
+  /// cellmap). Together with [cellmapNames] this is the discovery pair a cell
+  /// override needs — both names go to `setPartCellOverride` verbatim, and the
+  /// cellmap name carries no `.ssce` extension here either.
+  List<String> cellNames(String cellmapName) {
+    for (final c in _root.cellmaps ?? const <ssab.CellMap>[]) {
+      if (c.name != cellmapName) continue;
+      return c.cells
+              ?.map((cell) => cell.name)
+              .whereType<String>()
+              .toList(growable: false) ??
+          const <String>[];
+    }
+    return const <String>[];
+  }
+
   /// Image paths (for reference-mode textures), one per cellmap.
   List<String> get imagePaths =>
       _root.cellmaps

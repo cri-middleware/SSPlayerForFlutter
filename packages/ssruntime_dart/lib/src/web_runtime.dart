@@ -169,6 +169,21 @@ extension type _JsCtx(JSObject _) implements JSObject {
   external int get_passed_event_index(int index);
   external JSObject get_active_effect_event(int slotIndex);
   external JSObject get_active_event_instance(int slotIndex);
+  // Override layer (web/mod.rs §Override Layer). Every setter but
+  // `clear_all_part_overrides` returns a Rust `Result`, which wasm-bindgen
+  // surfaces as a THROW rather than a false — the callers below translate.
+  external int find_part_index(String partName);
+  external void set_part_visibility_override(int part, int force, bool cascade);
+  external void clear_part_visibility_override(int part);
+  external void set_part_color_override(
+      int part, int blendOp, int rgba, int priorityMode);
+  external void set_part_color_override_corners(
+      int part, int blendOp, JSUint32Array rgbaLtRtLbRb, int priorityMode);
+  external void clear_part_color_override(int part);
+  external void set_part_cell_override(
+      int part, int cellmapNameHash, int cellNameHash, int priorityMode);
+  external void clear_part_cell_override(int part);
+  external void clear_all_part_overrides();
   external void free();
 }
 
@@ -452,6 +467,71 @@ class _WebRuntime implements SsRuntime {
   @override
   int passedEventIndex(SsContext context, int index) =>
       _ctx(context).get_passed_event_index(index);
+
+  // --- Part overrides ----------------------------------------------------
+  //
+  // The wasm bindings signal rejection by throwing (a Rust `Result<(), JsValue>`
+  // becomes a JS exception), while the C-API — and therefore [SsRuntime] —
+  // returns false. [_ok] does that translation once so both backends present the
+  // same contract to Layer 2.
+
+  static bool _ok(void Function() call) {
+    try {
+      call();
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  @override
+  int findPartIndex(SsContext context, String partName) =>
+      _ctx(context).find_part_index(partName);
+
+  @override
+  bool setPartVisibilityOverride(SsContext context, int part, int force,
+          {required bool cascade}) =>
+      _ok(() =>
+          _ctx(context).set_part_visibility_override(part, force, cascade));
+
+  @override
+  bool clearPartVisibilityOverride(SsContext context, int part) =>
+      _ok(() => _ctx(context).clear_part_visibility_override(part));
+
+  @override
+  bool setPartColorOverride(SsContext context, int part, int blendOp, int rgba,
+          int priorityMode) =>
+      _ok(() => _ctx(context)
+          .set_part_color_override(part, blendOp, rgba, priorityMode));
+
+  @override
+  bool setPartColorOverrideCorners(SsContext context, int part, int blendOp,
+      Uint32List rgbaLtRtLbRb, int priorityMode) {
+    if (rgbaLtRtLbRb.length != 4) {
+      throw ArgumentError.value(rgbaLtRtLbRb, 'rgbaLtRtLbRb',
+          'must hold exactly 4 packed corners (lt, rt, lb, rb)');
+    }
+    return _ok(() => _ctx(context).set_part_color_override_corners(
+        part, blendOp, rgbaLtRtLbRb.toJS, priorityMode));
+  }
+
+  @override
+  bool clearPartColorOverride(SsContext context, int part) =>
+      _ok(() => _ctx(context).clear_part_color_override(part));
+
+  @override
+  bool setPartCellOverride(SsContext context, int part, int cellmapNameHash,
+          int cellNameHash, int priorityMode) =>
+      _ok(() => _ctx(context).set_part_cell_override(
+          part, cellmapNameHash, cellNameHash, priorityMode));
+
+  @override
+  bool clearPartCellOverride(SsContext context, int part) =>
+      _ok(() => _ctx(context).clear_part_cell_override(part));
+
+  @override
+  bool clearAllPartOverrides(SsContext context) =>
+      _ok(() => _ctx(context).clear_all_part_overrides());
 
   @override
   SsEffectSlot? createEffectSlot(

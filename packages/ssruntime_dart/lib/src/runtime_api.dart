@@ -114,6 +114,62 @@ abstract interface class SsRuntime {
   int passedEventCount(SsContext context);
   int passedEventIndex(SsContext context, int index);
 
+  // --- Part overrides (§65 Override Layer) -------------------------------
+
+  /// Per-part overrides are applied by the Brain at the seam *after* the
+  /// keyframe mix and *before* `FrameData` is composed, so they beat both the
+  /// keyframes and the blend. The Brain owns the whole table and its lifecycle
+  /// (`setupAnimation` clears all but [Permanent], a new [bindResource] clears
+  /// everything) — **never re-apply them per frame**.
+  ///
+  /// Parts are addressed by index only; the Body resolves names once. `false`
+  /// means the call was rejected (bad index / out-of-range enum / unresolvable
+  /// cell), NOT "the override had no visible effect": a part whose type the
+  /// attribute does not apply to still returns `true` and is ignored at the
+  /// seam.
+
+  /// Resolves a part name to its index in the current primary animation, or -1
+  /// when unknown / before `setupAnimation`. The Body keeps its own pack-level
+  /// name→index map (part indices are stable within one `.ssab`); this is the
+  /// Brain's own view of the same space.
+  int findPartIndex(SsContext context, String partName);
+
+  /// `force`: 0 = revert to the animation, 1 = force-hide, 2 = force-visible
+  /// (reserved by the Brain — currently always fails). With [cascade] the
+  /// force-hide propagates to the part's descendants. No priority mode: a
+  /// visibility override always wins and is cleared on `setupAnimation`.
+  bool setPartVisibilityOverride(SsContext context, int part, int force,
+      {required bool cascade});
+  bool clearPartVisibilityOverride(SsContext context, int part);
+
+  /// [rgba] is packed `0xRRGGBBAA` in the same 8-bit sRGB space as the authored
+  /// PartColor — the Brain pre-multiplies alpha itself, so do not fold the
+  /// part's alpha in here. `blendOp`: 0=Mix 1=Mul 2=Add 3=Sub (≥4 is rejected).
+  /// `priorityMode`: 0=OverwriteOnNextKeyframe 1=HoldUntilNextAnimation
+  /// 2=Permanent. Normal parts only.
+  bool setPartColorOverride(
+      SsContext context, int part, int blendOp, int rgba, int priorityMode);
+
+  /// Four-corner form of [setPartColorOverride]. [rgbaLtRtLbRb] must hold
+  /// exactly 4 packed values in the Brain's corner order `lt, rt, lb, rb`.
+  bool setPartColorOverrideCorners(SsContext context, int part, int blendOp,
+      Uint32List rgbaLtRtLbRb, int priorityMode);
+  bool clearPartColorOverride(SsContext context, int part);
+
+  /// Makes the part draw a different cell, named by the FNV-1a [hashString] of
+  /// its cellmap (without `.ssce`) and cell name. Resolution happens once, here
+  /// — an unresolvable cell fails immediately rather than per frame. `(0, 0)`
+  /// reverts to the animation. Normal + Mask parts only.
+  ///
+  /// A swap to a cell on another texture changes `DrawBatch.texture_hash` and
+  /// so the batch split; the Body just re-reads `draw_batches` as usual.
+  bool setPartCellOverride(SsContext context, int part, int cellmapNameHash,
+      int cellNameHash, int priorityMode);
+  bool clearPartCellOverride(SsContext context, int part);
+
+  /// Clears every per-part override on [context] (all parts, all attributes).
+  bool clearAllPartOverrides(SsContext context);
+
   // --- Effect slots (§8) -------------------------------------------------
 
   /// Creates a slot for [effectNameHash] against [resource], or null on bad

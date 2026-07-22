@@ -14,6 +14,7 @@ import 'render/geometry_builder.dart';
 import 'render/instance.dart';
 import 'render/mask.dart';
 import 'render/mask_context.dart';
+import 'render/part_override.dart';
 import 'package:ssruntime_dart/framedata.dart' as fbs;
 import 'texture_registry.dart';
 
@@ -31,6 +32,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
     this._resource,
     this.textures,
     this._maskFlags,
+    this._partNames,
     this._effects,
     this._backend,
   ) {
@@ -61,6 +63,11 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   MaskPartFlags flagsFor(int partIndex) => partIndex < _maskFlags.length
       ? _maskFlags[partIndex]
       : MaskPartFlags.none;
+
+  /// Pack-level part name → index table, read once from the `.ssab` `PartData`
+  /// alongside [_maskFlags]. Backs the by-name part-override overloads; indices
+  /// are stable within one `.ssab` (§65-4).
+  final PartNameTable _partNames;
 
   /// Per-part particle-effect slots (§8), stepped from [updateMs] because they
   /// need a delta time. Empty when the pack hosts no effects.
@@ -179,6 +186,10 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
       // Mask roles (§1-2) live in the static `.ssab` PartData, not in FrameData
       // and not in any SoA buffer — read them once here rather than per frame.
       MaskPartFlags.readAll(ssab),
+      // Part names come out of the same PartData block, for the by-name part
+      // overrides (§65). Indices are stable within one pack, so this is a load-
+      // time read too.
+      PartNameTable.readAll(ssab),
       // Same for the effect bindings; the slots themselves are created lazily.
       EffectSlots(resource, EffectPart.readAll(ssab)),
       renderBackend,
@@ -477,6 +488,207 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
     return List<int>.generate(
         count, (i) => ssRuntime.passedEventIndex(_context, i));
   }
+
+  // --- Part overrides (§65 Override Layer) ---------------------------------
+  //
+  // An imperative "make this part this colour / cell / hidden now" that wins
+  // over both the keyframes and the blend. The Brain applies them at a seam
+  // AFTER the keyframe mix and BEFORE FrameData is composed, and it owns the
+  // whole table and its lifecycle — so this player keeps no copy and must NOT
+  // re-apply them per frame. `setupAnimation` clears everything but
+  // `SsOverridePriority.permanent`; a new pack clears everything.
+  //
+  // Parts are addressed by index; the by-name overloads resolve once through
+  // [partNames] (an unknown name is -1, and the call is a no-op returning
+  // false). A `false` return means the call was REJECTED — a part whose type
+  // the attribute does not apply to (a colour override on a Null part, say)
+  // still returns true and is simply ignored at the seam, so never use the
+  // return value to decide whether an override is visible.
+  //
+  // **[setupAnimation] must have run first.** The Brain's override table is a
+  // dense per-part array that only `setup_animation` sizes (`bind_resource`
+  // empties it), so before an animation is selected EVERY index is out of range
+  // and every call here returns false. §65 does not spell this out — it only
+  // says `find_part_index` needs setup — but it applies to the setters just as
+  // much. [partNames] is read from the pack and so works either way, which is
+  // exactly how a caller ends up with a valid index and a failing set.
+  //
+  // Unlike the Unity player there is no frame cache to invalidate here: [paint]
+  // re-reads `getFrameData` every frame, so a set/clear shows up on the next
+  // paint. What a paused player DOES need is a repaint — L3
+  // `SpriteStudioPlayer` notifies its listeners for exactly that reason.
+
+  /// Pack-level part names / name→index lookup (§65-4). Indices are stable
+  /// within one `.ssab`; resolve once and reuse.
+  PartNameTable get partNames => _partNames;
+
+  /// Resolves [name] to its part index, or -1 when this pack has no such part.
+  int partIndexOf(String name) => _partNames.indexOf(name);
+
+  /// Force-hides [partIndex] ([hide] true) or reverts it to the animation.
+  /// With [cascade] the force-hide propagates to the part's descendants.
+  ///
+  /// Visibility has no priority mode — it always wins, and `setupAnimation`
+  /// always clears it. Note the cascade only propagates override-driven hiding:
+  /// a keyframe `hide` stays per-part (§65-3-3), so do not add your own parent→
+  /// child propagation on top.
+  ///
+  /// An instance part's own force-hide does NOT reach into its child animation
+  /// (a separate context); skipping the child's drawing is the Body's job.
+  bool setPartVisibilityOverride(int partIndex, bool hide,
+      {bool cascade = false}) {
+    _ensureAlive();
+    if (partIndex < 0) return false;
+    // force: 0 = clear/revert, 1 = force-hide (2 = force-visible is reserved).
+    return ssRuntime.setPartVisibilityOverride(
+        _context, partIndex, hide ? 1 : 0,
+        cascade: cascade);
+  }
+
+  /// By-name form of [setPartVisibilityOverride].
+  bool setPartVisibilityOverrideByName(String partName, bool hide,
+          {bool cascade = false}) =>
+      setPartVisibilityOverride(partIndexOf(partName), hide, cascade: cascade);
+
+  /// Clears [partIndex]'s visibility override (revert to the animation).
+  bool clearPartVisibilityOverride(int partIndex) {
+    _ensureAlive();
+    if (partIndex < 0) return false;
+    return ssRuntime.clearPartVisibilityOverride(_context, partIndex);
+  }
+
+  /// By-name form of [clearPartVisibilityOverride].
+  bool clearPartVisibilityOverrideByName(String partName) =>
+      clearPartVisibilityOverride(partIndexOf(partName));
+
+  /// Overrides [partIndex]'s colour with one value flowed to all four corners.
+  /// Normal parts only — other types return true and are ignored at the seam.
+  ///
+  /// [color] is read in the same 8-bit sRGB space as the authored PartColor and
+  /// the Brain pre-multiplies the part's composed alpha itself, so do NOT
+  /// gamma-convert it or fold `PartState.alpha` in. Overriding a part the
+  /// animation gave no PartColor makes the Brain emit it as a 5-vertex fan
+  /// instead of a quad; the bake path handles both, so nothing else changes.
+  bool setPartColorOverride(int partIndex, SsBlendOp blendOp, ui.Color color,
+      {SsOverridePriority priority = SsOverridePriority.holdUntilNextAnimation}) {
+    _ensureAlive();
+    if (partIndex < 0) return false;
+    return ssRuntime.setPartColorOverride(
+        _context, partIndex, blendOp.value, packRgba(color), priority.value);
+  }
+
+  /// By-name form of [setPartColorOverride].
+  bool setPartColorOverrideByName(
+          String partName, SsBlendOp blendOp, ui.Color color,
+          {SsOverridePriority priority =
+              SsOverridePriority.holdUntilNextAnimation}) =>
+      setPartColorOverride(partIndexOf(partName), blendOp, color,
+          priority: priority);
+
+  /// Four-corner form of [setPartColorOverride] (a gradient). The corner order
+  /// is the Brain's: left-top, right-top, left-bottom, right-bottom — swapping
+  /// [leftBottom] and [rightTop] silently mirrors the gradient.
+  bool setPartColorOverrideCorners(
+    int partIndex,
+    SsBlendOp blendOp, {
+    required ui.Color leftTop,
+    required ui.Color rightTop,
+    required ui.Color leftBottom,
+    required ui.Color rightBottom,
+    SsOverridePriority priority = SsOverridePriority.holdUntilNextAnimation,
+  }) {
+    _ensureAlive();
+    if (partIndex < 0) return false;
+    final corners = Uint32List(4)
+      ..[0] = packRgba(leftTop)
+      ..[1] = packRgba(rightTop)
+      ..[2] = packRgba(leftBottom)
+      ..[3] = packRgba(rightBottom);
+    return ssRuntime.setPartColorOverrideCorners(
+        _context, partIndex, blendOp.value, corners, priority.value);
+  }
+
+  /// By-name form of [setPartColorOverrideCorners].
+  bool setPartColorOverrideCornersByName(
+    String partName,
+    SsBlendOp blendOp, {
+    required ui.Color leftTop,
+    required ui.Color rightTop,
+    required ui.Color leftBottom,
+    required ui.Color rightBottom,
+    SsOverridePriority priority = SsOverridePriority.holdUntilNextAnimation,
+  }) =>
+      setPartColorOverrideCorners(partIndexOf(partName), blendOp,
+          leftTop: leftTop,
+          rightTop: rightTop,
+          leftBottom: leftBottom,
+          rightBottom: rightBottom,
+          priority: priority);
+
+  /// Clears [partIndex]'s colour override (revert to the animation).
+  bool clearPartColorOverride(int partIndex) {
+    _ensureAlive();
+    if (partIndex < 0) return false;
+    return ssRuntime.clearPartColorOverride(_context, partIndex);
+  }
+
+  /// By-name form of [clearPartColorOverride].
+  bool clearPartColorOverrideByName(String partName) =>
+      clearPartColorOverride(partIndexOf(partName));
+
+  /// Makes [partIndex] draw a different cell. [cellmapName] carries NO `.ssce`
+  /// extension. Normal + Mask parts only.
+  ///
+  /// The cell is resolved once, here — an unresolvable cellmap/cell name fails
+  /// immediately (false) rather than costing a hash lookup per frame. Passing
+  /// two empty names reverts the part to the animation. If the new cell lives on
+  /// another texture the batch split changes; [paint] just re-reads
+  /// `draw_batches`, so only a caller that assumed a fixed batch count breaks.
+  bool setPartCellOverride(int partIndex, String cellmapName, String cellName,
+      {SsOverridePriority priority = SsOverridePriority.holdUntilNextAnimation}) {
+    _ensureAlive();
+    if (partIndex < 0) return false;
+    // (0, 0) is the Brain's "follow the animation" sentinel, and an empty name
+    // hashes to 0 — so empty/empty reverts, exactly as documented.
+    return ssRuntime.setPartCellOverride(
+        _context,
+        partIndex,
+        _hashName(cellmapName),
+        _hashName(cellName),
+        priority.value);
+  }
+
+  /// By-name form of [setPartCellOverride].
+  bool setPartCellOverrideByName(
+          String partName, String cellmapName, String cellName,
+          {SsOverridePriority priority =
+              SsOverridePriority.holdUntilNextAnimation}) =>
+      setPartCellOverride(partIndexOf(partName), cellmapName, cellName,
+          priority: priority);
+
+  /// Clears [partIndex]'s cell override (revert to the animation).
+  bool clearPartCellOverride(int partIndex) {
+    _ensureAlive();
+    if (partIndex < 0) return false;
+    return ssRuntime.clearPartCellOverride(_context, partIndex);
+  }
+
+  /// By-name form of [clearPartCellOverride].
+  bool clearPartCellOverrideByName(String partName) =>
+      clearPartCellOverride(partIndexOf(partName));
+
+  /// Clears every per-part override on this player (all parts, all attributes).
+  /// Does not recurse into instance children — each child owns its own context
+  /// and therefore its own override table.
+  bool clearAllPartOverrides() {
+    _ensureAlive();
+    return ssRuntime.clearAllPartOverrides(_context);
+  }
+
+  /// FNV-1a via the Brain's own hasher, so a cell override keys on exactly the
+  /// hashes the pack was built with (never re-implement it in Dart). An empty
+  /// name hashes to 0 — the revert sentinel.
+  int _hashName(String name) => name.isEmpty ? 0 : ssRuntime.hashString(name);
 
   // --- Rendering -----------------------------------------------------------
 

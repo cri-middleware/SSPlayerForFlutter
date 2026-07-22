@@ -322,6 +322,73 @@ class _NativeRuntime implements SsRuntime {
   int passedEventIndex(SsContext context, int index) =>
       ss_runtime_get_passed_event_index(_ctx(context), index);
 
+  // --- Part overrides ----------------------------------------------------
+
+  @override
+  int findPartIndex(SsContext context, String partName) {
+    final cName = partName.toNativeUtf8();
+    try {
+      return ss_runtime_find_part_index(_ctx(context), cName.cast());
+    } finally {
+      malloc.free(cName);
+    }
+  }
+
+  @override
+  bool setPartVisibilityOverride(SsContext context, int part, int force,
+          {required bool cascade}) =>
+      ss_runtime_set_part_visibility_override(
+          _ctx(context), part, force, cascade ? 1 : 0);
+
+  @override
+  bool clearPartVisibilityOverride(SsContext context, int part) =>
+      ss_runtime_clear_part_visibility_override(_ctx(context), part);
+
+  @override
+  bool setPartColorOverride(SsContext context, int part, int blendOp, int rgba,
+          int priorityMode) =>
+      ss_runtime_set_part_color_override(
+          _ctx(context), part, blendOp, rgba, priorityMode);
+
+  @override
+  bool setPartColorOverrideCorners(SsContext context, int part, int blendOp,
+      Uint32List rgbaLtRtLbRb, int priorityMode) {
+    if (rgbaLtRtLbRb.length != 4) {
+      throw ArgumentError.value(rgbaLtRtLbRb, 'rgbaLtRtLbRb',
+          'must hold exactly 4 packed corners (lt, rt, lb, rb)');
+    }
+    // Unlike the SoA getters this is an IN array, so it needs real native
+    // storage for the duration of the call rather than a scratch out-cell.
+    final buf = calloc<ffi.Uint32>(4);
+    try {
+      for (var i = 0; i < 4; i++) {
+        buf[i] = rgbaLtRtLbRb[i];
+      }
+      return ss_runtime_set_part_color_override_corners(
+          _ctx(context), part, blendOp, buf, priorityMode);
+    } finally {
+      calloc.free(buf);
+    }
+  }
+
+  @override
+  bool clearPartColorOverride(SsContext context, int part) =>
+      ss_runtime_clear_part_color_override(_ctx(context), part);
+
+  @override
+  bool setPartCellOverride(SsContext context, int part, int cellmapNameHash,
+          int cellNameHash, int priorityMode) =>
+      ss_runtime_set_part_cell_override(
+          _ctx(context), part, cellmapNameHash, cellNameHash, priorityMode);
+
+  @override
+  bool clearPartCellOverride(SsContext context, int part) =>
+      ss_runtime_clear_part_cell_override(_ctx(context), part);
+
+  @override
+  bool clearAllPartOverrides(SsContext context) =>
+      ss_runtime_clear_all_part_overrides(_ctx(context));
+
   // --- Effect slots ------------------------------------------------------
 
   @override
