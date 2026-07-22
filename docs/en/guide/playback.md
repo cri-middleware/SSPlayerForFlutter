@@ -76,6 +76,11 @@ _player.onComplete = () {
 };
 ```
 
+## Overriding individual parts
+
+To give one part a different colour / cell — or hide it — in a way that beats the keyframes, see
+[Part Overrides](part-overrides.md).
+
 ## Live updates during development
 
 To hot-swap a re-exported `.ssab` without losing transport state, see
