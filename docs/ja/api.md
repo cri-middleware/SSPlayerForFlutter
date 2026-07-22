@@ -20,5 +20,7 @@ dart doc
 - **`SpriteStudioPlayer`**（L3）—— トランスポート / イベント。[再生とイベント](guide/playback.md) を参照。
 - **`SpriteStudioView`**（L4）—— `RenderBox` ウィジェット。[クイックスタート](guide/quickstart.md) を参照。
 - **`SpriteStudioComponent`**（`ssplayer_flame`）—— Flame アダプタ。[Flame 連携](guide/flame.md) を参照。
-- **`SsAnimeInfo`** —— `.ssab` バイト列からアニメーション / セルマップ名を列挙。
+- **`SsBlendOp` / `SsOverridePriority` / `PartNameTable`** —— パーツオーバーライド。
+  [パーツオーバーライド](guide/part-overrides.md) を参照。
+- **`SsAnimeInfo`** —— `.ssab` バイト列からアニメーション / セルマップ / セル名を列挙。
 - **`SsConverter` / `ssconvert`**（`ssconverter_dart`）—— [アセット準備](guide/conversion.md) を参照。

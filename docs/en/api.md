@@ -20,5 +20,7 @@ dart doc
 - **`SpriteStudioPlayer`** (L3) — transport / events. See [Playback & Events](guide/playback.md).
 - **`SpriteStudioView`** (L4) — the `RenderBox` widget. See [Quick Start](guide/quickstart.md).
 - **`SpriteStudioComponent`** (`ssplayer_flame`) — Flame adapter. See [Flame Integration](guide/flame.md).
-- **`SsAnimeInfo`** — enumerate animation / cellmap names from `.ssab` bytes.
+- **`SsBlendOp` / `SsOverridePriority` / `PartNameTable`** — part overrides. See
+  [Part Overrides](guide/part-overrides.md).
+- **`SsAnimeInfo`** — enumerate animation / cellmap / cell names from `.ssab` bytes.
 - **`SsConverter` / `ssconvert`** (`ssconverter_dart`) — see [CLI Conversion](guide/conversion.md).

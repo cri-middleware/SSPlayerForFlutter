@@ -62,6 +62,7 @@ nav:
       - Installation: guide/install.md
       - Quick Start: guide/quickstart.md
       - Playback & Events: guide/playback.md
+      - Part Overrides: guide/part-overrides.md
       - Flame Integration: guide/flame.md
       - Preparing Assets (.sspj → .ssab): guide/conversion.md
       - Live Reload: guide/live-reload.md
