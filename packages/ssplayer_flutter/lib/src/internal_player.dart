@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:ssruntime_dart/effect_draw_plan.dart' as efbs;
 import 'package:ssruntime_dart/ssruntime_dart.dart';
 import 'render/backend/backend_kind.dart';
@@ -14,6 +15,7 @@ import 'render/geometry_builder.dart';
 import 'render/instance.dart';
 import 'render/mask.dart';
 import 'render/mask_context.dart';
+import 'render/part_color.dart';
 import 'render/part_override.dart';
 import 'package:ssruntime_dart/framedata.dart' as fbs;
 import 'texture_registry.dart';
@@ -141,6 +143,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
     TextureRegistry? textures,
     Map<int, Uint8List>? instancePacks,
     SpriteStudioBackend backend = SpriteStudioBackend.auto,
+    @visibleForTesting RenderBackend? renderBackendOverride,
   }) {
     // Copy mode: the Brain copies the bytes onto its own heap and retains no
     // pointer into `ssab` (the native backend does a zero-copy leaf hand-off).
@@ -175,10 +178,14 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
     // Resolve the requested backend through the capability probe: gpu only when
     // flutter_gpu is actually usable, else Canvas (which never throws). Every
     // player in an instance tree gets the same choice.
-    final renderBackend =
-        resolveBackend(backend) == SpriteStudioBackend.gpu
+    // A whole instance tree shares one backend (children draw through the
+    // parent's), so the override is applied at the root only; children inherit
+    // it by drawing through the same instance. Tests use it to observe the
+    // per-frame lifetime contract without a real engine.
+    final renderBackend = renderBackendOverride ??
+        (resolveBackend(backend) == SpriteStudioBackend.gpu
             ? createFlutterGpuBackend()
-            : CanvasBackend();
+            : CanvasBackend());
     final player = SpriteStudioInternalPlayer._(
       context,
       resource,
@@ -704,6 +711,13 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   /// for now, as is BoxFit / scale placement into [dst].
   void paint(ui.Canvas canvas, {ui.Rect? dst, ui.Size? sourceSize}) {
     _ensureAlive();
+    // Per-FRAME, not per-player: both hooks recycle resources that stay live
+    // until the recorded picture rasterises, so an instance child must never run
+    // them — doing so frees/rebinds what the parent's already-recorded draws are
+    // still pointing at (a disposed coverage bitmap, or a pooled shader whose
+    // uniforms get overwritten before it is rasterised).
+    _backend.releaseCoverage();
+    _backend.rewindShaderPools();
     _backend.beginFrame(canvas, dst: dst, sourceSize: sourceSize);
     // The whole tree draws through THIS player's backend — including instance
     // children (§8), which share it so their geometry lands in the same target
@@ -726,8 +740,6 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
     double alphaScale = 1.0,
     MaskDraw? inheritedMask,
   }) {
-    // Last frame's coverage has been rasterised by now; release it.
-    backend.releaseCoverage();
     // Sub-frame ON (default): sample the fractional frame for smooth playback;
     // OFF: snap to the integer frame. This is the ONLY place a frame gets
     // rounded — the playback state that feeds `ss_instance_slot_step` stays raw.
@@ -784,9 +796,6 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
     );
     if (frame == null) return;
 
-    // Rewind the backend's per-frame shader pools (reused across frames).
-    backend.rewindShaderPools();
-
     // Masking (§9) is a pre-pass: collect this frame's writers, rasterise their
     // coverage bitmap, then let the batch loop test each target against it.
     // Unlike the flagship's viewport (1-frame latency, size classes, shrink
@@ -794,17 +803,17 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
     // none of that machinery is needed.
     final maskCtx = _buildMaskContext(backend, frame, batches);
 
-    // A mask inherited from a parent instance (§3-2-2) reaches only the child's
-    // peel-maskable kinds — Normal and Shape. Mesh/Effect are not peeled (no quad
-    // affine / can't threshold a deformed-mesh UV), and nested Instances are
-    // deliberately single-level, so those child kinds escape the parent clip —
-    // the same kinds an own-mask can't gate either.
+    // A mask inherited from a parent instance (§3-2-2) reaches the child's
+    // peel-maskable kinds — Normal, Shape and Mesh. Effect is not peeled (its
+    // plan carries its own colours), and nested Instances are deliberately
+    // single-level, so those child kinds escape the parent clip — the same kinds
+    // an own-mask can't gate either.
     for (final batch in batches) {
       switch (batch.kind) {
         case fbs.DrawBatchKind.Normal:
           backend.emitNormal(canvas, batch, frame, this, maskCtx, inheritedMask);
         case fbs.DrawBatchKind.Mesh:
-          backend.emitMesh(canvas, batch, frame, this);
+          backend.emitMesh(canvas, batch, frame, this, maskCtx, inheritedMask);
         case fbs.DrawBatchKind.Effect:
           backend.emitEffect(canvas, batch, frame, this);
         case fbs.DrawBatchKind.Instance:
@@ -844,9 +853,18 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
       final world = GeometryBuilder.world2dOf(part, frame);
       if (world == null) continue;
 
+      // The instance part's own PartColor (§10) tints the entire child. The SDK
+      // spec's part-type table (§1-2) covers Normal / Mesh / Shape only, but the
+      // runtime emits `part_color` for any part that carries the attribute, so
+      // an instance part can have one — read whole-only, like a Mesh.
+      final st = frame.partOf(part);
+      final pc = st == null ? null : PartColor.read(frame.partsColor, st);
+
       // The instance part's own alpha modulates the entire child, and compounds
-      // down a nested chain. `alphaOf` already folds in this frame's own scale.
-      final alpha = frame.alphaOf(part);
+      // down a nested chain (see [PartColor.instanceAlpha] for the PartColor
+      // case, where the corner alpha replaces `PartState.alpha`).
+      final alpha = PartColor.instanceAlpha(pc,
+          partAlpha: frame.alphaOf(part), chainScale: frame.alphaScale);
       if (alpha <= 0.0) continue;
 
       // §3-2-2: this player's mask reaches an instance child that is itself a
@@ -863,7 +881,16 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
       // recursion) under the composed transform — Canvas: save+transform; GPU:
       // the world matrix folds into the projection. So the child's geometry lands
       // in the same target/canvas at the instance part's place.
+      // The instance part's PartColor tints the child as a GROUP — one filter
+      // over the finished subtree — where alpha instead folds per-part through
+      // [alphaScale]. The two differ deliberately: a group *alpha* disagrees
+      // with the flagship's per-part modulate wherever child parts overlap (§8),
+      // while a group *colour* is the only reading available at all, since the
+      // formula's offset term (Mix / Add / Sub) cannot be folded into a child's
+      // vertex colours. `rate == 0` yields no matrix and no layer.
+      final tint = pc?.wholeTintMatrix();
       backend.pushTransform(canvas, world);
+      if (tint != null) backend.pushGroupTint(canvas, tint);
       state.child._paintTree(
         canvas,
         backend,
@@ -871,6 +898,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
         alphaScale: alpha,
         inheritedMask: inherited,
       );
+      if (tint != null) backend.popGroupTint(canvas);
       backend.popTransform(canvas);
     }
   }

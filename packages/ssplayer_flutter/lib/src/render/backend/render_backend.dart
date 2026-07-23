@@ -32,12 +32,17 @@ abstract class RenderBackend {
   /// and composites the render target onto [beginFrame]'s canvas.
   void finish();
 
-  /// Rewinds the per-frame shader/scratch pools. Called at each `_paintTree`
-  /// start (per player, including instance children).
+  /// Rewinds the per-frame shader/scratch pools. Called **once per top-level
+  /// frame**, before [beginFrame] — never per player: the pool hands out shader
+  /// objects that a recorded picture reads at raster time, so rewinding it in
+  /// the middle of a frame would let an instance child overwrite the uniforms of
+  /// draws its parent has already recorded.
   void rewindShaderPools();
 
-  /// Releases the previous frame's coverage resource (last frame's has been
-  /// rasterised by now). Called at each `_paintTree` start.
+  /// Releases the previous frame's coverage resources (last frame's have been
+  /// rasterised by now). Called **once per top-level frame**, before
+  /// [beginFrame] — never per player, for the same reason: a masked parent's
+  /// coverage must outlive its instance children's drawing.
   void releaseCoverage();
 
   /// Emits one Normal batch (§7/§9/§10), preserving draw order. Plain parts batch;
@@ -50,9 +55,12 @@ abstract class RenderBackend {
   void emitShape(ui.Canvas canvas, fbs.DrawBatch batch, DrawFrame frame,
       RenderHost host, MaskContext? maskCtx, MaskDraw? inheritedMask);
 
-  /// Emits one Mesh batch (§8): world-space verts, one indexed draw.
-  void emitMesh(
-      ui.Canvas canvas, fbs.DrawBatch batch, DrawFrame frame, RenderHost host);
+  /// Emits one Mesh batch (§8): world-space verts, one indexed draw. Parts
+  /// carrying PartColor (§10, *whole-only* — the `lt` corner tints the whole
+  /// part) and/or a mask test (§9) are peeled out of that draw, the same way
+  /// [emitNormal] peels its own.
+  void emitMesh(ui.Canvas canvas, fbs.DrawBatch batch, DrawFrame frame,
+      RenderHost host, MaskContext? maskCtx, MaskDraw? inheritedMask);
 
   /// Emits one Effect batch (§8): the particle plans, grouped per cellmap+blend.
   void emitEffect(
@@ -72,6 +80,23 @@ abstract class RenderBackend {
   /// through THIS backend (shared across the recursion) between the two calls.
   void pushTransform(ui.Canvas canvas, Float64List world);
   void popTransform(ui.Canvas canvas);
+
+  /// Brackets an instance child's draw with a **group tint** — the PartColor
+  /// (§10) carried by the instance part itself, applied to the whole sub-
+  /// animation once it is composited (§8).
+  ///
+  /// [matrix] is the row-major 4×5 colour matrix from
+  /// `PartColor.wholeTintMatrix` (an Instance part is whole-only, like a Mesh).
+  /// Canvas: `saveLayer` with a `ColorFilter.matrix`. GPU: an offscreen pass the
+  /// subtree draws into, composited back through the colour-matrix pipeline.
+  /// Calls nest with [pushTransform]/[popTransform] and with each other.
+  ///
+  /// The tint is a *group* operation on purpose — one filter over the finished
+  /// subtree — unlike alpha, which folds per-part down the chain
+  /// (`DrawFrame.alphaScale`). Overlapping semi-transparent children therefore
+  /// tint as a unit.
+  void pushGroupTint(ui.Canvas canvas, List<double> matrix);
+  void popGroupTint(ui.Canvas canvas);
 
   /// Releases backend-owned GPU/Canvas resources. Called from the player's
   /// `dispose()`.

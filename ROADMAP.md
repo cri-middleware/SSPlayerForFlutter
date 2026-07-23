@@ -136,21 +136,43 @@ draw-call count of *peeled* shader parts.
   kinds and fitting the animation's design bounds into the destination box. Shape
   and the other kinds already ship; see the kind matrix in
   [`docs/architecture.ja.md` §11-A](./docs/architecture.ja.md).
-- ☐ **Mesh PartColor / mask-target** and **Instance-part own PartColor** — the
-  remaining cross-cutting gaps in the kind matrix
-  ([`docs/architecture.ja.md` §11-A](./docs/architecture.ja.md)). Mesh
-  PartColor/mask-target is bounded by the same no-varyings shader constraint as the
-  fan-out item above; Instance-part PartColor is unimplemented in the Godot flagship
-  too (only α propagates today). (Instance-*child* mask inheritance §3-2-2 already
-  ships — see the matrix.)
+- ☑ **Mesh PartColor / mask-target** and **Instance-part own PartColor** — the last
+  cross-cutting gaps in the kind matrix
+  ([`docs/architecture.ja.md` §11-A](./docs/architecture.ja.md)), now closed on
+  **both** backends. The no-varyings constraint turned out not to bind: a
+  *whole-only* tint (§10's Mesh rule) is one affine on rgb, so Canvas applies it
+  as a `ui.ColorFilter.matrix` on the draw's own paint (no shader, no peel) and
+  flutter_gpu reuses the existing PartColor pipeline unchanged — the mesh bake
+  tags every vertex `st=(0,0)`, which resolves the four-corner mix to `lt`. Mesh
+  mask targets gate via `BlendMode.dstIn` over a layer (Canvas) / the pipeline's
+  `v_local` mask replay (GPU). Instance-part PartColor — outside the SDK spec's
+  part-type table, and unimplemented in the Godot flagship, but real data since
+  the runtime emits `part_color` for any part carrying the attribute — applies as
+  a **group tint** over the child subtree (`saveLayer` + `ColorFilter` / an
+  offscreen pass + the new `colormatrix` pipeline), deliberately asymmetric with
+  α, which keeps folding per-part.
+  - **Caveat — no asset exercises the tint.** Not one pack in `examples/overall`,
+    nor the SDK's own `allAttributeV7/partsColor.ssae`, puts a PartColor on a Mesh
+    or Instance part (all Normal), and the Override Layer is Normal-only, so it
+    cannot be synthesised at runtime either. The whole-tint formula is unit-tested
+    against the shader's own maths, and the **Canvas** mesh-mask path is covered
+    by the parity suite (`Mask.ssab` has masked mesh parts) — but note that suite
+    runs Canvas-vs-Canvas (see the flutter_gpu item below: Impeller is not enabled,
+    so the GPU half never executes). The *tint itself* has never been seen on
+    screen on either backend. **Author a `.sspj` with a PartColored mesh + instance
+    part** — and validate on a real Impeller+FlutterGPU target — to close this out.
 
 ## ☐/⛔ SDK-integration features
 
-- ☐ **Per-part runtime overrides (color / cell / visibility)** — the SDK
-  **Override Layer API** (Phase 2) is **shipped** (`[x]` in `SpriteStudio-SDK/ROADMAP.md`),
-  so this is now Player-side work: wrap the override FFI in L2 (via a
-  part-index resolver) and expose `setPartColor` / `setPartCell` / `setPartVisible`
-  on L3, matching the Unity/Web sibling surface.
+- ☑ **Per-part runtime overrides (color / cell / visibility)** — shipped
+  (`dad4d22`): the SDK **Override Layer API** (§65) wrapped in L2 behind a
+  part-name → index resolver and exposed on L3 as
+  `setPartColorOverride` / `setPartCellOverride` / `setPartVisibilityOverride`
+  (plus `…ByName`, a four-corner colour form, and the matching `clear…`),
+  matching the Unity/Web sibling surface. **Normal parts only** — the Brain
+  ignores the override for other part types at its own seam, which is why an
+  override cannot stand in for authored Mesh/Instance PartColor data (see the
+  caveat below).
 - ⛔ **Dynamic instance animation swap** — replace the animation mounted on an
   Instance part at runtime. Blocked on the SDK Phase 3 **Instance Lifecycle API
   (dynamic instance swap + shared resource registry)**.
@@ -163,22 +185,76 @@ draw-call count of *peeled* shader parts.
 
 ## 🕒 Deferred ("あとで")
 
-- ☑ **`flutter_gpu` renderer backend** — shipped as an opt-in second `RenderBackend`
-  behind `SpriteStudioBackend` (default `auto`: flutter_gpu where Impeller is
-  available, Canvas otherwise / always on Web). It renders every kind — Normal,
-  Mesh, Shape, Effect, PartColor, Mask, Instance — into an offscreen Impeller
-  render target and composites it back with `canvas.drawImage`, **byte-for-byte
-  identical to the Canvas backend** — verified on-device on **macOS + iOS (Metal)
-  and Android (Vulkan)** by an integration test comparing both backends
-  pixel-by-pixel (`examples/overall/integration_test/gpu_backend_test.dart`; Web
-  falls back to Canvas and tree-shakes flutter_gpu out entirely). The peeled
-  PartColor/mask fan-out is collapsed into batched draws via per-vertex attributes
-  + a UBO array — the win this backlog item existed for. Per-batch blend maps the
-  fixed-function-expressible SS modes exactly (Mix/Add/Sub/Screen and
-  Multiply-over-opaque). **Remaining (all edge cases):** a framebuffer-read shader
-  for the rare Exclusion / Invert / Multiply-over-transparency modes; masked
-  instance-child inheritance (§3-2-2); and `Nines`/`Text` (unimplemented in both
-  backends). See `docs/architecture.ja.md`.
+- ⚠️ **`flutter_gpu` renderer backend — code shipped, NOT actually validated.**
+  A second `RenderBackend` behind `SpriteStudioBackend` (default `auto`:
+  flutter_gpu where Impeller is available, Canvas otherwise / always on Web). The
+  code renders every kind — Normal, Mesh, Shape, Effect, PartColor, Mask,
+  Instance — into an offscreen Impeller render target and composites it back with
+  `canvas.drawImage`.
+  - **Correction (2026-07-23):** the previous "byte-for-byte identical, verified
+    on Metal/Vulkan, `rgbMeanDiff=0.00`" claim was **wrong**, and the parity
+    suite is not trustworthy: (1) `gpu_backend_test.dart` runs `flutter test -d
+    macos` **without** `--enable-impeller --enable-flutter-gpu`, so
+    `isFlutterGpuAvailable()` is false and it **falls back to Canvas** — it has
+    only ever compared Canvas-vs-Canvas; and (2) even with both flags on, its
+    `pic.toImage()` capture of the GPU render target is unreliable (a pack that
+    renders correctly on-device — e.g. Mask — reads 0 opaque px there), so its
+    per-pack numbers are noise.
+  - **On-device isolation (the only source of truth) found and FIXED one real
+    bug:** mask-target Shapes rendered white because ShapeMask's `[pos.xy, rgba]`
+    (6-float) vertex layout put the `vec4` colour at byte offset 8, which Impeller
+    misreads (it 16-byte-aligns a vertex `vec4`). Fixed with an 8-float `[pos.xy,
+    local.xy, rgba]` layout (colour at offset 16), mirroring the working sprite
+    pipeline (`buildShapeColorInterleaved` + `shaders/gpu/shapemask.vert`). Mask
+    and Shape now match Canvas on-device (macOS/Metal). No other vertex bake has a
+    `vec4` at a non-16-aligned offset, so this is the whole class.
+  - **Known-broken — peeled PartColor tint on GPU (NOT fixed).** A Normal (or
+    Mesh/Instance) part with a *real* PartColor tint (`rate > 0`) renders as its
+    raw texture on the GPU backend — the tint is dropped. Root cause: the batched
+    PartColor pipeline reads each part's data from a UBO array indexed by a
+    per-vertex `a_part` (`pc.data[part*9 + k]`), and **Impeller/Metal miscompiles
+    `uniformArray[dynamicIndex + constant]`** — it returns 0 for rate/coef/mask
+    (verified on macOS: `pc.data[base]` reads right, `pc.data[base + 4]` reads 0).
+    Mask.ssab hid this because its masked parts use *passthrough* PartColor (white
+    corners, rate 0), which looks the same whether the tint applies or not; only
+    a genuinely tinted part (Shape.ssab's "Normal" part, Mul blend) exposes it.
+    - Attempted fixes that did NOT work: a local-array copy with an incrementing
+      index (compiler folds it back); one-draw-per-part with literal `data[0..8]`
+      indexing (then a *small* UBO gets mis-bound and reads 0; oversizing it back
+      to `data[360]` still read 0 in that path, cause not isolated). Reverted to
+      the committed batched form.
+    - **Recommended fix (not yet done) — do what Godot/Web already do.** The
+      sibling players batch peeled PartColor parts with **per-vertex attributes**,
+      not a UBO: ssplayer-webgl's `PartsColorProgram` carries `aColor` (the corner
+      colour) + `aVarg` (rate + Mix/Mul/AddSub selectors) per vertex and the
+      hardware interpolates the 4-corner gradient for free; Godot uses the same
+      `CUSTOM0 = (rate, blend_idx, pma, 0)`. No UBO, no dynamic index — which is
+      why raw WebGL (as low-level as flutter_gpu) has none of these bugs.
+    - **Why this backend didn't do that:** it was ported from the *Canvas*
+      backend, which reconstructs the bilinear gradient in the fragment from
+      **uniforms** because **dart:ui runtime-effect shaders cannot take custom
+      per-vertex varyings** — a hard dart:ui limitation. flutter_gpu is NOT
+      dart:ui: its shaders are real GLSL with varyings (the sprite pipeline
+      already uses a per-vertex `a_color`), so it should have used the
+      Godot/Web per-vertex-attribute design from the start and never needed a UBO.
+      The doc's "Flutter can't do custom varyings" note applies to Canvas only.
+    - So the fix is: move colour / rate / blend-selectors (and the mask
+      bits/uv/off) into per-vertex attributes, drop the `PartColorInfo` UBO
+      entirely. Proven by the siblings, simpler than the current fragment
+      reconstruction, and it sidesteps every Impeller UBO bug hit here.
+  - **Still experimental (unverified on-device):** Effect / Instance-tint /
+    BlendMode / Basic. Canvas remains the default and the reference.
+  - Design intent (as built): peeled PartColor/mask fan-out collapses into batched
+    draws via per-vertex attributes + a UBO array (the UBO array being exactly
+    what's broken above); per-batch blend maps the fixed-function-expressible SS
+    modes; masked instance-child inheritance (§3-2-2) rides the peel path via each
+    `MaskDraw`'s coverage handle.
+  - Next step: (a) the flat-attribute rewrite above to make PartColor tint work on
+    GPU; (b) fix `gpu_backend_test` to require both flags and fail (not silently
+    pass on Canvas) when GPU is unavailable, with a trustworthy GPU capture.
+  - **Remaining (edge cases, on top of the above):** a framebuffer-read shader for
+    Exclusion / Invert / Multiply-over-transparency, and `Nines`/`Text`
+    (unimplemented in both backends). See `docs/architecture.ja.md` §19.
 - 🕒 **Physical iOS device + `armeabi-v7a` runtime verification** — the example is
   verified on the iOS simulator and Android emulator; a code-signed `iphoneos`
   slice and the 32-bit ARM ABI at runtime are still unconfirmed (see the

@@ -30,9 +30,10 @@ class PartColorCorner {
 /// to Mix, so this type carries only the four PartColor-valid modes.
 ///
 /// **Normal** parts use all four corners individually (a bilinear gradient
-/// across the quad). Mesh (whole-only) and Shape (rate forced to 1, formula
-/// bypassed) parts live on their own `DrawBatch` kinds and are handled when
-/// those kinds are ported — this reader serves the Normal path.
+/// across the quad); **Shape** bypasses the formula (rate forced to 1, baked
+/// straight into the vertex colour); **Mesh** is *whole-only* — the `lt` corner
+/// applies to every vertex, which is what [wholeTintMatrix] evaluates. The same
+/// whole-part reading tints an Instance part's child subtree (§8).
 class PartColor {
   const PartColor({
     required this.coef,
@@ -90,6 +91,64 @@ class PartColor {
           lb: lb.withAlpha(lb.a * scale),
           rb: rb.withAlpha(rb.a * scale),
         );
+
+  /// The alpha an Instance part (§8) hands down to its child sub-animation.
+  ///
+  /// Without a PartColor that is the part's own composed alpha ([partAlpha],
+  /// which `DrawFrame.alphaOf` already folded the chain's [chainScale] into).
+  /// **With** one it is the tint's `lt` alpha instead — the Brain pre-folds the
+  /// part's hierarchical alpha into the corner alphas (§1-3), so using both
+  /// would apply it twice — times the chain scale, which lives in the *parent's*
+  /// FrameData and so cannot have been pre-folded.
+  static double instanceAlpha(PartColor? pc,
+          {required double partAlpha, required double chainScale}) =>
+      pc == null ? partAlpha : (pc.lt.a * chainScale).clamp(0.0, 1.0);
+
+  /// The §1-4 formula as a row-major 4×5 `ColorFilter.matrix`, evaluated from
+  /// the **`lt`** corner — the *Whole-only* rule a Mesh part follows (§8/§10
+  /// 「Mesh=全頂点同値」) and the group tint an Instance part applies to its
+  /// child subtree (§8).
+  ///
+  /// Where a Normal part needs a fragment shader (four corners, so the tint
+  /// varies per fragment), a whole-part tint is one affine on rgb — exactly what
+  /// a colour matrix is. Reading the shader's
+  /// `rgb = pixel·vx + mix(1, pixel, vz)·color·vy` with `vx = 1 + coef₀·rate`,
+  /// `vy = coef₁·rate`, `vz = coef₂` (0 for Mix/Add/Sub, 1 for Mul) as
+  /// `rgb = scaleᶜ·pixelᶜ + offsetᶜ`:
+  ///
+  ///   * `vz == 0` (Mix / Add / Sub): `scale = vx`, `offset = colourᶜ·vy`
+  ///   * `vz == 1` (Mul): `scale = vx + colourᶜ·vy`, `offset = 0`
+  ///
+  /// The alpha row is the identity: on this path α travels with the geometry
+  /// (the vertex colour for a Mesh, [scaleAlpha] down the chain for an Instance)
+  /// exactly as `a = texel.a · col.a` does in the shader — folding it in here
+  /// too would double-apply it.
+  ///
+  /// Returns null when the tint is a no-op (`rate == 0`, i.e. the §10 default
+  /// passthrough) so the caller can stay on the plain, un-filtered path.
+  ///
+  /// One nuance vs `shaders/partcolor.frag`: the shader clamps the straight rgb
+  /// to `[0,1]` *before* premultiplying, while a colour filter's clamp happens
+  /// as the (premultiplied) result is stored. The two agree except for an
+  /// **Add/Sub** tint that overflows on a *partially transparent* texel; that
+  /// combination is the one place the Mesh path is not bit-identical to a Normal
+  /// part's shader.
+  List<double>? wholeTintMatrix() {
+    final rate = lt.rate;
+    if (rate == 0.0) return null; // §10 default: white × rate 0 == passthrough
+    final vx = 1.0 + coef[0] * rate;
+    final vy = coef[1] * rate;
+    final mul = coef[2]; // 1 for Mul (the colour scales the pixel), else 0
+    double scale(double c) => vx + mul * c * vy;
+    // ColorFilter.matrix' translation column is in unnormalised 0..255 space.
+    double offset(double c) => (1.0 - mul) * c * vy * 255.0;
+    return <double>[
+      scale(lt.r), 0, 0, 0, offset(lt.r), //
+      0, scale(lt.g), 0, 0, offset(lt.g), //
+      0, 0, scale(lt.b), 0, offset(lt.b), //
+      0, 0, 0, 1, 0, //
+    ];
+  }
 
   static const PartColorCorner _white = PartColorCorner(1.0, 1.0, 1.0, 1.0, 0.0);
 

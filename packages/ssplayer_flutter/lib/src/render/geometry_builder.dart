@@ -283,6 +283,23 @@ class MeshGeometry {
   final Int32List colors;
   final Uint16List indices;
 
+  /// The axis-aligned bounds of [positions], in the canvas' current space — the
+  /// `saveLayer` hint a peeled (masked) draw needs so the layer is no larger
+  /// than the geometry. [ui.Rect.zero] when the block is empty.
+  ui.Rect get bounds {
+    if (positions.length < 2) return ui.Rect.zero;
+    var minX = positions[0], maxX = positions[0];
+    var minY = positions[1], maxY = positions[1];
+    for (var i = 2; i + 1 < positions.length; i += 2) {
+      final x = positions[i], y = positions[i + 1];
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+    }
+    return ui.Rect.fromLTRB(minX, minY, maxX, maxY);
+  }
+
   /// Wraps this block for `Canvas.drawVertices`.
   ui.Vertices toVertices() => ui.Vertices.raw(
         ui.VertexMode.triangles,
@@ -621,6 +638,83 @@ class GeometryBuilder {
     );
   }
 
+  /// Interleaved flutter_gpu bake of *peeled* mesh [parts] — the mesh sibling of
+  /// the quad bake inside `FlutterGpuBackend._drawPartColorRun`, for a mesh part
+  /// carrying PartColor (§10) and/or a mask test (§9).
+  ///
+  /// It feeds the **same** `PartColorVertex/Fragment` pipeline the peeled Normal
+  /// parts use, in that pipeline's 7-float vertex layout
+  /// `[pos.xy, uv.xy, st.xy, part]`, which needs no new shader for two reasons:
+  ///
+  ///  * **`st` is `(0,0)` for every vertex.** The fragment bilinearly mixes the
+  ///    four corners by `(s,t)`, and `(0,0)` selects `lt` exactly — which *is*
+  ///    the §10 Whole-only rule for Mesh (「全頂点同値」). No approximation.
+  ///  * the mask replay samples the coverage through the `v_local` varying, and
+  ///    a mesh vertex is already player-local world-space — the same space the
+  ///    peeled quad corners are in.
+  ///
+  /// Each vertex's `part` slot is its part's index **within [parts]** (not the
+  /// part index), so the caller writes `PartColorInfo` entry `i` for `parts[i]`
+  /// whether or not that part contributed geometry. Views alias scratch —
+  /// consume before the next bake.
+  InterleavedGeometry? buildMeshPartColorInterleaved(
+      List<int> parts, DrawFrame frame,
+      {required double texWidth, required double texHeight}) {
+    final mesh = frame.mesh;
+    if (mesh == null || mesh.isEmpty || parts.isEmpty) return null;
+
+    var vTotal = 0;
+    var iTotal = 0;
+    for (final p in parts) {
+      final vr = mesh.vertexRange(p);
+      final ir = mesh.indexRange(p);
+      if (vr == null || ir == null) continue;
+      vTotal += vr.$2 - vr.$1;
+      iTotal += ir.$2 - ir.$1;
+    }
+    if (vTotal == 0 || iTotal == 0 || vTotal > 0xFFFF) return null;
+
+    final verts = _inter(vTotal * 7);
+    final indices = _idx(iTotal);
+    final invW = texWidth > 0 ? 1.0 / texWidth : 0.0;
+    final invH = texHeight > 0 ? 1.0 / texHeight : 0.0;
+
+    var vBase = 0;
+    var fp = 0;
+    var ip = 0;
+    for (var slot = 0; slot < parts.length; slot++) {
+      final p = parts[slot];
+      final vr = mesh.vertexRange(p);
+      final ir = mesh.indexRange(p);
+      if (vr == null || ir == null) continue;
+      final slotF = slot.toDouble();
+      for (var v = vr.$1; v < vr.$2; v++) {
+        verts[fp] = mesh.x[v]; // already world-space
+        verts[fp + 1] = mesh.y[v];
+        verts[fp + 2] = mesh.uv[v * 2] * invW;
+        verts[fp + 3] = mesh.uv[v * 2 + 1] * invH;
+        verts[fp + 4] = 0.0; // s — whole-only: every vertex reads the lt corner
+        verts[fp + 5] = 0.0; // t
+        verts[fp + 6] = slotF;
+        fp += 7;
+      }
+      final vCount = vr.$2 - vr.$1;
+      for (var i = ir.$1; i < ir.$2; i++) {
+        final local = mesh.indices[i];
+        if (local < 0 || local >= vCount) continue;
+        indices[ip++] = vBase + local;
+      }
+      vBase += vCount;
+    }
+    if (vBase == 0 || ip == 0) return null;
+    return InterleavedGeometry(
+      Float32List.view(verts.buffer, verts.offsetInBytes, fp),
+      Uint16List.view(indices.buffer, indices.offsetInBytes, ip),
+      vBase,
+      ip,
+    );
+  }
+
   /// Interleaved flutter_gpu bake of shape [parts] (§11) — the GPU sibling of
   /// [buildShapeParts]. A Shape samples no texture, so UV is `(0,0)` (the caller
   /// binds a 1×1 white texel and the `texel * colour` shader collapses to the
@@ -732,9 +826,16 @@ class GeometryBuilder {
   }
 
   /// Like [buildShapeInterleaved] but for a **masked** Shape — the vertex is
-  /// `[pos.xy, rgba]` (6 floats, no UV) because the masked-Shape pipeline samples
-  /// no texture (a Shape is coloured by its vertices; the shader only gates it on
-  /// the coverage). Premultiplied colour, center-first fan. Returns null if empty.
+  /// `[pos.xy, local.xy, rgba]` (8 floats), mirroring the sprite pipeline's
+  /// working layout. The middle slot repeats the player-local position (which the
+  /// shader genuinely uses as `v_local` for the mask UV) so `a_color` (a `vec4`)
+  /// lands at byte offset 16 — the alignment Impeller expects for a vertex
+  /// `vec4`. A tighter `[pos.xy, rgba]` (6-float) layout puts `a_color` at offset
+  /// 8, which the GPU misreads as position bytes and renders white; a *dummy*
+  /// padding attribute would instead be stripped by impellerc (breaking
+  /// reflection), so the pad must carry real, used data (see
+  /// `shaders/gpu/shapemask.vert`). Premultiplied colour, center-first fan.
+  /// Returns null if empty.
   InterleavedGeometry? buildShapeColorInterleaved(
       List<int> parts, DrawFrame frame) {
     final shape = frame.shape;
@@ -750,7 +851,7 @@ class GeometryBuilder {
     }
     if (vTotal == 0 || iTotal == 0 || vTotal > 0xFFFF) return null;
 
-    final verts = _inter(vTotal * 6);
+    final verts = _inter(vTotal * 8);
     final indices = _idx(iTotal);
     final partsColor = frame.partsColor;
 
@@ -776,8 +877,12 @@ class GeometryBuilder {
       for (var v = 0; v < n; v++) {
         final lx = shape.vertices[o + 2 * v];
         final ly = shape.vertices[o + 2 * v + 1];
-        verts[fp] = m0 * lx + m4 * ly + m12;
-        verts[fp + 1] = m1 * lx + m5 * ly + m13;
+        final wx = m0 * lx + m4 * ly + m12;
+        final wy = m1 * lx + m5 * ly + m13;
+        verts[fp] = wx;
+        verts[fp + 1] = wy;
+        verts[fp + 2] = wx; // a_local: player-local pos again (v_local for the mask)
+        verts[fp + 3] = wy;
 
         double r, g, b, a;
         if (tinted == null) {
@@ -813,11 +918,11 @@ class GeometryBuilder {
           g = (sg * sa).clamp(0.0, 1.0);
           b = (sb * sa).clamp(0.0, 1.0);
         }
-        verts[fp + 2] = r;
-        verts[fp + 3] = g;
-        verts[fp + 4] = b;
-        verts[fp + 5] = a;
-        fp += 6;
+        verts[fp + 4] = r;
+        verts[fp + 5] = g;
+        verts[fp + 6] = b;
+        verts[fp + 7] = a;
+        fp += 8;
       }
       for (var t = 0; t < n - 2; t++) {
         indices[ip++] = base;
@@ -853,10 +958,17 @@ class GeometryBuilder {
   /// indices are rebased onto the emitted vertex block — a Mesh `DrawBatch` is
   /// batchable and may carry several parts, so the rebase is load-bearing.
   ///
+  /// [alphaOverride] replaces that per-part hierarchical alpha for every vertex.
+  /// It is the PartColor (§10) case: with a tint the Brain has pre-folded the
+  /// hierarchical alpha into the corner alphas, so `PartState.alpha` must NOT be
+  /// used as well (§1-3 — the two multiplied would double-apply it); the caller
+  /// passes `pc.lt.a` instead. Mesh is whole-only, so one value covers the part.
+  ///
   /// Returns null when nothing was emitted. Split out from [buildMeshParts] so
   /// the bake is inspectable (a `ui.Vertices` is opaque) — the "already
   /// world-space" invariant is the one thing worth pinning down in a test.
-  MeshGeometry? buildMeshGeometry(List<int> parts, DrawFrame frame) {
+  MeshGeometry? buildMeshGeometry(List<int> parts, DrawFrame frame,
+      {double? alphaOverride}) {
     final mesh = frame.mesh;
     if (mesh == null || mesh.isEmpty || parts.isEmpty) return null;
 
@@ -890,8 +1002,9 @@ class GeometryBuilder {
       final ir = mesh.indexRange(p);
       if (vr == null || ir == null) continue;
 
-      final alpha = frame.alphaOf(p);
-      final color = ((alpha * 255).round() & 0xFF) << 24 | 0x00FFFFFF;
+      final alpha = alphaOverride ?? frame.alphaOf(p);
+      final color =
+          ((alpha.clamp(0.0, 1.0) * 255).round() & 0xFF) << 24 | 0x00FFFFFF;
 
       for (var v = vr.$1; v < vr.$2; v++) {
         positions[fPos] = mesh.x[v]; // already world-space
