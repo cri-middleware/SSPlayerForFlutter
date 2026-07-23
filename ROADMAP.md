@@ -246,8 +246,20 @@ draw-call count of *peeled* shader parts.
       `flutter test`, which has no Impeller). The on-device run recipe and the
       shader/vertex traps are in `docs/architecture.ja.md` §19
       ("実機検証レシピ" / "GPU シェーダ / 頂点の地雷").
+  - **On-device fix — plain Shape parts were invisible on GPU.** Unmasked Shape
+    parts with PartColor (the `S_*` parts in `PartsColor.ssab`) drew nothing on
+    the GPU backend: they go through the sprite pipeline with a 1×1 white texel
+    (`texel * bakedVertexColour`), and that white texture was a `hostVisible`
+    texture `overwrite`-n **in the same frame it is sampled** — the CPU write was
+    not GPU-visible against the read in the open command buffer, so the texel
+    sampled 0 and `0 * colour = 0`. (The sprite atlas escapes this only because
+    its upload is an async microtask — a *prior* frame.) Fixed by render-CLEARing
+    a `devicePrivate` white texture (`_ensureWhiteTexture`), which is properly
+    ordered like the mask-coverage targets. Verified on-device: PartsColor's
+    Normal *and* Shape parts now match Canvas.
   - **Still experimental (unverified on-device):** Effect / Instance-tint /
-    BlendMode / Basic. Canvas remains the default and the reference.
+    BlendMode. Canvas remains the default and the reference. (Basic and PartsColor
+    — including its Shape parts — are now eyeball-verified on GPU.)
   - Design intent (as built): peeled PartColor/mask fan-out collapses into batched
     draws via **per-vertex attributes** (no UBO — the array form that was broken is
     gone, see above); per-batch blend maps the fixed-function-expressible SS
