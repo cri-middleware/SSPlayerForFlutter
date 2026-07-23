@@ -693,7 +693,14 @@ L2/L3/L4 の `paint(canvas,{dst,sourceSize})` シグネチャは不変（分岐�
   **`uniformArray[動的index + 定数]` を誤コンパイル**して rate/coef/mask に 0 を返す（実測: `pc.data[base]` は正・
   `pc.data[base+4]` は 0）。Mask.ssab はマスク対象が passthrough（白・rate 0）なので露見せず、Shape.ssab の
   「Normal」パーツ（Mul）で初めて顕在化。ローカル配列コピー（folded）・1ドロー1パーツ＋literal（小UBO mis-bind）
-  はいずれも不発。**推奨修正**: UBO をやめて 9 vec4 を**頂点属性（flat）**で渡す（頂点フォーマットは太るが UBO バグを全回避）。
+  はいずれも不発。**推奨修正＝兄弟(Godot/Web)と同じにする**: 兄弟は UBO ではなく**per-vertex 属性**で渡している
+  （ssplayer-webgl の `PartsColorProgram` は `aColor`(隅の色)＋`aVarg`(rate, Mix/Mul/AddSub セレクタ)を頂点属性で持ち、
+  4隅グラデはハード補間任せ。Godot も `CUSTOM0=(rate, blend_idx, pma, 0)`）。だから生 WebGL(flutter_gpu と同じ低レベル)でも
+  問題が出ない。この flutter_gpu バックエンドが UBO 設計になっているのは、**dart:ui(Canvas)版を移植したから**——Canvas は
+  runtime-effect シェーダが custom varying を持てないので uniform でフラグメント再構成する**必然**があった。だが
+  **flutter_gpu は dart:ui ではなく生 GLSL で varying が使える**（sprite パイプラインは既に `a_color` を per-vertex で使用）。
+  つまり最初から兄弟と同じ per-vertex 属性にすべきで、UBO は不要だった。**§10 の「Flutter は custom varying 不可」注は
+  Canvas 限定**の話。修正: 色/rate/blend セレクタ（＋マスクの bits/uv/off）を頂点属性に載せ、`PartColorInfo` UBO を廃止する。
 - テストの `toImage` は不正確（Mask を 0 と誤る）ので `gpu_backend_test.dart` の数値は当てにならない。
 - 残タスク: (a) 上記 flat 属性化で tint を GPU で効かせる、(b) テスト是正（両フラグ必須＋信頼できるキャプチャ）、
   (c) Effect/Instance-tint/BlendMode/Basic の実機目視。

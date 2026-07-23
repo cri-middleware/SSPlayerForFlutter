@@ -223,10 +223,25 @@ draw-call count of *peeled* shader parts.
       indexing (then a *small* UBO gets mis-bound and reads 0; oversizing it back
       to `data[360]` still read 0 in that path, cause not isolated). Reverted to
       the committed batched form.
-    - **Recommended fix (not yet done):** stop using a UBO for per-part data —
-      pass the 9 vec4 as per-vertex **flat attributes** so the fragment reads them
-      as flat varyings (no UBO, no dynamic index). Larger vertex format but
-      sidesteps every Impeller UBO bug hit here.
+    - **Recommended fix (not yet done) — do what Godot/Web already do.** The
+      sibling players batch peeled PartColor parts with **per-vertex attributes**,
+      not a UBO: ssplayer-webgl's `PartsColorProgram` carries `aColor` (the corner
+      colour) + `aVarg` (rate + Mix/Mul/AddSub selectors) per vertex and the
+      hardware interpolates the 4-corner gradient for free; Godot uses the same
+      `CUSTOM0 = (rate, blend_idx, pma, 0)`. No UBO, no dynamic index — which is
+      why raw WebGL (as low-level as flutter_gpu) has none of these bugs.
+    - **Why this backend didn't do that:** it was ported from the *Canvas*
+      backend, which reconstructs the bilinear gradient in the fragment from
+      **uniforms** because **dart:ui runtime-effect shaders cannot take custom
+      per-vertex varyings** — a hard dart:ui limitation. flutter_gpu is NOT
+      dart:ui: its shaders are real GLSL with varyings (the sprite pipeline
+      already uses a per-vertex `a_color`), so it should have used the
+      Godot/Web per-vertex-attribute design from the start and never needed a UBO.
+      The doc's "Flutter can't do custom varyings" note applies to Canvas only.
+    - So the fix is: move colour / rate / blend-selectors (and the mask
+      bits/uv/off) into per-vertex attributes, drop the `PartColorInfo` UBO
+      entirely. Proven by the siblings, simpler than the current fragment
+      reconstruction, and it sidesteps every Impeller UBO bug hit here.
   - **Still experimental (unverified on-device):** Effect / Instance-tint /
     BlendMode / Basic. Canvas remains the default and the reference.
   - Design intent (as built): peeled PartColor/mask fan-out collapses into batched
