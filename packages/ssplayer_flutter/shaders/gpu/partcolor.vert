@@ -1,37 +1,58 @@
 #version 460 core
 
-// Flutter GPU PartColor (§10) + mask-replay (§9) vertex shader.
+// Flutter GPU PartColor (§10) + mask-replay (§9) vertex shader — the per-vertex
+// attribute design shared with the Godot / Web siblings (§19). Every per-part
+// value (the four corner colours, the blend rate/coef, and the mask replay sets)
+// is a vertex attribute, so a whole RUN of peeled parts batches into ONE draw
+// (the fan-out collapse). A per-vertex attribute is also what keeps Impeller/
+// Metal correct here: there is no dynamically-indexed uniform array, the one
+// construct it miscompiles (`u[dynamicIndex + const]` reads 0; §19).
 //
-// A whole RUN of peeled parts is drawn in ONE batched call (the fan-out collapse
-// §perf): each vertex carries [a_part] — the index of its part within the run —
-// and the fragment reads that part's corner colours / rate / coef / mask sets
-// from the PartColorInfo uniform array. quad-local (s,t) and the player-local
-// position (for the mask UV) are `out` varyings — no per-fragment affine
-// reconstruction like the dart:ui runtime-effect shaders.
+// The four corner colours ride on the four corner vertices, so the rasteriser
+// interpolates the §10 gradient for free (no per-fragment bilinear); the blend
+// rate rides in `a_coef.w` (also interpolated: rate varies per corner). The mask
+// sets are constant across a part's 4 corners and are carried `flat`.
 //
-// Per-vertex (one quad = 4 corners lt,rt,lb,rb):
-//   loc 0  a_position (vec2)  player-local (world-transformed) corner XY
-//   loc 1  a_uv       (vec2)  normalised texture UV for the corner
-//   loc 2  a_st       (vec2)  quad-local coord: lt(0,0) rt(1,0) lb(0,1) rb(1,1)
-//   loc 3  a_part     (float) index of this part within the batched run
+// vec4 vertex attributes MUST sit on a 16-byte boundary or Impeller misreads
+// them (the ShapeMask alignment trap, §5), so the layout is a 96-byte (24-float)
+// stride with every vec4 at a 16-aligned offset. `a_mask_off` is a vec4 (only
+// .xy used) so the stride stays a clean multiple of 16 and the alignment recurs
+// on every vertex; its .xy feeds the mask UV, so it is a *used* attribute and
+// impellerc keeps it (an unused one is stripped, breaking reflection — §5 trap 2).
+//   loc 0  a_position (vec2)  float 0   world-transformed corner XY (= v_local)
+//   loc 1  a_uv       (vec2)  float 2   normalised texture UV
+//   loc 2  a_color    (vec4)  float 4   this corner's straight RGBA
+//   loc 3  a_coef     (vec4)  float 8   (coef.x, coef.y, coef.z, rate)
+//   loc 4  a_mask_bits(vec4)  float 12  (increment, invert, visibleInside, enabled)
+//   loc 5  a_mask_uv  (vec4)  float 16  player-local -> coverage UV basis [m00,m01,m10,m11]
+//   loc 6  a_mask_off (vec4)  float 20  (ox, oy, -, -)
 in vec2 a_position;
 in vec2 a_uv;
-in vec2 a_st;
-in float a_part;
+in vec4 a_color;
+in vec4 a_coef;
+in vec4 a_mask_bits;
+in vec4 a_mask_uv;
+in vec4 a_mask_off;
 
 uniform FrameInfo {
   mat4 mvp; // player-local -> NDC (same as the sprite pipeline)
 } frame_info;
 
 out vec2 v_local; // player-local position (mask UV samples in this space)
-out vec2 v_uv;    // affine over the quad -> exact
-out vec2 v_st;    // the fragment reconstructs true bilinear from this
-flat out float v_part; // integer varyings aren't reflectable; carry as float
+out vec2 v_uv;
+out vec4 v_color; // interpolated straight corner colour (the 4-corner gradient)
+out vec4 v_coef;  // coef.xyz constant across the part, .w = interpolated rate
+flat out vec4 v_mask_bits;
+flat out vec4 v_mask_uv;
+flat out vec4 v_mask_off;
 
 void main() {
   gl_Position = frame_info.mvp * vec4(a_position, 0.0, 1.0);
   v_local = a_position;
   v_uv = a_uv;
-  v_st = a_st;
-  v_part = a_part;
+  v_color = a_color;
+  v_coef = a_coef;
+  v_mask_bits = a_mask_bits;
+  v_mask_uv = a_mask_uv;
+  v_mask_off = a_mask_off;
 }

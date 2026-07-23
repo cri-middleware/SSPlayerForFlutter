@@ -108,6 +108,118 @@ void main() {
     });
   });
 
+  group('GeometryBuilder.buildPartColorInterleaved', () {
+    // Identity world; a unit-square local quad (lt,rt,lb,rb + center) so each
+    // corner lands on its own world position, and pixel UVs on a 16px texture.
+    DrawFrame frameWith() {
+      final world = Float32List.fromList(<double>[
+        1, 0, 0, 0, //
+        0, 1, 0, 0, //
+        0, 0, 1, 0, //
+        0, 0, 0, 1, //
+      ]);
+      final local = Float32List.fromList(
+          <double>[0, 0, 1, 0, 0, 1, 1, 1, 0.5, 0.5]);
+      final uv = Float32List.fromList(
+          <double>[0, 0, 8, 0, 0, 8, 8, 8, 4, 4]);
+      return DrawFrame(
+        frameData: fbs.FrameData(fbs.FrameDataObjectBuilder().toBytes()),
+        drawOrder: const [0],
+        partByIndex: const [],
+        world: world,
+        local: local,
+        uv: uv,
+      );
+    }
+
+    // A 4-corner gradient: each corner a distinct colour + rate, so the bake
+    // must carry them per vertex (the rasteriser interpolates the gradient).
+    PartColor gradient() => PartColor(
+          coef: partColorCoef(fbs.BlendType.Mix),
+          lt: const PartColorCorner(1, 0, 0, 1, 0.1),
+          rt: const PartColorCorner(0, 1, 0, 1, 0.2),
+          lb: const PartColorCorner(0, 0, 1, 1, 0.3),
+          rb: const PartColorCorner(1, 1, 0, 1, 0.4),
+        );
+
+    const stride = GeometryBuilder.partColorStride; // 24
+
+    test('each corner carries its own colour + rate (the 4-corner gradient)', () {
+      final pc = gradient();
+      final g = GeometryBuilder().buildPartColorInterleaved(
+          <int>[0], <PartColor>[pc], <Float32List?>[null], frameWith(),
+          texWidth: 16, texHeight: 16);
+      expect(g, isNotNull);
+      expect(g!.vertexCount, 4);
+      final corners = <PartColorCorner>[pc.lt, pc.rt, pc.lb, pc.rb]; // lt,rt,lb,rb
+      for (var v = 0; v < 4; v++) {
+        final o = v * stride;
+        expect(g.vertices[o + 4], closeTo(corners[v].r, 1e-6), reason: 'r $v');
+        expect(g.vertices[o + 5], closeTo(corners[v].g, 1e-6), reason: 'g $v');
+        expect(g.vertices[o + 6], closeTo(corners[v].b, 1e-6), reason: 'b $v');
+        expect(g.vertices[o + 7], closeTo(corners[v].a, 1e-6), reason: 'a $v');
+        // coef.xyz is constant across the quad; rate is this corner's own.
+        expect(g.vertices[o + 8], closeTo(pc.coef[0], 1e-6));
+        expect(g.vertices[o + 9], closeTo(pc.coef[1], 1e-6));
+        expect(g.vertices[o + 10], closeTo(pc.coef[2], 1e-6));
+        expect(g.vertices[o + 11], closeTo(corners[v].rate, 1e-6),
+            reason: 'rate $v');
+      }
+    });
+
+    test('positions are world-transformed and UVs normalised', () {
+      final g = GeometryBuilder().buildPartColorInterleaved(
+          <int>[0], <PartColor>[gradient()], <Float32List?>[null], frameWith(),
+          texWidth: 16, texHeight: 16);
+      // lt: world (0,0), uv (0,0).
+      expect(g!.vertices.sublist(0, 4), <double>[0, 0, 0, 0]);
+      // rt: world (1,0), pixel uv (8,0) → normalised (0.5, 0).
+      expect(g.vertices.sublist(stride, stride + 4), <double>[1, 0, 0.5, 0]);
+      // The quad winding matches the shared index pattern.
+      expect(g.indices, <int>[0, 1, 2, 1, 3, 2]);
+    });
+
+    test('an unmasked part writes mask enabled = 0 on every vertex', () {
+      final g = GeometryBuilder().buildPartColorInterleaved(
+          <int>[0], <PartColor>[gradient()], <Float32List?>[null], frameWith(),
+          texWidth: 16, texHeight: 16);
+      for (var v = 0; v < 4; v++) {
+        expect(g!.vertices[v * stride + 15], 0.0, reason: 'enabled of $v');
+      }
+    });
+
+    test('a masked part carries the replay set (flat) on every vertex', () {
+      // Offsets are float32-exact so the round-trip is bit-identical.
+      final mask =
+          Float32List.fromList(<double>[5, 6, 0, 1, 2, 0, 0, 3, 0.25, 0.5]);
+      final g = GeometryBuilder().buildPartColorInterleaved(
+          <int>[0], <PartColor>[gradient()], <Float32List?>[mask], frameWith(),
+          texWidth: 16, texHeight: 16);
+      for (var v = 0; v < 4; v++) {
+        final o = v * stride;
+        expect(g!.vertices.sublist(o + 12, o + 22),
+            <double>[5, 6, 0, 1, 2, 0, 0, 3, 0.25, 0.5]);
+      }
+    });
+
+    test('a degenerate (zero-size) quad is dropped', () {
+      final world = Float32List(16)..[0] = 1; // all corners collapse to origin
+      final frame = DrawFrame(
+        frameData: fbs.FrameData(fbs.FrameDataObjectBuilder().toBytes()),
+        drawOrder: const [0],
+        partByIndex: const [],
+        world: world,
+        local: Float32List(10),
+        uv: Float32List(10),
+      );
+      expect(
+          GeometryBuilder().buildPartColorInterleaved(
+              <int>[0], <PartColor>[gradient()], <Float32List?>[null], frame,
+              texWidth: 16, texHeight: 16),
+          isNull);
+    });
+  });
+
   group('PartColor.wholeTintMatrix', () {
     // The Mesh (§8) / Instance-subtree (§10) tint is the shader formula reduced
     // to one affine on rgb, so the matrix is checked against that formula
