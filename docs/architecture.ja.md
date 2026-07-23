@@ -472,9 +472,9 @@ Flutter としては **Phase 1**（Basic〜BlendMode を `SpriteStudioView` で�
 どう扱うかの一覧。**コードから機械的に確認した結果**であって、設計上の建前ではありません
 （確認方法も併記）。未実装（⏳/❌）項目の前向きな追跡は [ROADMAP.md](../ROADMAP.md) 側。
 
-> **注**: ✅ は主に **Canvas バックエンド**で検証した状態を指す。flutter_gpu 側は同等の
-> コードを持つが、§19 冒頭の⚠️のとおり**実際には未検証**（Impeller 有効時に Mask 等が破綻）。
-> 下表の「実装済み」は Canvas を正とし、GPU は「コードはある」の意味。
+> **注**: ✅ は主に **Canvas バックエンド**で検証した状態を指す。flutter_gpu 側は同等のコードを持ち、
+> 実機で Mask・Shape は Canvas 一致を確認済みだが、残りのパックは未目視＝**実験扱い**（§19 冒頭の⚠️）。
+> 下表の「実装済み」は Canvas を正とする。
 
 | kind | PartColor (§10) | マスク writer (§9) | マスク対象 (§9) | α スケール (§8 Instance 連鎖) |
 |---|---|---|---|---|
@@ -618,14 +618,25 @@ L2 の描画を「どうピクセルにするか」だけ差し替えられる *
 Web は常に Canvas）。§18-B の「さらに削るなら / 別 Isolate や flutter_gpu を検討」はこの節で実現している。
 
 > **⚠️ 検証状態の重要な訂正（2026-07-23）**: 本節はかつて「全 kind が Canvas とバイト単位で一致・
-> 実機で `rgbMeanDiff=0.00` 検証済み」と記していたが、これは**誤り**だった。`gpu_backend_test.dart` は
-> `flutter test -d macos` を **Impeller・Flutter GPU を有効化せずに**走らせており、`SpriteStudioBackend.gpu`
-> は `isFlutterGpuAvailable()==false` で**Canvas にフォールバック**していた＝実体は **Canvas 対 Canvas** の
-> 比較で、GPU 経路は一度も実行されていなかった。`--enable-impeller --enable-flutter-gpu` を付けて実際に
-> GPU を走らせると **8 パック中 4 つが不一致**（**Mask は不透明画素 0＝真っ白**、PartsColor は 1/3、Shape は 1/2、
-> BlendMode は `rgbMeanDiff=14`）。原因が backend 本体か `toImage` キャプチャ経路かは未切り分け。
-> **flutter_gpu バックエンドは現時点で未検証（おそらく不具合あり）**として扱うこと。以下の実装記述は
-> 「そう書いてある」コードの説明であって、動作保証ではない。
+> 実機で `rgbMeanDiff=0.00` 検証済み」と記していたが、これは**誤り**だった。理由と現状は以下。
+> - **`gpu_backend_test.dart` は信用できない**。① `flutter test -d macos` は **Impeller・Flutter GPU を
+>   有効化せず**に走るので `isFlutterGpuAvailable()==false` → **Canvas にフォールバック**＝実体は
+>   **Canvas 対 Canvas** の比較で、GPU 経路が一度も実行されない（GPU を実行するには
+>   `--enable-impeller --enable-flutter-gpu` の**両方**が要る）。② 両フラグを付けても、テストの
+>   `pic.toImage()` による GPU レンダーターゲットのキャプチャが不正確で、**実機では正しく描けている
+>   Mask パックがテスト上は不透明画素 0**（＝キャプチャの artifact）になる。数値（PartsColor 1/3 等）は
+>   当てにならない。
+> - **実機（macOS・Impeller＋FlutterGPU 有効・`--dart-define=SS_BACKEND=gpu`）での目視が唯一の真実**。
+>   そこで判明した**実バグは 1 件**: **マスク対象 Shape が真っ白**になっていた。原因は ShapeMask の
+>   頂点レイアウトが `[pos.xy, rgba]`（6 float）で **`vec4` の色属性が byte offset 8** に来ており、Impeller は
+>   頂点 `vec4` を **16 byte 境界**に置くため色として位置バイトを誤読→白。**修正済み**（8 float
+>   `[pos.xy, local.xy, rgba]` で色を offset 16 に揃える＝動いている sprite パイプラインと同一レイアウト。
+>   `buildShapeColorInterleaved` / `shaders/gpu/shapemask.vert`）。修正後 Mask・Shape は実機で Canvas と一致。
+> - **残り**: この `vec4` 16 byte 境界の問題を持つ頂点 bake は他に無い（Normal/Mesh/Shape-plain は色が
+>   offset 16 で整列済み、PartColor/Mesh-PC パイプラインは `vec4` 頂点属性を持たない）。ただし
+>   PartsColor / Effect / Instance / BlendMode / Basic を**実機で個別に目視確認したわけではない**。
+>   **やるべき**: (a) gpu_backend_test を「両フラグ必須＋GPU 未実行なら fail」に直し、GPU キャプチャを
+>   信頼できる方式（実機ゴールデン等）へ、(b) 全パックを実機で目視。それまで flutter_gpu は**実験扱い**。
 
 **シーム（`lib/src/render/backend/`）**: `RenderBackend`（`beginFrame`/`finish`/`emit{Normal,Mesh,Shape,Effect}`/
 `renderCoverage`/`pushTransform`/`popTransform`/`pushGroupTint`/`popGroupTint`/`releaseCoverage`/`rewindShaderPools`）。`_paintTree` の
@@ -675,8 +686,7 @@ L2/L3/L4 の `paint(canvas,{dst,sourceSize})` シグネチャは不変（分岐�
 
 **未対応（実用影響なし）**: Exclusion/Invert/透明 Multiply の framebuffer 読取ブレンド、`Nines`/`Text`（両 backend 共通）。
 
-**要調査（2026-07-23 判明・冒頭の⚠️参照）**: Impeller・Flutter GPU を実際に有効化すると Mask が真っ白・
-PartsColor/Shape が部分描画になる。`gpu_backend_test.dart` を `--enable-impeller --enable-flutter-gpu`
-付きで走らせるのが最低条件だが、それでも 4/8 不一致。まず「backend の描画そのものが壊れているのか」
-「`toImage` で GPU render target を取り出す経路が壊れているのか」を、実機アプリ（`--dart-define=SS_BACKEND=gpu`
-＋両フラグ）の目視で切り分ける必要がある。それまで flutter_gpu バックエンドは実験扱い。
+**要調査（2026-07-23・冒頭の⚠️参照）**: 実機切り分けの結果、マスク対象 Shape の白化（`vec4` 頂点属性の
+16 byte 境界問題）は**修正済み**で Mask・Shape は実機で Canvas 一致。テストの `toImage` キャプチャは不正確
+（Mask を 0 と誤る）なので `gpu_backend_test.dart` の数値は当てにならない。残タスクは (a) テストの是正
+（両フラグ必須＋信頼できる GPU キャプチャ）、(b) PartsColor/Effect/Instance/BlendMode/Basic の実機目視。

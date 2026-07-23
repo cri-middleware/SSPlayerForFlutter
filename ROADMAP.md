@@ -192,26 +192,33 @@ draw-call count of *peeled* shader parts.
   Instance — into an offscreen Impeller render target and composites it back with
   `canvas.drawImage`.
   - **Correction (2026-07-23):** the previous "byte-for-byte identical, verified
-    on Metal/Vulkan, `rgbMeanDiff=0.00`" claim was **wrong**.
-    `gpu_backend_test.dart` runs `flutter test -d macos` **without** enabling
-    Impeller or Flutter GPU, so `SpriteStudioBackend.gpu` probes
-    `isFlutterGpuAvailable() == false` and **falls back to Canvas** — the suite
-    has only ever compared **Canvas against Canvas**. Run with
-    `--enable-impeller --enable-flutter-gpu`, the GPU path actually executes and
-    **4 of 8 packs diverge**: **Mask renders blank (0 opaque px)**, PartsColor ⅓,
-    Shape ½, BlendMode `rgbMeanDiff=14`. Root cause (backend vs. the test's
-    `toImage` capture of a GPU target) is not yet isolated. **Treat the GPU
-    backend as experimental / likely-broken until re-verified on a real
-    Impeller+FlutterGPU target.** The Canvas backend is unaffected and remains the
-    default and the reference.
+    on Metal/Vulkan, `rgbMeanDiff=0.00`" claim was **wrong**, and the parity
+    suite is not trustworthy: (1) `gpu_backend_test.dart` runs `flutter test -d
+    macos` **without** `--enable-impeller --enable-flutter-gpu`, so
+    `isFlutterGpuAvailable()` is false and it **falls back to Canvas** — it has
+    only ever compared Canvas-vs-Canvas; and (2) even with both flags on, its
+    `pic.toImage()` capture of the GPU render target is unreliable (a pack that
+    renders correctly on-device — e.g. Mask — reads 0 opaque px there), so its
+    per-pack numbers are noise.
+  - **On-device isolation (the only source of truth) found and FIXED one real
+    bug:** mask-target Shapes rendered white because ShapeMask's `[pos.xy, rgba]`
+    (6-float) vertex layout put the `vec4` colour at byte offset 8, which Impeller
+    misreads (it 16-byte-aligns a vertex `vec4`). Fixed with an 8-float `[pos.xy,
+    local.xy, rgba]` layout (colour at offset 16), mirroring the working sprite
+    pipeline (`buildShapeColorInterleaved` + `shaders/gpu/shapemask.vert`). Mask
+    and Shape now match Canvas on-device (macOS/Metal). No other vertex bake has a
+    `vec4` at a non-16-aligned offset, so this is the whole class.
+  - **Still experimental:** PartsColor / Effect / Instance / BlendMode / Basic
+    have NOT been individually eyeballed on-device. Canvas remains the default and
+    the reference.
   - Design intent (unchanged): peeled PartColor/mask fan-out collapses into
     batched draws via per-vertex attributes + a UBO array; per-batch blend maps
     the fixed-function-expressible SS modes; masked instance-child inheritance
     (§3-2-2) rides the same peel path via each `MaskDraw`'s coverage handle.
-  - Next step: run the example with `--dart-define=SS_BACKEND=gpu
-    --enable-impeller --enable-flutter-gpu` and eyeball Mask/PartsColor/Shape to
-    separate a backend bug from a capture-path bug, then fix and make the parity
-    suite enable both flags (so it can never silently pass on Canvas again).
+  - Next step: (a) fix `gpu_backend_test` to require both flags and fail (not
+    silently pass on Canvas) when GPU is unavailable, and use a trustworthy GPU
+    capture (on-device golden); (b) eyeball the remaining packs with
+    `--dart-define=SS_BACKEND=gpu --enable-impeller --enable-flutter-gpu`.
   - **Remaining (edge cases, on top of the above):** a framebuffer-read shader for
     Exclusion / Invert / Multiply-over-transparency, and `Nines`/`Text`
     (unimplemented in both backends). See `docs/architecture.ja.md` §19.

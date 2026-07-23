@@ -826,9 +826,16 @@ class GeometryBuilder {
   }
 
   /// Like [buildShapeInterleaved] but for a **masked** Shape — the vertex is
-  /// `[pos.xy, rgba]` (6 floats, no UV) because the masked-Shape pipeline samples
-  /// no texture (a Shape is coloured by its vertices; the shader only gates it on
-  /// the coverage). Premultiplied colour, center-first fan. Returns null if empty.
+  /// `[pos.xy, local.xy, rgba]` (8 floats), mirroring the sprite pipeline's
+  /// working layout. The middle slot repeats the player-local position (which the
+  /// shader genuinely uses as `v_local` for the mask UV) so `a_color` (a `vec4`)
+  /// lands at byte offset 16 — the alignment Impeller expects for a vertex
+  /// `vec4`. A tighter `[pos.xy, rgba]` (6-float) layout puts `a_color` at offset
+  /// 8, which the GPU misreads as position bytes and renders white; a *dummy*
+  /// padding attribute would instead be stripped by impellerc (breaking
+  /// reflection), so the pad must carry real, used data (see
+  /// `shaders/gpu/shapemask.vert`). Premultiplied colour, center-first fan.
+  /// Returns null if empty.
   InterleavedGeometry? buildShapeColorInterleaved(
       List<int> parts, DrawFrame frame) {
     final shape = frame.shape;
@@ -844,7 +851,7 @@ class GeometryBuilder {
     }
     if (vTotal == 0 || iTotal == 0 || vTotal > 0xFFFF) return null;
 
-    final verts = _inter(vTotal * 6);
+    final verts = _inter(vTotal * 8);
     final indices = _idx(iTotal);
     final partsColor = frame.partsColor;
 
@@ -870,8 +877,12 @@ class GeometryBuilder {
       for (var v = 0; v < n; v++) {
         final lx = shape.vertices[o + 2 * v];
         final ly = shape.vertices[o + 2 * v + 1];
-        verts[fp] = m0 * lx + m4 * ly + m12;
-        verts[fp + 1] = m1 * lx + m5 * ly + m13;
+        final wx = m0 * lx + m4 * ly + m12;
+        final wy = m1 * lx + m5 * ly + m13;
+        verts[fp] = wx;
+        verts[fp + 1] = wy;
+        verts[fp + 2] = wx; // a_local: player-local pos again (v_local for the mask)
+        verts[fp + 3] = wy;
 
         double r, g, b, a;
         if (tinted == null) {
@@ -907,11 +918,11 @@ class GeometryBuilder {
           g = (sg * sa).clamp(0.0, 1.0);
           b = (sb * sa).clamp(0.0, 1.0);
         }
-        verts[fp + 2] = r;
-        verts[fp + 3] = g;
-        verts[fp + 4] = b;
-        verts[fp + 5] = a;
-        fp += 6;
+        verts[fp + 4] = r;
+        verts[fp + 5] = g;
+        verts[fp + 6] = b;
+        verts[fp + 7] = a;
+        fp += 8;
       }
       for (var t = 0; t < n - 2; t++) {
         indices[ip++] = base;
