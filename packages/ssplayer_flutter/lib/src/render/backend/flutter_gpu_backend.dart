@@ -2,6 +2,7 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter_gpu/gpu.dart' as gpu;
+import 'package:vector_math/vector_math.dart' show Vector4;
 import 'package:ssruntime_dart/effect_draw_plan.dart' as efbs;
 import 'package:ssruntime_dart/framedata.dart' as fbs;
 
@@ -583,10 +584,21 @@ class FlutterGpuBackend implements RenderBackend {
     final existing = _whiteTexture;
     if (existing != null) return existing;
     try {
+      // Render-CLEAR a 1×1 opaque-white texture rather than `overwrite`-ing a
+      // hostVisible one. A hostVisible texture written in the same frame it is
+      // sampled is not GPU-visible in time — the CPU write isn't synchronised
+      // against the read in the open command buffer — so the Shape path (which
+      // multiplies this white texel by the baked vertex colour) sampled zero and
+      // drew nothing. (The atlas escapes this only because its upload is an async
+      // microtask, i.e. a *prior* frame.) A clear pass is GPU-native and properly
+      // ordered, exactly like the mask-coverage render targets.
       final tex =
-          gpu.gpuContext.createTexture(gpu.StorageMode.hostVisible, 1, 1);
-      tex.overwrite(
-          ByteData.sublistView(Uint8List.fromList(const [255, 255, 255, 255])));
+          gpu.gpuContext.createTexture(gpu.StorageMode.devicePrivate, 1, 1);
+      final cmd = gpu.gpuContext.createCommandBuffer();
+      cmd.createRenderPass(gpu.RenderTarget.singleColor(
+        gpu.ColorAttachment(texture: tex, clearValue: Vector4(1, 1, 1, 1)),
+      ));
+      cmd.submit();
       return _whiteTexture = tex;
     } catch (_) {
       return null;

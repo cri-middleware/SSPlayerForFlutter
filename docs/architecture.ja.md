@@ -726,3 +726,8 @@ flutter run -d macos --debug --dart-define=SS_BACKEND=gpu --enable-impeller --en
   `a_mask_off.zw` は未使用だが `.xy` を使うので属性ごと残る）。
 - **UBO の“配列”を使うな**（`u[動的index+定数]` が 0 を返す）。per-part 可変データは per-vertex 属性へ。struct メンバ UBO
   （MaskInfo / TintInfo）は正常。
+- **同一フレーム内で書いたテクスチャは、その同じフレームでサンプルすると 0 になる**。`hostVisible` テクスチャを
+  render pass 記録中に `overwrite` してそのまま同フレームで描くと、CPU 書き込みが GPU 読み取りに同期されず透明になる
+  （プレーン Shape の白テクセル `texel*色` がこれで不可視だった＝`PartsColor.ssab` の `S_*` パーツ）。定数テクスチャは
+  **devicePrivate に clear pass で描く**（`_ensureWhiteTexture`。coverage 標的と同じ）。アトラスが平気なのは upload が
+  非同期マイクロタスク＝前フレームで書かれるため。
