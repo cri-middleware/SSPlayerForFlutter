@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart' show AssetBundle, rootBundle;
+import 'package:vector_math/vector_math_64.dart' show Matrix4;
 
 import 'event.dart';
 import 'instance_loader.dart';
@@ -547,6 +548,43 @@ class SpriteStudioPlayer extends ChangeNotifier {
 
   /// Resolves [name] to its part index, or -1 when unknown / before [load].
   int partIndexOf(String name) => _internal?.partIndexOf(name) ?? -1;
+
+  // --- Part following (read a part's live pose) ----------------------------
+  //
+  // The read counterpart to the overrides below: pull a part's composed world
+  // pose / hide out so a follower — the [SpriteStudioPartAnchor] widget, a Flame
+  // component — can track it. Pure reads: unlike the overrides they owe no
+  // repaint (nothing changed), and they no-op to null / false before [load] or
+  // for an unknown part. Drive them from a listener on this player so a follower
+  // re-reads right after each [advance], when the world matrices are final.
+
+  /// The current-frame world transform of the part named [partName] as a
+  /// [Matrix4] in player-local space, or null before [load] / for an unknown
+  /// part. See [SpriteStudioInternalPlayer.partWorldMatrix] for the affine
+  /// contract (2D affine, Y-flip already baked in — pass straight to a
+  /// `Transform` widget) and the same-frame sampling.
+  Matrix4? partTransform(String partName) {
+    final internal = _internal;
+    if (internal == null) return null;
+    return internal.partWorldMatrix(internal.partIndexOf(partName));
+  }
+
+  /// Index form of [partTransform] (skips the name lookup when the caller
+  /// already resolved the index through [partIndexOf]).
+  Matrix4? partTransformOf(int partIndex) =>
+      _internal?.partWorldMatrix(partIndex);
+
+  /// Whether the part named [partName] is hidden on the current frame (keyframe
+  /// hide composed with any visibility override), or false before [load] / for
+  /// an unknown part.
+  bool isPartHidden(String partName) {
+    final internal = _internal;
+    if (internal == null) return false;
+    return internal.partHidden(internal.partIndexOf(partName));
+  }
+
+  /// Index form of [isPartHidden].
+  bool isPartHiddenOf(int partIndex) => _internal?.partHidden(partIndex) ?? false;
 
   /// Force-hides a part, or reverts it to the animation. See
   /// [SpriteStudioInternalPlayer.setPartVisibilityOverride] for the cascade and

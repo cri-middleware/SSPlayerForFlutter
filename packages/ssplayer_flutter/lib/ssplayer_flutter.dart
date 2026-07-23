@@ -8,6 +8,11 @@ library;
 
 // Layer 4 — drawing adapters.
 export 'src/render/sprite_studio_view.dart';
+// Part following (ForUnity part tracker / ForGodot part attachment, done the
+// Flutter way): a Widget that sticks to a part's live transform. The read API it
+// drives (partTransform / isPartHidden) lives on SpriteStudioPlayer.
+export 'src/render/part_anchor.dart'
+    show SpriteStudioPartAnchor, SpriteStudioAnchorHidden;
 
 // Layer 3 — user-facing controller.
 export 'src/player.dart' show SpriteStudioPlayer, SsEventCallback;

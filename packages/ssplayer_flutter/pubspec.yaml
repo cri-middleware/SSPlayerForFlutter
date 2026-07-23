@@ -21,6 +21,10 @@ dependencies:
     sdk: flutter
   # dart:ffi helpers (Utf8, malloc/calloc, NativeFinalizer helpers).
   ffi: ^2.1.0
+  # Matrix4 for the part-follow read API (SpriteStudioPartAnchor / part
+  # transforms). Flutter already resolves it transitively; declared so L2/L3 —
+  # which are Widget-free and cannot reach it via flutter/widgets — may import it.
+  vector_math: ^2.1.4
   # Dart FlatBuffers runtime used by the flatc-generated lib/src/ssab/*.g.dart.
   # Match the flatc used by scripts/generate-fbs-code.sh.
   flat_buffers: ^25.9.23

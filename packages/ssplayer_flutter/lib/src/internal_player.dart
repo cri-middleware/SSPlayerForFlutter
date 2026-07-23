@@ -2,6 +2,8 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart' show visibleForTesting;
+import 'package:vector_math/vector_math_64.dart' show Matrix4;
+
 import 'package:ssruntime_dart/effect_draw_plan.dart' as efbs;
 import 'package:ssruntime_dart/ssruntime_dart.dart';
 import 'render/backend/backend_kind.dart';
@@ -696,6 +698,68 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   /// hashes the pack was built with (never re-implement it in Dart). An empty
   /// name hashes to 0 — the revert sentinel.
   int _hashName(String name) => name.isEmpty ? 0 : ssRuntime.hashString(name);
+
+  // --- Part following (read a part's live pose) ----------------------------
+  //
+  // The read mirror of the overrides above: those push a pose in, these pull the
+  // composed pose out, so a Body-side follower — the [SpriteStudioPartAnchor]
+  // widget, a Flame component — can stick to a part (ForUnity's part tracker /
+  // ForGodot's part attachment, done the Flutter way). No C-API of its own: the
+  // Brain already emits a world matrix per part every update; these just
+  // re-sample the current frame and slice it. Address parts by index (resolve a
+  // name once through [partIndexOf]); the results are borrows recomputed per
+  // call, so read them within the frame.
+
+  /// The current-frame world transform of [partIndex] as a [Matrix4] in
+  /// player-local (animation) space, or null when the index is out of range or
+  /// no frame is available.
+  ///
+  /// Only the 2D affine (`m0, m1, m4, m5, m12, m13`) is carried, with an identity
+  /// Z row — the same contract as [GeometryBuilder.world2dOf] the Instance path
+  /// places children through, so a follower lands exactly where the part draws.
+  /// The Y-Down flip is already baked in by the Brain (never re-flip); position,
+  /// rotation, scale and skew all ride in the matrix — hand it straight to a
+  /// `Transform` widget.
+  ///
+  /// Re-reads `getFrameData` for the current (sub-)frame first: the SoA world
+  /// buffer reflects whichever frame was last parsed (call `get_frame_data`
+  /// before any SoA getter), and this samples the same frame [paint] draws
+  /// (fractional when [subFrame], else floored) so the pose matches on screen.
+  Matrix4? partWorldMatrix(int partIndex) {
+    _ensureAlive();
+    if (partIndex < 0) return null;
+    final sampled = subFrame ? frameNo : frameNo.floorToDouble();
+    if (getFrameData(sampled) == null) return null;
+    final w = worldMatrices();
+    final m = partIndex * DrawFrame.worldStride;
+    if (m + DrawFrame.worldStride > w.length) return null;
+    // Identity seeds [10]/[15] = 1; overwrite only the six affine terms so a
+    // stray Z scale or perspective row can never leak into `Transform`.
+    return Matrix4.identity()
+      ..[0] = w[m]
+      ..[1] = w[m + 1]
+      ..[4] = w[m + 4]
+      ..[5] = w[m + 5]
+      ..[12] = w[m + 12]
+      ..[13] = w[m + 13];
+  }
+
+  /// Whether [partIndex] is hidden on the current frame — the keyframe `hide`
+  /// composed with any visibility override (§65), read from the same FrameData
+  /// the draw path consumes. A part absent from this frame's `parts` reads as not
+  /// hidden (its world matrix is still valid), matching the flagship followers.
+  /// Out-of-range → false.
+  bool partHidden(int partIndex) {
+    _ensureAlive();
+    if (partIndex < 0) return false;
+    final sampled = subFrame ? frameNo : frameNo.floorToDouble();
+    final parts = getFrameData(sampled)?.parts;
+    if (parts == null) return false;
+    for (final p in parts) {
+      if (p.partIndex == partIndex) return p.$hide;
+    }
+    return false;
+  }
 
   // --- Rendering -----------------------------------------------------------
 

@@ -1,0 +1,184 @@
+// Part following — the read side of §65: pull a part's live world pose / hide
+// out so a follower (the SpriteStudioPartAnchor widget, a Flame component) can
+// track it. ForUnity's part tracker / ForGodot's part attachment, done the
+// Flutter way.
+//
+// These drive a real Brain against Ringo.ssab and skip when the example assets
+// have not been deployed (`scripts/deploy-examples.sh`). The strongest check is
+// deterministic: partWorldMatrix must carry exactly the six affine terms of the
+// raw SoA world matrix, with an identity Z/W row so no stray scale or
+// perspective leaks into a `Transform` widget.
+import 'dart:io';
+import 'dart:typed_data';
+
+import 'package:flutter/widgets.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:ssplayer_flutter/ssplayer_flutter.dart';
+
+void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  group('SpriteStudioInternalPlayer.partWorldMatrix (real Brain)', () {
+    test('carries only the 2D affine of the raw world matrix', () {
+      final p = _load();
+      if (p == null) return;
+      addTearDown(p.dispose);
+      p.update(const Duration(milliseconds: 16));
+
+      final apple = p.partIndexOf('apple');
+      final m = p.partWorldMatrix(apple);
+      expect(m, isNotNull);
+
+      // Re-sample the same frame the getter used and read the raw SoA slice.
+      final sampled = p.subFrame ? p.frameNo : p.frameNo.floorToDouble();
+      p.getFrameData(sampled);
+      final w = p.worldMatrices();
+      final base = apple * 16;
+      final s = m!.storage;
+
+      // The six affine terms (m0, m1, m4, m5, m12, m13) are copied verbatim.
+      expect(s[0], w[base + 0]);
+      expect(s[1], w[base + 1]);
+      expect(s[4], w[base + 4]);
+      expect(s[5], w[base + 5]);
+      expect(s[12], w[base + 12]);
+      expect(s[13], w[base + 13]);
+
+      // The Z/W rows are identity — the contract that keeps a rogue Z scale or
+      // perspective term out of the follower's Transform.
+      expect(s[2], 0.0);
+      expect(s[3], 0.0);
+      expect(s[6], 0.0);
+      expect(s[7], 0.0);
+      expect(s[8], 0.0);
+      expect(s[9], 0.0);
+      expect(s[10], 1.0);
+      expect(s[11], 0.0);
+      expect(s[14], 0.0);
+      expect(s[15], 1.0);
+    });
+
+    test('returns null for an out-of-range index', () {
+      final p = _load();
+      if (p == null) return;
+      addTearDown(p.dispose);
+      p.update(const Duration(milliseconds: 16));
+
+      // -1 is what an unknown name resolves to; a huge index is out of the SoA.
+      expect(p.partWorldMatrix(-1), isNull);
+      expect(p.partWorldMatrix(1 << 20), isNull);
+    });
+
+    test('a drawn part reports not hidden', () {
+      final p = _load();
+      if (p == null) return;
+      addTearDown(p.dispose);
+      p.update(const Duration(milliseconds: 16));
+
+      final apple = p.partIndexOf('apple');
+      // `apple` is drawn in Ringo's first animation, so it is present and shown.
+      expect(p.partHidden(apple), isFalse);
+      expect(p.partHidden(-1), isFalse);
+    });
+  });
+
+  group('SpriteStudioPlayer part-follow reads (L3)', () {
+    test('are a safe null / false before load', () {
+      final player = SpriteStudioPlayer();
+      addTearDown(player.dispose);
+
+      // A UI that queries a pose while the pack is still loading is not a bug —
+      // like the overrides, these no-op rather than throw.
+      expect(player.partTransform('apple'), isNull);
+      expect(player.partTransformOf(0), isNull);
+      expect(player.isPartHidden('apple'), isFalse);
+      expect(player.isPartHiddenOf(0), isFalse);
+    });
+
+    test('resolve by name and by index to the same matrix after a frame',
+        () async {
+      final bytes = _ringo();
+      if (bytes == null) return;
+      final player = SpriteStudioPlayer();
+      addTearDown(player.dispose);
+      await player.load(bytes,
+          animationName: _animations().first, loadTextures: false);
+      player.advance(const Duration(milliseconds: 16));
+
+      final apple = player.partIndexOf('apple');
+      final byName = player.partTransform('apple');
+      final byIndex = player.partTransformOf(apple);
+      expect(byName, isNotNull);
+      expect(byIndex, isNotNull);
+      expect(byName!.storage, byIndex!.storage);
+
+      expect(player.partTransform('no-such-part'), isNull);
+      expect(player.isPartHidden('no-such-part'), isFalse);
+    });
+  });
+
+  group('SpriteStudioPartAnchor (L4 widget)', () {
+    testWidgets('shows its child for a resolvable part, hides for an unknown one',
+        (tester) async {
+      final bytes = _ringo();
+      if (bytes == null) return;
+      final player = SpriteStudioPlayer();
+      addTearDown(player.dispose);
+      await player.load(bytes,
+          animationName: _animations().first, loadTextures: false);
+      player.advance(const Duration(milliseconds: 16));
+
+      const childKey = Key('anchored-child');
+      Widget host(String partName) => Directionality(
+            textDirection: TextDirection.ltr,
+            child: Center(
+              child: SizedBox(
+                width: 200,
+                height: 200,
+                child: SpriteStudioPartAnchor(
+                  player: player,
+                  partName: partName,
+                  child: const SizedBox(key: childKey, width: 8, height: 8),
+                ),
+              ),
+            ),
+          );
+
+      await tester.pumpWidget(host('apple'));
+      expect(find.byKey(childKey), findsOneWidget,
+          reason: 'a resolvable part shows the child');
+
+      await tester.pumpWidget(host('no-such-part'));
+      expect(find.byKey(childKey), findsNothing,
+          reason: 'an unknown part draws nothing');
+    });
+  });
+}
+
+/// Ringo's bytes, or null (with the test marked skipped) when the example
+/// assets have not been deployed.
+Uint8List? _ringo() {
+  for (final p in const <String>[
+    'examples/overall/assets/spritestudio/Ringo/Ringo.ssab',
+    '../../examples/overall/assets/spritestudio/Ringo/Ringo.ssab',
+  ]) {
+    final f = File(p);
+    if (f.existsSync()) return f.readAsBytesSync();
+  }
+  markTestSkipped('Ringo.ssab missing — run scripts/deploy-examples.sh');
+  return null;
+}
+
+/// A loaded Ringo player set up on its first animation.
+SpriteStudioInternalPlayer? _load() {
+  final bytes = _ringo();
+  if (bytes == null) return null;
+  final p = SpriteStudioInternalPlayer.load(bytes,
+      backend: SpriteStudioBackend.canvas);
+  p.setupAnimation(SsAnimeInfo(bytes).animationNames.first);
+  return p;
+}
+
+/// Ringo's animation names, in pack order (they live in the `.ssab`).
+List<String> _animations() =>
+    SsAnimeInfo(_ringo() ?? Uint8List(0)).animationNames;
