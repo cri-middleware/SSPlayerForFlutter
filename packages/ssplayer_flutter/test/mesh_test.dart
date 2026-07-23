@@ -180,53 +180,91 @@ void main() {
           mesh: mesh,
         );
 
-    test('tags every vertex with st (0,0) — the whole-only rule', () {
-      // This is what makes the peeled mesh path need no shader of its own: the
-      // GPU PartColor fragment mixes the four corners by (s,t), and (0,0)
-      // selects `lt` exactly — §10's 「Mesh=全頂点同値」.
-      final g = GeometryBuilder().buildMeshPartColorInterleaved(
-          <int>[0], frameWith(twoPartMesh()),
+    // A tint whose lt corner is the whole-only value; the other corners are
+    // deliberately different so the bake must ignore them (§10 「Mesh=全頂点同値」).
+    PartColor tint() => PartColor(
+          coef: partColorCoef(fbs.BlendType.Mul),
+          lt: const PartColorCorner(0.1, 0.2, 0.3, 0.9, 0.5),
+          rt: const PartColorCorner(1, 0, 0, 1, 1),
+          lb: const PartColorCorner(0, 1, 0, 1, 1),
+          rb: const PartColorCorner(0, 0, 1, 1, 1),
+        );
+
+    const stride = GeometryBuilder.partColorStride; // 24
+
+    test('every vertex carries the lt corner colour + rate — the whole-only rule',
+        () {
+      // What makes the peeled mesh path need no shader of its own: the §10
+      // gradient collapses to the lt corner on every vertex («全頂点同値»).
+      final pc = tint();
+      final g = GeometryBuilder().buildMeshPartColorInterleaved(<int>[0],
+          <PartColor>[pc], <Float32List?>[null], frameWith(twoPartMesh()),
           texWidth: 16, texHeight: 16);
       expect(g, isNotNull);
       expect(g!.vertexCount, 3);
       for (var v = 0; v < g.vertexCount; v++) {
-        expect(g.vertices[v * 7 + 4], 0.0, reason: 's of vertex $v');
-        expect(g.vertices[v * 7 + 5], 0.0, reason: 't of vertex $v');
+        final o = v * stride;
+        expect(g.vertices[o + 4], closeTo(0.1, 1e-6), reason: 'r of $v');
+        expect(g.vertices[o + 5], closeTo(0.2, 1e-6), reason: 'g of $v');
+        expect(g.vertices[o + 6], closeTo(0.3, 1e-6), reason: 'b of $v');
+        expect(g.vertices[o + 7], closeTo(0.9, 1e-6), reason: 'a of $v');
+        expect(g.vertices[o + 8], closeTo(pc.coef[0], 1e-6));
+        expect(g.vertices[o + 9], closeTo(pc.coef[1], 1e-6));
+        expect(g.vertices[o + 10], closeTo(pc.coef[2], 1e-6));
+        expect(g.vertices[o + 11], closeTo(0.5, 1e-6), reason: 'rate of $v');
       }
     });
 
     test('world positions pass through, UVs are normalised by the texture', () {
-      final g = GeometryBuilder().buildMeshPartColorInterleaved(
-          <int>[0], frameWith(twoPartMesh()),
+      final g = GeometryBuilder().buildMeshPartColorInterleaved(<int>[0],
+          <PartColor>[tint()], <Float32List?>[null], frameWith(twoPartMesh()),
           texWidth: 16, texHeight: 32);
       // vertex 1: world (10,0), pixel UV (8,0) → normalised (0.5, 0).
-      expect(g!.vertices.sublist(7, 11), <double>[10, 0, 0.5, 0]);
+      expect(g!.vertices.sublist(stride, stride + 4), <double>[10, 0, 0.5, 0]);
       // vertex 2: world (0,10), pixel UV (0,8) → v = 8/32.
-      expect(g.vertices.sublist(14, 18), <double>[0, 10, 0, 0.25]);
+      expect(g.vertices.sublist(stride * 2, stride * 2 + 4),
+          <double>[0, 10, 0, 0.25]);
     });
 
-    test('the part slot is the index within the run, not the part index', () {
-      // The backend writes PartColorInfo entry `i` for `parts[i]`, so a run's
-      // second part must tag its vertices with slot 1 even though its part
-      // index is 2.
-      final g = GeometryBuilder().buildMeshPartColorInterleaved(
-          <int>[0, 2], frameWith(twoPartMesh()),
+    test('an unmasked part writes mask enabled = 0 on every vertex', () {
+      final g = GeometryBuilder().buildMeshPartColorInterleaved(<int>[0],
+          <PartColor>[tint()], <Float32List?>[null], frameWith(twoPartMesh()),
           texWidth: 16, texHeight: 16);
+      for (var v = 0; v < g!.vertexCount; v++) {
+        expect(g.vertices[v * stride + 15], 0.0, reason: 'enabled of $v');
+      }
+    });
+
+    test('a masked part carries the replay set on every vertex', () {
+      final mask = Float32List.fromList(
+          <double>[3, 4, 1, 1, 2, 0, 0, 2, 0.25, 0.5]);
+      final g = GeometryBuilder().buildMeshPartColorInterleaved(<int>[0],
+          <PartColor>[tint()], <Float32List?>[mask], frameWith(twoPartMesh()),
+          texWidth: 16, texHeight: 16);
+      for (var v = 0; v < g!.vertexCount; v++) {
+        final o = v * stride;
+        expect(g.vertices.sublist(o + 12, o + 22),
+            <double>[3, 4, 1, 1, 2, 0, 0, 2, 0.25, 0.5]);
+      }
+    });
+
+    test('rebases part-local indices when batching several parts', () {
+      final g = GeometryBuilder().buildMeshPartColorInterleaved(
+          <int>[0, 2],
+          <PartColor>[tint(), tint()],
+          <Float32List?>[null, null],
+          frameWith(twoPartMesh()),
+          texWidth: 16,
+          texHeight: 16);
       expect(g!.vertexCount, 6);
-      for (var v = 0; v < 3; v++) {
-        expect(g.vertices[v * 7 + 6], 0.0);
-      }
-      for (var v = 3; v < 6; v++) {
-        expect(g.vertices[v * 7 + 6], 1.0);
-      }
-      // …and the part-local indices are rebased, as in every mesh bake.
+      // part 2's [0,2,1] → [3,5,4], as in every mesh bake.
       expect(g.indices, <int>[0, 1, 2, 3, 5, 4]);
     });
 
     test('non-mesh parts and an absent mesh SoA yield null', () {
       expect(
-          GeometryBuilder().buildMeshPartColorInterleaved(
-              <int>[1], frameWith(twoPartMesh()),
+          GeometryBuilder().buildMeshPartColorInterleaved(<int>[1],
+              <PartColor>[tint()], <Float32List?>[null], frameWith(twoPartMesh()),
               texWidth: 16, texHeight: 16),
           isNull);
       final noMesh = DrawFrame(
@@ -238,7 +276,8 @@ void main() {
         uv: Float32List(0),
       );
       expect(
-          GeometryBuilder().buildMeshPartColorInterleaved(<int>[0], noMesh,
+          GeometryBuilder().buildMeshPartColorInterleaved(<int>[0],
+              <PartColor>[tint()], <Float32List?>[null], noMesh,
               texWidth: 16, texHeight: 16),
           isNull);
     });

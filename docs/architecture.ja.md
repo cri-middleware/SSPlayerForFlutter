@@ -651,9 +651,11 @@ L2/L3/L4 の `paint(canvas,{dst,sourceSize})` シグネチャは不変（分岐�
 
 **パイプライン / シェーダ（`shaders/gpu/*.vert|frag`, 素の GLSL）**:
 - **sprite**: Normal/Mesh/Effect（テクスチャ×premult 頂点色）。Shape は 1×1 白テクスチャ＋uv=0 で per-vertex 色を通す。
-- **partcolor**（§10/§9）: 頂点で quad-local `(s,t)` を varying 出力 → フラグメントで**真の bilinear**、mask replay は
-  **整数ビット演算**。**fan-out 崩し**＝連続する peeled パーツを `a_part` インデックス＋`vec4[]` UBO 配列（40/バッチ、
-  impellerc の UBO 上限 6208B 制約）で **1 ドロー**に畳む。
+- **partcolor**（§10/§9）: **per-vertex 属性設計**（兄弟 Godot/Web と同型・§下記）。UBO を持たず、隅色/rate/coef と
+  mask セット（bits/uv/off）を全部頂点に載せる。色は隅ごとの `a_color`（4隅グラデはラスタライザ補間）、rate は
+  `a_coef.w`、mask は `flat` varying。mask replay は**整数ビット演算**。**fan-out 崩し**＝連続する peeled パーツを
+  1 VBO（頂点が自己記述するので `a_part` 不要）で **1 ドロー**に畳む。頂点は 24 float/96byte・全 `vec4` を 16byte 境界に
+  （§下記の Impeller アラインメント地雷）。
 - **mask_write**（§9）: `renderCoverage` が別 command buffer で coverage texture に writers を加算描画（bits を R/G/B）。
   coverage-mvp は `MaskPlan.uvBasis/uvOffset` 由来で main pass のサンプルと厳密整合。
 - **shapemask**: マスク対象 Shape（per-vertex 色を coverage でゲート）。
@@ -674,7 +676,7 @@ L2/L3/L4 の `paint(canvas,{dst,sourceSize})` シグネチャは不変（分岐�
   （子 pass はそれをサンプルする pass より先に submit されるので順序も正しい）。標的確保に失敗しても
   push/pop の対は崩さず、tint 無しで描く。
 - **Mesh の PartColor / マスク対象（§8）**: 新しいシェーダは不要で、既存 partcolor パイプラインを使う。
-  `buildMeshPartColorInterleaved` が全頂点に `st=(0,0)` を振るので 4 隅 mix が `lt` に解決＝§10 の Whole-only、
+  `buildMeshPartColorInterleaved` が全頂点に `lt` 隅の色/rate を載せる（§10 の Whole-only「全頂点同値」）、
   mask replay は `v_local`（メッシュ頂点は既に player-local world 空間）でそのまま効く。
 - **テクスチャ**: `ui.Image.toByteData(rawRgba, premult)` → `createTexture(hostVisible)` + `overwrite`、hash でキャッシュ。
   非同期のためロード直後の数フレームは未完テクスチャをスキップ。
@@ -688,19 +690,39 @@ L2/L3/L4 の `paint(canvas,{dst,sourceSize})` シグネチャは不変（分岐�
 
 **要調査（2026-07-23・冒頭の⚠️参照）**: 実機切り分けで判明したこと。
 - **修正済み**: マスク対象 Shape の白化（`vec4` 頂点属性の 16byte 境界問題）→ Mask・Shape は実機で Canvas 一致。
-- **未修正（既知バグ）**: **Normal/Mesh/Instance の実 PartColor tint（`rate>0`）が GPU で効かず素テクスチャになる**。
-  原因は batched PartColor パイプラインが per-part データを `a_part` で UBO 配列参照している点で、Impeller/Metal が
-  **`uniformArray[動的index + 定数]` を誤コンパイル**して rate/coef/mask に 0 を返す（実測: `pc.data[base]` は正・
-  `pc.data[base+4]` は 0）。Mask.ssab はマスク対象が passthrough（白・rate 0）なので露見せず、Shape.ssab の
-  「Normal」パーツ（Mul）で初めて顕在化。ローカル配列コピー（folded）・1ドロー1パーツ＋literal（小UBO mis-bind）
-  はいずれも不発。**推奨修正＝兄弟(Godot/Web)と同じにする**: 兄弟は UBO ではなく**per-vertex 属性**で渡している
-  （ssplayer-webgl の `PartsColorProgram` は `aColor`(隅の色)＋`aVarg`(rate, Mix/Mul/AddSub セレクタ)を頂点属性で持ち、
-  4隅グラデはハード補間任せ。Godot も `CUSTOM0=(rate, blend_idx, pma, 0)`）。だから生 WebGL(flutter_gpu と同じ低レベル)でも
-  問題が出ない。この flutter_gpu バックエンドが UBO 設計になっているのは、**dart:ui(Canvas)版を移植したから**——Canvas は
-  runtime-effect シェーダが custom varying を持てないので uniform でフラグメント再構成する**必然**があった。だが
-  **flutter_gpu は dart:ui ではなく生 GLSL で varying が使える**（sprite パイプラインは既に `a_color` を per-vertex で使用）。
-  つまり最初から兄弟と同じ per-vertex 属性にすべきで、UBO は不要だった。**§10 の「Flutter は custom varying 不可」注は
-  Canvas 限定**の話。修正: 色/rate/blend セレクタ（＋マスクの bits/uv/off）を頂点属性に載せ、`PartColorInfo` UBO を廃止する。
+- **✅ 修正済み（実機目視まで確認）**: **Normal/Mesh/Instance の実 PartColor tint（`rate>0`）**。batched
+  PartColor は per-part データを**全部 per-vertex 属性**で持ち UBO を bind しない（兄弟 Godot/Web と同型・上の partcolor
+  バレット参照）。Impeller/Metal は `uniformArray[動的index + 定数]` を誤コンパイルして 0 を返す（実測: `u[base]` 正・
+  `u[base+4]` 0）ため、動的 index の UBO 配列を使うと実 tint が素テクスチャに落ちる——それを構造的に避ける設計。
+  Mask.ssab はマスク対象が passthrough（白・rate 0）で露見せず、Shape.ssab の「Normal」パーツ（Mul）で顕在化していた。
+  **実機確認済み（macOS/Metal・ランタイム＋色）**: `flutter run -d macos --enable-impeller --enable-flutter-gpu
+  --dart-define=SS_BACKEND=gpu` で新 per-vertex パイプラインが GPU backend で実行され（Shape=1 / PartsColor=8 を 1 ドロー
+  集約 / Mask=passthrough+coverage、Canvas フォールバック無し・例外/shader エラー無し）、**実際の色も目視で正しい**
+  （以前白かった tint 付き「Normal」が正しく tint される）。
 - テストの `toImage` は不正確（Mask を 0 と誤る）ので `gpu_backend_test.dart` の数値は当てにならない。
-- 残タスク: (a) 上記 flat 属性化で tint を GPU で効かせる、(b) テスト是正（両フラグ必須＋信頼できるキャプチャ）、
-  (c) Effect/Instance-tint/BlendMode/Basic の実機目視。
+- 残タスク: (a) `gpu_backend_test` の是正（両フラグ必須＋信頼できるキャプチャ＝headless `flutter test` では成立せず
+  on-device integration test が要る。上の PartColor 修正の**自動**回帰ガードにもなる）、(b) Effect/Instance-tint/BlendMode/Basic の実機目視。
+
+**実機検証レシピ（macOS）**: GPU 経路は headless `flutter test` では走らない（Impeller 未有効→Canvas フォールバック）。
+実機は両フラグ必須:
+
+```
+cd examples/overall
+flutter run -d macos --debug --dart-define=SS_BACKEND=gpu --enable-impeller --enable-flutter-gpu
+```
+
+- `SS_BACKEND=gpu` で GPU 要求（既定 canvas）。既定パックは `Shape`（tinted "Normal"＝Mul PartColor 有り）。他パックは
+  Web の `?pack=`、または一時的に `initState` へ `SS_PACK` dart-define 選択を足す（調査用・コミットしない）。
+- パイプラインが実際に走ったかは、`_drawPartColorRun` に一時 one-shot `print` を入れログで確認するのが速い（本改修でそうした
+  ＝Impeller(Metal) 有効・`parts=N verts=4N` を確認）。色そのものは `screencapture`（画面収録権限が要る）かウィンドウ目視で。
+  フラグメントに一時デバッグ出力（`frag_color = vec4(coef.z,coef.z,coef.z,1)` 等）で「読めているか」を色で見るのも有効。
+- ビルド env の罠: SDK release が 404 だと native assets ビルドが落ちる。回避は ABI 一致の既存 dylib を
+  `packages/ssruntime_dart/native/libs/macos/libssruntime.dylib` に置く（git-ignore・コミットしない）。
+
+**GPU シェーダ / 頂点の地雷（回帰させない）**:
+- **`vec4` 頂点属性は 16byte 境界に置く**。ストライドも 16 の倍数に（境界が毎頂点で再現するよう）。ずれると Impeller が誤読する
+  （ShapeMask の白化がこれ。PartColor は 24float/96byte 配置で回避）。
+- **未使用の `in`/`out` は impellerc が剥がして reflection を壊す**。全属性を必ず出力/使用へ繋ぐ（PartColor の
+  `a_mask_off.zw` は未使用だが `.xy` を使うので属性ごと残る）。
+- **UBO の“配列”を使うな**（`u[動的index+定数]` が 0 を返す）。per-part 可変データは per-vertex 属性へ。struct メンバ UBO
+  （MaskInfo / TintInfo）は正常。

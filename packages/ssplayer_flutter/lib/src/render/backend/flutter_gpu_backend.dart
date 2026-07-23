@@ -27,10 +27,12 @@ RenderBackend createFlutterGpuBackend() => FlutterGpuBackend();
 /// / Sub — see [_blendFor]); Mul / Screen / Exclusion / Invert need advanced
 /// blend and fall back to source-over.
 ///
-/// **Not yet on GPU (drawn correctly only by the Canvas reference):** the mask
-/// coverage pass (Phase 4) — so a *mask-target* part draws unmasked; a peeled
-/// *Normal* PartColor part (Phase 5) — draws un-tinted; and Instance children
-/// (Phase 6). The Canvas backend remains the complete parity reference for those.
+/// Peeled parts (§9 mask replay / §10 PartColor tint) draw on the dedicated
+/// PartColor pipeline, which carries every per-part value as a **per-vertex
+/// attribute** — the Godot/Web sibling design (§19). A per-vertex attribute
+/// avoids the dynamically-indexed uniform array Impeller/Metal miscompiles, so
+/// no UBO is bound. Instance group tint uses the ColorMatrix pipeline (`TintInfo`
+/// *struct* UBO, which is fine — only uniform *arrays* are the problem).
 ///
 /// Every GPU entry is guarded: any failure (pipeline not loaded, context error)
 /// leaves the frame blank rather than throwing, so a bad GPU state never crashes
@@ -407,17 +409,18 @@ class FlutterGpuBackend implements RenderBackend {
     flushPc();
   }
 
-  /// Max peeled parts per PartColor batch — bounded by the `PartColorInfo` array
-  /// size (40 entries = 5760 bytes < impellerc's 6208-byte UBO limit). A longer
-  /// run splits into multiple draws.
-  static const int _kMaxPartColorRun = 40;
+  /// Max peeled parts per PartColor batch. Peeled parts carry their data
+  /// per-vertex (no uniform array), so the only bound on a run is the 16-bit
+  /// index buffer: at 4 vertices per part a run stays well under the 0xFFFF
+  /// vertex limit. A longer run splits into multiple draws.
+  static const int _kMaxPartColorRun = 4096;
 
   /// Draws a RUN of peeled parts (PartColor §10 and/or mask §9) in ONE PartColor
-  /// pipeline call — the fan-out collapse. Each part's quad becomes 4 vertices
-  /// tagged with its slot index (`a_part`); its corner colours / rate / coef /
-  /// mask sets go into the `PartColorInfo` uniform array at that slot. A part with
-  /// a degenerate quad is dropped. Falls back to plain sprite draws when the
-  /// pipeline is unavailable, so parts stay visible.
+  /// pipeline call — the fan-out collapse. Each part's quad becomes 4 self-
+  /// describing vertices (corner colour / rate / coef / mask replay all as
+  /// per-vertex attributes; no UBO), so the whole run packs into one vertex
+  /// buffer. A part with a degenerate quad is dropped. Falls back to plain sprite
+  /// draws when the pipeline is unavailable, so parts stay visible.
   void _drawPartColorRun(
       List<int> parts,
       List<PartColor> pcs,
@@ -439,67 +442,32 @@ class FlutterGpuBackend implements RenderBackend {
       return;
     }
 
-    final invW = texW > 0 ? 1.0 / texW : 0.0;
-    final invH = texH > 0 ? 1.0 / texH : 0.0;
-    final n = parts.length;
-    final verts = Float32List(n * 4 * 7); // 4 corners × [pos.xy, uv.xy, st.xy, part]
-    final indices = Uint16List(n * 6);
-    final ubo = Float32List(360 * 4); // the full declared UBO, zero-padded
-    var vp = 0, ip = 0, slot = 0, vbase = 0;
-
-    for (var i = 0; i < n; i++) {
-      final quad = host.geometry.buildPartColorQuad(parts[i], frame);
-      if (quad == null) continue; // degenerate — drop
-      final c = quad.corners, ua = quad.uvA, ub = quad.uvB;
-      final pf = slot.toDouble();
-      void v(double x, double y, double u, double vv, double s, double t) {
-        verts[vp++] = x;
-        verts[vp++] = y;
-        verts[vp++] = u;
-        verts[vp++] = vv;
-        verts[vp++] = s;
-        verts[vp++] = t;
-        verts[vp++] = pf;
-      }
-
-      v(c[0], c[1], ua[0] * invW, ua[1] * invH, 0.0, 0.0); // lt
-      v(c[2], c[3], ua[2] * invW, ua[3] * invH, 1.0, 0.0); // rt
-      v(c[4], c[5], ub[0] * invW, ub[1] * invH, 0.0, 1.0); // lb
-      v(c[6], c[7], ub[2] * invW, ub[3] * invH, 1.0, 1.0); // rb
-      indices[ip++] = vbase;
-      indices[ip++] = vbase + 1;
-      indices[ip++] = vbase + 2;
-      indices[ip++] = vbase + 1;
-      indices[ip++] = vbase + 3;
-      indices[ip++] = vbase + 2;
-      vbase += 4;
-
-      final masked = masks[i] != null && coverage != null;
-      _writePartColorEntry(ubo, slot * 36, pcs[i], masked ? masks[i] : null);
-      slot++;
-    }
-    if (slot == 0) return;
+    final maskSets = <Float32List?>[
+      for (final m in masks) _maskSet(m, coverage),
+    ];
+    final geo = host.geometry.buildPartColorInterleaved(
+        parts, pcs, maskSets, frame,
+        texWidth: texW, texHeight: texH);
+    if (geo == null) return;
 
     try {
       final cov = coverage ?? dummyCov;
       pass.bindPipeline(pipeline);
       pass.bindUniform(
           pipeline.vertexShader.getUniformSlot('FrameInfo'), _mvpView!);
-      pass.bindUniform(pipeline.fragmentShader.getUniformSlot('PartColorInfo'),
-          _hostBuffer!.emplace(ByteData.sublistView(ubo)));
       pass.setColorBlendEquation(blend);
 
-      final vb = gpu.gpuContext.createDeviceBufferWithCopy(ByteData.sublistView(
-          Float32List.view(verts.buffer, verts.offsetInBytes, vp)));
-      final ib = gpu.gpuContext.createDeviceBufferWithCopy(ByteData.sublistView(
-          Uint16List.view(indices.buffer, indices.offsetInBytes, ip)));
+      final vb = gpu.gpuContext
+          .createDeviceBufferWithCopy(ByteData.sublistView(geo.vertices));
+      final ib = gpu.gpuContext
+          .createDeviceBufferWithCopy(ByteData.sublistView(geo.indices));
       pass.bindVertexBuffer(
           gpu.BufferView(vb, offsetInBytes: 0, lengthInBytes: vb.sizeInBytes),
-          slot * 4);
+          geo.vertexCount);
       pass.bindIndexBuffer(
           gpu.BufferView(ib, offsetInBytes: 0, lengthInBytes: ib.sizeInBytes),
           gpu.IndexType.int16,
-          ip);
+          geo.indexCount);
       pass.bindTexture(
         pipeline.fragmentShader.getUniformSlot('u_texture'),
         tex,
@@ -520,43 +488,25 @@ class FlutterGpuBackend implements RenderBackend {
   static final Uint16List _quadIndices =
       Uint16List.fromList(const <int>[0, 1, 2, 1, 3, 2]);
 
-  /// Writes one part's 36 floats into the `PartColorInfo` array at [base]
-  /// (9 vec4: 4 corner colours, rate, coef, mask_bits, mask_uv, mask_off), in the
-  /// declaration order of shaders/gpu/partcolor.frag.
-  static void _writePartColorEntry(
-      Float32List u, int base, PartColor pc, MaskDraw? mask) {
-    void corner(int o, PartColorCorner k) {
-      u[o] = k.r;
-      u[o + 1] = k.g;
-      u[o + 2] = k.b;
-      u[o + 3] = k.a;
-    }
-
-    corner(base, pc.lt);
-    corner(base + 4, pc.rt);
-    corner(base + 8, pc.lb);
-    corner(base + 12, pc.rb);
-    u[base + 16] = pc.lt.rate;
-    u[base + 17] = pc.rt.rate;
-    u[base + 18] = pc.lb.rate;
-    u[base + 19] = pc.rb.rate;
-    u[base + 20] = pc.coef[0];
-    u[base + 21] = pc.coef[1];
-    u[base + 22] = pc.coef[2];
-    u[base + 23] = pc.coef[3];
-    if (mask != null) {
-      u[base + 24] = mask.bits.increment.toDouble();
-      u[base + 25] = mask.bits.invert.toDouble();
-      u[base + 26] = mask.bits.visibleInside ? 1.0 : 0.0;
-      u[base + 27] = 1.0; // enabled
-      u[base + 28] = mask.uvBasis[0];
-      u[base + 29] = mask.uvBasis[1];
-      u[base + 30] = mask.uvBasis[2];
-      u[base + 31] = mask.uvBasis[3];
-      u[base + 32] = mask.uvOffset[0];
-      u[base + 33] = mask.uvOffset[1];
-    }
-    // base+34, base+35 (mask_off.zw) stay 0.
+  /// Flattens a peeled part's mask replay into the 10 floats the PartColor vertex
+  /// carries — `(increment, invert, visibleInside, enabled, m00, m01, m10, m11,
+  /// ox, oy)`, matching `GeometryBuilder._writePcVertex` — or null when the part
+  /// is unmasked this frame (no [mask], or no [coverage] texture bound for the
+  /// run), so the bake writes `enabled = 0` and the shader passes it through.
+  static Float32List? _maskSet(MaskDraw? mask, gpu.Texture? coverage) {
+    if (mask == null || coverage == null) return null;
+    return Float32List.fromList(<double>[
+      mask.bits.increment.toDouble(),
+      mask.bits.invert.toDouble(),
+      mask.bits.visibleInside ? 1.0 : 0.0,
+      1.0, // enabled
+      mask.uvBasis[0],
+      mask.uvBasis[1],
+      mask.uvBasis[2],
+      mask.uvBasis[3],
+      mask.uvOffset[0],
+      mask.uvOffset[1],
+    ]);
   }
 
   void _drawInterleaved(
@@ -749,13 +699,12 @@ class FlutterGpuBackend implements RenderBackend {
   /// Draws a RUN of peeled mesh parts (PartColor §10 and/or mask §9) in ONE
   /// PartColor-pipeline call.
   ///
-  /// No mesh-specific shader is needed: the bake tags every mesh vertex with
-  /// `st == (0,0)`, which makes the fragment's bilinear corner mix resolve to
-  /// `lt` — the §10 *whole-only* Mesh rule — and the mask replay already samples
-  /// the coverage through the player-local `v_local` varying, which a mesh
-  /// vertex is in. So this is [_drawPartColorRun] with a different geometry
-  /// source; slot `i` of the uniform array belongs to `parts[i]`. Falls back to
-  /// the plain textured draw when the pipeline is unavailable.
+  /// No mesh-specific shader is needed: the bake carries the `lt` corner's colour
+  /// + rate on every vertex — the §10 *whole-only* Mesh rule — and the mask
+  /// replay samples the coverage through the player-local `v_local` varying,
+  /// which a mesh vertex is in. So this is [_drawPartColorRun] with a different
+  /// geometry source. Falls back to the plain textured draw when the pipeline is
+  /// unavailable.
   void _drawMeshPartColorRun(
       List<int> parts,
       List<PartColor> pcs,
@@ -770,9 +719,6 @@ class FlutterGpuBackend implements RenderBackend {
     final pass = _pass!;
     final pipeline = _ensurePartColorPipeline();
     final dummyCov = _ensureDummyCoverage();
-    final geo = host.geometry.buildMeshPartColorInterleaved(parts, frame,
-        texWidth: texW, texHeight: texH);
-    if (geo == null) return;
     if (pipeline == null || dummyCov == null) {
       final plain = host.geometry
           .buildMeshInterleaved(parts, frame, texWidth: texW, texHeight: texH);
@@ -780,18 +726,19 @@ class FlutterGpuBackend implements RenderBackend {
       return;
     }
 
-    final ubo = Float32List(360 * 4); // the full declared UBO, zero-padded
-    for (var i = 0; i < parts.length; i++) {
-      final masked = masks[i] != null && coverage != null;
-      _writePartColorEntry(ubo, i * 36, pcs[i], masked ? masks[i] : null);
-    }
+    final maskSets = <Float32List?>[
+      for (final m in masks) _maskSet(m, coverage),
+    ];
+    final geo = host.geometry.buildMeshPartColorInterleaved(
+        parts, pcs, maskSets, frame,
+        texWidth: texW, texHeight: texH);
+    if (geo == null) return;
 
     try {
+      final cov = coverage ?? dummyCov;
       pass.bindPipeline(pipeline);
       pass.bindUniform(
           pipeline.vertexShader.getUniformSlot('FrameInfo'), _mvpView!);
-      pass.bindUniform(pipeline.fragmentShader.getUniformSlot('PartColorInfo'),
-          _hostBuffer!.emplace(ByteData.sublistView(ubo)));
       pass.setColorBlendEquation(blend);
 
       final vb = gpu.gpuContext
@@ -814,8 +761,8 @@ class FlutterGpuBackend implements RenderBackend {
         ),
       );
       // Coverage MUST stay nearest — its texels are bit fields.
-      pass.bindTexture(pipeline.fragmentShader.getUniformSlot('u_coverage'),
-          coverage ?? dummyCov);
+      pass.bindTexture(
+          pipeline.fragmentShader.getUniformSlot('u_coverage'), cov);
       pass.draw();
     } catch (_) {
       // Skip this draw; keep the rest of the frame.

@@ -310,19 +310,26 @@ class MeshGeometry {
       );
 }
 
-/// An interleaved vertex block for the flutter_gpu path — 8 floats per vertex
-/// `[x, y, u, v, r, g, b, a]` (world-space XY, normalised UV, premultiplied
-/// RGBA) plus 16-bit quad indices. Built by
-/// [GeometryBuilder.buildNormalInterleaved]; the [vertices]/[indices] views
-/// alias grow-only scratch, so copy them into a `DeviceBuffer` before the next
-/// bake. This is the GPU sibling of [MeshGeometry.toVertices] (which packs the
-/// parallel arrays a `ui.Vertices` wants); the compute is shared, only the
-/// output layout differs.
+/// An interleaved vertex block for the flutter_gpu path — for the sprite
+/// pipeline, 8 floats per vertex `[x, y, u, v, r, g, b, a]` (world-space XY,
+/// normalised UV, premultiplied RGBA) plus 16-bit quad indices; the peeled
+/// PartColor bakes ([GeometryBuilder.buildPartColorInterleaved] /
+/// [GeometryBuilder.buildMeshPartColorInterleaved]) use the wider
+/// [GeometryBuilder.partColorStride] layout instead. Built by
+/// [GeometryBuilder.buildNormalInterleaved] and its siblings; the
+/// [vertices]/[indices] views alias grow-only scratch, so copy them into a
+/// `DeviceBuffer` before the next bake. This is the GPU sibling of
+/// [MeshGeometry.toVertices] (which packs the parallel arrays a `ui.Vertices`
+/// wants); the compute is shared, only the output layout differs. The stride is
+/// not carried here — the bound pipeline's shader reflection defines it, and the
+/// bake writes to match.
 class InterleavedGeometry {
   const InterleavedGeometry(
       this.vertices, this.indices, this.vertexCount, this.indexCount);
 
-  /// `vertexCount * 8` floats, tightly interleaved in attribute location order.
+  /// `vertexCount * stride` floats, tightly interleaved in attribute location
+  /// order (stride per the pipeline this block feeds — 8 for the sprite
+  /// pipeline, [GeometryBuilder.partColorStride] for the PartColor pipeline).
   final Float32List vertices;
 
   /// `indexCount` 16-bit indices.
@@ -500,6 +507,61 @@ class GeometryBuilder {
   Float32List _inter(int n) =>
       _interScratch.length >= n ? _interScratch : (_interScratch = Float32List(n));
 
+  /// Floats per vertex in the peeled-PartColor bakes ([buildPartColorInterleaved]
+  /// / [buildMeshPartColorInterleaved]) — 24 floats = 96 bytes, every `vec4`
+  /// attribute on a 16-byte boundary so Impeller reads them correctly (§5 / the
+  /// ShapeMask alignment trap). Layout matches `shaders/gpu/partcolor.vert`:
+  /// `[pos.xy, uv.xy, color.rgba, coef.xyz+rate, mask_bits, mask_uv, mask_off.xy00]`.
+  static const int partColorStride = 24;
+
+  /// Writes one peeled-PartColor vertex (24 floats, [partColorStride]) at [fp]
+  /// and returns the next cursor. Shared by the Normal ([buildPartColorInterleaved])
+  /// and Mesh ([buildMeshPartColorInterleaved]) bakes so their vertex format can
+  /// never drift from the shader's `in` layout.
+  ///
+  /// [col] is the corner colour whose straight RGBA + [PartColorCorner.rate] this
+  /// vertex carries (the shader interpolates them into the §10 gradient), [coef]
+  /// is the part's blend coefficient row (constant across the quad), and [mask] is
+  /// the flattened replay set `(inc, inv, visibleInside, enabled, m00,m01,m10,m11,
+  /// ox,oy)` or null when the part is unmasked (→ `enabled = 0`). ALL 24 floats
+  /// are written every call, so no stale scratch leaks into the padding lanes.
+  static int _writePcVertex(Float32List v, int fp, double x, double y, double u,
+      double vv, PartColorCorner col, List<double> coef, Float32List? mask) {
+    v[fp] = x; // a_position
+    v[fp + 1] = y;
+    v[fp + 2] = u; // a_uv (normalised)
+    v[fp + 3] = vv;
+    v[fp + 4] = col.r; // a_color (straight)
+    v[fp + 5] = col.g;
+    v[fp + 6] = col.b;
+    v[fp + 7] = col.a;
+    v[fp + 8] = coef[0]; // a_coef.xyz + rate
+    v[fp + 9] = coef[1];
+    v[fp + 10] = coef[2];
+    v[fp + 11] = col.rate;
+    if (mask == null) {
+      // a_mask_bits/uv/off all zero — a_mask_bits.w (enabled) 0 makes maskPasses
+      // pass unconditionally.
+      for (var k = 12; k < 24; k++) {
+        v[fp + k] = 0.0;
+      }
+    } else {
+      v[fp + 12] = mask[0]; // a_mask_bits: increment
+      v[fp + 13] = mask[1]; // invert
+      v[fp + 14] = mask[2]; // visibleInside
+      v[fp + 15] = mask[3]; // enabled
+      v[fp + 16] = mask[4]; // a_mask_uv: m00
+      v[fp + 17] = mask[5]; // m01
+      v[fp + 18] = mask[6]; // m10
+      v[fp + 19] = mask[7]; // m11
+      v[fp + 20] = mask[8]; // a_mask_off: ox
+      v[fp + 21] = mask[9]; // oy
+      v[fp + 22] = 0.0; // padding lane (unused; keeps the 16-byte stride)
+      v[fp + 23] = 0.0;
+    }
+    return fp + partColorStride;
+  }
+
   /// Bakes [parts] into a single **interleaved** vertex block for the flutter_gpu
   /// Normal path: 8 floats per vertex `[x, y, u, v, r, g, b, a]` — world-
   /// transformed position, UV **normalised** by [texWidth]/[texHeight], and a
@@ -638,27 +700,78 @@ class GeometryBuilder {
     );
   }
 
+  /// Interleaved flutter_gpu bake of *peeled* Normal [parts] carrying PartColor
+  /// (§10) and/or a mask test (§9) — the per-vertex-attribute feed for the
+  /// `PartColorVertex/Fragment` pipeline (§19).
+  ///
+  /// Each vertex is self-describing ([partColorStride] floats), so a whole RUN
+  /// batches into ONE draw with no uniform array. Each part's quad takes its four
+  /// corner colours + rates straight from [pcs]`[i]` (the four corners land on the
+  /// four vertices, and the rasteriser interpolates the §10 gradient — no
+  /// per-fragment bilinear), and its flattened mask replay set from [masks]`[i]`
+  /// (null = unmasked). [pcs] / [masks] are parallel to [parts]; a part whose
+  /// quad is degenerate is dropped (its [pcs]/[masks] entry with it). Views alias
+  /// scratch — consume before the next bake.
+  InterleavedGeometry? buildPartColorInterleaved(List<int> parts,
+      List<PartColor> pcs, List<Float32List?> masks, DrawFrame frame,
+      {required double texWidth, required double texHeight}) {
+    final count = parts.length;
+    if (count == 0) return null;
+
+    final verts = _inter(count * 4 * partColorStride);
+    final indices = _idx(count * 6);
+    final invW = texWidth > 0 ? 1.0 / texWidth : 0.0;
+    final invH = texHeight > 0 ? 1.0 / texHeight : 0.0;
+
+    var vBase = 0;
+    var fp = 0;
+    var ip = 0;
+    for (var i = 0; i < count; i++) {
+      final quad = buildPartColorQuad(parts[i], frame);
+      if (quad == null) continue; // degenerate — drop
+      final pc = pcs[i];
+      final mask = masks[i];
+      final c = quad.corners, ua = quad.uvA, ub = quad.uvB;
+      // Corners in quad-winding order lt, rt, lb, rb — each carries its own
+      // colour + rate so the 4-corner gradient falls out of interpolation.
+      fp = _writePcVertex(
+          verts, fp, c[0], c[1], ua[0] * invW, ua[1] * invH, pc.lt, pc.coef, mask);
+      fp = _writePcVertex(
+          verts, fp, c[2], c[3], ua[2] * invW, ua[3] * invH, pc.rt, pc.coef, mask);
+      fp = _writePcVertex(
+          verts, fp, c[4], c[5], ub[0] * invW, ub[1] * invH, pc.lb, pc.coef, mask);
+      fp = _writePcVertex(
+          verts, fp, c[6], c[7], ub[2] * invW, ub[3] * invH, pc.rb, pc.coef, mask);
+      for (final q in _quad) {
+        indices[ip++] = vBase + q;
+      }
+      vBase += 4;
+    }
+    if (vBase == 0) return null;
+    return InterleavedGeometry(
+      Float32List.view(verts.buffer, verts.offsetInBytes, fp),
+      Uint16List.view(indices.buffer, indices.offsetInBytes, ip),
+      vBase,
+      ip,
+    );
+  }
+
   /// Interleaved flutter_gpu bake of *peeled* mesh [parts] — the mesh sibling of
-  /// the quad bake inside `FlutterGpuBackend._drawPartColorRun`, for a mesh part
-  /// carrying PartColor (§10) and/or a mask test (§9).
+  /// [buildPartColorInterleaved], for a mesh part carrying PartColor (§10) and/or
+  /// a mask test (§9). Feeds the **same** `PartColorVertex/Fragment` pipeline in
+  /// the same [partColorStride]-float layout, which needs no mesh-specific shader:
   ///
-  /// It feeds the **same** `PartColorVertex/Fragment` pipeline the peeled Normal
-  /// parts use, in that pipeline's 7-float vertex layout
-  /// `[pos.xy, uv.xy, st.xy, part]`, which needs no new shader for two reasons:
-  ///
-  ///  * **`st` is `(0,0)` for every vertex.** The fragment bilinearly mixes the
-  ///    four corners by `(s,t)`, and `(0,0)` selects `lt` exactly — which *is*
-  ///    the §10 Whole-only rule for Mesh (「全頂点同値」). No approximation.
-  ///  * the mask replay samples the coverage through the `v_local` varying, and
-  ///    a mesh vertex is already player-local world-space — the same space the
+  ///  * **Whole-only** (§10 「Mesh=全頂点同値」): every vertex carries the `lt`
+  ///    corner's colour + rate, so there is no gradient to reconstruct.
+  ///  * the mask replay samples the coverage through the `v_local` varying, and a
+  ///    mesh vertex is already player-local world-space — the same space the
   ///    peeled quad corners are in.
   ///
-  /// Each vertex's `part` slot is its part's index **within [parts]** (not the
-  /// part index), so the caller writes `PartColorInfo` entry `i` for `parts[i]`
-  /// whether or not that part contributed geometry. Views alias scratch —
-  /// consume before the next bake.
-  InterleavedGeometry? buildMeshPartColorInterleaved(
-      List<int> parts, DrawFrame frame,
+  /// [pcs] / [masks] are parallel to [parts] (`pcs[i]` / `masks[i]` describe
+  /// `parts[i]`; `masks[i]` null = unmasked). Views alias scratch — consume
+  /// before the next bake.
+  InterleavedGeometry? buildMeshPartColorInterleaved(List<int> parts,
+      List<PartColor> pcs, List<Float32List?> masks, DrawFrame frame,
       {required double texWidth, required double texHeight}) {
     final mesh = frame.mesh;
     if (mesh == null || mesh.isEmpty || parts.isEmpty) return null;
@@ -674,7 +787,7 @@ class GeometryBuilder {
     }
     if (vTotal == 0 || iTotal == 0 || vTotal > 0xFFFF) return null;
 
-    final verts = _inter(vTotal * 7);
+    final verts = _inter(vTotal * partColorStride);
     final indices = _idx(iTotal);
     final invW = texWidth > 0 ? 1.0 / texWidth : 0.0;
     final invH = texHeight > 0 ? 1.0 / texHeight : 0.0;
@@ -687,16 +800,12 @@ class GeometryBuilder {
       final vr = mesh.vertexRange(p);
       final ir = mesh.indexRange(p);
       if (vr == null || ir == null) continue;
-      final slotF = slot.toDouble();
+      final pc = pcs[slot];
+      final mask = masks[slot];
+      // Whole-only: the lt corner (colour + rate) applies to every vertex.
       for (var v = vr.$1; v < vr.$2; v++) {
-        verts[fp] = mesh.x[v]; // already world-space
-        verts[fp + 1] = mesh.y[v];
-        verts[fp + 2] = mesh.uv[v * 2] * invW;
-        verts[fp + 3] = mesh.uv[v * 2 + 1] * invH;
-        verts[fp + 4] = 0.0; // s — whole-only: every vertex reads the lt corner
-        verts[fp + 5] = 0.0; // t
-        verts[fp + 6] = slotF;
-        fp += 7;
+        fp = _writePcVertex(verts, fp, mesh.x[v], mesh.y[v],
+            mesh.uv[v * 2] * invW, mesh.uv[v * 2 + 1] * invH, pc.lt, pc.coef, mask);
       }
       final vCount = vr.$2 - vr.$1;
       for (var i = ir.$1; i < ir.$2; i++) {
