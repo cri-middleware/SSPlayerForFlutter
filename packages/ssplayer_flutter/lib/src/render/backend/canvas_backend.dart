@@ -87,9 +87,14 @@ class CanvasBackend implements RenderBackend {
     return _whitePixel = image;
   }
 
-  /// This frame's coverage bitmap. Retained past the frame because the recorded
-  /// picture rasterises later; disposed at the start of the next frame.
-  ui.Image? _coverage;
+  /// This frame's coverage bitmaps — **one per masked player in the tree**, since
+  /// an instance child (§8) can mask independently of its parent and both sets of
+  /// draws are recorded into the same picture.
+  ///
+  /// Retained past the frame because the recorded picture rasterises later, so
+  /// they are disposed at the start of the *next* frame ([releaseCoverage],
+  /// which the L2 player calls once per top-level `paint` — never per player).
+  final List<ui.Image> _coverages = <ui.Image>[];
 
   /// The canvas the current top-level frame was begun on, so [finish] can undo
   /// [beginFrame]'s save.
@@ -138,14 +143,15 @@ class CanvasBackend implements RenderBackend {
 
   @override
   void releaseCoverage() {
-    _coverage?.dispose();
-    _coverage = null;
+    for (final coverage in _coverages) {
+      coverage.dispose();
+    }
+    _coverages.clear();
   }
 
   @override
   void dispose() {
-    _coverage?.dispose();
-    _coverage = null;
+    releaseCoverage();
     _partColorShaders.dispose();
     _maskWriteShaders.dispose();
   }
@@ -157,7 +163,10 @@ class CanvasBackend implements RenderBackend {
     if (program == null) return null; // still compiling — draw unmasked this frame
     final coverage = _renderCoverage(plan, frame, host, program, textureByRank);
     if (coverage == null) return null;
-    _coverage = coverage;
+    // Kept alive until the next frame releases it; the MaskContext is what the
+    // draws actually sample through (a child's own coverage travels with its own
+    // context, so this list is purely ownership).
+    _coverages.add(coverage);
     return MaskContext(plan, coverage);
   }
 

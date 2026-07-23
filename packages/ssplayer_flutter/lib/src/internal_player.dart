@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:ssruntime_dart/effect_draw_plan.dart' as efbs;
 import 'package:ssruntime_dart/ssruntime_dart.dart';
 import 'render/backend/backend_kind.dart';
@@ -142,6 +143,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
     TextureRegistry? textures,
     Map<int, Uint8List>? instancePacks,
     SpriteStudioBackend backend = SpriteStudioBackend.auto,
+    @visibleForTesting RenderBackend? renderBackendOverride,
   }) {
     // Copy mode: the Brain copies the bytes onto its own heap and retains no
     // pointer into `ssab` (the native backend does a zero-copy leaf hand-off).
@@ -176,10 +178,14 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
     // Resolve the requested backend through the capability probe: gpu only when
     // flutter_gpu is actually usable, else Canvas (which never throws). Every
     // player in an instance tree gets the same choice.
-    final renderBackend =
-        resolveBackend(backend) == SpriteStudioBackend.gpu
+    // A whole instance tree shares one backend (children draw through the
+    // parent's), so the override is applied at the root only; children inherit
+    // it by drawing through the same instance. Tests use it to observe the
+    // per-frame lifetime contract without a real engine.
+    final renderBackend = renderBackendOverride ??
+        (resolveBackend(backend) == SpriteStudioBackend.gpu
             ? createFlutterGpuBackend()
-            : CanvasBackend();
+            : CanvasBackend());
     final player = SpriteStudioInternalPlayer._(
       context,
       resource,
@@ -705,6 +711,13 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   /// for now, as is BoxFit / scale placement into [dst].
   void paint(ui.Canvas canvas, {ui.Rect? dst, ui.Size? sourceSize}) {
     _ensureAlive();
+    // Per-FRAME, not per-player: both hooks recycle resources that stay live
+    // until the recorded picture rasterises, so an instance child must never run
+    // them — doing so frees/rebinds what the parent's already-recorded draws are
+    // still pointing at (a disposed coverage bitmap, or a pooled shader whose
+    // uniforms get overwritten before it is rasterised).
+    _backend.releaseCoverage();
+    _backend.rewindShaderPools();
     _backend.beginFrame(canvas, dst: dst, sourceSize: sourceSize);
     // The whole tree draws through THIS player's backend — including instance
     // children (§8), which share it so their geometry lands in the same target
@@ -727,8 +740,6 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
     double alphaScale = 1.0,
     MaskDraw? inheritedMask,
   }) {
-    // Last frame's coverage has been rasterised by now; release it.
-    backend.releaseCoverage();
     // Sub-frame ON (default): sample the fractional frame for smooth playback;
     // OFF: snap to the integer frame. This is the ONLY place a frame gets
     // rounded — the playback state that feeds `ss_instance_slot_step` stays raw.
@@ -784,9 +795,6 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
       alphaScale: alphaScale,
     );
     if (frame == null) return;
-
-    // Rewind the backend's per-frame shader pools (reused across frames).
-    backend.rewindShaderPools();
 
     // Masking (§9) is a pre-pass: collect this frame's writers, rasterise their
     // coverage bitmap, then let the batch loop test each target against it.
