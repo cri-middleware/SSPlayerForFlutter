@@ -242,6 +242,11 @@ draw-call count of *peeled* shader parts.
       bits/uv/off) into per-vertex attributes, drop the `PartColorInfo` UBO
       entirely. Proven by the siblings, simpler than the current fragment
       reconstruction, and it sidesteps every Impeller UBO bug hit here.
+    - **Cold-start handoff for this rewrite:**
+      [`docs/flutter-gpu-partcolor-cold-start.ja.md`](./docs/flutter-gpu-partcolor-cold-start.ja.md)
+      — the concrete file/function/shader change list, the traps already hit,
+      and the on-device build/verify recipe (both `--enable-*` flags + the
+      SDK-release-404 lib workaround). Read it before starting.
   - **Still experimental (unverified on-device):** Effect / Instance-tint /
     BlendMode / Basic. Canvas remains the default and the reference.
   - Design intent (as built): peeled PartColor/mask fan-out collapses into batched
