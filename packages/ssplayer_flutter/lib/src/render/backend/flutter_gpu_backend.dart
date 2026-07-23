@@ -187,6 +187,19 @@ class FlutterGpuBackend implements RenderBackend {
     return _maskWritePipeline = p;
   }
 
+  static gpu.RenderPipeline? _colorMatrixPipeline;
+  static bool _colorMatrixPipelineFailed = false;
+  static gpu.RenderPipeline? _ensureColorMatrixPipeline() {
+    if (_colorMatrixPipeline != null) return _colorMatrixPipeline;
+    if (_colorMatrixPipelineFailed) return null;
+    final p = _buildPipeline('ColorMatrixVertex', 'ColorMatrixFragment');
+    if (p == null) {
+      _colorMatrixPipelineFailed = true;
+      return null;
+    }
+    return _colorMatrixPipeline = p;
+  }
+
   static gpu.RenderPipeline? _shapeMaskPipeline;
   static bool _shapeMaskPipelineFailed = false;
   static gpu.RenderPipeline? _ensureShapeMaskPipeline() {
@@ -246,6 +259,7 @@ class FlutterGpuBackend implements RenderBackend {
   void beginFrame(ui.Canvas canvas, {ui.Rect? dst, ui.Size? sourceSize}) {
     _active = false;
     _frameCoverages.clear();
+    _tintStack.clear();
     _canvas = canvas;
     _dst = dst;
     final size = dst?.size ?? sourceSize ?? ui.Size.zero;
@@ -658,7 +672,7 @@ class FlutterGpuBackend implements RenderBackend {
 
   @override
   void emitMesh(ui.Canvas canvas, fbs.DrawBatch batch, DrawFrame frame,
-      RenderHost host) {
+      RenderHost host, MaskContext? maskCtx, MaskDraw? inheritedMask) {
     if (!_active) return;
     final count = batch.count;
     if (count == 0) return;
@@ -667,19 +681,145 @@ class FlutterGpuBackend implements RenderBackend {
     final tex = _gpuTextureFor(batch.textureHash, image);
     if (tex == null) return; // still uploading
 
+    final texW = image.width.toDouble();
+    final texH = image.height.toDouble();
+    final blend = _blendFor(batch.blendType);
     final drawOrder = frame.drawOrder;
+    final partsColor = frame.partsColor;
+
+    // Same run/peel split as [emitNormal] — and the peeled mesh parts likewise
+    // BATCH into one PartColor-pipeline call, sharing a coverage texture.
     final parts = <int>[];
+    final pcParts = <int>[];
+    final pcColors = <PartColor>[];
+    final pcMasks = <MaskDraw?>[];
+    gpu.Texture? pcCoverage;
+
+    void flushRun() {
+      if (parts.isEmpty) return;
+      final geo = host.geometry
+          .buildMeshInterleaved(parts, frame, texWidth: texW, texHeight: texH);
+      if (geo != null) _drawInterleaved(geo, tex, blend);
+      parts.clear();
+    }
+
+    void flushPc() {
+      if (pcParts.isEmpty) return;
+      _drawMeshPartColorRun(pcParts, pcColors, pcMasks, pcCoverage, frame, host,
+          tex, texW, texH, blend);
+      pcParts.clear();
+      pcColors.clear();
+      pcMasks.clear();
+      pcCoverage = null;
+    }
+
     for (var k = 0; k < count; k++) {
       final rank = batch.startRank + k;
       if (rank >= drawOrder.length) break;
       final p = drawOrder[rank];
-      if (host.flagsFor(p).pureMask) continue;
-      parts.add(p);
+      final flags = host.flagsFor(p);
+      if (flags.pureMask) continue;
+      final state = frame.partOf(p);
+      final pc = state == null ? null : PartColor.read(partsColor, state);
+      final ownBits = maskCtx?.bitsForTarget(rank, flags);
+      final mask = ownBits != null ? maskCtx!.drawFor(ownBits) : inheritedMask;
+      if (pc == null && mask == null) {
+        flushPc();
+        parts.add(p);
+      } else {
+        flushRun();
+        final h = mask?.coverageHandle;
+        final ht = h is gpu.Texture ? h : null;
+        if ((ht != null && pcCoverage != null && !identical(ht, pcCoverage)) ||
+            pcParts.length >= _kMaxPartColorRun) {
+          flushPc();
+        }
+        if (ht != null) pcCoverage = ht;
+        pcParts.add(p);
+        pcColors.add(pc == null
+            ? PartColor.passthrough(frame.alphaOf(p))
+            : pc.scaleAlpha(frame.alphaScale));
+        pcMasks.add(mask);
+      }
     }
-    final geo = host.geometry.buildMeshInterleaved(parts, frame,
-        texWidth: image.width.toDouble(), texHeight: image.height.toDouble());
+    flushRun();
+    flushPc();
+  }
+
+  /// Draws a RUN of peeled mesh parts (PartColor §10 and/or mask §9) in ONE
+  /// PartColor-pipeline call.
+  ///
+  /// No mesh-specific shader is needed: the bake tags every mesh vertex with
+  /// `st == (0,0)`, which makes the fragment's bilinear corner mix resolve to
+  /// `lt` — the §10 *whole-only* Mesh rule — and the mask replay already samples
+  /// the coverage through the player-local `v_local` varying, which a mesh
+  /// vertex is in. So this is [_drawPartColorRun] with a different geometry
+  /// source; slot `i` of the uniform array belongs to `parts[i]`. Falls back to
+  /// the plain textured draw when the pipeline is unavailable.
+  void _drawMeshPartColorRun(
+      List<int> parts,
+      List<PartColor> pcs,
+      List<MaskDraw?> masks,
+      gpu.Texture? coverage,
+      DrawFrame frame,
+      RenderHost host,
+      gpu.Texture tex,
+      double texW,
+      double texH,
+      gpu.ColorBlendEquation blend) {
+    final pass = _pass!;
+    final pipeline = _ensurePartColorPipeline();
+    final dummyCov = _ensureDummyCoverage();
+    final geo = host.geometry.buildMeshPartColorInterleaved(parts, frame,
+        texWidth: texW, texHeight: texH);
     if (geo == null) return;
-    _drawInterleaved(geo, tex, _blendFor(batch.blendType));
+    if (pipeline == null || dummyCov == null) {
+      final plain = host.geometry
+          .buildMeshInterleaved(parts, frame, texWidth: texW, texHeight: texH);
+      if (plain != null) _drawInterleaved(plain, tex, blend);
+      return;
+    }
+
+    final ubo = Float32List(360 * 4); // the full declared UBO, zero-padded
+    for (var i = 0; i < parts.length; i++) {
+      final masked = masks[i] != null && coverage != null;
+      _writePartColorEntry(ubo, i * 36, pcs[i], masked ? masks[i] : null);
+    }
+
+    try {
+      pass.bindPipeline(pipeline);
+      pass.bindUniform(
+          pipeline.vertexShader.getUniformSlot('FrameInfo'), _mvpView!);
+      pass.bindUniform(pipeline.fragmentShader.getUniformSlot('PartColorInfo'),
+          _hostBuffer!.emplace(ByteData.sublistView(ubo)));
+      pass.setColorBlendEquation(blend);
+
+      final vb = gpu.gpuContext
+          .createDeviceBufferWithCopy(ByteData.sublistView(geo.vertices));
+      final ib = gpu.gpuContext
+          .createDeviceBufferWithCopy(ByteData.sublistView(geo.indices));
+      pass.bindVertexBuffer(
+          gpu.BufferView(vb, offsetInBytes: 0, lengthInBytes: vb.sizeInBytes),
+          geo.vertexCount);
+      pass.bindIndexBuffer(
+          gpu.BufferView(ib, offsetInBytes: 0, lengthInBytes: ib.sizeInBytes),
+          gpu.IndexType.int16,
+          geo.indexCount);
+      pass.bindTexture(
+        pipeline.fragmentShader.getUniformSlot('u_texture'),
+        tex,
+        sampler: gpu.SamplerOptions(
+          minFilter: gpu.MinMagFilter.linear,
+          magFilter: gpu.MinMagFilter.linear,
+        ),
+      );
+      // Coverage MUST stay nearest — its texels are bit fields.
+      pass.bindTexture(pipeline.fragmentShader.getUniformSlot('u_coverage'),
+          coverage ?? dummyCov);
+      pass.draw();
+    } catch (_) {
+      // Skip this draw; keep the rest of the frame.
+    }
   }
 
   @override
@@ -1025,6 +1165,108 @@ class FlutterGpuBackend implements RenderBackend {
     }
   }
 
+  /// The suspended pass/target/command-buffer of each enclosing [pushGroupTint],
+  /// innermost last — the GPU's answer to the Canvas backend's `saveLayer`
+  /// stack. A frame with no instance tint never touches this.
+  final List<_GroupTintLayer> _tintStack = <_GroupTintLayer>[];
+
+  @override
+  void pushGroupTint(ui.Canvas canvas, List<double> matrix) {
+    if (!_active) return;
+    final target = _target;
+    if (target == null) return;
+    // A failed layer must still push, so the matching pop stays balanced; it
+    // just carries no target and pops back to the same pass (untinted).
+    _GroupTintLayer layer;
+    try {
+      if (_ensureColorMatrixPipeline() == null) throw StateError('no pipeline');
+      // Same size as the pass being suspended, so the composite is a plain
+      // full-target quad — the subtree keeps drawing with the very same
+      // projection and transform stack.
+      final sub = gpu.gpuContext.createTexture(
+          gpu.StorageMode.devicePrivate, target.width, target.height);
+      final cmd = gpu.gpuContext.createCommandBuffer();
+      final pass = cmd.createRenderPass(
+        gpu.RenderTarget.singleColor(gpu.ColorAttachment(texture: sub)),
+      );
+      pass.setColorBlendEnable(true);
+      layer = _GroupTintLayer(_pass!, _target!, _cmd!, sub, cmd, matrix);
+      _pass = pass;
+      _target = sub;
+      _cmd = cmd;
+    } catch (_) {
+      layer = _GroupTintLayer(_pass!, _target!, _cmd!, null, null, matrix);
+    }
+    _tintStack.add(layer);
+  }
+
+  @override
+  void popGroupTint(ui.Canvas canvas) {
+    if (_tintStack.isEmpty) return;
+    final layer = _tintStack.removeLast();
+    _pass = layer.pass;
+    _target = layer.target;
+    _cmd = layer.cmd;
+    final sub = layer.subTarget;
+    final subCmd = layer.subCmd;
+    if (sub == null || subCmd == null) return; // the push failed — nothing to composite
+
+    try {
+      // The subtree's pass must be submitted before the pass that samples it.
+      subCmd.submit();
+      _frameCoverages.add(sub); // keep it alive until the frame is submitted
+      final pipeline = _ensureColorMatrixPipeline()!;
+      _pass!.bindPipeline(pipeline);
+      _pass!.bindUniform(pipeline.fragmentShader.getUniformSlot('TintInfo'),
+          _hostBuffer!.emplace(ByteData.sublistView(_tintRows(layer.matrix))));
+      // The tinted subtree composites over the parent exactly as the Canvas
+      // backend's restore() does: premultiplied source-over.
+      _pass!.setColorBlendEquation(_srcOver);
+
+      final vb = gpu.gpuContext
+          .createDeviceBufferWithCopy(ByteData.sublistView(_fullTargetQuad));
+      final ib = gpu.gpuContext
+          .createDeviceBufferWithCopy(ByteData.sublistView(_quadIndices));
+      _pass!.bindVertexBuffer(
+          gpu.BufferView(vb, offsetInBytes: 0, lengthInBytes: vb.sizeInBytes),
+          4);
+      _pass!.bindIndexBuffer(
+          gpu.BufferView(ib, offsetInBytes: 0, lengthInBytes: ib.sizeInBytes),
+          gpu.IndexType.int16,
+          _quadIndices.length);
+      _pass!.bindTexture(
+          pipeline.fragmentShader.getUniformSlot('u_texture'), sub);
+      _pass!.draw();
+    } catch (_) {
+      // The subtree is lost for this frame; the rest of it still draws.
+    }
+  }
+
+  /// The composite quad, in NDC with its 0..1 UVs — `[pos.xy, uv.xy]` per corner
+  /// wound lt, rt, lb, rb to match [_quadIndices]. The V axis carries
+  /// [_kNdcYSign] so the sampled subtree lands the same way up as it was drawn.
+  static final Float32List _fullTargetQuad = Float32List.fromList(<double>[
+    -1.0, _kNdcYSign, 0.0, 0.0, //
+    1.0, _kNdcYSign, 1.0, 0.0, //
+    -1.0, -_kNdcYSign, 0.0, 1.0, //
+    1.0, -_kNdcYSign, 1.0, 1.0, //
+  ]);
+
+  /// The 4×5 `ColorFilter.matrix` [matrix] as the `TintInfo` UBO's three rgb
+  /// rows `(m₀, m₁, m₂, offset)`, with the offset back in 0..1 (the Flutter
+  /// matrix states it in 0..255). The alpha row is dropped — a whole-part tint
+  /// never touches alpha (§10).
+  static Float32List _tintRows(List<double> matrix) {
+    final rows = Float32List(12);
+    for (var r = 0; r < 3; r++) {
+      rows[r * 4] = matrix[r * 5];
+      rows[r * 4 + 1] = matrix[r * 5 + 1];
+      rows[r * 4 + 2] = matrix[r * 5 + 2];
+      rows[r * 4 + 3] = matrix[r * 5 + 4] / 255.0;
+    }
+    return rows;
+  }
+
   /// Column-major 4×4 multiply `a · b` (a = current MVP, b = world 2D affine).
   static Float32List _mul4x4(Float32List a, Float64List b) {
     final r = Float32List(16);
@@ -1048,8 +1290,8 @@ class FlutterGpuBackend implements RenderBackend {
   @override
   void releaseCoverage() {
     // No-op: coverage travels with each MaskContext/MaskDraw (its coverageHandle),
-    // not a shared field, so a child's _paintTree must NOT drop the parent's
-    // coverage here. Lifetime is managed by _frameCoverages (beginFrame/finish).
+    // not a shared field. Lifetime is managed by _frameCoverages
+    // (beginFrame/finish), which spans the whole tree including instance children.
   }
 
   @override
@@ -1069,5 +1311,24 @@ class FlutterGpuBackend implements RenderBackend {
     _cmd = null;
     _pass = null;
     _canvas = null;
+    _tintStack.clear();
   }
+}
+
+/// One suspended render pass while an instance subtree draws into its own target
+/// for a group tint ([FlutterGpuBackend.pushGroupTint]).
+///
+/// [subTarget] / [subCmd] are null when the layer could not be allocated — the
+/// entry then exists purely so the matching pop stays balanced and the subtree
+/// draws untinted into the parent's pass rather than vanishing.
+class _GroupTintLayer {
+  _GroupTintLayer(this.pass, this.target, this.cmd, this.subTarget, this.subCmd,
+      this.matrix);
+
+  final gpu.RenderPass pass;
+  final gpu.Texture target;
+  final gpu.CommandBuffer cmd;
+  final gpu.Texture? subTarget;
+  final gpu.CommandBuffer? subCmd;
+  final List<double> matrix;
 }

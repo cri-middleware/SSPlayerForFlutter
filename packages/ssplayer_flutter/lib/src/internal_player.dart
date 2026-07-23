@@ -14,6 +14,7 @@ import 'render/geometry_builder.dart';
 import 'render/instance.dart';
 import 'render/mask.dart';
 import 'render/mask_context.dart';
+import 'render/part_color.dart';
 import 'render/part_override.dart';
 import 'package:ssruntime_dart/framedata.dart' as fbs;
 import 'texture_registry.dart';
@@ -794,17 +795,17 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
     // none of that machinery is needed.
     final maskCtx = _buildMaskContext(backend, frame, batches);
 
-    // A mask inherited from a parent instance (§3-2-2) reaches only the child's
-    // peel-maskable kinds — Normal and Shape. Mesh/Effect are not peeled (no quad
-    // affine / can't threshold a deformed-mesh UV), and nested Instances are
-    // deliberately single-level, so those child kinds escape the parent clip —
-    // the same kinds an own-mask can't gate either.
+    // A mask inherited from a parent instance (§3-2-2) reaches the child's
+    // peel-maskable kinds — Normal, Shape and Mesh. Effect is not peeled (its
+    // plan carries its own colours), and nested Instances are deliberately
+    // single-level, so those child kinds escape the parent clip — the same kinds
+    // an own-mask can't gate either.
     for (final batch in batches) {
       switch (batch.kind) {
         case fbs.DrawBatchKind.Normal:
           backend.emitNormal(canvas, batch, frame, this, maskCtx, inheritedMask);
         case fbs.DrawBatchKind.Mesh:
-          backend.emitMesh(canvas, batch, frame, this);
+          backend.emitMesh(canvas, batch, frame, this, maskCtx, inheritedMask);
         case fbs.DrawBatchKind.Effect:
           backend.emitEffect(canvas, batch, frame, this);
         case fbs.DrawBatchKind.Instance:
@@ -844,9 +845,18 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
       final world = GeometryBuilder.world2dOf(part, frame);
       if (world == null) continue;
 
+      // The instance part's own PartColor (§10) tints the entire child. The SDK
+      // spec's part-type table (§1-2) covers Normal / Mesh / Shape only, but the
+      // runtime emits `part_color` for any part that carries the attribute, so
+      // an instance part can have one — read whole-only, like a Mesh.
+      final st = frame.partOf(part);
+      final pc = st == null ? null : PartColor.read(frame.partsColor, st);
+
       // The instance part's own alpha modulates the entire child, and compounds
-      // down a nested chain. `alphaOf` already folds in this frame's own scale.
-      final alpha = frame.alphaOf(part);
+      // down a nested chain (see [PartColor.instanceAlpha] for the PartColor
+      // case, where the corner alpha replaces `PartState.alpha`).
+      final alpha = PartColor.instanceAlpha(pc,
+          partAlpha: frame.alphaOf(part), chainScale: frame.alphaScale);
       if (alpha <= 0.0) continue;
 
       // §3-2-2: this player's mask reaches an instance child that is itself a
@@ -863,7 +873,16 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
       // recursion) under the composed transform — Canvas: save+transform; GPU:
       // the world matrix folds into the projection. So the child's geometry lands
       // in the same target/canvas at the instance part's place.
+      // The instance part's PartColor tints the child as a GROUP — one filter
+      // over the finished subtree — where alpha instead folds per-part through
+      // [alphaScale]. The two differ deliberately: a group *alpha* disagrees
+      // with the flagship's per-part modulate wherever child parts overlap (§8),
+      // while a group *colour* is the only reading available at all, since the
+      // formula's offset term (Mix / Add / Sub) cannot be folded into a child's
+      // vertex colours. `rate == 0` yields no matrix and no layer.
+      final tint = pc?.wholeTintMatrix();
       backend.pushTransform(canvas, world);
+      if (tint != null) backend.pushGroupTint(canvas, tint);
       state.child._paintTree(
         canvas,
         backend,
@@ -871,6 +890,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
         alphaScale: alpha,
         inheritedMask: inherited,
       );
+      if (tint != null) backend.popGroupTint(canvas);
       backend.popTransform(canvas);
     }
   }

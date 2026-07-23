@@ -108,6 +108,129 @@ void main() {
     });
   });
 
+  group('PartColor.wholeTintMatrix', () {
+    // The Mesh (§8) / Instance-subtree (§10) tint is the shader formula reduced
+    // to one affine on rgb, so the matrix is checked against that formula
+    // directly: for a source pixel, `matrix(pixel)` must equal what
+    // `shaders/partcolor.frag` computes from the same corner.
+    //
+    //   rgb = pixel·(1 + coef₀·rate) + mix(1, pixel, coef₂)·colour·coef₁·rate
+    List<double> shaderRgb(PartColor pc, List<double> pixel) {
+      final rate = pc.lt.rate;
+      final vx = 1.0 + pc.coef[0] * rate;
+      final vy = pc.coef[1] * rate;
+      final vz = pc.coef[2];
+      final col = <double>[pc.lt.r, pc.lt.g, pc.lt.b];
+      return <double>[
+        for (var c = 0; c < 3; c++)
+          pixel[c] * vx + (1.0 - vz + vz * pixel[c]) * col[c] * vy,
+      ];
+    }
+
+    // The matrix as a caller applies it: row-major 4×5, translation in 0..255.
+    List<double> matrixRgb(List<double> m, List<double> pixel) => <double>[
+          for (var r = 0; r < 3; r++)
+            m[r * 5 + 0] * pixel[0] +
+                m[r * 5 + 1] * pixel[1] +
+                m[r * 5 + 2] * pixel[2] +
+                m[r * 5 + 4] / 255.0,
+        ];
+
+    PartColor tint(fbs.BlendType blend, double rate) => PartColor(
+          coef: partColorCoef(blend),
+          lt: PartColorCorner(0.25, 0.5, 0.75, 1.0, rate),
+          // The other corners are deliberately different: whole-only means they
+          // must not influence the result.
+          rt: const PartColorCorner(1, 0, 0, 1, 1),
+          lb: const PartColorCorner(0, 1, 0, 1, 1),
+          rb: const PartColorCorner(0, 0, 1, 1, 1),
+        );
+
+    test('reproduces the shader formula for all four modes', () {
+      const pixels = <List<double>>[
+        <double>[0.0, 0.0, 0.0],
+        <double>[0.2, 0.6, 1.0],
+        <double>[1.0, 1.0, 1.0],
+      ];
+      for (final blend in const [
+        fbs.BlendType.Mix,
+        fbs.BlendType.Mul,
+        fbs.BlendType.Add,
+        fbs.BlendType.Sub,
+      ]) {
+        for (final rate in const [0.25, 0.5, 1.0]) {
+          final pc = tint(blend, rate);
+          final m = pc.wholeTintMatrix();
+          expect(m, isNotNull, reason: '$blend @ $rate');
+          expect(m!.length, 20);
+          for (final pixel in pixels) {
+            final want = shaderRgb(pc, pixel);
+            final got = matrixRgb(m, pixel);
+            for (var c = 0; c < 3; c++) {
+              expect(got[c], closeTo(want[c], 1e-6),
+                  reason: '$blend @ $rate, pixel $pixel, channel $c');
+            }
+          }
+        }
+      }
+    });
+
+    test('leaves alpha alone — it travels with the geometry, not the tint', () {
+      // §1-3: the corner alpha already carries the hierarchical alpha and is
+      // applied as the vertex colour / instance chain scale. Folding it in here
+      // as well would double-apply it.
+      final m = tint(fbs.BlendType.Mix, 1.0).wholeTintMatrix()!;
+      expect(m.sublist(15), <double>[0, 0, 0, 1, 0]);
+    });
+
+    test('rate 0 is a no-op and reports null', () {
+      // §10's default (white × rate 0) is a plain passthrough, so the caller
+      // must be able to stay on the un-filtered path.
+      expect(tint(fbs.BlendType.Mix, 0.0).wholeTintMatrix(), isNull);
+      expect(PartColor.identity.wholeTintMatrix(), isNull);
+      expect(PartColor.passthrough(0.5).wholeTintMatrix(), isNull);
+    });
+
+    test('Mul folds the colour into the scale, Mix/Add/Sub into the offset', () {
+      // The structural difference between the two coefficient shapes: Mul
+      // (coef₂ == 1) scales the pixel by the colour, the others add a constant.
+      final mul = tint(fbs.BlendType.Mul, 1.0).wholeTintMatrix()!;
+      expect(mul[4], 0.0); // no red offset
+      expect(mul[0], closeTo(0.25, 1e-6)); // scale == the colour itself at rate 1
+
+      final add = tint(fbs.BlendType.Add, 1.0).wholeTintMatrix()!;
+      expect(add[0], closeTo(1.0, 1e-6)); // pixel passes through
+      expect(add[4], closeTo(0.25 * 255.0, 1e-6)); // colour is added
+
+      final sub = tint(fbs.BlendType.Sub, 1.0).wholeTintMatrix()!;
+      expect(sub[4], closeTo(-0.25 * 255.0, 1e-6)); // …and subtracted
+    });
+  });
+
+  group('PartColor.instanceAlpha', () {
+    test('without a tint the part alpha passes through', () {
+      expect(
+          PartColor.instanceAlpha(null, partAlpha: 0.4, chainScale: 0.5), 0.4);
+    });
+
+    test('with a tint the corner alpha replaces PartState.alpha', () {
+      // §1-3: the Brain pre-folded the hierarchical alpha into the corner, so
+      // `partAlpha` must be dropped — multiplying the two would apply the
+      // hierarchy twice (0.5 × 0.5 = 0.25 would be the bug).
+      final pc = PartColor(
+        coef: partColorCoef(fbs.BlendType.Mix),
+        lt: const PartColorCorner(1, 1, 1, 0.5, 1),
+        rt: const PartColorCorner(1, 1, 1, 1, 1),
+        lb: const PartColorCorner(1, 1, 1, 1, 1),
+        rb: const PartColorCorner(1, 1, 1, 1, 1),
+      );
+      expect(PartColor.instanceAlpha(pc, partAlpha: 0.5, chainScale: 1.0), 0.5);
+      // …but the chain scale lives in the PARENT's FrameData, so it is still
+      // owed and multiplies on top.
+      expect(PartColor.instanceAlpha(pc, partAlpha: 0.5, chainScale: 0.5), 0.25);
+    });
+  });
+
   test('PartColor.read resolves real PartsColor.ssab part colours', () async {
     final ssabPath = _firstExisting([
       'examples/overall/assets/spritestudio/overall/PartsColor.ssab',

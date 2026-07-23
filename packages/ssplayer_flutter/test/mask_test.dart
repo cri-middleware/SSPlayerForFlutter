@@ -13,6 +13,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ssplayer_flutter/ssplayer_flutter.dart';
+import 'package:ssruntime_dart/framedata.dart' as fbs;
 
 void main() {
   group('MaskPartFlags roles (§1-2)', () {
@@ -271,6 +272,64 @@ void main() {
     for (final w in plan.writers) {
       expect(w.threshold, inInclusiveRange(0.0, 1.0));
     }
+  });
+
+  test('a real Mask.ssab frame resolves a mask test for its Mesh parts',
+      () async {
+    // Mesh mask targets (§11-A) used to fall through unmasked because the Mesh
+    // emit path never consulted the plan. Mask.ssab has mesh parts inside a
+    // writer's scope, so this pins that the data really exercises the path —
+    // without it the mesh gate could regress silently.
+    final ssabPath = _firstExisting([
+      'examples/overall/assets/spritestudio/overall/Mask.ssab',
+      '../../examples/overall/assets/spritestudio/overall/Mask.ssab',
+    ]);
+    if (ssabPath == null) {
+      markTestSkipped('Mask.ssab missing — run deploy-examples.sh');
+      return;
+    }
+
+    final bytes = Uint8List.fromList(File(ssabPath).readAsBytesSync());
+    final flags = MaskPartFlags.readAll(bytes);
+    final player = SpriteStudioInternalPlayer.load(bytes);
+    addTearDown(player.dispose);
+
+    final info = SsAnimeInfo(bytes);
+    expect(player.setupAnimation(info.animationNames.first), isTrue);
+    player.play();
+
+    var maskedMeshRanks = 0;
+    for (var i = 0; i < 60 && maskedMeshRanks == 0; i++) {
+      player.update(const Duration(milliseconds: 33));
+      final fd = player.getFrameData(player.frameNo);
+      final batches = fd?.drawBatches;
+      if (fd == null || batches == null) continue;
+      final frame = DrawFrame.build(
+        frameData: fd,
+        world: player.worldMatrices(),
+        local: player.localVertices(),
+        uv: player.localUvs(),
+      );
+      if (frame == null) continue;
+      final plan = MaskPlan.build(frame, flags);
+      if (plan == null) continue;
+
+      for (final b in batches) {
+        if (b.kind != fbs.DrawBatchKind.Mesh) continue;
+        for (var k = 0; k < b.count; k++) {
+          final rank = b.startRank + k;
+          if (rank >= frame.drawOrder.length) break;
+          final p = frame.drawOrder[rank];
+          if (p < 0 || p >= flags.length) continue;
+          final f = flags[p];
+          if (f.pureMask) continue;
+          if (plan.bitsFor(rank, f) != null) maskedMeshRanks++;
+        }
+      }
+    }
+
+    expect(maskedMeshRanks, greaterThan(0),
+        reason: 'Mask.ssab should put at least one Mesh part under a mask');
   });
 }
 

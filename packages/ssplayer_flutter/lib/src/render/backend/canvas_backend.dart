@@ -121,6 +121,16 @@ class CanvasBackend implements RenderBackend {
   void popTransform(ui.Canvas canvas) => canvas.restore();
 
   @override
+  void pushGroupTint(ui.Canvas canvas, List<double> matrix) =>
+      // Bounds-less: the subtree's extent isn't known before it is drawn, so the
+      // layer is sized by what lands in it (the same trade the flagship's
+      // group-modulate makes).
+      canvas.saveLayer(null, ui.Paint()..colorFilter = ui.ColorFilter.matrix(matrix));
+
+  @override
+  void popGroupTint(ui.Canvas canvas) => canvas.restore();
+
+  @override
   void rewindShaderPools() {
     _partColorShaders.rewind();
     _maskWriteShaders.rewind();
@@ -388,24 +398,123 @@ class CanvasBackend implements RenderBackend {
 
   @override
   void emitMesh(ui.Canvas canvas, fbs.DrawBatch batch, DrawFrame frame,
-      RenderHost host) {
+      RenderHost host, MaskContext? maskCtx, MaskDraw? inheritedMask) {
     final count = batch.count;
     if (count == 0) return;
     final drawOrder = frame.drawOrder;
+    final partsColor = frame.partsColor;
 
-    final parts = <int>[];
+    // Same run/peel shape as [emitNormal]: plain parts batch into one
+    // `drawVertices`, tinted/masked ones are drawn individually in z-order.
+    final run = <int>[];
+    void flushRun() {
+      if (run.isEmpty) return;
+      final vertices = host.geometry.buildMeshParts(run, frame);
+      if (vertices != null) {
+        canvas.drawVertices(
+            vertices, ui.BlendMode.modulate, _paintForBatch(batch, host));
+      }
+      run.clear();
+    }
+
     for (var k = 0; k < count; k++) {
       final rank = batch.startRank + k;
       if (rank >= drawOrder.length) break;
       final p = drawOrder[rank];
-      if (host.flagsFor(p).pureMask) continue; // coverage-only: never draws colour
-      parts.add(p);
+      final flags = host.flagsFor(p);
+      if (flags.pureMask) continue; // coverage-only: never draws colour
+      final state = frame.partOf(p);
+      final pc = state == null ? null : PartColor.read(partsColor, state);
+      final ownBits = maskCtx?.bitsForTarget(rank, flags);
+      final mask = ownBits != null ? maskCtx!.drawFor(ownBits) : inheritedMask;
+      if (pc == null && mask == null) {
+        run.add(p);
+      } else {
+        flushRun();
+        _drawPeeledMesh(canvas, p, pc, frame, host, batch, mask);
+      }
+    }
+    flushRun();
+  }
+
+  /// Draws one peeled Mesh part (§8): PartColor (§10) and/or a mask test (§9).
+  ///
+  /// Where a Normal part needs `partcolor.frag` — four corners, so the tint is
+  /// per-fragment — a Mesh tint is **whole-only** and therefore one affine on
+  /// rgb, which is exactly a [ui.ColorFilter.matrix] on the draw's own paint. No
+  /// shader, no peeled quad, and the deformed triangles keep going through the
+  /// ordinary textured `drawVertices` path, which is why this works at all: a
+  /// Flutter fragment shader gets no per-vertex varyings, so it could never
+  /// sample the atlas at a *deformed mesh* UV.
+  ///
+  /// A mask test can't be folded into a colour filter (it is per-fragment), so a
+  /// masked part additionally goes through a layer and is gated by drawing the
+  /// coverage test over it with [ui.BlendMode.dstIn] — the shader answers "does
+  /// this fragment pass?" in alpha, and `dstIn` multiplies that into what was
+  /// drawn. The batch blend then composites the layer as one.
+  void _drawPeeledMesh(
+    ui.Canvas canvas,
+    int part,
+    PartColor? pc,
+    DrawFrame frame,
+    RenderHost host,
+    fbs.DrawBatch batch,
+    MaskDraw? mask,
+  ) {
+    // With a tint the corner alpha already carries the hierarchical alpha
+    // (§1-3); only the instance chain's scale is still owed. Without one the
+    // part's own alpha applies as usual.
+    final tinted = pc?.scaleAlpha(frame.alphaScale);
+    final geometry = host.geometry.buildMeshGeometry(<int>[part], frame,
+        alphaOverride: tinted?.lt.a);
+    if (geometry == null) return;
+    final matrix = tinted?.wholeTintMatrix();
+    final blend = blendModeFor(batch.blendType);
+
+    final program = mask == null ? null : _partColorProgram.get();
+    if (mask == null || program == null) {
+      // Unmasked (or the gate program is still compiling — draw ungated rather
+      // than dropping the part): one plain draw, tint folded into the paint.
+      canvas.drawVertices(
+        geometry.toVertices(),
+        ui.BlendMode.modulate,
+        _paintForBatch(batch, host,
+            colorFilter: matrix == null ? null : ui.ColorFilter.matrix(matrix)),
+      );
+      return;
     }
 
-    final vertices = host.geometry.buildMeshParts(parts, frame);
-    if (vertices == null) return;
+    // Inflated so neither the layer nor the gate rect can shave the geometry's
+    // outermost pixel row (the bbox lands exactly on it).
+    final bounds = geometry.bounds.inflate(1.0);
+    canvas.saveLayer(bounds, ui.Paint()..blendMode = blend);
     canvas.drawVertices(
-        vertices, ui.BlendMode.modulate, _paintForBatch(batch, host));
+      geometry.toVertices(),
+      ui.BlendMode.modulate,
+      ui.Paint()
+        ..shader = host.textures.shaderFor(batch.textureHash)
+        ..colorFilter = matrix == null ? null : ui.ColorFilter.matrix(matrix),
+    );
+    // The gate: `partcolor.frag` over a 1×1 white texel at rate 0 is opaque
+    // white where the mask passes and transparent where it does not (the same
+    // no-op configuration `_drawMaskedShape` uses), so `dstIn` keeps exactly the
+    // fragments that pass.
+    final shader = _partColorShaders.next(program);
+    _setPartColorUniforms(shader, PartColor.identity, _unitQuad,
+        texWidth: 1.0,
+        texHeight: 1.0,
+        maskBits: mask.bits,
+        maskUvBasis: mask.uvBasis,
+        maskUvOffset: mask.uvOffset);
+    shader.setImageSampler(0, _ensureWhitePixel());
+    shader.setImageSampler(1, mask.coverage!);
+    canvas.drawRect(
+        bounds,
+        ui.Paint()
+          ..blendMode = ui.BlendMode.dstIn
+          ..isAntiAlias = false
+          ..shader = shader);
+    canvas.restore();
   }
 
   @override
@@ -702,9 +811,16 @@ class CanvasBackend implements RenderBackend {
   /// (design §7B/§7C) — and returns it. The result aliases [_batchPaint]; a
   /// caller must consume it (draw) before the next [_paintForBatch] call, which
   /// every call site does within one batch's scope.
-  ui.Paint _paintForBatch(fbs.DrawBatch batch, RenderHost host) => _batchPaint
-    ..blendMode = blendModeFor(batch.blendType)
-    ..shader = host.textures.shaderFor(batch.textureHash);
+  ///
+  /// [colorFilter] is the whole-part PartColor tint of a peeled Mesh part
+  /// ([_drawPeeledMesh]); it is written unconditionally — like every other field
+  /// here — so a tinted part can never leak its filter into the next draw.
+  ui.Paint _paintForBatch(fbs.DrawBatch batch, RenderHost host,
+          {ui.ColorFilter? colorFilter}) =>
+      _batchPaint
+        ..blendMode = blendModeFor(batch.blendType)
+        ..shader = host.textures.shaderFor(batch.textureHash)
+        ..colorFilter = colorFilter;
 }
 
 /// A `FragmentProgram` loaded lazily from an asset and cached process-wide.

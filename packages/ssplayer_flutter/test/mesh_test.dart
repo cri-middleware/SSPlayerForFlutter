@@ -3,6 +3,7 @@
 // output from Mesh.ssab and skips when the example assets haven't been prepared.
 import 'dart:io';
 import 'dart:typed_data';
+import 'dart:ui' as ui;
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ssplayer_flutter/ssplayer_flutter.dart';
@@ -144,6 +145,16 @@ void main() {
       expect(GeometryBuilder().buildMeshParts(<int>[1], frame), isNull);
     });
 
+    test('alphaOverride replaces the per-part hierarchical alpha', () {
+      // The PartColor case (§1-3): with a tint the corner alpha already carries
+      // the hierarchical alpha, so the caller passes `pc.lt.a` and the bake must
+      // NOT multiply `PartState.alpha` on top.
+      final g = GeometryBuilder().buildMeshGeometry(
+          <int>[0], frameWith(twoPartMesh()),
+          alphaOverride: 0.5);
+      expect(g!.colors, everyElement(0x80FFFFFF.toSigned(32)));
+    });
+
     test('a partial triangle range is rejected', () {
       final bad = MeshBuffers(
         x: Float32List(3),
@@ -155,6 +166,100 @@ void main() {
       );
       expect(bad.indexRange(0), isNull);
       expect(GeometryBuilder().buildMeshParts(<int>[0], frameWith(bad)), isNull);
+    });
+  });
+
+  group('GeometryBuilder.buildMeshPartColorInterleaved', () {
+    DrawFrame frameWith(MeshBuffers mesh) => DrawFrame(
+          frameData: fbs.FrameData(fbs.FrameDataObjectBuilder().toBytes()),
+          drawOrder: const [0, 2],
+          partByIndex: const [],
+          world: Float32List(0),
+          local: Float32List(0),
+          uv: Float32List(0),
+          mesh: mesh,
+        );
+
+    test('tags every vertex with st (0,0) — the whole-only rule', () {
+      // This is what makes the peeled mesh path need no shader of its own: the
+      // GPU PartColor fragment mixes the four corners by (s,t), and (0,0)
+      // selects `lt` exactly — §10's 「Mesh=全頂点同値」.
+      final g = GeometryBuilder().buildMeshPartColorInterleaved(
+          <int>[0], frameWith(twoPartMesh()),
+          texWidth: 16, texHeight: 16);
+      expect(g, isNotNull);
+      expect(g!.vertexCount, 3);
+      for (var v = 0; v < g.vertexCount; v++) {
+        expect(g.vertices[v * 7 + 4], 0.0, reason: 's of vertex $v');
+        expect(g.vertices[v * 7 + 5], 0.0, reason: 't of vertex $v');
+      }
+    });
+
+    test('world positions pass through, UVs are normalised by the texture', () {
+      final g = GeometryBuilder().buildMeshPartColorInterleaved(
+          <int>[0], frameWith(twoPartMesh()),
+          texWidth: 16, texHeight: 32);
+      // vertex 1: world (10,0), pixel UV (8,0) → normalised (0.5, 0).
+      expect(g!.vertices.sublist(7, 11), <double>[10, 0, 0.5, 0]);
+      // vertex 2: world (0,10), pixel UV (0,8) → v = 8/32.
+      expect(g.vertices.sublist(14, 18), <double>[0, 10, 0, 0.25]);
+    });
+
+    test('the part slot is the index within the run, not the part index', () {
+      // The backend writes PartColorInfo entry `i` for `parts[i]`, so a run's
+      // second part must tag its vertices with slot 1 even though its part
+      // index is 2.
+      final g = GeometryBuilder().buildMeshPartColorInterleaved(
+          <int>[0, 2], frameWith(twoPartMesh()),
+          texWidth: 16, texHeight: 16);
+      expect(g!.vertexCount, 6);
+      for (var v = 0; v < 3; v++) {
+        expect(g.vertices[v * 7 + 6], 0.0);
+      }
+      for (var v = 3; v < 6; v++) {
+        expect(g.vertices[v * 7 + 6], 1.0);
+      }
+      // …and the part-local indices are rebased, as in every mesh bake.
+      expect(g.indices, <int>[0, 1, 2, 3, 5, 4]);
+    });
+
+    test('non-mesh parts and an absent mesh SoA yield null', () {
+      expect(
+          GeometryBuilder().buildMeshPartColorInterleaved(
+              <int>[1], frameWith(twoPartMesh()),
+              texWidth: 16, texHeight: 16),
+          isNull);
+      final noMesh = DrawFrame(
+        frameData: fbs.FrameData(fbs.FrameDataObjectBuilder().toBytes()),
+        drawOrder: const [0],
+        partByIndex: const [],
+        world: Float32List(0),
+        local: Float32List(0),
+        uv: Float32List(0),
+      );
+      expect(
+          GeometryBuilder().buildMeshPartColorInterleaved(<int>[0], noMesh,
+              texWidth: 16, texHeight: 16),
+          isNull);
+    });
+  });
+
+  group('MeshGeometry.bounds', () {
+    test('is the axis-aligned box of the baked positions', () {
+      final g = GeometryBuilder().buildMeshGeometry(
+        <int>[0, 2],
+        DrawFrame(
+          frameData: fbs.FrameData(fbs.FrameDataObjectBuilder().toBytes()),
+          drawOrder: const [0, 2],
+          partByIndex: const [],
+          world: Float32List(0),
+          local: Float32List(0),
+          uv: Float32List(0),
+          mesh: twoPartMesh(),
+        ),
+      );
+      // The peeled (masked) draw uses this as its saveLayer / gate-rect bound.
+      expect(g!.bounds, const ui.Rect.fromLTRB(0, 0, 110, 60));
     });
   });
 

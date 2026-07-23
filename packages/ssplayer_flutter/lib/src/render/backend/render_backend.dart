@@ -50,9 +50,12 @@ abstract class RenderBackend {
   void emitShape(ui.Canvas canvas, fbs.DrawBatch batch, DrawFrame frame,
       RenderHost host, MaskContext? maskCtx, MaskDraw? inheritedMask);
 
-  /// Emits one Mesh batch (§8): world-space verts, one indexed draw.
-  void emitMesh(
-      ui.Canvas canvas, fbs.DrawBatch batch, DrawFrame frame, RenderHost host);
+  /// Emits one Mesh batch (§8): world-space verts, one indexed draw. Parts
+  /// carrying PartColor (§10, *whole-only* — the `lt` corner tints the whole
+  /// part) and/or a mask test (§9) are peeled out of that draw, the same way
+  /// [emitNormal] peels its own.
+  void emitMesh(ui.Canvas canvas, fbs.DrawBatch batch, DrawFrame frame,
+      RenderHost host, MaskContext? maskCtx, MaskDraw? inheritedMask);
 
   /// Emits one Effect batch (§8): the particle plans, grouped per cellmap+blend.
   void emitEffect(
@@ -72,6 +75,23 @@ abstract class RenderBackend {
   /// through THIS backend (shared across the recursion) between the two calls.
   void pushTransform(ui.Canvas canvas, Float64List world);
   void popTransform(ui.Canvas canvas);
+
+  /// Brackets an instance child's draw with a **group tint** — the PartColor
+  /// (§10) carried by the instance part itself, applied to the whole sub-
+  /// animation once it is composited (§8).
+  ///
+  /// [matrix] is the row-major 4×5 colour matrix from
+  /// `PartColor.wholeTintMatrix` (an Instance part is whole-only, like a Mesh).
+  /// Canvas: `saveLayer` with a `ColorFilter.matrix`. GPU: an offscreen pass the
+  /// subtree draws into, composited back through the colour-matrix pipeline.
+  /// Calls nest with [pushTransform]/[popTransform] and with each other.
+  ///
+  /// The tint is a *group* operation on purpose — one filter over the finished
+  /// subtree — unlike alpha, which folds per-part down the chain
+  /// (`DrawFrame.alphaScale`). Overlapping semi-transparent children therefore
+  /// tint as a unit.
+  void pushGroupTint(ui.Canvas canvas, List<double> matrix);
+  void popGroupTint(ui.Canvas canvas);
 
   /// Releases backend-owned GPU/Canvas resources. Called from the player's
   /// `dispose()`.

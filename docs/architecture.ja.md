@@ -348,8 +348,21 @@ Flutter としては **Phase 1**（Basic〜BlendMode を `SpriteStudioView` で�
   `[offsets[p], offsets[p+1])` にスライスし、非 Mesh パーツは空レンジ。実装は `MeshBuffers`（スライス）＋
   `GeometryBuilder.buildMeshGeometry`（ベイク）＋ `_emitMeshBatch`。**Mesh バッチは batchable（`count>1` あり）** なので、
   1 バッチを 1 `drawVertices` にまとめる際は各パーツの vertex base を index に加算する（実装済み）。
-  未対応: Mesh の PartColor（Whole-only＝`lt` を全頂点へ。かつ PartColor 有り時の α は `PartState.alpha` ではなく `pc.lt.a` を使う
-  ＝両者を掛けると階層 α の二重適用）と、Mesh のマスク（対象・writer とも）。いずれも `partcolor.frag` がクアッドアフィン前提のため。
+  - **Mesh の PartColor（実装済み・Whole-only）**: §10 の規定どおり `lt` の色/`rate` を**パーツ全体**へ適用する。
+    4 隅補間が無いということは「rgb に対する 1 本のアフィン `rgb' = A·rgb + B`」でしかないので、
+    Normal のようなフラグメントシェーダは要らない——**Canvas は `ui.ColorFilter.matrix`**（`PartColor.wholeTintMatrix`）を
+    その draw の `Paint` に載せるだけ、**flutter_gpu は既存の PartColor パイプラインをそのまま**使う
+    （`buildMeshPartColorInterleaved` が全頂点に `st=(0,0)` を振る＝4 隅 mix が `lt` に解決される。新シェーダ 0 本）。
+    これが要点で、**Flutter のフラグメントシェーダは varying を取れない**ため、変形メッシュの UV でアトラスを
+    サンプルするシェーダは Canvas 側では原理的に書けない（クアッドアフィンの逆写像が使えるのは Normal だけ）。
+    α は `PartState.alpha` ではなく `pc.lt.a`（＋インスタンス連鎖の scale）を使う——両者を掛けると階層 α の二重適用
+    （`buildMeshGeometry(alphaOverride:)`）。
+    Canvas 側の唯一のズレ: シェーダは premultiply **前**に `clamp` するがカラー行列は結果格納時に clamp するため、
+    **Add/Sub が半透明テクセル上でオーバーフローする場合**だけ Normal パーツのシェーダ経路と一致しない。
+  - **Mesh のマスク（実装済み）**: writer は従来どおり幾何そのもの。**対象**は、Canvas ではレイヤに描いてから
+    `partcolor.frag`（rate 0・白テクセル＝マスク判定だけを返す構成）を `BlendMode.dstIn` で被せてゲートする
+    （カラー行列にはフラグメント単位の判定を畳み込めないため）。flutter_gpu は PartColor パイプラインの
+    `v_local` 経由のマスク再生がそのまま効く。
 
 ## 9. Mask の実装（カバレッジビットマップ方式）
 
@@ -370,8 +383,10 @@ Flutter としては **Phase 1**（Basic〜BlendMode を `SpriteStudioView` で�
     シェーダが bit 0→23 を走査すれば OP の適用順が draw order と一致する。
   - **1 フレーム遅延の対策が不要**。`toImageSync` は同一フレーム内でカバレッジを読めるため、移植ガイド §3-2-3 の
     サイズクラス量子化・縮小ヒステリシス・旧 target の 1 フレーム保持はいずれも実装していない（bbox 実寸・長辺 1024 上限のみ）。
-- **Instance 配下のマスク（§3-2-2）は未実装**。親のカバレッジ UV 変換 `M_child = M_parent · slot_xf` を子へ伝える必要がある（TODO）。
-  ただし**子が自前で完結しているマスクは正しく描ける**: 子のカバレッジは独立した `PictureRecorder` に子ローカル空間で焼かれ、
+- **Instance 配下のマスク（§3-2-2）は実装済み**。親のカバレッジ UV 変換 `M_child = M_parent · slot_xf` を
+  `MaskDraw.composeSlot` で子へ伝え、子の peel 可能な kind（Normal / Shape / Mesh）が親のカバレッジをサンプルする。
+  ゲートはインスタンスパーツ 1 つの rank・極性で**子アニメ全体**にかかる（単一レベル）。
+  もともと**子が自前で完結しているマスクも正しく描ける**: 子のカバレッジは独立した `PictureRecorder` に子ローカル空間で焼かれ、
   Flutter の `Paint.shader` 座標もローカルなので、`canvas.transform(slotMatrix)` の下でも整合する。
   この点だけはフラグシップ（`!_parent_driven` で子のカバレッジ描画自体を止める＝子の自前マスクも効かない）より広い。
 - **コスト**: オフスクリーン確保と 2 パス、かつマスク対象はバッチから peel されるため重い（§18-D）。
@@ -387,6 +402,24 @@ Flutter としては **Phase 1**（Basic〜BlendMode を `SpriteStudioView` で�
   頂点カラー（CUSTOM0 相当）＋係数テーブルで統一式 `rgb = pixel_rgb·varg.x + mix(white, pixel_rgb, varg.z)·color_rgb·varg.y` を実装（CPU ブレンドはしない）。
   - フラグシップの CUSTOM0 = `(rate, blend_idx, pma, 0)`、係数テーブル `_PartColorCoef`（Mix/Mul/Add/Sub）。
 - **パーツ種別ルール**: Normal=4 隅個別、Mesh=全頂点 lt 一律、Shape=`rate` を 1.0・Mix に固定。デフォルト（PartColor 無し）は白・rate 0 で素通し（＝テクスチャそのまま）。
+- **`FragmentProgram` が要るのは Normal だけ**: 4 隅が個別だからフラグメント単位に変わるのであって、
+  **Whole-only なら統一式は rgb に対する 1 本のアフィン `rgb' = A·rgb + B` に潰れる**（`PartColor.wholeTintMatrix`）。
+  `vz==0`（Mix/Add/Sub）なら `A = 1 + coef₀·rate` / `B = color·coef₁·rate`、`vz==1`（Mul）なら `A = 1 + coef₀·rate + color·coef₁·rate` / `B = 0`。
+  これを Canvas は `ui.ColorFilter.matrix`、flutter_gpu は `shaders/gpu/colormatrix.frag` で適用する。α 行は常に恒等
+  （α は幾何側＝頂点カラー／`alphaScale` で運ぶ。§1-3 の二重適用回避）。適用先は 2 つ:
+  - **Mesh パーツ**（§8）— そのパーツの draw の `Paint` に載せる。
+  - **Instance パーツ**（§8・**仕様外**）— SDK 仕様 §1-2 のパーツ種別表は Normal/Mesh/Shape しか規定していない
+    （フラグシップも未対応）が、ランタイムは属性を持つ任意のパーツに `part_color` を出すため、
+    インスタンスパーツが PartColor を持ち得る。これを**子サブツリー 1 枚への「グループ tint」**として適用する
+    （Canvas=`saveLayer`＋`ColorFilter`、flutter_gpu=子専用のオフスクリーン標的＋カラー行列パイプライン）。
+    α を `alphaScale` でパーツ単位に折り込むのとは意図的に非対称: 式のオフセット項（Mix/Add/Sub）は
+    子の頂点カラーに畳み込めないので、per-part 適用は子パーツを全部 peel することを意味する。
+    代償として、**半透明の子どうしが重なる領域**では per-part 適用と結果が食い違う。
+  - 検証状況: 既存のサンプル `.ssab` には **Mesh／Instance パーツに PartColor を持つデータが 1 つも無い**
+    （`overall` 全パック・SDK の `allAttributeV7/partsColor.ssae` とも Normal のみ）。
+    Override Layer（§65）も「Normal パーツのみ」なので実行時に合成することもできない。
+    したがってこの経路は**式レベル（単体テスト）でのみ検証済み**で、実データでの目視確認には
+    Mesh/Instance パーツに PartColor を付けた `.sspj` を用意する必要がある。
 
 ## 11. 外部リソースとオプション機能
 
@@ -439,24 +472,29 @@ Flutter としては **Phase 1**（Basic〜BlendMode を `SpriteStudioView` で�
 どう扱うかの一覧。**コードから機械的に確認した結果**であって、設計上の建前ではありません
 （確認方法も併記）。未実装（⏳/❌）項目の前向きな追跡は [ROADMAP.md](../ROADMAP.md) 側。
 
+> **注**: ✅ は主に **Canvas バックエンド**で検証した状態を指す。flutter_gpu 側は同等の
+> コードを持つが、§19 冒頭の⚠️のとおり**実際には未検証**（Impeller 有効時に Mask 等が破綻）。
+> 下表の「実装済み」は Canvas を正とし、GPU は「コードはある」の意味。
+
 | kind | PartColor (§10) | マスク writer (§9) | マスク対象 (§9) | α スケール (§8 Instance 連鎖) |
 |---|---|---|---|---|
 | **Normal** | ✅ シェーダで 4隅補間 | ✅ スプライトクアッド | ✅ | ✅ |
 | **Mask**（純粋マスク） | — 色を描かない | ✅ スプライトクアッド | — | — |
 | **Shape** | ✅ 頂点カラー（式バイパス）| ✅ ポリゴン・閾値なし | ✅ | ✅ |
-| **Mesh** | ⏳ TODO | ✅ 変形三角形・閾値なし（幾何=マスク）| ⏳ TODO | ✅ |
+| **Mesh** | ✅ Whole-only（`lt` をカラー行列で全体に）| ✅ 変形三角形・閾値なし（幾何=マスク）| ✅ | ✅ |
 | **Effect** | ❌ 非対応（plan が自前の色を持つ）| ❌ | ⏳ TODO | ✅ |
-| **Instance** | ⏳ TODO（フラグシップも未対応）| ❌ | ✅ §3-2-2 継承（子全体をゲート・単一レベル）| ✅ |
+| **Instance** | ✅ 子サブツリーへのグループ tint（仕様外・フラグシップも未対応）| ❌ | ✅ §3-2-2 継承（子全体をゲート・単一レベル）| ✅ |
 | **Nines / Text** | ❌ kind 自体が未実装 | ❌ 除外 | ❌ | — |
 
 確認方法（再現手順）:
 
-* **マスク対象**: `_MaskContext.bitsForTarget` の呼び出し元は `_emitNormalBatch` /
-  `_emitShapeBatch` /（§3-2-2 継承の）`_emitInstanceBatch` の 3 箇所。前 2 者はパーツ単位の
+* **マスク対象**: `MaskContext.bitsForTarget` の呼び出し元は `emitNormal` / `emitShape` /
+  `emitMesh` /（§3-2-2 継承の）`_emitInstanceBatch` の 4 箇所。前 3 者はパーツ単位の
   ゲート、Instance は子アニメ**全体**を 1 つの rank でゲート（`drawFor(bits).composeSlot(world)`）。
-  → Mesh / Effect がマスク対象になってもテストされず素通しで描かれる（Mesh のマスク対象は varying 制約で TODO）。
-* **PartColor**: `PartColor.read` の呼び出し元は `_emitNormalBatch`（シェーダ経路）と
-  `GeometryBuilder.buildShapeParts`（頂点カラー経路）の 2 箇所のみ。
+  → Effect がマスク対象になってもテストされず素通しで描かれる。
+* **PartColor**: `PartColor.read` の呼び出し元は `emitNormal`（シェーダ経路）、`emitMesh`
+  （カラー行列経路）、`GeometryBuilder.buildShapeParts` / `buildShape*Interleaved`（頂点カラー経路）、
+  `_emitInstanceBatch`（グループ tint）。
 * **マスク writer**: `MaskPartFlags.drawableWriter` ＝ `quadGeometry || shapeGeometry || meshGeometry`。
   `quadGeometry` は Normal / Mask パーツ型、`shapeGeometry` は Shape、`meshGeometry` は Mesh パーツ型。
   Shape / Mesh writer はテクセル閾値を持たず、幾何そのものを `plus`・AA off でカバレッジに描く。他（Text/Nines/Effect）は writer 収集で落とす。
@@ -577,12 +615,20 @@ Flutter としては **Phase 1**（Basic〜BlendMode を `SpriteStudioView` で�
 L2 の描画を「どうピクセルにするか」だけ差し替えられる **`RenderBackend` シーム**の上に、
 `Canvas.drawVertices` 版（`CanvasBackend`）と **flutter_gpu (Impeller) 版（`FlutterGpuBackend`）**の
 2 実装を持つ。選択は L3/L4 の `SpriteStudioBackend`（既定 **`auto`**: Impeller があれば gpu、無ければ /
-Web は常に Canvas）。**全 kind が Canvas とバイト単位で一致**し、macOS・iOS（Metal）・Android（Vulkan）の
-実機で `examples/overall/integration_test/gpu_backend_test.dart`（両 backend を pixel 比較, `rgbMeanDiff=0.00`）
-により検証済み。§18-B の「さらに削るなら / 別 Isolate や flutter_gpu を検討」はこの節で実現している。
+Web は常に Canvas）。§18-B の「さらに削るなら / 別 Isolate や flutter_gpu を検討」はこの節で実現している。
+
+> **⚠️ 検証状態の重要な訂正（2026-07-23）**: 本節はかつて「全 kind が Canvas とバイト単位で一致・
+> 実機で `rgbMeanDiff=0.00` 検証済み」と記していたが、これは**誤り**だった。`gpu_backend_test.dart` は
+> `flutter test -d macos` を **Impeller・Flutter GPU を有効化せずに**走らせており、`SpriteStudioBackend.gpu`
+> は `isFlutterGpuAvailable()==false` で**Canvas にフォールバック**していた＝実体は **Canvas 対 Canvas** の
+> 比較で、GPU 経路は一度も実行されていなかった。`--enable-impeller --enable-flutter-gpu` を付けて実際に
+> GPU を走らせると **8 パック中 4 つが不一致**（**Mask は不透明画素 0＝真っ白**、PartsColor は 1/3、Shape は 1/2、
+> BlendMode は `rgbMeanDiff=14`）。原因が backend 本体か `toImage` キャプチャ経路かは未切り分け。
+> **flutter_gpu バックエンドは現時点で未検証（おそらく不具合あり）**として扱うこと。以下の実装記述は
+> 「そう書いてある」コードの説明であって、動作保証ではない。
 
 **シーム（`lib/src/render/backend/`）**: `RenderBackend`（`beginFrame`/`finish`/`emit{Normal,Mesh,Shape,Effect}`/
-`renderCoverage`/`pushTransform`/`popTransform`/`releaseCoverage`/`rewindShaderPools`）。`_paintTree` の
+`renderCoverage`/`pushTransform`/`popTransform`/`pushGroupTint`/`popGroupTint`/`releaseCoverage`/`rewindShaderPools`）。`_paintTree` の
 バッチループ・mask プリパス・instance 再帰は backend 非依存の制御フローとして L2 に 1 本だけ残し、ピクセル操作だけ委譲。
 `CanvasBackend` は旧 L2 描画の behavior-preserving 抽出（既存テスト不変）。per-player データは `RenderHost`
 （geometry/textures/flagsFor/effectPlanFor/hasEffects）で渡す。`MaskContext`/`MaskDraw` は両 backend 共有。
@@ -600,6 +646,9 @@ L2/L3/L4 の `paint(canvas,{dst,sourceSize})` シグネチャは不変（分岐�
 - **mask_write**（§9）: `renderCoverage` が別 command buffer で coverage texture に writers を加算描画（bits を R/G/B）。
   coverage-mvp は `MaskPlan.uvBasis/uvOffset` 由来で main pass のサンプルと厳密整合。
 - **shapemask**: マスク対象 Shape（per-vertex 色を coverage でゲート）。
+- **colormatrix**（§10）: Instance パーツのグループ tint。子サブツリーを同サイズのオフスクリーン標的へ描き、
+  full-target quad で親 pass に合成する際に `ui.ColorFilter.matrix` と同じ手順
+  （unpremultiply → 行列 → clamp → premultiply）で色を変換。Canvas 側の `saveLayer` + `ColorFilter` の対応物。
 
 **横断機能の実装差分**:
 - **blend（§per-batch）**: 固定機能 `ColorBlendEquation` で Mix→srcOver・Add→plus・Sub→reverseSubtract・
@@ -609,7 +658,13 @@ L2/L3/L4 の `paint(canvas,{dst,sourceSize})` シグネチャは不変（分岐�
   `coverageHandle`（不透明 `gpu.Texture`, web-safe な `Object?`）に載せて運ぶため、instance 子の継承マスク（§3-2-2）は
   親 coverage、own マスクは子 coverage を正しくサンプル（共有フィールドの上書き無し）。生存は `_frameCoverages`。
 - **instance（§8）**: 子は親 backend を共有し、`pushTransform` が world 行列を MVP スタックに合成（`_mul4x4`）して
-  同一 render target へ再帰描画。
+  同一 render target へ再帰描画。インスタンスパーツが PartColor を持つ場合だけ `pushGroupTint` が
+  pass/target/command-buffer を退避して子専用の標的へ切り替え、`popGroupTint` で submit → colormatrix 合成
+  （子 pass はそれをサンプルする pass より先に submit されるので順序も正しい）。標的確保に失敗しても
+  push/pop の対は崩さず、tint 無しで描く。
+- **Mesh の PartColor / マスク対象（§8）**: 新しいシェーダは不要で、既存 partcolor パイプラインを使う。
+  `buildMeshPartColorInterleaved` が全頂点に `st=(0,0)` を振るので 4 隅 mix が `lt` に解決＝§10 の Whole-only、
+  mask replay は `v_local`（メッシュ頂点は既に player-local world 空間）でそのまま効く。
 - **テクスチャ**: `ui.Image.toByteData(rawRgba, premult)` → `createTexture(hostVisible)` + `overwrite`、hash でキャッシュ。
   非同期のためロード直後の数フレームは未完テクスチャをスキップ。
 
@@ -619,3 +674,9 @@ L2/L3/L4 の `paint(canvas,{dst,sourceSize})` シグネチャは不変（分岐�
 の try/catch）で Impeller 不在時は Canvas フォールバック。
 
 **未対応（実用影響なし）**: Exclusion/Invert/透明 Multiply の framebuffer 読取ブレンド、`Nines`/`Text`（両 backend 共通）。
+
+**要調査（2026-07-23 判明・冒頭の⚠️参照）**: Impeller・Flutter GPU を実際に有効化すると Mask が真っ白・
+PartsColor/Shape が部分描画になる。`gpu_backend_test.dart` を `--enable-impeller --enable-flutter-gpu`
+付きで走らせるのが最低条件だが、それでも 4/8 不一致。まず「backend の描画そのものが壊れているのか」
+「`toImage` で GPU render target を取り出す経路が壊れているのか」を、実機アプリ（`--dart-define=SS_BACKEND=gpu`
+＋両フラグ）の目視で切り分ける必要がある。それまで flutter_gpu バックエンドは実験扱い。
