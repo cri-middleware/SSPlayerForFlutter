@@ -208,17 +208,35 @@ draw-call count of *peeled* shader parts.
     pipeline (`buildShapeColorInterleaved` + `shaders/gpu/shapemask.vert`). Mask
     and Shape now match Canvas on-device (macOS/Metal). No other vertex bake has a
     `vec4` at a non-16-aligned offset, so this is the whole class.
-  - **Still experimental:** PartsColor / Effect / Instance / BlendMode / Basic
-    have NOT been individually eyeballed on-device. Canvas remains the default and
-    the reference.
-  - Design intent (unchanged): peeled PartColor/mask fan-out collapses into
-    batched draws via per-vertex attributes + a UBO array; per-batch blend maps
-    the fixed-function-expressible SS modes; masked instance-child inheritance
-    (§3-2-2) rides the same peel path via each `MaskDraw`'s coverage handle.
-  - Next step: (a) fix `gpu_backend_test` to require both flags and fail (not
-    silently pass on Canvas) when GPU is unavailable, and use a trustworthy GPU
-    capture (on-device golden); (b) eyeball the remaining packs with
-    `--dart-define=SS_BACKEND=gpu --enable-impeller --enable-flutter-gpu`.
+  - **Known-broken — peeled PartColor tint on GPU (NOT fixed).** A Normal (or
+    Mesh/Instance) part with a *real* PartColor tint (`rate > 0`) renders as its
+    raw texture on the GPU backend — the tint is dropped. Root cause: the batched
+    PartColor pipeline reads each part's data from a UBO array indexed by a
+    per-vertex `a_part` (`pc.data[part*9 + k]`), and **Impeller/Metal miscompiles
+    `uniformArray[dynamicIndex + constant]`** — it returns 0 for rate/coef/mask
+    (verified on macOS: `pc.data[base]` reads right, `pc.data[base + 4]` reads 0).
+    Mask.ssab hid this because its masked parts use *passthrough* PartColor (white
+    corners, rate 0), which looks the same whether the tint applies or not; only
+    a genuinely tinted part (Shape.ssab's "Normal" part, Mul blend) exposes it.
+    - Attempted fixes that did NOT work: a local-array copy with an incrementing
+      index (compiler folds it back); one-draw-per-part with literal `data[0..8]`
+      indexing (then a *small* UBO gets mis-bound and reads 0; oversizing it back
+      to `data[360]` still read 0 in that path, cause not isolated). Reverted to
+      the committed batched form.
+    - **Recommended fix (not yet done):** stop using a UBO for per-part data —
+      pass the 9 vec4 as per-vertex **flat attributes** so the fragment reads them
+      as flat varyings (no UBO, no dynamic index). Larger vertex format but
+      sidesteps every Impeller UBO bug hit here.
+  - **Still experimental (unverified on-device):** Effect / Instance-tint /
+    BlendMode / Basic. Canvas remains the default and the reference.
+  - Design intent (as built): peeled PartColor/mask fan-out collapses into batched
+    draws via per-vertex attributes + a UBO array (the UBO array being exactly
+    what's broken above); per-batch blend maps the fixed-function-expressible SS
+    modes; masked instance-child inheritance (§3-2-2) rides the peel path via each
+    `MaskDraw`'s coverage handle.
+  - Next step: (a) the flat-attribute rewrite above to make PartColor tint work on
+    GPU; (b) fix `gpu_backend_test` to require both flags and fail (not silently
+    pass on Canvas) when GPU is unavailable, with a trustworthy GPU capture.
   - **Remaining (edge cases, on top of the above):** a framebuffer-read shader for
     Exclusion / Invert / Multiply-over-transparency, and `Nines`/`Text`
     (unimplemented in both backends). See `docs/architecture.ja.md` §19.

@@ -686,7 +686,14 @@ L2/L3/L4 の `paint(canvas,{dst,sourceSize})` シグネチャは不変（分岐�
 
 **未対応（実用影響なし）**: Exclusion/Invert/透明 Multiply の framebuffer 読取ブレンド、`Nines`/`Text`（両 backend 共通）。
 
-**要調査（2026-07-23・冒頭の⚠️参照）**: 実機切り分けの結果、マスク対象 Shape の白化（`vec4` 頂点属性の
-16 byte 境界問題）は**修正済み**で Mask・Shape は実機で Canvas 一致。テストの `toImage` キャプチャは不正確
-（Mask を 0 と誤る）なので `gpu_backend_test.dart` の数値は当てにならない。残タスクは (a) テストの是正
-（両フラグ必須＋信頼できる GPU キャプチャ）、(b) PartsColor/Effect/Instance/BlendMode/Basic の実機目視。
+**要調査（2026-07-23・冒頭の⚠️参照）**: 実機切り分けで判明したこと。
+- **修正済み**: マスク対象 Shape の白化（`vec4` 頂点属性の 16byte 境界問題）→ Mask・Shape は実機で Canvas 一致。
+- **未修正（既知バグ）**: **Normal/Mesh/Instance の実 PartColor tint（`rate>0`）が GPU で効かず素テクスチャになる**。
+  原因は batched PartColor パイプラインが per-part データを `a_part` で UBO 配列参照している点で、Impeller/Metal が
+  **`uniformArray[動的index + 定数]` を誤コンパイル**して rate/coef/mask に 0 を返す（実測: `pc.data[base]` は正・
+  `pc.data[base+4]` は 0）。Mask.ssab はマスク対象が passthrough（白・rate 0）なので露見せず、Shape.ssab の
+  「Normal」パーツ（Mul）で初めて顕在化。ローカル配列コピー（folded）・1ドロー1パーツ＋literal（小UBO mis-bind）
+  はいずれも不発。**推奨修正**: UBO をやめて 9 vec4 を**頂点属性（flat）**で渡す（頂点フォーマットは太るが UBO バグを全回避）。
+- テストの `toImage` は不正確（Mask を 0 と誤る）ので `gpu_backend_test.dart` の数値は当てにならない。
+- 残タスク: (a) 上記 flat 属性化で tint を GPU で効かせる、(b) テスト是正（両フラグ必須＋信頼できるキャプチャ）、
+  (c) Effect/Instance-tint/BlendMode/Basic の実機目視。
