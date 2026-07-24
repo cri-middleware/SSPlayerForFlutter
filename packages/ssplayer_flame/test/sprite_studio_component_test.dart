@@ -72,6 +72,58 @@ void main() {
         reason: 'expected textured content, not a flat fill');
   });
 
+  test('zero-size component falls back to a finite, origin-centred render box',
+      () async {
+    // Regression: a component given no `size` has a 0×0 box, so `render` used to
+    // pass an empty `dst`. The Canvas backend tolerates that (it only reads
+    // `dst.center`), but the flutter_gpu backend needs a real render target and
+    // drew a blank frame. `render` now sizes a fallback box from the animation's
+    // authored canvas, so the point-placed (size-less) component stays visible on
+    // both backends. This drives the Canvas backend (headless) and checks the
+    // fallback both paints and reports a positive canvas size.
+    final ssabPath = _firstExisting([
+      'examples/flame/assets/spritestudio/Ringo/Ringo.ssab',
+      '../../examples/flame/assets/spritestudio/Ringo/Ringo.ssab',
+    ]);
+    if (ssabPath == null) {
+      markTestSkipped('Ringo.ssab missing — run scripts/deploy-examples.sh');
+      return;
+    }
+
+    // No `size:` — the default zero box is exactly the case that regressed.
+    final component = SpriteStudioComponent.asset(
+      ssabPath,
+      bundle: _DiskBundle(),
+    );
+    addTearDown(() => component.player?.dispose());
+    await component.onLoad();
+    for (var i = 0; i < 5; i++) {
+      component.update(1 / 30);
+    }
+
+    final size = component.player!.canvasSize;
+    expect(size, isNotNull,
+        reason: 'the fallback box is sized from the authored canvas');
+    expect(size!.width, greaterThan(0));
+    expect(size.height, greaterThan(0));
+
+    // Origin is local (0,0); centre the recorded image on it so the art (drawn
+    // around the origin) lands inside the captured pixels.
+    const w = 512, h = 512;
+    final recorder = ui.PictureRecorder();
+    final canvas = ui.Canvas(recorder)..translate(w / 2, h / 2);
+    component.render(canvas);
+    final image = await recorder.endRecording().toImage(w, h);
+    final data = await image.toByteData(); // RGBA8888
+
+    var nonTransparent = 0;
+    for (var i = 0; i + 3 < data!.lengthInBytes; i += 4) {
+      if (data.getUint8(i + 3) != 0) nonTransparent++;
+    }
+    expect(nonTransparent, greaterThan(100),
+        reason: 'the size-less component must still paint visible pixels');
+  });
+
   test('part overrides reach the Brain through the component\'s player',
       () async {
     final ssabPath = _firstExisting([

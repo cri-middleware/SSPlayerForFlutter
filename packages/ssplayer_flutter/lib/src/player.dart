@@ -139,6 +139,20 @@ class SpriteStudioPlayer extends ChangeNotifier {
   /// resource swap.
   String? get currentAnimation => _currentAnimation;
 
+  /// The authored design-canvas size (SpriteStudio `<canvasSize>`) of the
+  /// [currentAnimation], in player-local pixels, or null before an animation is
+  /// selected / when the pack carries no canvas rect.
+  ///
+  /// A drawing adapter that must hand [paint] an explicit, finite render box can
+  /// size one from this: the flutter_gpu backend renders into an offscreen
+  /// target the size of `dst`, so a zero-sized [SpriteStudioComponent] bounds
+  /// its target from the canvas instead of compositing a blank frame (the Canvas
+  /// backend needs no size — it draws in unbounded player-local space).
+  ui.Size? get canvasSize {
+    final name = _currentAnimation;
+    return name == null ? null : _animeInfo?.canvasSize(name);
+  }
+
   /// The unresolved textures from the most recent [load] (empty on success).
   TextureLoadReport? get lastTextureReport => _lastTextureReport;
   TextureLoadReport? _lastTextureReport;

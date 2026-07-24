@@ -36,6 +36,20 @@ class SsAnimeInfo {
           .toList(growable: false) ??
       const <String>[];
 
+  /// The authored design-canvas size (SpriteStudio `<canvasSize>`) of animation
+  /// [name], in player-local pixels, or null when the animation is unknown or
+  /// carries no canvas rect.
+  ///
+  /// Only the *size* is exposed: the stored rect's offset is in authoring space
+  /// (top-left origin), not the runtime's origin-relative space, so it would be
+  /// misleading for a caller sizing a box around the runtime origin (which the
+  /// Brain places somewhere inside the canvas, not at its corner).
+  ui.Size? canvasSize(String name) {
+    final c = _animationByName(name)?.canvas;
+    if (c == null) return null;
+    return ui.Size((c.x2 - c.x1).abs(), (c.y2 - c.y1).abs());
+  }
+
   /// Names of the cellmaps referenced by this pack.
   List<String> get cellmapNames =>
       _root.cellmaps

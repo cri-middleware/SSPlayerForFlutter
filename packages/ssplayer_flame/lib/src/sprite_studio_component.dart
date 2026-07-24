@@ -1,5 +1,5 @@
 import 'dart:typed_data';
-import 'dart:ui' show Canvas, Rect, Size;
+import 'dart:ui' show Canvas, Offset, Rect;
 
 import 'package:flame/components.dart';
 import 'package:flutter/foundation.dart' show VoidCallback;
@@ -259,12 +259,37 @@ class SpriteStudioComponent extends PositionComponent {
 
   @override
   void render(Canvas canvas) {
+    final player = _player;
+    if (player == null) return;
     // The canvas is already in this component's local space (Flame applied the
-    // position/anchor/scale/angle transform). L2 owns its own save/restore and
-    // centers the animation on the box centre, so hand it the local box.
-    _player?.paint(canvas,
-        dst: Rect.fromLTWH(0, 0, size.x, size.y),
-        sourceSize: Size(size.x, size.y));
+    // position/anchor/scale/angle transform), so the animation's world origin is
+    // local (0,0). L2 owns its own save/restore and centers the animation on
+    // `dst.center`.
+    //
+    // With an explicit [size] the render box IS that box. With the default zero
+    // size the box is empty — which the Canvas backend tolerates (it only reads
+    // `dst.center`, then draws in unbounded player-local space), but the
+    // flutter_gpu backend renders into an offscreen target the size of `dst`, so
+    // an empty box makes it allocate nothing and composite a blank frame. Fall
+    // back to a finite box centred on the origin, sized from the animation's
+    // authored canvas. It is 2× the canvas per axis because the runtime origin
+    // can sit anywhere inside the canvas (Ringo's is near its feet, not the
+    // centre), so a box centred on the origin must reach a full canvas-dimension
+    // to the far side to never clip the art. Pass an explicit [size] to bound
+    // the target exactly.
+    final Rect box;
+    if (size.x > 0 && size.y > 0) {
+      box = Rect.fromLTWH(0, 0, size.x, size.y);
+    } else {
+      final canvasSize = player.canvasSize;
+      if (canvasSize == null || canvasSize.isEmpty) return;
+      box = Rect.fromCenter(
+        center: Offset.zero,
+        width: 2 * canvasSize.width,
+        height: 2 * canvasSize.height,
+      );
+    }
+    player.paint(canvas, dst: box, sourceSize: box.size);
   }
 
   @override
