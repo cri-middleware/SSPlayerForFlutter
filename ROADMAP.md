@@ -247,16 +247,19 @@ draw-call count of *peeled* shader parts.
       shader/vertex traps are in `docs/architecture.ja.md` §19
       ("実機検証レシピ" / "GPU シェーダ / 頂点の地雷").
   - **On-device fix — plain Shape parts were invisible on GPU.** Unmasked Shape
-    parts with PartColor (the `S_*` parts in `PartsColor.ssab`) drew nothing on
-    the GPU backend: they go through the sprite pipeline with a 1×1 white texel
-    (`texel * bakedVertexColour`), and that white texture was a `hostVisible`
-    texture `overwrite`-n **in the same frame it is sampled** — the CPU write was
-    not GPU-visible against the read in the open command buffer, so the texel
-    sampled 0 and `0 * colour = 0`. (The sprite atlas escapes this only because
-    its upload is an async microtask — a *prior* frame.) Fixed by render-CLEARing
-    a `devicePrivate` white texture (`_ensureWhiteTexture`), which is properly
-    ordered like the mask-coverage targets. Verified on-device: PartsColor's
-    Normal *and* Shape parts now match Canvas.
+    parts with PartColor (the `S_*` parts in `PartsColor.ssab`) drew nothing on the
+    GPU backend. They went through the sprite pipeline with a 1×1 white texel
+    (`texel * bakedVertexColour`), and that constant white `hostVisible` texture
+    sampled **0** on Metal — a same-frame `overwrite`, a `devicePrivate` clear pass,
+    *and* an async-decoded upload all failed identically (the large real-image atlas
+    samples fine; the exact cause is unidentified), so `0 * colour = 0`. Fixed by
+    **abandoning the white texel**: every Shape now draws through the texture-less
+    **ShapeMask pipeline** (`frag_color = v_color` — per-vertex colour straight
+    through, matching the Godot/WebGL siblings), with the mask disabled
+    (`mask_bits.w = 0`) for unmasked runs and coverage-gated for mask targets;
+    `_drawShapeBatch` unifies both, `_ensureWhiteTexture` remains only as a fallback.
+    Verified on-device on a **clean build**: PartsColor's Normal *and* Shape parts
+    are pixel-identical to Canvas.
   - **Still experimental (unverified on-device):** Effect / Instance-tint /
     BlendMode. Canvas remains the default and the reference. (Basic and PartsColor
     — including its Shape parts — are now eyeball-verified on GPU.)

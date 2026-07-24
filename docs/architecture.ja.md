@@ -650,7 +650,7 @@ Web は常に Canvas）。§18-B の「さらに削るなら / 別 Isolate や f
 L2/L3/L4 の `paint(canvas,{dst,sourceSize})` シグネチャは不変（分岐は L2 内に閉じる）。
 
 **パイプライン / シェーダ（`shaders/gpu/*.vert|frag`, 素の GLSL）**:
-- **sprite**: Normal/Mesh/Effect（テクスチャ×premult 頂点色）。Shape は 1×1 白テクスチャ＋uv=0 で per-vertex 色を通す。
+- **sprite**: Normal/Mesh/Effect（テクスチャ×premult 頂点色）。**Shape は sprite を使わず** shapemask パイプライン（下記）でテクスチャ無しに per-vertex 色を描く。
 - **partcolor**（§10/§9）: **per-vertex 属性設計**（兄弟 Godot/Web と同型・§下記）。UBO を持たず、隅色/rate/coef と
   mask セット（bits/uv/off）を全部頂点に載せる。色は隅ごとの `a_color`（4隅グラデはラスタライザ補間）、rate は
   `a_coef.w`、mask は `flat` varying。mask replay は**整数ビット演算**。**fan-out 崩し**＝連続する peeled パーツを
@@ -658,7 +658,8 @@ L2/L3/L4 の `paint(canvas,{dst,sourceSize})` シグネチャは不変（分岐�
   （§下記の Impeller アラインメント地雷）。
 - **mask_write**（§9）: `renderCoverage` が別 command buffer で coverage texture に writers を加算描画（bits を R/G/B）。
   coverage-mvp は `MaskPlan.uvBasis/uvOffset` 由来で main pass のサンプルと厳密整合。
-- **shapemask**: マスク対象 Shape（per-vertex 色を coverage でゲート）。
+- **shapemask**: **全 Shape**（`frag_color = v_color`＝テクスチャ無し・premult 頂点色。兄弟 Godot/Web と同型）。
+  マスク対象は coverage でゲート、非マスクは mask 無効（`mask_bits.w=0`）で素通し。非マスクの連続 Shape は 1 ドローに畳む。
 - **colormatrix**（§10）: Instance パーツのグループ tint。子サブツリーを同サイズのオフスクリーン標的へ描き、
   full-target quad で親 pass に合成する際に `ui.ColorFilter.matrix` と同じ手順
   （unpremultiply → 行列 → clamp → premultiply）で色を変換。Canvas 側の `saveLayer` + `ColorFilter` の対応物。
@@ -726,8 +727,8 @@ flutter run -d macos --debug --dart-define=SS_BACKEND=gpu --enable-impeller --en
   `a_mask_off.zw` は未使用だが `.xy` を使うので属性ごと残る）。
 - **UBO の“配列”を使うな**（`u[動的index+定数]` が 0 を返す）。per-part 可変データは per-vertex 属性へ。struct メンバ UBO
   （MaskInfo / TintInfo）は正常。
-- **同一フレーム内で書いたテクスチャは、その同じフレームでサンプルすると 0 になる**。`hostVisible` テクスチャを
-  render pass 記録中に `overwrite` してそのまま同フレームで描くと、CPU 書き込みが GPU 読み取りに同期されず透明になる
-  （プレーン Shape の白テクセル `texel*色` がこれで不可視だった＝`PartsColor.ssab` の `S_*` パーツ）。定数テクスチャは
-  **devicePrivate に clear pass で描く**（`_ensureWhiteTexture`。coverage 標的と同じ）。アトラスが平気なのは upload が
-  非同期マイクロタスク＝前フレームで書かれるため。
+- **1×1 の定数（白）`hostVisible` テクスチャは Shape のサンプルで 0 に化ける**（Metal）。`overwrite` を同フレーム内・
+  clear pass・非同期デコード upload のどれで用意しても、プレーン Shape の白テクセル `texel*色` は透明になった
+  （`PartsColor.ssab` の `S_*` パーツが不可視。アトラス＝大サイズ・実画像 `toByteData` は平気なのと対照的で、原因は未特定）。
+  **解決＝白テクセルを捨て、全 Shape を texture-less な shapemask パイプラインで描く**（per-vertex 色そのまま。兄弟 Godot/Web
+  と同型）。`_ensureWhiteTexture`（非同期デコード upload）は shapemask 不成立時のフォールバックとしてのみ残置。

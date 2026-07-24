@@ -1,8 +1,8 @@
+import 'dart:async';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter_gpu/gpu.dart' as gpu;
-import 'package:vector_math/vector_math.dart' show Vector4;
 import 'package:ssruntime_dart/effect_draw_plan.dart' as efbs;
 import 'package:ssruntime_dart/framedata.dart' as fbs;
 
@@ -232,9 +232,13 @@ class FlutterGpuBackend implements RenderBackend {
   final Map<int, gpu.Texture> _gpuTextures = <int, gpu.Texture>{};
   final Set<int> _uploading = <int>{};
 
-  /// A shared 1×1 opaque-white texture for the Shape path (which samples no
-  /// atlas): `texel * colour` then collapses to the per-vertex colour.
+  /// A shared opaque-white texel for the **fallback** Shape path (sprite + white,
+  /// `texel * colour` collapsing to the per-vertex colour) used only when the
+  /// ShapeMask pipeline — the primary, texture-free Shape path (see
+  /// [_drawShapeBatch]) — is unavailable. Created via the deferred [_uploadWhite]
+  /// (ready one frame later); see it for why a same-frame create can't be sampled.
   gpu.Texture? _whiteTexture;
+  bool _whiteUploading = false;
 
   /// A shared 1×1 transparent texture bound to the PartColor shader's coverage
   /// sampler when a part is not masked (a sampler must always be bound).
@@ -580,29 +584,56 @@ class FlutterGpuBackend implements RenderBackend {
     }
   }
 
+  /// The shared white texel, or null until [_uploadWhite] finishes (one frame
+  /// after first use — the Shape run is skipped until then, imperceptible on a
+  /// playing animation).
   gpu.Texture? _ensureWhiteTexture() {
-    final existing = _whiteTexture;
-    if (existing != null) return existing;
-    try {
-      // Render-CLEAR a 1×1 opaque-white texture rather than `overwrite`-ing a
-      // hostVisible one. A hostVisible texture written in the same frame it is
-      // sampled is not GPU-visible in time — the CPU write isn't synchronised
-      // against the read in the open command buffer — so the Shape path (which
-      // multiplies this white texel by the baked vertex colour) sampled zero and
-      // drew nothing. (The atlas escapes this only because its upload is an async
-      // microtask, i.e. a *prior* frame.) A clear pass is GPU-native and properly
-      // ordered, exactly like the mask-coverage render targets.
-      final tex =
-          gpu.gpuContext.createTexture(gpu.StorageMode.devicePrivate, 1, 1);
-      final cmd = gpu.gpuContext.createCommandBuffer();
-      cmd.createRenderPass(gpu.RenderTarget.singleColor(
-        gpu.ColorAttachment(texture: tex, clearValue: Vector4(1, 1, 1, 1)),
-      ));
-      cmd.submit();
-      return _whiteTexture = tex;
-    } catch (_) {
-      return null;
+    if (_whiteTexture != null) return _whiteTexture;
+    if (!_whiteUploading) {
+      _whiteUploading = true;
+      _uploadWhite();
     }
+    return null;
+  }
+
+  /// Uploads the white texel through the *exact* atlas path — a decoded
+  /// [ui.Image] → `toByteData(rawRgba)` → `createTexture(w, h)` → `overwrite` —
+  /// not a hand-built byte list.
+  ///
+  /// A `hostVisible` texture `overwrite`n from a literal `ByteData` sampled as
+  /// zero on Metal, so the Shape path (which multiplies this texel by the baked
+  /// vertex colour) drew nothing; the atlas, which samples fine, differs only in
+  /// coming from a decoded image, so the Shape texel does too. The decode also
+  /// defers the write past the frame's command buffer (the atlas relies on the
+  /// same), and 8×8 sidesteps any 1×1 upload edge case.
+  Future<void> _uploadWhite() async {
+    try {
+      const w = 8, h = 8;
+      final img = await _decodeSolidRgba(w, h, 0xFF, 0xFF, 0xFF, 0xFF);
+      final bytes = await img.toByteData(format: ui.ImageByteFormat.rawRgba);
+      img.dispose();
+      final tex =
+          gpu.gpuContext.createTexture(gpu.StorageMode.hostVisible, w, h);
+      tex.overwrite(bytes!);
+      _whiteTexture = tex;
+    } catch (_) {
+      _whiteUploading = false; // retry on the next frame
+    }
+  }
+
+  /// Decodes a solid `w×h` RGBA image through the engine image pipeline — the
+  /// same source of truth the atlas uploads from.
+  Future<ui.Image> _decodeSolidRgba(int w, int h, int r, int g, int b, int a) {
+    final px = Uint8List(w * h * 4);
+    for (var i = 0; i < px.length; i += 4) {
+      px[i] = r;
+      px[i + 1] = g;
+      px[i + 2] = b;
+      px[i + 3] = a;
+    }
+    final c = Completer<ui.Image>();
+    ui.decodeImageFromPixels(px, w, h, ui.PixelFormat.rgba8888, c.complete);
+    return c.future;
   }
 
   gpu.Texture? _ensureDummyCoverage() {
@@ -786,20 +817,19 @@ class FlutterGpuBackend implements RenderBackend {
       RenderHost host, MaskContext? maskCtx, MaskDraw? inheritedMask) {
     if (!_active) return;
     if (batch.count == 0) return;
-    final white = _ensureWhiteTexture();
-    if (white == null) return;
     final blend = _blendFor(batch.blendType);
     final drawOrder = frame.drawOrder;
 
-    // Plain shapes batch (sprite pipeline + white texel so `texel * colour` is the
-    // colour); a mask-target shape is peeled onto the ShapeMask pipeline (its
-    // per-vertex gradient gated by the coverage), preserving z-order. PartColor is
-    // already baked into the vertex colour — no shader needed for it.
+    // Every Shape draws through the ShapeMask pipeline, which outputs the baked
+    // per-vertex colour directly (`frag_color = v_color`, no texture — matching
+    // the Godot/WebGL siblings). Unmasked shapes batch into one draw with the mask
+    // disabled; a mask-target shape flushes the batch and draws alone, its colour
+    // gated by the coverage, preserving z-order. PartColor is already baked into
+    // the vertex colour.
     final run = <int>[];
     void flushRun() {
       if (run.isEmpty) return;
-      final geo = host.geometry.buildShapeInterleaved(run, frame);
-      if (geo != null) _drawInterleaved(geo, white, blend);
+      _drawShapeBatch(run, null, frame, host, blend);
       run.clear();
     }
 
@@ -812,50 +842,62 @@ class FlutterGpuBackend implements RenderBackend {
       final ownBits = maskCtx?.bitsForTarget(rank, flags);
       final mask = ownBits != null ? maskCtx!.drawFor(ownBits) : inheritedMask;
       // Gate only when a GPU coverage texture exists (own or inherited); else draw
-      // plain (unmasked).
+      // unmasked (mask disabled).
       if (mask == null || mask.coverageHandle is! gpu.Texture) {
         run.add(p);
       } else {
         flushRun();
-        _drawMaskedShape(p, mask, frame, host, blend);
+        _drawShapeBatch(<int>[p], mask, frame, host, blend);
       }
     }
     flushRun();
   }
 
-  /// Draws one mask-target Shape (§9): its per-vertex gradient gated by the mask
-  /// coverage via the ShapeMask pipeline. Falls back to a plain (unmasked) shape
-  /// draw when the pipeline/coverage is unavailable.
-  void _drawMaskedShape(int part, MaskDraw mask, DrawFrame frame,
+  /// Draws a batch of Shapes through the ShapeMask pipeline, whose fragment shader
+  /// outputs the baked per-vertex colour (`frag_color = v_color`, premultiplied).
+  ///
+  /// When [mask] is non-null the colour is gated by the mask coverage (§9) and
+  /// [parts] is a single mask-target shape; when null the mask is disabled
+  /// (`mask_bits.w = 0`, the shader passes the colour straight through) and [parts]
+  /// is a run of plain shapes batched into one draw. Either way there is **no
+  /// texture sample for the colour** — matching the Godot/WebGL siblings — which is
+  /// why this replaced the sprite + white-texel path: a `hostVisible` white texel
+  /// sampled as zero on Metal, so `texel * colour` collapsed to nothing and plain
+  /// Shapes were invisible. Falls back to sprite + white only if the mask pipeline
+  /// is unavailable.
+  void _drawShapeBatch(List<int> parts, MaskDraw? mask, DrawFrame frame,
       RenderHost host, gpu.ColorBlendEquation blend) {
     final pass = _pass!;
     final pipeline = _ensureShapeMaskPipeline();
-    final coverage = mask.coverageHandle is gpu.Texture
-        ? mask.coverageHandle as gpu.Texture
-        : null;
-    final geo = host.geometry.buildShapeColorInterleaved(<int>[part], frame);
+    // A sampler must always be bound; when unmasked the shader never reads it.
+    final coverage = mask?.coverageHandle is gpu.Texture
+        ? mask!.coverageHandle as gpu.Texture
+        : _ensureDummyCoverage();
+    final geo = host.geometry.buildShapeColorInterleaved(parts, frame);
     if (geo == null) return;
     if (pipeline == null || coverage == null) {
-      // Fallback: plain (unmasked) shape via the sprite + white path.
-      final plain = host.geometry.buildShapeInterleaved(<int>[part], frame);
+      // Fallback: sprite + white texel (only if the mask pipeline is unavailable).
+      final plain = host.geometry.buildShapeInterleaved(parts, frame);
       final white = _ensureWhiteTexture();
       if (plain != null && white != null) _drawInterleaved(plain, white, blend);
       return;
     }
 
     try {
-      // MaskInfo UBO: mask_bits, mask_uv, mask_off (3 vec4).
+      // MaskInfo UBO: mask_bits, mask_uv, mask_off (3 vec4). All-zero => disabled.
       final ubo = Float32List(12);
-      ubo[0] = mask.bits.increment.toDouble();
-      ubo[1] = mask.bits.invert.toDouble();
-      ubo[2] = mask.bits.visibleInside ? 1.0 : 0.0;
-      ubo[3] = 1.0; // enabled
-      ubo[4] = mask.uvBasis[0];
-      ubo[5] = mask.uvBasis[1];
-      ubo[6] = mask.uvBasis[2];
-      ubo[7] = mask.uvBasis[3];
-      ubo[8] = mask.uvOffset[0];
-      ubo[9] = mask.uvOffset[1];
+      if (mask != null) {
+        ubo[0] = mask.bits.increment.toDouble();
+        ubo[1] = mask.bits.invert.toDouble();
+        ubo[2] = mask.bits.visibleInside ? 1.0 : 0.0;
+        ubo[3] = 1.0; // enabled
+        ubo[4] = mask.uvBasis[0];
+        ubo[5] = mask.uvBasis[1];
+        ubo[6] = mask.uvBasis[2];
+        ubo[7] = mask.uvBasis[3];
+        ubo[8] = mask.uvOffset[0];
+        ubo[9] = mask.uvOffset[1];
+      }
 
       pass.bindPipeline(pipeline);
       pass.bindUniform(
@@ -1260,6 +1302,7 @@ class FlutterGpuBackend implements RenderBackend {
     _gpuTextures.clear();
     _uploading.clear();
     _whiteTexture = null;
+    _whiteUploading = false;
     _dummyCoverage = null;
     _frameCoverages.clear();
     _mvpView = null;
