@@ -1,5 +1,5 @@
-// The SpriteStudio live-reload watcher — the single dev runner (it replaced the
-// old `ssdev` daemon wrapper and `ssreconvert --watch`).
+// The SpriteStudio live-reload watcher — the single dev runner: it reconverts
+// changed assets and pushes the fresh pack into the running app.
 //
 //   dart run ssgen_flutter:sswatch --run -d macos              # own flutter run
 //   dart run ssgen_flutter:sswatch --vmservice-uri-file=<path> # attach (IDE)
@@ -85,8 +85,8 @@ class SsWatchOptions {
   final bool device;
 
   /// Owns-run convenience: also spawn `flutter run` (injecting the define and a
-  /// temp `--vmservice-out-file`) and attach to it — a one-command session, the
-  /// replacement for the retired `ssdev`. Unrecognized args in [passthrough]
+  /// temp `--vmservice-out-file`) and attach to it — a one-command session.
+  /// Unrecognized args in [passthrough]
   /// (e.g. `-d emulator-5554`) are forwarded to `flutter run`.
   final bool run;
 
@@ -232,15 +232,26 @@ Future<void> runSsWatch(List<String> argv) async {
   final sourceDir = opts.sourceDir ?? cfg.sourceDir;
   const sync = SsProjectSync();
 
-  // --run: also own `flutter run` (the retired `ssdev`'s one-command session).
+  // --run: also own `flutter run` — a one-command session.
   // Reconvert the reference assets first so the build bundles current art, then
   // spawn flutter with a temp `--vmservice-out-file` + the live-reload define.
   Process? flutter;
   String? runUriFile;
+  Directory? runTmpDir;
+  void cleanupRunTmp() {
+    try {
+      runTmpDir?.deleteSync(recursive: true);
+    } catch (_) {
+      // Best-effort: a leftover temp dir is harmless.
+    }
+    runTmpDir = null;
+  }
+
   if (opts.run) {
     final initial = await _safeReconvert(sync, projectRoot);
     if (initial != null && initial.converted.isNotEmpty) _logConverted(initial);
     final tmp = Directory.systemTemp.createTempSync('ssgen_sswatch');
+    runTmpDir = tmp;
     runUriFile = '${tmp.path}/vmservice.txt';
     final args = [
       'run',
@@ -262,6 +273,7 @@ Future<void> runSsWatch(List<String> argv) async {
   } catch (e) {
     stderr.writeln('[sswatch] $e');
     flutter?.kill();
+    cleanupRunTmp();
     exitCode = 2;
     return;
   }
@@ -273,6 +285,7 @@ Future<void> runSsWatch(List<String> argv) async {
   } catch (e) {
     stderr.writeln('[sswatch] could not connect to the VM Service: $e');
     flutter?.kill();
+    cleanupRunTmp();
     exitCode = 2;
     return;
   }
@@ -288,6 +301,7 @@ Future<void> runSsWatch(List<String> argv) async {
     stderr.writeln('[sswatch] source dir not found: $sourceDir');
     await service.dispose();
     flutter?.kill();
+    cleanupRunTmp();
     exitCode = 2;
     return;
   }
@@ -333,6 +347,7 @@ Future<void> runSsWatch(List<String> argv) async {
   await sub.cancel();
   await service.dispose();
   flutter?.kill(); // SIGTERM: `flutter run` tears the app down cleanly
+  cleanupRunTmp();
 }
 
 /// Resolves the VM Service URI from the flags / env, polling a `--vmservice-uri-

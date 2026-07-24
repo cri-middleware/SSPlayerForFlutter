@@ -36,8 +36,15 @@ abstract interface class SsRuntime {
   // --- Resource / Context lifecycle --------------------------------------
 
   /// Copies `ssab` onto the Brain's heap (copy mode — the only mode that works
-  /// on web, where Body and Brain memory spaces differ). Returns null on a bad
-  /// pack.
+  /// on web, where Body and Brain memory spaces differ). Returns null when the
+  /// Brain rejects the pack.
+  ///
+  /// Throws a [FormatException] when `ssab` lacks the `"SSAB"` FlatBuffers file
+  /// identifier (`hasSsabIdentifier`): the Brain parses `.ssab` unchecked and is
+  /// undefined behaviour on malformed input, so a non-`.ssab`/truncated buffer is
+  /// rejected here rather than crashing native code. This is an identify check,
+  /// not full validation — a well-formed header does not make an untrusted pack
+  /// safe.
   SsResource? createResourceCopy(Uint8List ssab);
   void destroyResource(SsResource resource);
 

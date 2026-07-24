@@ -44,7 +44,7 @@ class PartColor {
   });
 
   /// The no-op PartColor: white corners at `rate` 0, which the shader's formula
-  /// collapses to a plain texel passthrough (§10 "デフォルトは白・rate 0 で素通し").
+  /// collapses to a plain texel passthrough (§10: default white, rate 0 = passthrough).
   ///
   /// Fully opaque — prefer [passthrough], which carries the part's alpha, unless
   /// you specifically want α = 1.
@@ -57,7 +57,7 @@ class PartColor {
   );
 
   /// The no-op PartColor at [alpha] — §1-2-4's stated default for a part with no
-  /// PartColor: 「頂点色 = 白（α は階層 α）／ rate = 0」.
+  /// PartColor: vertex colour = white (alpha = hierarchical alpha), rate = 0.
   ///
   /// Used when a part must go through the fragment shader for a reason other
   /// than PartColor — a mask test (§9), or an instance child's alpha (§8) — so
@@ -105,8 +105,8 @@ class PartColor {
       pc == null ? partAlpha : (pc.lt.a * chainScale).clamp(0.0, 1.0);
 
   /// The §1-4 formula as a row-major 4×5 `ColorFilter.matrix`, evaluated from
-  /// the **`lt`** corner — the *Whole-only* rule a Mesh part follows (§8/§10
-  /// 「Mesh=全頂点同値」) and the group tint an Instance part applies to its
+  /// the **`lt`** corner — the *Whole-only* rule a Mesh part follows (§8/§10:
+  /// Mesh = same value on every vertex) and the group tint an Instance part applies to its
   /// child subtree (§8).
   ///
   /// Where a Normal part needs a fragment shader (four corners, so the tint

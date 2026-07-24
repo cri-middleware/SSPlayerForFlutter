@@ -54,8 +54,8 @@ class FlutterGpuBackend implements RenderBackend {
   /// confirmed on-device). `-1` assumes a Metal-style +Y-up NDC.
   static const double _kNdcYSign = -1.0;
 
-  /// Premultiplied source-over — the framebuffer composite for Mix (and, until
-  /// Phase 3 maps the full table, every non-additive kind). This is exactly the
+  /// Premultiplied source-over — the framebuffer composite for Mix, Div2, Overlay2,
+  /// and the modes that need a framebuffer-read shader (Exclusion / Invert). This is exactly the
   /// [gpu.ColorBlendEquation] default.
   static final gpu.ColorBlendEquation _srcOver = gpu.ColorBlendEquation();
 

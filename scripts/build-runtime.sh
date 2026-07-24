@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 #
 # Build the native Brain (libssruntime / libssconverter) from the
-# SpriteStudio-SDK submodule and place the DYNAMIC libraries into the Flutter
-# package's per-platform / per-arch layout so that `dart:ffi`
-# (DynamicLibrary.open / .process) can load them at runtime.
+# SpriteStudio-SDK submodule and place the DYNAMIC libraries into each binding
+# package's native/libs/ layout so the native-assets build hook (hook/build.dart)
+# bundles them as code assets the `@Native` bindings resolve at runtime.
 #
 # Interface mirrors the sibling players (SSPlayerForRenPy / -Unity / -Godot):
 #   platform=<p> arch=<a> build=<m> hostbuild=<auto|false>
@@ -134,7 +134,7 @@ case "$PLATFORM" in
       install_name_tool -id "@rpath/libssconverter.dylib" "$CONV_LIBS_DIR/macos/libssconverter.dylib" 2>/dev/null || true
     else
       # Universal (arm64 + x86_64): release-macos.sh lipos the universal dylibs
-      # (it also builds a .framework we no longer consume — native assets embeds
+      # (it also builds a .framework, which is unused here — native assets embeds
       # the bare dylib itself).
       bash "$SDK_DIR/scripts/release-macos.sh" "$BUILD_MODE"
       UNI="$T/universal-apple-darwin/$BUILD_MODE"

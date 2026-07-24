@@ -17,12 +17,13 @@
 //
 // This is also the path for **masked** parts, PartColored or not: a part with no
 // PartColor passes white corners with rate 0, which the formula below collapses
-// to a plain texel passthrough (§10 "デフォルトは白・rate 0 で素通し"). Masking a
-// part therefore costs it the batched drawVertices fast path — the same per-part
+// to a plain texel passthrough (§10: default white, rate 0 = passthrough). Masking
+// a part therefore costs it the batched drawVertices fast path — the same per-part
 // cliff the flagship has.
 //
 // Uniform float indices (samplers are NOT counted) are written by
-// internal_player.dart in this exact declaration order — keep them in sync.
+// canvas_backend.dart (_setPartColorUniforms) in this exact declaration order —
+// keep them in sync.
 
 uniform vec2 uOrigin;   // 0  : LT world corner (origin of the frag-space affine)
 uniform vec4 uInv;      // 1  : 2x2 inverse affine [m00,m01,m10,m11], frag -> (s,t)

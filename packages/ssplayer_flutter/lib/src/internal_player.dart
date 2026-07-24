@@ -90,8 +90,8 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   /// The render backend that turns this player's `DrawBatch`es into pixels —
   /// Canvas (`Canvas.drawVertices`) by default, flutter_gpu when requested and
   /// available. Chosen in [load] from the requested [SpriteStudioBackend] via the
-  /// capability probe. Owns the shader pools, batch paint and coverage resources
-  /// that used to live here; disposed with the player.
+  /// capability probe. Owns the shader pools, batch paint and coverage resources;
+  /// disposed with the player.
   final RenderBackend _backend;
 
   /// [RenderHost]: the shared SoA→vertex baker.
@@ -129,9 +129,12 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   /// Loads `ssab` into a fresh Context, binds it, and recursively spawns any
   /// instance children (§8).
   ///
-  /// Steps mirror docs/30_core/10_initialization: create resource → create
-  /// context → bind → set coordinate system. The `.ssab` is NOT
-  /// validated by the Brain; validate untrusted input before calling this.
+  /// Steps: parse the static Dart-side tables → create resource → create
+  /// context → bind → set coordinate system. The Brain does NOT validate the
+  /// `.ssab` (unchecked parse, undefined behaviour on malformed input);
+  /// [SsRuntime.createResourceCopy] rejects a non-`.ssab` header, but that is an
+  /// identify check, not full validation. Do not load `.ssab` from untrusted
+  /// sources.
   ///
   /// [instancePacks] maps a pack's `name_hash` to that pack's `.ssab` bytes and
   /// resolves `external_instances` references. Fetching those bytes is async
@@ -147,10 +150,22 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
     SpriteStudioBackend backend = SpriteStudioBackend.auto,
     @visibleForTesting RenderBackend? renderBackendOverride,
   }) {
+    // Parse the static Dart-side tables first. These are pure, bounds-checked
+    // FlatBuffers reads that throw on a corrupt pack — doing them BEFORE any
+    // native allocation means a malformed pack fails here and leaks no Brain-side
+    // Context/Resource. Mask roles (§1-2) and part names (§65) live in the static
+    // `.ssab` PartData, the effect bindings in the effect block — all read once
+    // here rather than per frame; the effect/instance slots themselves are lazy.
+    final maskFlags = MaskPartFlags.readAll(ssab);
+    final partNames = PartNameTable.readAll(ssab);
+    final effectParts = EffectPart.readAll(ssab);
+    final instanceParts = InstancePart.readAll(ssab);
+    final ownPackHash = InstancePart.packHashOf(ssab);
+
     // Copy mode: the Brain copies the bytes onto its own heap and retains no
     // pointer into `ssab` (the native backend does a zero-copy leaf hand-off).
     // Copy is also the only mode that works on the Web/WASM path, where the
-    // Body's and Brain's memory spaces differ. Rejects an empty list.
+    // Body's and Brain's memory spaces differ. Rejects a non-`.ssab` header.
     final resource = ssRuntime.createResourceCopy(ssab);
     if (resource == null) {
       throw StateError('ss_resource_create_copy returned null (bad .ssab?)');
@@ -161,63 +176,62 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
       ssRuntime.destroyResource(resource);
       throw StateError('ss_runtime_create returned null');
     }
-    if (!ssRuntime.bindResource(context, resource)) {
-      ssRuntime.destroyContext(context);
-      ssRuntime.destroyResource(resource);
-      throw StateError('ss_runtime_bind_resource failed');
-    }
-
-    // Direct render mode (the default): the Brain fills the SoA buffers this
-    // Body reads and skips redundant FrameData vertices/cells/deforms
-    // (render_loop §2). The Godot flagship relies on the same default.
-    ssRuntime.setRenderMode(context, 0);
-    // Coordinate system = 1 (Y-Down) like the flagship: the Brain applies the
-    // flip once, so the Body must NOT flip again. Origin/unit are left at the
-    // runtime defaults (Center / Pixel) — the flagship sets neither.
-    ssRuntime.setCoordinateSystem(context, 1); // 1 = Y-Down
 
     final registry = textures ?? TextureRegistry();
-    // Resolve the requested backend through the capability probe: gpu only when
-    // flutter_gpu is actually usable, else Canvas (which never throws). Every
-    // player in an instance tree gets the same choice.
-    // A whole instance tree shares one backend (children draw through the
-    // parent's), so the override is applied at the root only; children inherit
-    // it by drawing through the same instance. Tests use it to observe the
-    // per-frame lifetime contract without a real engine.
-    final renderBackend = renderBackendOverride ??
-        (resolveBackend(backend) == SpriteStudioBackend.gpu
-            ? createFlutterGpuBackend()
-            : CanvasBackend());
-    final player = SpriteStudioInternalPlayer._(
-      context,
-      resource,
-      registry,
-      // Mask roles (§1-2) live in the static `.ssab` PartData, not in FrameData
-      // and not in any SoA buffer — read them once here rather than per frame.
-      MaskPartFlags.readAll(ssab),
-      // Part names come out of the same PartData block, for the by-name part
-      // overrides (§65). Indices are stable within one pack, so this is a load-
-      // time read too.
-      PartNameTable.readAll(ssab),
-      // Same for the effect bindings; the slots themselves are created lazily.
-      EffectSlots(resource, EffectPart.readAll(ssab)),
-      renderBackend,
-    );
+    // Until the constructor attaches the GC finalizer, the Context+Resource are
+    // owned by nothing, so any throw in between must destroy them by hand.
+    late final SpriteStudioInternalPlayer player;
+    try {
+      if (!ssRuntime.bindResource(context, resource)) {
+        throw StateError('ss_runtime_bind_resource failed');
+      }
+      // Direct render mode (the default): the Brain fills the SoA buffers this
+      // Body reads and skips redundant FrameData vertices/cells/deforms
+      // (render_loop §2). The Godot flagship relies on the same default.
+      ssRuntime.setRenderMode(context, 0);
+      // Coordinate system = 1 (Y-Down) like the flagship: the Brain applies the
+      // flip once, so the Body must NOT flip again. Origin/unit are left at the
+      // runtime defaults (Center / Pixel) — the flagship sets neither.
+      ssRuntime.setCoordinateSystem(context, 1); // 1 = Y-Down
+
+      // Resolve the requested backend through the capability probe: gpu only when
+      // flutter_gpu is actually usable, else Canvas (which never throws). A whole
+      // instance tree shares one backend (children draw through the parent's), so
+      // the override is applied at the root only; children inherit it by drawing
+      // through the same instance. Tests use it to observe the per-frame lifetime
+      // contract without a real engine.
+      final renderBackend = renderBackendOverride ??
+          (resolveBackend(backend) == SpriteStudioBackend.gpu
+              ? createFlutterGpuBackend()
+              : CanvasBackend());
+      player = SpriteStudioInternalPlayer._(
+        context,
+        resource,
+        registry,
+        maskFlags,
+        partNames,
+        EffectSlots(resource, effectParts),
+        renderBackend,
+      );
+    } catch (_) {
+      ssRuntime.destroyContext(context);
+      ssRuntime.destroyResource(resource);
+      rethrow;
+    }
 
     // Instance children (§8). Unlike effect slots these cannot be lazy: each is
     // a whole nested player, and `ss_instance_slot_step` needs its Context from
-    // the very first tick. `_instances` is late-final rather than a constructor
-    // argument because a child's `childFor` closure below wants the finished
-    // parent in scope.
-    final ownPackHash = InstancePart.packHashOf(ssab);
+    // the very first tick. `_instances` is assigned right after construction
+    // because building the children needs the finished parent in scope.
+    //
     // Nesting is expanded eagerly and without a depth cap, like every sibling
     // player: a cap buys nothing against real content (it would only ever fire
     // on nesting the SS7 editor cannot practically author) while silently
-    // dropping the innermost child if it ever did. A cyclic `.ssab` recurses
-    // until the stack gives out — `.ssab` is trusted input, which the Brain
-    // does not validate either.
+    // dropping the innermost child if it ever did. A pathological cyclic `.ssab`
+    // recurses until it exhausts the stack; the per-child guard below then unwinds
+    // it, skipping the offending child rather than crashing the load.
     player._instances = InstanceSlots<SpriteStudioInternalPlayer>.build(
-      InstancePart.readAll(ssab),
+      instanceParts,
       (part) {
         final bytes = InstancePart.resolvePack(
           part,
@@ -226,15 +240,22 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
           packs: instancePacks,
         );
         if (bytes == null) return null; // unresolved external pack
-        final child = SpriteStudioInternalPlayer.load(
-          bytes,
-          // Children share the parent's registry: cellmap hashes are global, so
-          // a shared atlas resolves once and a child-only cellmap simply adds to
-          // it. The host loads each pack's textures into this same registry.
-          textures: registry,
-          instancePacks: instancePacks,
-          backend: backend, // inherit the parent's backend choice
-        );
+        final SpriteStudioInternalPlayer child;
+        try {
+          child = SpriteStudioInternalPlayer.load(
+            bytes,
+            // Children share the parent's registry: cellmap hashes are global, so
+            // a shared atlas resolves once and a child-only cellmap simply adds to
+            // it. The host loads each pack's textures into this same registry.
+            textures: registry,
+            instancePacks: instancePacks,
+            backend: backend, // inherit the parent's backend choice
+          );
+        } catch (_) {
+          // A corrupt / unloadable child pack is skipped (not drawn) rather than
+          // failing the whole parent load — same outcome as an unresolved pack.
+          return null;
+        }
         if (!child.setupAnimation(part.animeName)) {
           // The pack resolved but the animation name did not — authored garbage.
           child.dispose();
@@ -771,8 +792,8 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   ///
   /// The batch loop, mask pre-pass planning and instance recursion stay here
   /// (backend-agnostic control flow); only the pixel operations go to the
-  /// backend. Shape / Nines / Text: Nines / Text are pre-cut seams and skipped
-  /// for now, as is BoxFit / scale placement into [dst].
+  /// backend. Nines / Text are pre-cut seams and not drawn; BoxFit / scale
+  /// placement into [dst] is likewise not supported.
   void paint(ui.Canvas canvas, {ui.Rect? dst, ui.Size? sourceSize}) {
     _ensureAlive();
     // Per-FRAME, not per-player: both hooks recycle resources that stay live
@@ -885,7 +906,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
         case fbs.DrawBatchKind.Shape:
           backend.emitShape(canvas, batch, frame, this, maskCtx, inheritedMask);
         case fbs.DrawBatchKind.Mask: // §9: coverage only, never colour
-        case fbs.DrawBatchKind.Nines: // TODO(phase 2): §11 9-slice
+        case fbs.DrawBatchKind.Nines: // §11 9-slice: not yet supported
         case fbs.DrawBatchKind.Text: // no SDK render path
           break; // kinds not yet ported are skipped
       }

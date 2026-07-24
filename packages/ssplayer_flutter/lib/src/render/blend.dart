@@ -39,7 +39,7 @@ import 'package:ssruntime_dart/framedata.dart' as fbs;
 ///   * Sub    (`max(0, Cb - Cs)`)  → `difference` is exact wherever `Cb ≥ Cs`
 ///     (the darkening regime Sub targets) and only diverges — giving `Cs - Cb`
 ///     instead of clamping to black — in the opposite regime. Strictly closer than
-///     the old `darken` (`min(Cs, Cb)`), which is wrong across the whole range.
+///     `darken` (`min(Cs, Cb)`), which is wrong across the whole range.
 ///   * Invert (`Cs·(1-Cb)`)        → `difference` is *exact* for the white/opaque
 ///     overlay these inversions are authored with (`|1 - Cb| = 1 - Cb`), diverging
 ///     only for a partial/coloured source. Pixel-exact Sub/Invert would need a

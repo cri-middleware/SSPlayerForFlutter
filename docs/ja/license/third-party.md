@@ -10,11 +10,13 @@
 - **FlatBuffers**（Apache-2.0）—— `.ssab` アセット形式とランタイムの `FrameData` バッファに使用。
 - **Dart / Flutter パッケージ依存** —— pub.dev 経由で各自のライセンスのもとに配布。
 
-プリビルドのネイティブライブラリは、ソースビルドまたはダウンロード後に、対応するクレートの
-ライセンス通知を同梱します。
+プリビルドのネイティブライブラリは、対応するクレートのライセンス通知を持ちます。これらは
+SpriteStudio-SDK のリリース資産として公開されており、ソースビルド（`scripts/build-runtime.*`）を
+行うと `native/libs/` 配下に配置されます。
 
 - `packages/ssruntime_dart/native/libs/THIRD-PARTY-LICENSES.ssruntime.md`
 - `packages/ssconverter_dart/native/libs/THIRD-PARTY-LICENSES.ssconverter.md`
 
-これらのネイティブライブラリを埋め込んだアプリを再頒布する場合は、対応する通知を頒布物に
-同梱してください。プロジェクトおよび SDK 本体のライセンスは [ライセンス](index.md) を参照してください。
+これらのネイティブライブラリを埋め込んだアプリを再頒布する場合は、対応する通知（SDK リリース
+またはソースビルド由来）を頒布物に同梱してください。プロジェクトおよび SDK 本体のライセンスは
+[ライセンス](index.md) を参照してください。

@@ -24,20 +24,23 @@ crates.
 
 **License Location:**
 Because the native binaries are generated artifacts and not checked into this repository, the
-corresponding license documents for the Rust dependencies are downloaded/placed during the
-build/setup process. After running `scripts/build-runtime.*` (or after the build hook downloads the
-prebuilt libraries), you can find them under each binding package's `native/libs/` directory:
+corresponding license documents for the Rust dependencies live alongside the native libraries in the
+SpriteStudio-SDK release. When you build the libraries from source with `scripts/build-runtime.*`,
+they are placed under each binding package's `native/libs/` directory:
 
 - `packages/ssruntime_dart/native/libs/THIRD-PARTY-LICENSES.ssruntime.md`
 - `packages/ssruntime_dart/native/libs/LICENSE.md`
 - `packages/ssconverter_dart/native/libs/THIRD-PARTY-LICENSES.ssconverter.md`
 - `packages/ssconverter_dart/native/libs/LICENSE.md`
 
+They are also published as assets of the corresponding SpriteStudio-SDK GitHub release — the same
+release the native-assets build hook downloads the binaries from.
+
 **Distribution Note:**
-Official release bundles include these third-party license files alongside the native libraries. If
-you redistribute an application that embeds `libssruntime` (or a build that embeds `libssconverter`),
-keep the corresponding `THIRD-PARTY-LICENSES.*.md` and `LICENSE.md` files alongside your distribution
-to comply with the open-source licenses of the underlying Rust crates.
+If you redistribute an application that embeds `libssruntime` (or a build that embeds
+`libssconverter`), include the corresponding `THIRD-PARTY-LICENSES.*.md` and `LICENSE.md` files (from
+the SDK release or a source build) alongside your distribution to comply with the open-source
+licenses of the underlying Rust crates.
 
 ---
 

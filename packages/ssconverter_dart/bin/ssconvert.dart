@@ -75,6 +75,12 @@ Future<void> main(List<String> argv) async {
   } on SsConverterException catch (e) {
     stderr.writeln('ssconvert: conversion failed: $e');
     exitCode = 1;
+  } catch (e) {
+    // Anything else — UnsupportedError (run off-desktop), StateError (the native
+    // context could not be created) — surfaces the CLI's clean one-line message
+    // and exit 1, not an uncaught stack trace and exit 255.
+    stderr.writeln('ssconvert: $e');
+    exitCode = 1;
   }
 }
 

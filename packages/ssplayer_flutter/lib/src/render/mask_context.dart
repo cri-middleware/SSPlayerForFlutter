@@ -5,8 +5,8 @@ import 'mask.dart';
 
 /// The frame's masking state, handed to the batch loop and the render backend.
 ///
-/// Moved out of the L2 player so both the player (instance recursion) and the
-/// render backends (the peeled draws) can share it. [coverage] is the Canvas
+/// Shared by both the player (instance recursion) and the render backends (the
+/// peeled draws). [coverage] is the Canvas
 /// backend's `ui.Image` coverage bitmap; [coverageHandle] is the flutter_gpu
 /// backend's opaque `gpu.Texture` (kept as `Object?` so this file stays
 /// Widget/GPU-free). The coverage travels **with** the [MaskDraw] — so a mask

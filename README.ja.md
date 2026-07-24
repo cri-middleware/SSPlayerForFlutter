@@ -173,7 +173,6 @@ cd examples\overall; flutter run
 
 ## 📄 ライセンス
 
-本プロジェクトは `SpriteStudio-SDK` のライセンスに従います
-（[`SpriteStudio-SDK/LICENSE.md`](./SpriteStudio-SDK/LICENSE.md)）。同梱するネイティブランタイムや
-その他のサードパーティコンポーネントのライセンスは、各パッケージの `native/libs/` 配下の
-`THIRD-PARTY-LICENSES.*.md` を参照してください。
+本プロジェクトは BSD-3-Clause ライセンスです（[`LICENSE.md`](./LICENSE.md)）。同梱するネイティブ
+ランタイムやその他のサードパーティコンポーネントの通知は
+[`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md) を参照してください。

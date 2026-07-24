@@ -10,7 +10,7 @@
 
 ## 前提
 
-- **Flutter 3.44.6+ / Dart 3.12.2+**（Native Assets 標準対応）。
+- **Flutter 3.38+ / Dart 3.10+**（Native Assets 標準対応）。CI は 3.44.6 / 3.12.2 で検証。
 - ネイティブ Brain（`libssruntime`）。`hook/build.dart` がピン留めした SDK リリースから
   プリビルドを自動DL・同梱するので、通常は事前配置不要（Rust 不要）。
   - ソースからビルドする場合: `bash scripts/build-runtime.sh`（Rust 必要）
@@ -71,8 +71,9 @@ class SpriteStudioGame extends FlameGame {
   @override
   Future<void> onLoad() async {
     add(SpriteStudioComponent.asset(
+      // 参照テクスチャ（隣接する Ringo.png）はキー自身のフォルダから解決されるので
+      // baseAssetDir は不要です。
       'assets/spritestudio/Ringo/Ringo.ssab',
-      baseAssetDir: 'assets/spritestudio/Ringo',
       anchor: Anchor.center,
       position: size / 2,
     ));

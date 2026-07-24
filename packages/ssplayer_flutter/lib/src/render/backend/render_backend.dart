@@ -47,7 +47,7 @@ abstract class RenderBackend {
 
   /// Emits one Normal batch (§7/§9/§10), preserving draw order. Plain parts batch;
   /// parts with PartColor and/or a mask test are peeled (Canvas) or folded into
-  /// per-vertex attributes (GPU, Phase 5).
+  /// per-vertex attributes (GPU).
   void emitNormal(ui.Canvas canvas, fbs.DrawBatch batch, DrawFrame frame,
       RenderHost host, MaskContext? maskCtx, MaskDraw? inheritedMask);
 

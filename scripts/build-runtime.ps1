@@ -1,9 +1,9 @@
 #!/usr/bin/env pwsh
 #
 # Build the native Brain (libssruntime / libssconverter) from the
-# SpriteStudio-SDK submodule and place the DYNAMIC libraries into the Flutter
-# package's per-platform / per-arch layout so that `dart:ffi`
-# (DynamicLibrary.open / .process) can load them at runtime.
+# SpriteStudio-SDK submodule and place the DYNAMIC libraries into each binding
+# package's native/libs/ layout so the native-assets build hook (hook/build.dart)
+# bundles them as code assets the `@Native` bindings resolve at runtime.
 #
 # PowerShell counterpart of scripts/build-runtime.sh (same platform= / arch= /
 # build= / hostbuild= interface); modeled on the sibling players' .ps1 build
@@ -24,8 +24,8 @@
 # Web is the exception: it has no build hook / native asset, so `platform=web`
 # builds the wasm-bindgen `web` runtime and places it as a Flutter ASSET under
 # packages/ssplayer_flutter/assets/runtime-web/ (loaded via dart:js_interop).
-# (NB: ios output still lands under ssplayer_flutter/native/libs pending a
-# follow-up migration; host desktop platforms use the layout above.)
+# (NB: ios output still lands under ssplayer_flutter/native/libs; host desktop
+# platforms use the layout above.)
 #
 # After building, this copies the SDK build.rs-emitted plain-C headers into
 # native/include/. The ffigen bindings are COMMITTED (like the .fbs accessors), so
@@ -194,7 +194,7 @@ switch ($PLATFORM) {
             & install_name_tool -id "@rpath/libssconverter.dylib" (Join-Path $ConvLibsDir "macos/libssconverter.dylib") 2>$null
         } else {
             # Universal (arm64 + x86_64): release-macos.sh lipos the universal dylibs
-            # (it also builds a .framework we no longer consume — native assets embeds
+            # (it also builds a .framework, which is unused here — native assets embeds
             # the bare dylib itself).
             Invoke-Release "release-macos" $BUILD_MODE
             $uni = "$T/universal-apple-darwin/$BUILD_MODE"
@@ -253,7 +253,7 @@ switch ($PLATFORM) {
         $dest = Join-Path $LibsDir "ios"; New-Item -ItemType Directory -Force -Path $dest | Out-Null
         Remove-Item -Recurse -Force "$dest/libssruntime.xcframework" -ErrorAction SilentlyContinue
         # Ship the DYNAMIC xcframework so the app embeds one framework and dyld
-        # resolves the Brain via @rpath (DynamicLibrary.open('libssruntime.framework/libssruntime')).
+        # resolves the Brain via @rpath; the `@Native` bindings load it as a native-asset code asset.
         Copy-Item -Recurse -Force "$T/xcframework/dynamic/libssruntime.xcframework" "$dest/"
         Write-Host "   -> native/libs/ios/libssruntime.xcframework"
     }

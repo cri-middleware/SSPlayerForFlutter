@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:ffi/ffi.dart';
 
 import 'runtime_api.dart';
+import 'ssab_identity.dart';
 import 'ssruntime_bindings.g.dart';
 
 /// The native (`dart:ffi`) backend of [SsRuntime].
@@ -74,9 +75,10 @@ class _NativeRuntime implements SsRuntime {
 
   @override
   SsResource? createResourceCopy(Uint8List ssab) {
-    if (ssab.isEmpty) {
-      throw ArgumentError.value(ssab, 'ssab', 'must not be empty');
-    }
+    // The Brain parses `.ssab` unchecked (documented UB on malformed input), so
+    // reject anything without the "SSAB" file identifier here — before the bytes
+    // reach native code — with a friendly error instead of a native crash.
+    assertSsabIdentifier(ssab);
     // Zero-copy leaf hand-off: `ss_resource_create_copy` is marked leaf in
     // ffigen, so `ssab.address` stays valid for the whole call and the Brain
     // copies the bytes onto its own heap.

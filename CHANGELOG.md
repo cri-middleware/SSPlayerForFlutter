@@ -14,8 +14,9 @@ adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 - **Initial public release (work in progress).** A Flutter "Body" that plays OPTPiX SpriteStudio 7
-  animations (`.ssab`) by driving the SpriteStudio-SDK Rust runtime (`libssruntime`) over `dart:ffi`
-  and rendering with `Canvas.drawVertices`.
+  animations (`.ssab`) by driving the SpriteStudio-SDK Rust runtime (`libssruntime`) over `dart:ffi`.
+- **Rendering backends**: a pluggable `Canvas` backend (`Canvas.drawVertices`) and a `flutter_gpu`
+  (Impeller) backend, selected automatically (`auto`) with a manual override.
 - **Rendering kinds**: Normal, PartColor, Mask, Mesh, Effect, Instance, and Shape.
 - **Rendering adapters**: `SpriteStudioView` (a `RenderBox` widget) and, in the separate
   `ssplayer_flame` package, `SpriteStudioComponent` (a Flame `PositionComponent`).
@@ -26,7 +27,6 @@ adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   app.
 
 ### Known Limitations
-- `Shape / Arrow` is broken upstream (fix belongs in the SDK).
 - Blend `Sub` / `Invert` approximate to `difference`; `Div2` / `Overlay2` fall back to `srcOver`.
 - A physical iOS device (signed `iphoneos` slice) and the `armeabi-v7a` ABI are not yet confirmed at
-  runtime; Web is planned.
+  runtime. Web is a developer preview.

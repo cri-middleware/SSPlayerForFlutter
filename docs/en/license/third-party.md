@@ -9,11 +9,13 @@ at the repository root, covering:
 - **FlatBuffers** (Apache-2.0) — used for the `.ssab` asset format and runtime `FrameData` buffers.
 - The **Dart / Flutter package dependencies** — distributed via pub.dev under their own licenses.
 
-The prebuilt native libraries bundle their own crate license notices, placed after a source build or
-download:
+The prebuilt native libraries carry their own crate license notices. They are published as assets of
+the SpriteStudio-SDK release, and a source build (`scripts/build-runtime.*`) places them under
+`native/libs/`:
 
 - `packages/ssruntime_dart/native/libs/THIRD-PARTY-LICENSES.ssruntime.md`
 - `packages/ssconverter_dart/native/libs/THIRD-PARTY-LICENSES.ssconverter.md`
 
-If you redistribute an application that embeds these native libraries, keep the corresponding notices
-alongside your distribution. For the project and SDK licenses themselves, see [License](index.md).
+If you redistribute an application that embeds these native libraries, include the corresponding
+notices (from the SDK release or a source build) alongside your distribution. For the project and SDK
+licenses themselves, see [License](index.md).

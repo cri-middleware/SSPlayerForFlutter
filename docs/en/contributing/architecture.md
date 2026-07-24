@@ -3,8 +3,9 @@
 SpriteStudioPlayer for Flutter is the **Body** for the SpriteStudio-SDK **Brain**. The Brain
 (`libssruntime`, Rust `no_std`) loads a `.ssab`, advances time, and emits per-frame **SoA buffers**
 (world matrices, local vertices / UVs) plus a FlatBuffers **`FrameData`** carrying a **`DrawBatch`**
-plan. The Body consumes them over `dart:ffi` and executes the plan as `Canvas.drawVertices` — one
-draw per batch. There is no retained scene graph: everything is rebuilt each frame.
+plan. The Body consumes them over `dart:ffi` and executes the plan through a pluggable render backend
+— `Canvas.drawVertices` (one draw per batch) or `flutter_gpu` (Impeller). There is no retained scene
+graph: everything is rebuilt each frame.
 
 ## The 4 layers
 
@@ -27,7 +28,8 @@ It is a **strict downward dependency**; layers below are nearer the Brain. Each 
 | **L2** | `SpriteStudioInternalPlayer` — FFI Resource/Context lifecycle, SoA → `ui.Vertices` bake, `paint` = `DrawBatch.kind` dispatch | `ssplayer_flutter` |
 | **L1** | ffigen `@Native` C-API bindings + runtime FlatBuffers | `ssruntime_dart` |
 
-**L2 is kept Widget-free** so it is reusable headless / from Flame / a future `flutter_gpu` backend.
+**L2 is kept Widget-free** so it is reusable headless / from Flame / by either render backend
+(`Canvas` or `flutter_gpu`).
 
 ## Where things live
 
@@ -43,10 +45,13 @@ See [Packages](../packages.md) for the full list and their pub.dev roles.
 ## Rendering model
 
 The Brain emits a `DrawBatch` plan; `paint` dispatches on `DrawBatch.kind`
-(`Normal / Mesh / Effect / Instance / Shape`) and bakes each batch into one indexed `ui.Vertices`.
-Because the canvas is immediate-mode and everything is rebuilt per frame, the performance levers are
-**per-frame allocation** and **draw-call count** — not the batch grouping, which already matches the
-Brain's plan.
+(`Normal / Mesh / Effect / Instance / Shape`) and delegates each batch to the active **render
+backend**. The `Canvas` backend bakes each batch into one indexed `ui.Vertices` (`Canvas.drawVertices`);
+the `flutter_gpu` (Impeller) backend bakes an interleaved VBO and draws through its own pipeline into
+an offscreen target. The backend is chosen per `SpriteStudioBackend` (`auto` picks flutter_gpu where
+the capability probe passes, else Canvas). Because everything is rebuilt per frame, the performance
+levers are **per-frame allocation** and **draw-call count** — not the batch grouping, which already
+matches the Brain's plan.
 
 ## Further reading
 

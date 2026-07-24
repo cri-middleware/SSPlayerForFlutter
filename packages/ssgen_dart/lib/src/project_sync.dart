@@ -133,7 +133,7 @@ class SsProjectSync {
   }
 
   List<File> _findSspj(Directory dir) => dir
-      .listSync(recursive: true)
+      .listSync(recursive: true, followLinks: false)
       .whereType<File>()
       .where((f) => f.path.toLowerCase().endsWith('.sspj'))
       .toList();
@@ -154,11 +154,14 @@ class SsProjectSync {
     // dir, the RenPy source layout) — catches `.ssae`/`.png` edits, not just
     // the `.sspj`.
     final newestSrc = sspj.parent
-        .listSync(recursive: true)
+        .listSync(recursive: true, followLinks: false)
         .whereType<File>()
         .map((f) => f.statSync().modified)
         .reduce((a, b) => a.isAfter(b) ? a : b);
-    return newestSrc.isAfter(oldestOut);
+    // `!isBefore` (>=), not `isAfter` (>): treat an equal mtime as stale so an
+    // edit landing in the same coarse filesystem tick as the last convert (2s
+    // granularity on exFAT/FAT32/some network mounts) still triggers a reconvert.
+    return !newestSrc.isBefore(oldestOut);
   }
 
   String _stem(String path) {

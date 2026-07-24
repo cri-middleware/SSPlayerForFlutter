@@ -53,7 +53,7 @@ abstract interface class SsLiveReloadTarget {
 /// This is the transport that replaces "ride Flutter's own hot reload":
 ///   * it needs **no `r`** — the host tool triggers it directly, and
 ///   * it works while the app runs under an **IDE debugger** (the tool does not
-///     own `flutter run`), on desktop and (Phase 3) device alike.
+///     own `flutter run`), on desktop and device alike.
 ///
 /// Debug-only by construction: the VM Service (hence any extension) is absent in
 /// release, so registration is skipped there. It DOES register on the web in
@@ -89,7 +89,7 @@ class SsDevChannel {
 
   /// Registers [target] and, on the first call, wires up [extensionMethod].
   /// Safe to call from `State.initState` — the target's getters are only read
-  /// when a push arrives. No-op in release (no VM Service); on the web it
+  /// when a push arrives. Debug-only: a no-op in profile/release; on the web it
   /// registers in debug (`flutter run -d chrome`, via DWDS).
   void register(SsLiveReloadTarget target) {
     _targets.add(target);
@@ -103,8 +103,10 @@ class SsDevChannel {
 
   void _ensureExtension() {
     // Registers in debug on native AND on the web (DWDS routes the call);
-    // skipped in release, where there is no VM Service to host the extension.
-    if (_extensionRegistered || kReleaseMode) return;
+    // skipped outside debug (profile/release ship a VM Service too, so gate on
+    // kDebugMode, not kReleaseMode) — the push channel must never be reachable in
+    // a distributed build.
+    if (_extensionRegistered || !kDebugMode) return;
     _extensionRegistered = true;
     try {
       developer.registerExtension(extensionMethod, _onReload);

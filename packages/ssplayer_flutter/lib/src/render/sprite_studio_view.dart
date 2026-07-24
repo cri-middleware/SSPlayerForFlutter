@@ -10,8 +10,9 @@ import '../player.dart';
 /// widget only bridges the player into the widget/RenderObject tree. Optional
 /// siblings (Flame component, CustomPaint) can be added the same way.
 ///
-/// SKELETON: sizing honours [width]/[height] (or the incoming constraints);
-/// BoxFit/alignment of the animation's design bounds into the box is Phase-1+.
+/// Sizing honours [width]/[height] (or the incoming constraints). BoxFit /
+/// alignment of the animation's design bounds into the box is not currently
+/// supported.
 class SpriteStudioView extends LeafRenderObjectWidget {
   const SpriteStudioView({
     super.key,

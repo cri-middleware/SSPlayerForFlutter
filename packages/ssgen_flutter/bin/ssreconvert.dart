@@ -10,7 +10,7 @@
 // This is a plain "convert now" helper (CI, manual refresh). For a live session
 // that also pushes the fresh pack to a running app, use `sswatch` — it watches
 // and pushes over the VM Service (attach an IDE/`flutter run`, or `--run` to
-// launch one). The old `--watch` mode is gone: `sswatch` supersedes it.
+// launch one). For watch mode, use `sswatch`.
 import 'dart:io';
 
 import 'package:ssgen_dart/ssgen_dart.dart';

@@ -39,15 +39,16 @@ import 'package:ssplayer_flame/ssplayer_flame.dart';
 class MyGame extends FlameGame {
   @override
   Future<void> onLoad() async {
-    // Straight from a bundled asset key…
+    // Straight from a bundled asset key… reference textures (sibling PNGs)
+    // resolve from the key's own folder, so no baseAssetDir is needed.
     add(SpriteStudioComponent.asset(
       'assets/hero.ssab',
-      baseAssetDir: 'assets',        // where the reference textures (PNGs) live
       position: size / 2,
       anchor: Anchor.center,         // SpriteStudio origins are centered
     ));
 
-    // …or from bytes you already have (e.g. downloaded):
+    // …or from bytes you already have (e.g. downloaded). With no asset key,
+    // pass baseAssetDir so the reference textures still resolve:
     // add(SpriteStudioComponent(ssab: bytes, baseAssetDir: 'assets'));
   }
 }
@@ -69,8 +70,10 @@ component.player?.seek(0);
   `position`.
 * `loop` / `speed` / `subFrame` / `animation` / `autoStart` are constructor
   options; anything finer goes through `component.player`.
-* Reference‑texture packs need `baseAssetDir` (the folder holding the sibling
-  PNGs). Embedded‑texture packs need nothing.
+* `SpriteStudioComponent.asset` resolves reference textures (sibling PNGs) from
+  the asset key's own folder — no `baseAssetDir` needed. Pass `baseAssetDir` only
+  with the bytes constructor (no asset key), or when the textures live in a
+  different folder (a shared atlas). Embedded‑texture packs need nothing.
 
 ## Verify
 

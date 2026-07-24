@@ -8,8 +8,8 @@
 // colour). The framebuffer composite (srcOver / add / multiply / ...) is set on
 // the RenderPass via setColorBlendEquation, not here.
 //
-// Exact premultiplied-alpha parity vs the Canvas path is validated visually in
-// Phase 1 against examples/overall (backend toggle on the same frame).
+// Exact premultiplied-alpha parity vs the Canvas path is validated visually
+// against examples/overall (backend toggle on the same frame).
 
 uniform sampler2D u_texture;
 

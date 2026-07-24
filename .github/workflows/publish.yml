@@ -14,13 +14,14 @@ on:
       - "ssgen_dart-v[0-9]+.[0-9]+.[0-9]+*"
       - "ssgen_flutter-v[0-9]+.[0-9]+.[0-9]+*"
       - "ssplayer_flutter-v[0-9]+.[0-9]+.[0-9]+*"
+      - "ssplayer_flame-v[0-9]+.[0-9]+.[0-9]+*"
 
 jobs:
   ssruntime_dart:
     if: startsWith(github.ref_name, 'ssruntime_dart-v')
     permissions:
       id-token: write # OIDC: mint a short-lived pub.dev credential (no stored secret)
-    uses: dart-lang/setup-dart/.github/workflows/publish.yml@v1
+    uses: dart-lang/setup-dart/.github/workflows/publish.yml@65eb853c7ba17dde3be364c3d2858773e7144260 # v1
     with:
       working-directory: packages/ssruntime_dart
 
@@ -28,7 +29,7 @@ jobs:
     if: startsWith(github.ref_name, 'ssconverter_dart-v')
     permissions:
       id-token: write
-    uses: dart-lang/setup-dart/.github/workflows/publish.yml@v1
+    uses: dart-lang/setup-dart/.github/workflows/publish.yml@65eb853c7ba17dde3be364c3d2858773e7144260 # v1
     with:
       working-directory: packages/ssconverter_dart
 
@@ -36,7 +37,7 @@ jobs:
     if: startsWith(github.ref_name, 'ssgen_dart-v')
     permissions:
       id-token: write
-    uses: dart-lang/setup-dart/.github/workflows/publish.yml@v1
+    uses: dart-lang/setup-dart/.github/workflows/publish.yml@65eb853c7ba17dde3be364c3d2858773e7144260 # v1
     with:
       working-directory: packages/ssgen_dart
 
@@ -44,7 +45,7 @@ jobs:
     if: startsWith(github.ref_name, 'ssgen_flutter-v')
     permissions:
       id-token: write
-    uses: dart-lang/setup-dart/.github/workflows/publish.yml@v1
+    uses: dart-lang/setup-dart/.github/workflows/publish.yml@65eb853c7ba17dde3be364c3d2858773e7144260 # v1
     with:
       working-directory: packages/ssgen_flutter
 
@@ -52,6 +53,14 @@ jobs:
     if: startsWith(github.ref_name, 'ssplayer_flutter-v')
     permissions:
       id-token: write
-    uses: dart-lang/setup-dart/.github/workflows/publish.yml@v1
+    uses: dart-lang/setup-dart/.github/workflows/publish.yml@65eb853c7ba17dde3be364c3d2858773e7144260 # v1
     with:
       working-directory: packages/ssplayer_flutter
+
+  ssplayer_flame:
+    if: startsWith(github.ref_name, 'ssplayer_flame-v')
+    permissions:
+      id-token: write
+    uses: dart-lang/setup-dart/.github/workflows/publish.yml@65eb853c7ba17dde3be364c3d2858773e7144260 # v1
+    with:
+      working-directory: packages/ssplayer_flame

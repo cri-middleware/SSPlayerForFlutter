@@ -7,6 +7,7 @@ import 'dart:js_interop_unsafe';
 import 'dart:typed_data';
 
 import 'runtime_api.dart';
+import 'ssab_identity.dart';
 
 /// Web (`dart:js_interop`) backend of [SsRuntime].
 ///
@@ -251,9 +252,9 @@ class _WebRuntime implements SsRuntime {
 
   @override
   SsResource? createResourceCopy(Uint8List ssab) {
-    if (ssab.isEmpty) {
-      throw ArgumentError.value(ssab, 'ssab', 'must not be empty');
-    }
+    // Reject a non-.ssab / truncated buffer with a friendly error before it
+    // reaches the wasm module (which parses unchecked). See native_runtime.dart.
+    assertSsabIdentifier(ssab);
     try {
       // `new SSRuntimeResource(data)` copies the bytes into wasm memory (Result
       // → throws on a bad pack).

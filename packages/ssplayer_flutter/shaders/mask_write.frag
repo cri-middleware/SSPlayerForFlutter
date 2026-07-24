@@ -15,7 +15,8 @@
 // is set up so its local space IS the player's (mask.dart / MaskPlan.bounds).
 //
 // Uniform float indices (samplers are NOT counted) are written by
-// internal_player.dart in this exact declaration order — keep them in sync.
+// canvas_backend.dart (_setMaskWriteUniforms) in this exact declaration order —
+// keep them in sync.
 
 uniform vec2 uOrigin;   // 0 : LT world corner (origin of the frag-space affine)
 uniform vec4 uInv;      // 1 : 2x2 inverse affine [m00,m01,m10,m11], frag -> (s,t)

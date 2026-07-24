@@ -21,6 +21,11 @@ export 'src/runtime_api.dart';
 export 'src/native_runtime.dart'
     if (dart.library.js_interop) 'src/web_runtime.dart';
 
+// Pure-Dart `.ssab` header identify check (`file_identifier "SSAB"`). `dart:ffi`-
+// free, so it re-exports safely on the web. Callers loading untrusted bytes can
+// pre-check with `hasSsabIdentifier`; `createResourceCopy` enforces it.
+export 'src/ssab_identity.dart';
+
 // The raw Layer-1 C-API (`@ffi.Native` functions + runtime structs) is
 // intentionally NOT re-exported here: it is `dart:ffi`-only, and this barrel must
 // stay `dart:ffi`-free so Layer 2 compiles for the web. All callers go through

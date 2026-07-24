@@ -127,8 +127,8 @@ class MeshBuffers {
 /// of a long parameter list.
 ///
 /// SoA strides (design §7 / §0-A): world = 16 floats/part, `local`/`uv` = 10
-/// floats/part (`lt,rt,lb,rb,center`). Cell meta (parts × 6) and the mesh/shape
-/// SoA are added here as their kinds are ported (Phase 2).
+/// floats/part (`lt,rt,lb,rb,center`). Cell meta (parts × 6) and the mesh (§8) /
+/// shape (§11) SoA travel alongside, one entry per part.
 ///
 /// [partByIndex] maps a part index (as found in [drawOrder]) to its
 /// [fbs.PartState], materialized once per frame because the `parts` vector is
@@ -142,6 +142,11 @@ class MeshBuffers {
 /// reading `PartState` / `parts_color` by byte offset instead of via the
 /// FlatBuffers accessors — will slot in when it matters.
 class DrawFrame {
+  // Upper bound on the dense [partByIndex] array (see [build]). ~1M slots is far
+  // above any real pack's part count, so it never truncates valid content; it
+  // only caps a corrupt/hostile part index that would otherwise OOM the process.
+  static const int _maxDenseParts = 1 << 20;
+
   DrawFrame({
     required this.frameData,
     required this.drawOrder,
@@ -178,9 +183,14 @@ class DrawFrame {
     for (final p in parts) {
       if (p.partIndex > maxIndex) maxIndex = p.partIndex;
     }
-    final partByIndex = List<fbs.PartState?>.filled(maxIndex + 1, null);
+    // Bound the dense allocation: a corrupt/hostile part index must not be able
+    // to request a multi-gigabyte list. Real packs have at most a few thousand
+    // parts, so the cap never drops a legitimate one; an index past it resolves
+    // to null via [partOf] (bounds-checked) and is simply not drawn.
+    final size = (maxIndex + 1).clamp(0, _maxDenseParts);
+    final partByIndex = List<fbs.PartState?>.filled(size, null);
     for (final p in parts) {
-      if (p.partIndex >= 0) partByIndex[p.partIndex] = p;
+      if (p.partIndex >= 0 && p.partIndex < size) partByIndex[p.partIndex] = p;
     }
     return DrawFrame(
       frameData: frameData,
@@ -430,7 +440,7 @@ class GeometryBuilder {
   /// The caller (internal player) passes a *run* of consecutive plain (non-
   /// PartColor) parts so PartColored parts can be peeled onto their own shader
   /// draw without disturbing z-order; an all-plain batch is one run == the whole
-  /// batch (identical to the old single-bake path).
+  /// batch.
   ui.Vertices? buildNormalParts(List<int> parts, DrawFrame frame) {
     final count = parts.length;
     if (count == 0) return null;
@@ -761,7 +771,7 @@ class GeometryBuilder {
   /// a mask test (§9). Feeds the **same** `PartColorVertex/Fragment` pipeline in
   /// the same [partColorStride]-float layout, which needs no mesh-specific shader:
   ///
-  ///  * **Whole-only** (§10 「Mesh=全頂点同値」): every vertex carries the `lt`
+  ///  * **Whole-only** (§10: Mesh = same value on every vertex): every vertex carries the `lt`
   ///    corner's colour + rate, so there is no gradient to reconstruct.
   ///  * the mask replay samples the coverage through the `v_local` varying, and a
   ///    mesh vertex is already player-local world-space — the same space the
@@ -1168,7 +1178,7 @@ class GeometryBuilder {
   /// Each command slices the plan's flat buffers at its own `particle_offset`
   /// (in quads) with each buffer's stride; a command's indices are 0-based
   /// *within that command*, so the group rebases them onto the running vertex
-  /// base (a single command rebases by 0 — the old per-command behaviour). Two
+  /// base (a single command rebases by 0). Two
   /// effect-only conventions the bake must honour:
   /// * the plan's verts are in the **effect's own simulation space** — the slot
   ///   API is never handed a matrix — so the effect part's world matrix is
@@ -1380,7 +1390,7 @@ class GeometryBuilder {
   /// rebased onto its vertex base.
   ///
   /// The colour is the whole story here, and it is the one place PartColor does
-  /// **not** go through the shader (§1-2-3 「シェイプは合成式をバイパス」):
+  /// **not** go through the shader (§1-2-3: a shape bypasses the composite formula):
   ///
   ///  * With PartColor, the vertex colour is `pc.rgba` *directly* — no blend
   ///    formula, forced Mix, rate pinned to 1 — bilinearly weighted per vertex by

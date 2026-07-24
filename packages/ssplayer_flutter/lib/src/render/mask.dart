@@ -13,13 +13,13 @@ import 'geometry_builder.dart';
 const int kMaxMaskWriters = 24;
 
 /// [MaskWriter.threshold] for a writer that has no texel to cut out — a Shape
-/// (§2-5「シェイプの特例」), whose whole polygon is the mask. Below every
+/// (§2-5, the shape special case), whose whole polygon is the mask. Below every
 /// possible alpha, so nothing is ever thresholded away (the flagship's sentinel
 /// too).
 const double noCutoutThreshold = -1.0;
 
 /// The static, per-part mask flags — read **once** from the `.ssab` `PartData`
-/// and never re-read per frame (mask §用語表: PartData is static, FrameData is
+/// and never re-read per frame (mask glossary: PartData is static, FrameData is
 /// animated).
 ///
 /// The three canonical role expressions (§1-2) are exposed as [isWriter] /
@@ -59,7 +59,7 @@ class MaskPartFlags {
   /// SoA rather than the sprite quad.
   ///
   /// A shape writer also bypasses the alpha cutout (§2-5) entirely — it has no
-  /// cell and therefore no texel alpha to threshold, so 「形状全体がマスク」.
+  /// cell and therefore no texel alpha to threshold, so the whole shape is the mask.
   /// That is why it is a separate flag rather than another [quadGeometry] case:
   /// the two differ in both geometry *and* thresholding.
   final bool shapeGeometry;
@@ -69,8 +69,8 @@ class MaskPartFlags {
   /// (§2-5) — Flutter fragment shaders take no per-vertex UV varying, so the mesh
   /// texel alpha cannot be thresholded per fragment; the triangle geometry *is*
   /// the mask. A slight over-cover versus a texel-cutout mesh, but a mesh
-  /// clipping writer (e.g. `Mesh-WriteMask-True`) now clips its targets instead
-  /// of being dropped.
+  /// clipping writer (e.g. `Mesh-WriteMask-True`) clips its targets using that
+  /// geometry.
   final bool meshGeometry;
 
   /// Whether this part can write coverage at all — i.e. the coverage pass knows
@@ -85,7 +85,7 @@ class MaskPartFlags {
   /// (a "clipping" writer).
   final bool maskWrite;
 
-  /// **Deliberately overloaded** (§用語表), never normalise it away:
+  /// **Deliberately overloaded** (per the SDK glossary), never normalise it away:
   /// * on a writer → the stencil OP (`false` = increment, `true` = invert);
   /// * on a target → the opt-in flag (`false` = not affected by masks).
   ///
@@ -281,8 +281,8 @@ class MaskPlan {
       if (!f.drawableWriter) continue;
 
       // §2-2: mask == 0 opts the writer out entirely. This is a rule of its own
-      // — the doc says `mask` 「カットアウト閾値を兼ねる。0 で writer 無効」, it
-      // *doubles as* the threshold — so it still applies to a shape, which has
+      // — the doc says `mask` also serves as the cutout threshold (0 disables the
+      // writer), it *doubles as* the threshold — so it still applies to a shape, which has
       // no cutout at all.
       final mask = frame.partOf(p)?.mask ?? 0.0;
       if (mask <= 0.0) continue;
@@ -305,7 +305,7 @@ class MaskPlan {
         opInvert: f.maskInfluence,
         isClipping: f.isClipping,
         // A shape has no texel to threshold, so its whole polygon is the mask
-        // (§2-5「シェイプの特例」); a mesh could threshold in principle but our
+        // (§2-5, the shape special case); a mesh could threshold in principle but our
         // coverage pass can't sample its per-vertex UV (no shader varyings), so
         // it too falls back to geometry-as-mask. -1 is the flagship's "never cut
         // out" sentinel.

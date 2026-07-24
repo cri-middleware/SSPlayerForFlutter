@@ -1,6 +1,5 @@
 // The SpriteStudio live-reload watcher — reconvert on save and push the fresh
-// pack to a running app over the VM Service. The single dev runner (it replaced
-// the old `ssdev`/`ssreconvert --watch`).
+// pack to a running app over the VM Service. The single dev runner.
 //
 //   dart run ssgen_flutter:sswatch --run -d macos          # own flutter run
 //   dart run ssgen_flutter:sswatch --run -d <emu> --device # device (embedded)

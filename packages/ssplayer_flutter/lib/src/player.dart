@@ -30,8 +30,8 @@ typedef SsEventCallback = void Function(List<int> passedEventIndices);
 /// `update(dt)`, or a headless test). Everything else — [load], transport,
 /// events — is identical in both modes.
 ///
-/// SKELETON: transport + ticker + repaint notification are wired; crossfade /
-/// blend / audio dispatch are Phase-1+.
+/// Cross-fade / blend transitions between animations are not currently
+/// supported: [setupAnimation] switches instantly.
 class SpriteStudioPlayer extends ChangeNotifier {
   SpriteStudioPlayer({
     TickerProvider? vsync,
@@ -204,6 +204,11 @@ class SpriteStudioPlayer extends ChangeNotifier {
   /// sibling images) and optionally a [bundle]. Most callers loading a bundled
   /// asset want [loadAsset], which reads the bytes and derives [baseAssetDir].
   ///
+  /// **Trust the bytes.** The Brain parses `.ssab` unchecked and is undefined
+  /// behaviour on malformed input; a non-`.ssab`/truncated buffer is rejected
+  /// with a [FormatException] (an identify check, not full validation). Load only
+  /// `.ssab` you produced or bundled — never a pack from an untrusted source.
+  ///
   /// Returns once textures are loaded; the widget repaints when it resolves.
   Future<void> load(
     Uint8List ssab, {
@@ -248,12 +253,13 @@ class SpriteStudioPlayer extends ChangeNotifier {
     );
     _internal = internal;
     internal.subFrame = _subFrame;
-    if (_loop != null) internal.loop = _loop!;
-    if (_speed != null) internal.speed = _speed!;
     _currentAnimation = animationName;
     if (animationName != null) {
       internal.setupAnimation(animationName);
     }
+    // Re-apply cached loop/speed AFTER setupAnimation: the Brain resets them to
+    // the pack default there, so setting them any earlier would be clobbered.
+    _applyLoopSpeed(internal);
     notifyListeners();
 
     if (loadTextures) {
@@ -359,8 +365,15 @@ class SpriteStudioPlayer extends ChangeNotifier {
 
   /// Switches the current animation (keeps the loaded resource).
   bool setupAnimation(String name) {
-    final ok = _requireInternal().setupAnimation(name);
-    if (ok) _currentAnimation = name;
+    final internal = _requireInternal();
+    final ok = internal.setupAnimation(name);
+    if (ok) {
+      _currentAnimation = name;
+      // The Brain reset loop/speed to the pack default; restore the cached values
+      // so a mid-session animation switch (or [reload]) keeps the caller's loop
+      // count and speed instead of silently reverting to infinite looping.
+      _applyLoopSpeed(internal);
+    }
     notifyListeners();
     return ok;
   }
@@ -436,6 +449,13 @@ class SpriteStudioPlayer extends ChangeNotifier {
   set speed(double rate) {
     _speed = rate;
     _internal?.speed = rate;
+  }
+
+  // The Brain's `setupAnimation` rewinds and resets loop/speed to the pack
+  // default, so the cached transport must be re-applied after every setup.
+  void _applyLoopSpeed(SpriteStudioInternalPlayer internal) {
+    if (_loop != null) internal.loop = _loop!;
+    if (_speed != null) internal.speed = _speed!;
   }
 
   double get frameNo => _internal?.frameNo ?? 0;

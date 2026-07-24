@@ -21,9 +21,8 @@ const double _maxCoverageDim = 1024.0;
 /// The dart:ui `Canvas.drawVertices` render backend — the default path, the only
 /// Web path, and the visual-parity reference for the flutter_gpu backend.
 ///
-/// This is a behaviour-preserving extraction of the L2 player's former drawing
-/// methods: the per-kind emit paths, the peeled PartColor/mask shader draws, and
-/// the offscreen mask-coverage pass. It reads per-player data (geometry baker,
+/// Implements the per-kind emit paths, the peeled PartColor/mask shader draws, and
+/// the offscreen mask-coverage pass over dart:ui `Canvas`. It reads per-player data (geometry baker,
 /// textures, mask roles, effect plans) through the [RenderHost] passed to each
 /// emit call, so one instance serves an entire instance-recursion tree.
 class CanvasBackend implements RenderBackend {
@@ -199,7 +198,7 @@ class CanvasBackend implements RenderBackend {
 
     var wrote = false;
     for (final writer in plan.writers) {
-      // A Shape writer (§2-5「シェイプの特例」) has no cell, hence no texel alpha
+      // A Shape writer (§2-5, the shape special case) has no cell, hence no texel alpha
       // to threshold: its polygon *is* the mask. That needs no shader at all —
       // the bit colour over the geometry, additively, is the whole operation.
       if (host.flagsFor(writer.partIndex).shapeGeometry) {
@@ -637,7 +636,7 @@ class CanvasBackend implements RenderBackend {
     //    Only the instance chain's scale — which lives in the *parent's*
     //    FrameData and so cannot be pre-folded — is still owed.
     //  * WITHOUT PartColor there is no corner alpha to inherit, so the part's
-    //    own alpha must be supplied (§1-2-4's 「頂点色 = 白（α は階層 α）」);
+    //    own alpha must be supplied (§1-2-4's "vertex colour = white, alpha = hierarchical alpha");
     //    `alphaOf` already includes the instance scale.
     // The shared α=1 `PartColor.identity` is deliberately not used: it renders a
     // masked part fully opaque.

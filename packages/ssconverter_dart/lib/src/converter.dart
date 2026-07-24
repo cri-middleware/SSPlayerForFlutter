@@ -98,9 +98,13 @@ class SsConverter {
     if (ctx == ffi.nullptr) {
       throw StateError('ss_converter_create returned null');
     }
-    final cSspj = sspjPath.toNativeUtf8();
-    final cOut = outDir.toNativeUtf8();
+    // Allocate the UTF-8 argument buffers inside the try so that if the second
+    // allocation throws (OOM) the first is still freed and the context destroyed.
+    ffi.Pointer<Utf8>? cSspj;
+    ffi.Pointer<Utf8>? cOut;
     try {
+      cSspj = sspjPath.toNativeUtf8();
+      cOut = outDir.toNativeUtf8();
       ss_converter_convert(
         ctx,
         cSspj.cast(),
@@ -121,8 +125,8 @@ class SsConverter {
       }
       return outDir;
     } finally {
-      malloc.free(cSspj);
-      malloc.free(cOut);
+      if (cSspj != null) malloc.free(cSspj);
+      if (cOut != null) malloc.free(cOut);
       ss_converter_destroy(ctx);
     }
   }

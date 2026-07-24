@@ -176,7 +176,6 @@ See [AGENTS.md](./AGENTS.md) (implementation rules, gotchas, native-asset packag
 
 ## 📄 License
 
-This project follows the license of `SpriteStudio-SDK`
-([`SpriteStudio-SDK/LICENSE.md`](./SpriteStudio-SDK/LICENSE.md)). For the bundled native runtime and
-other third-party components, see the `THIRD-PARTY-LICENSES.*.md` notices under each package's
-`native/libs/`.
+This project is licensed under the BSD-3-Clause License — see [`LICENSE.md`](./LICENSE.md).
+For the bundled native runtime and other third-party components, see
+[`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md).
