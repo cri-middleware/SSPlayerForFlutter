@@ -17,10 +17,11 @@ RenderBackend createFlutterGpuBackend() => FlutterGpuBackend();
 
 /// The flutter_gpu (Impeller) render backend.
 ///
-/// It renders each frame into an offscreen render-target [gpu.Texture] and
-/// composites it back onto the Flutter canvas via
-/// `canvas.drawImage(target.asImage(), dst)` in [finish] (flutter_gpu has no
-/// on-screen target). **Implemented: Normal, Mesh, Shape, Effect** (Effect with
+/// It renders each frame into an offscreen render-target [gpu.Texture] — sized
+/// at display resolution ([_resolutionScale]) so HiDPI edges stay crisp — and
+/// composites it back onto the Flutter canvas via `drawImageRect` into the
+/// logical `dst` in [finish] (flutter_gpu has no on-screen target).
+/// **Implemented: Normal, Mesh, Shape, Effect** (Effect with
 /// its Add/Mix blend), all reusing one textured pipeline — Shape samples a 1×1
 /// white texel so its per-vertex colour (incl. PartColor) passes through.
 ///
@@ -250,10 +251,23 @@ class FlutterGpuBackend implements RenderBackend {
   // Per-frame state (valid between beginFrame and finish; _active gates use).
   bool _active = false;
   ui.Canvas? _canvas;
-  ui.Rect? _dst;
+  // The logical-pixel rect the device-resolution offscreen composites into.
+  ui.Rect? _compositeRect;
   gpu.Texture? _target;
   gpu.CommandBuffer? _cmd;
   gpu.RenderPass? _pass;
+
+  /// Device pixels per logical pixel for the offscreen target, so it is
+  /// rasterised at display resolution instead of being a logical-pixel bitmap
+  /// the engine upscales (and aliases) by the device-pixel ratio after paint.
+  /// Read from the implicit view; 1.0 when there is none (a headless test).
+  /// Clamped so a pathological ratio can't blow up the target allocation.
+  static double _resolutionScale() {
+    final view = ui.PlatformDispatcher.instance.implicitView;
+    final dpr = view?.devicePixelRatio ?? 1.0;
+    if (!dpr.isFinite || dpr <= 0) return 1.0;
+    return dpr.clamp(1.0, 4.0);
+  }
 
   /// The current player-local→NDC matrix's emplaced view — the top of the
   /// transform stack — re-bound to whichever pipeline's `FrameInfo` slot each draw
@@ -268,10 +282,15 @@ class FlutterGpuBackend implements RenderBackend {
     _frameCoverages.clear();
     _tintStack.clear();
     _canvas = canvas;
-    _dst = dst;
-    final size = dst?.size ?? sourceSize ?? ui.Size.zero;
-    final w = size.width.floor();
-    final h = size.height.floor();
+    final logical = dst?.size ?? sourceSize ?? ui.Size.zero;
+    if (logical.width <= 0 || logical.height <= 0) return;
+    _compositeRect = dst ?? (ui.Offset.zero & logical);
+    // Allocate the offscreen at display resolution; the projection below stays in
+    // logical space (NDC covers the whole texture regardless of its pixel count),
+    // and [finish] scales the device-resolution image back into the logical rect.
+    final scale = _resolutionScale();
+    final w = (logical.width * scale).round();
+    final h = (logical.height * scale).round();
     if (w <= 0 || h <= 0) return;
 
     // The sprite pipeline is the base path; if it fails to load there is no GPU
@@ -294,8 +313,10 @@ class FlutterGpuBackend implements RenderBackend {
       _hostBuffer ??= gpu.gpuContext.createHostBuffer();
       _hostBuffer!.reset();
       // Player-local (Y-Down, origin centre) → NDC — the base of the transform
-      // stack. Each draw re-binds the top to its pipeline's FrameInfo slot.
-      final mvp = _orthoMvp(w.toDouble(), h.toDouble());
+      // stack. Built from the LOGICAL box (not the device pixel count): NDC maps
+      // to the full render target either way. Each draw re-binds the top to its
+      // pipeline's FrameInfo slot.
+      final mvp = _orthoMvp(logical.width, logical.height);
       final baseView = _hostBuffer!.emplace(ByteData.sublistView(mvp));
       _matStack
         ..clear()
@@ -316,14 +337,25 @@ class FlutterGpuBackend implements RenderBackend {
       try {
         _cmd!.submit();
         final img = _target!.asImage();
-        _canvas!.drawImage(img, _dst?.topLeft ?? ui.Offset.zero, ui.Paint());
+        // Scale the device-resolution offscreen back into the logical dst; the
+        // engine's later DPR upscale then lands it ~1:1 on the framebuffer, so
+        // edges stay crisp instead of being nearest-upscaled by that transform.
+        final dst = _compositeRect ??
+            (ui.Offset.zero &
+                ui.Size(img.width.toDouble(), img.height.toDouble()));
+        _canvas!.drawImageRect(
+          img,
+          ui.Rect.fromLTWH(0, 0, img.width.toDouble(), img.height.toDouble()),
+          dst,
+          ui.Paint()..filterQuality = ui.FilterQuality.medium,
+        );
       } catch (_) {
         // Swallow — a blank frame beats a crash.
       }
     }
     _active = false;
     _canvas = null;
-    _dst = null;
+    _compositeRect = null;
     _target = null;
     _cmd = null;
     _pass = null;
