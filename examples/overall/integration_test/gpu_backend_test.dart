@@ -35,6 +35,12 @@ const List<String> _packs = <String>[
   'BlendMode',
 ];
 
+// A subset for the reload regression — the heaviest GPU resource sets: Basic
+// (sprite pipeline + atlas texture), PartsColor (partcolor pipeline + per-part
+// UBO + coverage texture). Enough to prove the backend rebuilds cleanly after a
+// live-reload's dispose→recreate without re-running the whole matrix.
+const List<String> _reloadPacks = <String>['Basic', 'PartsColor'];
+
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
@@ -42,6 +48,32 @@ void main() {
     testWidgets('flutter_gpu parity vs Canvas: $pack', (tester) async {
       await loadSsRuntime();
       await _gate(tester, pack);
+    });
+  }
+
+  // A dev-time live-reload disposes the internal player AND its GPU backend
+  // (dropping `_gpuTextures` / `_frameCoverages` / pipelines) then rebuilds a
+  // fresh one for the new bytes, with the playhead preserved. Verify the GPU
+  // path still produces correct pixels after that teardown — a stale/leaked
+  // texture or an un-rebuilt pipeline would show up as divergence from Canvas.
+  for (final pack in _reloadPacks) {
+    testWidgets('flutter_gpu survives reload: $pack', (tester) async {
+      await loadSsRuntime();
+      final key = 'assets/spritestudio/overall/$pack.ssab';
+      final canvasPx =
+          await _rgba(await _render(SpriteStudioBackend.canvas, key));
+      final gpuPx =
+          await _rgba(await _renderReloaded(SpriteStudioBackend.gpu, key));
+      final gpuOpaque = _opaqueCount(gpuPx);
+      final rgbDiff = _rgbMeanDiff(gpuPx, canvasPx);
+      debugPrint('[gpu-reload:$pack] gpuOpaque=$gpuOpaque '
+          'rgbDiff=${rgbDiff.toStringAsFixed(2)}');
+      expect(gpuOpaque, greaterThan(200),
+          reason: '[$pack] flutter_gpu produced a (near) blank frame after '
+              'reload — backend rebuild dropped its textures');
+      expect(rgbDiff, lessThan(6.0),
+          reason: '[$pack] GPU colours diverge from Canvas after reload — the '
+              'backend teardown/rebuild lost state');
     });
   }
 }
@@ -86,10 +118,42 @@ Future<void> _gate(WidgetTester tester, String pack) async {
 Future<ui.Image> _render(SpriteStudioBackend backend, String assetKey) async {
   final player = SpriteStudioPlayer(backend: backend);
   await player.loadAsset(assetKey);
+  _home(player);
+  final img = await _captureLooping(player);
+  player.dispose();
+  return img;
+}
+
+/// Like [_render], but live-swaps the same bytes mid-way — the dev-time reload
+/// path. A warm-up render first (so backend #1 has actually uploaded textures /
+/// built pipelines), then [SpriteStudioPlayer.reloadAsset] disposes it and
+/// builds a fresh backend for the re-read bytes. Transport is re-homed after the
+/// reload so the captured frame lands on the SAME playhead as [_render]'s
+/// reference, making the two directly comparable.
+Future<ui.Image> _renderReloaded(
+    SpriteStudioBackend backend, String assetKey) async {
+  final player = SpriteStudioPlayer(backend: backend);
+  await player.loadAsset(assetKey);
+  _home(player);
+  await _captureLooping(player); // warm backend #1; the reload then discards it
+  await player.reloadAsset(assetKey);
+  _home(player);
+  final img = await _captureLooping(player);
+  player.dispose();
+  return img;
+}
+
+/// Selects the first animation and head-outs to its start, so two renders are
+/// compared at the same playhead.
+void _home(SpriteStudioPlayer player) {
   final anims = player.getAnimations();
   if (anims.isNotEmpty) player.setupAnimation(anims.first);
   player.play();
+}
 
+/// Advances + captures for a fixed number of frames, returning the last frame.
+/// The loop's pacing lets the GPU backend's async texture uploads land.
+Future<ui.Image> _captureLooping(SpriteStudioPlayer player) async {
   const rect = ui.Rect.fromLTWH(0, 0, _w * 1.0, _h * 1.0);
   const size = ui.Size(_w * 1.0, _h * 1.0);
   ui.Image? img;
@@ -104,7 +168,6 @@ Future<ui.Image> _render(SpriteStudioBackend backend, String assetKey) async {
     pic.dispose();
     await Future<void>.delayed(const Duration(milliseconds: 25));
   }
-  player.dispose();
   return img!;
 }
 
