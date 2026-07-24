@@ -21,10 +21,13 @@
 1. アプリ実行中、ホストの watcher が `SpriteStudio_Source/` ディレクトリを監視します。
 2. 保存すると、変更されたプロジェクトが `.ssab` に再変換されます（mtime で stale 判定 —— 変わったものだけ）。
 3. 新しいパックが実行中のアプリへ **VM Service 経由で直接 push** されます（キー操作不要・IDE
-   デバッガと両立。デスクトップ／デバイスで同じ仕組み）。
+   デバッガと両立。デスクトップ／デバイス／Web で同じ仕組み）。
     - **デスクトップ** —— 再変換した `.ssab` をアプリがその場で読み込みます。
     - **デバイス（iOS / Android）** —— テクスチャ内包の embedded `.ssab` をバイトで送ります
       （端末はホストのパスを読めないため）。
+    - **Web（`flutter run -d chrome`・デバッグ）** —— デバイスと同じくテクスチャ内包の embedded
+      `.ssab` をバイトで送ります（VM Service 拡張は DWDS が中継）。デバッグの DDC のみ
+      （`--wasm` や `flutter build web` は不可）。
 4. プレイヤーが `reload()` を呼び、再生状態を保ったままリソースを差し替えます。
 
 ## 有効化（レシピ）
@@ -50,6 +53,7 @@
     # 1コマンド（flutter run を内包し、define も自動注入）
     dart run ssgen_flutter:sswatch --run -d macos                 # デスクトップ
     dart run ssgen_flutter:sswatch --run -d <emulator> --device   # デバイス（embedded push）
+    dart run ssgen_flutter:sswatch --run -d chrome --device       # Web（embedded push・デバッグDDC）
 
     # IDE で起動する場合（デバッガを維持したまま attach）——
     #   起動側に --dart-define=SS_LIVE_RELOAD=true --vmservice-out-file=/tmp/ss.uri を付け、
@@ -69,5 +73,6 @@
 | Android | VM Service push（embedded） | end-to-end 検証済み（emulator） |
 | iOS | VM Service push（embedded） | 見込みあり・未検証 |
 | Windows / Linux デスクトップ | VM Service push（file） | 見込みあり（OS 非依存）・未検証 |
+| Web（`-d chrome`・デバッグ） | VM Service push（embedded・DWDS 中継） | デバッグ DDC のみ（`--wasm`/`build web` 不可） |
 
 単発の手動変換なら [アセットの準備](conversion.md) を参照してください。

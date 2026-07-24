@@ -8,14 +8,16 @@ import 'ss_defines.dart';
 /// Wires SpriteStudio dev live-reload into a [State]: registers this player's
 /// current pack with the VM-Service dev push channel ([SsDevChannel]) so the
 /// `sswatch` host runner can hot-swap it in place — playhead / animation / play
-/// state preserved ([SpriteStudioPlayer.reload]) — on desktop and device alike,
-/// with no `r` and the IDE debugger left attached.
+/// state preserved ([SpriteStudioPlayer.reload]) — on desktop, device and (in
+/// `flutter run -d chrome` debug, via DWDS) the web alike, with no `r` and the
+/// IDE debugger left attached.
 ///
 /// Run the watcher alongside the app:
 /// ```
-/// dart run ssgen_flutter:sswatch --run -d macos            # own flutter run
-/// dart run ssgen_flutter:sswatch --run -d <emu> --device   # device (embedded)
-/// dart run ssgen_flutter:sswatch --vmservice-uri-file=<f>  # attach (IDE)
+/// dart run ssgen_flutter:sswatch --run -d macos             # own flutter run
+/// dart run ssgen_flutter:sswatch --run -d <emu> --device    # device (embedded)
+/// dart run ssgen_flutter:sswatch --run -d chrome --device   # web (embedded)
+/// dart run ssgen_flutter:sswatch --vmservice-uri-file=<f>   # attach (IDE)
 /// ```
 /// On save it reconverts the stale `SpriteStudio_Source` projects (host
 /// `libssconverter`) and pushes the fresh pack to this player over the VM
@@ -24,8 +26,8 @@ import 'ss_defines.dart';
 /// ordinary Dart hot reload and leaves the art alone.
 ///
 /// Implement [ssPlayer], [ssAssetDir], [ssPack]; the rest has a default.
-/// Debug-only by construction (the push channel only exists in debug). Not
-/// supported on web (as with the runtime).
+/// Debug-only by construction (the push channel only exists in debug — on
+/// native and, via DWDS, under `flutter run -d chrome`; not `--wasm`/release).
 ///
 /// ```dart
 /// class _MyPageState extends State<MyPage> with SsLiveReload<MyPage> {

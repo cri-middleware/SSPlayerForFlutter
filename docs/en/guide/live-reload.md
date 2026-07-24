@@ -23,10 +23,12 @@ animation editing gets the same fast iteration as a code hot reload.
 2. On save, the changed project is re-converted to `.ssab` (stale-checked by modified time — only what
    changed is rebuilt).
 3. The new pack is **pushed directly to the running app over the VM Service** (no keypress; works
-   alongside an IDE debugger — the same mechanism on desktop and device).
+   alongside an IDE debugger — the same mechanism on desktop, device and the web).
     - **Desktop** — the app reads the re-converted `.ssab` off disk.
     - **Device (iOS / Android)** — a texture-embedded `.ssab` is sent as bytes (a device can't read a
       host path).
+    - **Web (`flutter run -d chrome`, debug)** — like a device, a texture-embedded `.ssab` is sent as
+      bytes; the VM Service extension is routed by DWDS. Debug only (not `--wasm`, not `flutter build web`).
 4. The player calls `reload()`, swapping the resource while preserving playback state.
 
 ## Enabling it (recipe)
@@ -51,6 +53,7 @@ animation editing gets the same fast iteration as a code hot reload.
     # One command (wraps `flutter run` and injects the define)
     dart run ssgen_flutter:sswatch --run -d macos                 # desktop
     dart run ssgen_flutter:sswatch --run -d <emulator> --device   # device (embedded push)
+    dart run ssgen_flutter:sswatch --run -d chrome --device       # web (embedded push; debug DDC)
 
     # Launching from your IDE instead (keep the debugger; attach) — pass
     #   --dart-define=SS_LIVE_RELOAD=true --vmservice-out-file=/tmp/ss.uri to the launch, then:
@@ -70,5 +73,6 @@ identical bytes — and may not even trip the watcher).
 | Android | VM Service push (embedded) | Verified end-to-end (emulator) |
 | iOS | VM Service push (embedded) | Expected, not yet confirmed |
 | Windows / Linux desktop | VM Service push (file) | Expected (OS-independent), not yet confirmed |
+| Web (`-d chrome`, debug) | VM Service push (embedded, via DWDS) | Debug DDC only — not `--wasm`/`build web` |
 
 For a one-off manual conversion instead, see [CLI Conversion](conversion.md).

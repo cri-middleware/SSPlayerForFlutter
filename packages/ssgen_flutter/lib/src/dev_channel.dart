@@ -1,13 +1,16 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:developer' as developer;
-import 'dart:io';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart'
-    show AssetBundle, CachingAssetBundle, rootBundle;
+import 'package:flutter/services.dart' show AssetBundle, rootBundle;
 import 'package:ssplayer_flutter/ssplayer_flutter.dart';
 
+// The `file` source needs `dart:io` (a host filesystem read); the web has none,
+// so it swaps in a stub and pushes bytes only. Keeping `dart:io` out of this
+// file is what lets the channel — and the SsLiveReload mixin — compile for the
+// web (`flutter run -d chrome`).
+import 'dev_channel_stub.dart' if (dart.library.io) 'dev_channel_io.dart';
 import 'ss_defines.dart';
 
 /// A live-reload target the [SsDevChannel] can hot-swap: the current pack of one
@@ -53,14 +56,16 @@ abstract interface class SsLiveReloadTarget {
 ///     own `flutter run`), on desktop and (Phase 3) device alike.
 ///
 /// Debug-only by construction: the VM Service (hence any extension) is absent in
-/// release, and registration is skipped in release / on web. The extension is
-/// registered lazily on the first [register]; further registrants just join the
-/// target set.
+/// release, so registration is skipped there. It DOES register on the web in
+/// debug (`flutter run -d chrome`, where DWDS routes the extension call), where
+/// a push carries bytes since there is no host filesystem to read a `file` push
+/// from. The extension is registered lazily on the first [register]; further
+/// registrants just join the target set.
 ///
 /// ### `ext.ssgen.reload` protocol (all params are strings)
 /// | param    | meaning                                                        |
 /// |----------|----------------------------------------------------------------|
-/// | `source` | `file` (desktop: read from disk) or `bytes` (device: base64). Defaults to `file` when `dir` is present, else `bytes`. |
+/// | `source` | `file` (desktop: read from disk) or `bytes` (device/web: base64). Defaults to `file` when `dir` is present, else `bytes`. |
 /// | `dir`    | absolute host output dir (a `file` push reads `<dir>/<pack>.ssab`). |
 /// | `pack`   | a specific pack stem (a `bytes` push targets exactly this pack). |
 /// | `bytes`  | base64 `.ssab` (a `bytes` push).                               |
@@ -84,7 +89,8 @@ class SsDevChannel {
 
   /// Registers [target] and, on the first call, wires up [extensionMethod].
   /// Safe to call from `State.initState` — the target's getters are only read
-  /// when a push arrives. No-op on web / in release.
+  /// when a push arrives. No-op in release (no VM Service); on the web it
+  /// registers in debug (`flutter run -d chrome`, via DWDS).
   void register(SsLiveReloadTarget target) {
     _targets.add(target);
     _ensureExtension();
@@ -96,7 +102,9 @@ class SsDevChannel {
   void unregister(SsLiveReloadTarget target) => _targets.remove(target);
 
   void _ensureExtension() {
-    if (_extensionRegistered || kIsWeb || kReleaseMode) return;
+    // Registers in debug on native AND on the web (DWDS routes the call);
+    // skipped in release, where there is no VM Service to host the extension.
+    if (_extensionRegistered || kReleaseMode) return;
     _extensionRegistered = true;
     try {
       developer.registerExtension(extensionMethod, _onReload);
@@ -144,13 +152,14 @@ class SsDevChannel {
         final AssetBundle bundle;
         final String baseDir;
         if (source == 'file') {
-          if (dir == null || dir.isEmpty) continue;
+          // The web has no host filesystem — a web push always carries bytes.
+          if (!supportsFilePush || dir == null || dir.isEmpty) continue;
           // Reload only the pack this target is showing, and only if the
           // just-reconverted dir actually holds it.
-          final file = File('$dir/${target.ssPack}.ssab');
-          if (!file.existsSync()) continue;
-          bytes = await file.readAsBytes();
-          bundle = _FileBundle();
+          final read = await readSsabFile('$dir/${target.ssPack}.ssab');
+          if (read == null) continue;
+          bytes = read;
+          bundle = filePushBundle();
           baseDir = dir;
         } else {
           // Byte push (device): match the named pack, resolve textures from the
@@ -186,13 +195,4 @@ class SsDevChannel {
       );
     }
   }
-}
-
-/// AssetBundle whose keys are absolute filesystem paths (desktop FS reads) — so
-/// a pushed `.ssab` and its sibling reference textures load through the same code
-/// path as bundled assets.
-class _FileBundle extends CachingAssetBundle {
-  @override
-  Future<ByteData> load(String key) async =>
-      ByteData.sublistView(await File(key).readAsBytes());
 }

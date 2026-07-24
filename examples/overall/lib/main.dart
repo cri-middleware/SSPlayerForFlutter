@@ -313,6 +313,8 @@ class _PlayerPageState extends State<PlayerPage>
   // define, injected by --run):
   //   Desktop (file push):    dart run ssgen_flutter:sswatch --run -d macos
   //   Device  (embedded push): dart run ssgen_flutter:sswatch --run -d <emu> --device
+  //   Web     (embedded push): dart run ssgen_flutter:sswatch --run -d chrome --device
+  //     (debug DDC only — via DWDS; not --wasm/release)
   //   IDE (attach, keep the debugger): launch from the IDE with
   //     --dart-define=SS_LIVE_RELOAD=true --vmservice-out-file=/tmp/ss.uri, then
   //     dart run ssgen_flutter:sswatch --vmservice-uri-file=/tmp/ss.uri [--device]

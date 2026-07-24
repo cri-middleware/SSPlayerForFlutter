@@ -77,10 +77,11 @@ class SsWatchOptions {
   /// Reconvert + push once, then exit (no watching).
   final bool once;
 
-  /// Device mode: a device can't read a host path, so push a **self-contained
-  /// embedded `.ssab`** as base64 bytes for the pack currently on screen
-  /// (resolved via `ext.ssgen.targets`) rather than a `file` path. Desktop keeps
-  /// the lighter file push (default).
+  /// Device mode: a device (or the web) can't read a host path, so push a
+  /// **self-contained embedded `.ssab`** as base64 bytes for the pack currently
+  /// on screen (resolved via `ext.ssgen.targets`) rather than a `file` path.
+  /// Desktop keeps the lighter file push (default). Use this with `-d chrome`
+  /// too — the web reads no host filesystem, so it takes the byte push.
   final bool device;
 
   /// Owns-run convenience: also spawn `flutter run` (injecting the define and a
@@ -591,7 +592,8 @@ void _printUsage() => stdout.writeln(
       '  --project-root=<dir>         root holding SpriteStudio_Source/ (cwd)\n'
       '  --source=<dir>               source dir override\n'
       '  --device                     push embedded .ssab bytes for the on-screen\n'
-      '                               pack (iOS/Android; desktop uses a file path)\n'
+      '                               pack (iOS/Android/web -d chrome; desktop\n'
+      '                               uses a file path)\n'
       '  --embedded-dir=<dir>         where --device writes the embedded .ssab\n'
       '                               (default .dart_tool/ssgen/embedded)\n'
       '  --run [flutter args…]        also spawn `flutter run` and attach — a\n'
