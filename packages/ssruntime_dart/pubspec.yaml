@@ -4,7 +4,7 @@ description: >-
   (libssruntime): loads .ssab, advances time, and emits per-frame SoA buffers +
   DrawBatch plans. Layer 1 — the renderer-agnostic core beneath ssplayer_flutter
   (also usable from Flame / flutter_gpu / headless Dart). No Flutter dependency.
-version: 7.0.0-alpha.1
+version: 7.0.0-beta.1
 repository: https://github.com/cri-middleware/SSPlayerForFlutter
 publish_to: none # not yet published to pub.dev
 
