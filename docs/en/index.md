@@ -15,21 +15,21 @@ hand-write. Playback runs through `libssruntime` provided by
 
 - **Setup**
     - [Installation](guide/install.md)
-    - [Quick Start](guide/quickstart.md)
+    - [Build Guide](contributing/build.md)
 - **Workflow**
+    - [Quick Start](guide/quickstart.md)
     - [Playback & Events](guide/playback.md)
+    - [Part Overrides](guide/part-overrides.md)
     - [Flame Integration](guide/flame.md)
     - [Preparing Assets (`.sspj` → `.ssab`)](guide/conversion.md) (start here for the initial import)
     - [Live Reload](guide/live-reload.md)
-- **Advanced Topics**
+- [**API Reference**](api.md)
+- [**Limitations & Scope**](limitations.md)
+- **For Contributors**
     - [Architecture](contributing/architecture.md)
-    - [Build Guide](contributing/build.md)
     - [Native Runtime](contributing/native-runtime.md)
     - [Releasing](contributing/releasing.md)
-- **Reference**
-    - [Packages](packages.md)
-    - [API Reference](api.md)
-- [Roadmap & Limitations](contributing/roadmap.md)
+- [**Packages**](packages.md)
 
 ## Key Features
 
@@ -38,7 +38,7 @@ animation code to write by hand.
 
 *   **Zero animation code:** Characters, **UIs, and whole scenes** are authored in SpriteStudio 7; you just call `play()`.
 *   **Full feature support:** Ships every core draw kind — Normal, PartColor, Mask, Mesh, Effect (particles), Instance, and Shape — plus bone hierarchies and mesh deformation.
-*   **Native Canvas drawing:** `dart:ffi` into the Rust runtime, rendered via `Canvas.drawVertices`. Not a WebView, not a video decode.
+*   **Native GPU-accelerated drawing:** `dart:ffi` into the Rust runtime, drawn through Flutter's own renderer — `flutter_gpu` (Impeller) where available, `Canvas.drawVertices` otherwise. Not a WebView, not a video decode.
 *   **Composes with the widget tree — and [Flame](guide/flame.md):** `SpriteStudioView` is a plain `RenderBox`; the `ssplayer_flame` package adds a `SpriteStudioComponent`.
 *   **Smooth sub-frame interpolation:** Playback follows the display refresh rate, not a fixed fps — buttery-smooth even in slow motion.
 *   **Bring your own art, with live-reload:** Convert `.sspj` → `.ssab` from a [CLI or CI](guide/conversion.md), and **[live-reload](guide/live-reload.md)** editor edits straight into the running app.
@@ -79,7 +79,7 @@ graph LR
 ## Supported Versions
 
 - **Flutter**: 3.38 or later — **Dart**: 3.10 or later (native assets is stable and default-on there).
-- **Platforms**: verified on macOS, iOS (simulator), and Android (emulator). A physical iOS device and Web are not yet confirmed — see [Roadmap & Limitations](contributing/roadmap.md).
+- **Platforms**: verified on macOS, iOS (simulator), Android (emulator), and Web (developer preview). A physical iOS device and the 32-bit `armeabi-v7a` ABI are not yet confirmed.
 
 ## Samples
 
@@ -91,7 +91,6 @@ Sample apps live under the `examples/` folder in the repository.
 ## Related Repositories
 
 - [SpriteStudio-SDK](https://github.com/cri-middleware/SpriteStudio-SDK) — the SDK itself, providing `libssruntime` / `libssconverter`.
-- Sibling players for other engines: [Godot](https://github.com/cri-middleware/SSPlayerForGodot), [Unity](https://github.com/cri-middleware/SSPlayerForUnity), [Web](https://github.com/cri-middleware/SSPlayerForWeb), [Ren'Py](https://github.com/cri-middleware/SSPlayerForRenPy).
 
 ## License
 

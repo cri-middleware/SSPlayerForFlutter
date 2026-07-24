@@ -49,7 +49,3 @@ constraint bump.
   `environment:` declares only the support *floor* (`sdk: >=3.10.0`, Flutter `>=3.38.0`) — deliberately
   lower, so consumers aren't forced onto the exact CI version. Bump the `release.yml` pin as your local
   toolchain moves.
-
-The authoritative, step-by-step runbook — including one-time per-package setup and the `RELEASE_PAT`
-secret — is
-[`docs/RELEASING.md`](https://github.com/cri-middleware/SSPlayerForFlutter/blob/main/docs/RELEASING.md).

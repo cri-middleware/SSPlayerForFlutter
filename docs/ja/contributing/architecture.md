@@ -46,12 +46,8 @@ Brain が `DrawBatch` プランを出し、`paint` は `DrawBatch.kind`
 （`Normal / Mesh / Effect / Instance / Shape`）で分岐して、各バッチを 1 つの indexed `ui.Vertices` に
 bake します。イミディエイトモードで毎フレーム作り直すため、性能のレバーは **毎フレームのアロケーション**
 と **ドローコール数** です（バッチのまとめ方ではありません —— それは既に Brain のプランと一致）。
-最適化の状況は [ロードマップと制約](roadmap.md) を参照。
 
-## 設計ドキュメント一次情報
+## さらに詳しく
 
-リポジトリ構成・毎フレームの描画レシピ・kind ごとのルール・コード検証済みの
-**kind × 横断機能マトリクス（§11-A）** は
-[`docs/architecture.ja.md`](https://github.com/cri-middleware/SSPlayerForFlutter/blob/main/docs/architecture.ja.md)
-が一次情報です。実装規約・FFI 寿命の不変条件・Native Assets 同梱の注意は
+実装規約・FFI 寿命の不変条件・kind ごとの描画ルール・Native Assets 同梱の注意は
 [`AGENTS.md`](https://github.com/cri-middleware/SSPlayerForFlutter/blob/main/AGENTS.md) にあります。

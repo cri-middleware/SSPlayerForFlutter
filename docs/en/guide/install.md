@@ -10,7 +10,7 @@ delivered automatically through Dart **native assets** — there is no CocoaPods
 |---|---|
 | Flutter / Dart | **Flutter 3.38+ / Dart 3.10+** (native assets is stable and default-on) |
 | Verified platforms | macOS · iOS · Android |
-| Other platforms | Windows / Linux build from source; Web is on the roadmap |
+| Other platforms | Windows / Linux build from source; Web is a developer preview |
 | Native toolchain | None — the Brain is downloaded prebuilt by the `ssruntime_dart` build hook |
 
 ## Installation methods
@@ -63,6 +63,6 @@ setup.
 
 ## Next steps
 
-- **No `.ssab` file yet?** → [CLI Conversion (`.sspj` → `.ssab`)](conversion.md) to build
+- **No `.ssab` file yet?** → [Preparing Assets (`.sspj` → `.ssab`)](conversion.md) to build
   one from your SpriteStudio project.
 - **Already have an `.ssab`?** → [Quick Start](quickstart.md) to load and play it in a widget.

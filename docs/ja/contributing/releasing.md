@@ -49,7 +49,3 @@ Melos は各パッケージの直近 `<package>-v<version>` タグ以降のコ�
   `environment:` は対応**下限**（`sdk: >=3.10.0`、Flutter `>=3.38.0`）のみを宣言します —— 意図的に
   低くし、利用者を CI と同一バージョンに縛りません。ローカルのツールチェーン更新に合わせて
   `release.yml` のピンを上げます。
-
-一次情報の手順書（パッケージごとの初回セットアップ・`RELEASE_PAT` シークレット含む）は
-[`docs/RELEASING.md`](https://github.com/cri-middleware/SSPlayerForFlutter/blob/main/docs/RELEASING.md)
-です。

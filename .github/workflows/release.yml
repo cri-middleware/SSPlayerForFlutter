@@ -4,7 +4,7 @@ name: Release
 # from the Actions tab when you want to cut versions. It computes INDEPENDENT
 # SemVer bumps from Conventional Commits since each package's last
 # `<package>-v<version>` tag, writes CHANGELOGs, commits, and pushes per-package
-# tags. Pushing those tags is what triggers publish.yml. See docs/RELEASING.md.
+# tags. Pushing those tags is what triggers publish.yml.
 on:
   workflow_dispatch:
     inputs:
@@ -29,7 +29,7 @@ jobs:
           fetch-depth: 0
           # IMPORTANT: a PAT (or GitHub App token), NOT the default GITHUB_TOKEN.
           # Tags pushed with GITHUB_TOKEN do NOT trigger other workflows, so
-          # publish.yml would silently never run. See docs/RELEASING.md.
+          # publish.yml would silently never run.
           token: ${{ secrets.RELEASE_PAT }}
 
       - uses: subosito/flutter-action@v2

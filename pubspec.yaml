@@ -38,7 +38,7 @@ dev_dependencies:
 # needed. Versioning is INDEPENDENT (the Melos default): each package bumps on
 # its own Conventional-Commit history and gets its own `<package>-v<version>` git
 # tag, which drives pub.dev automated publishing.
-# See docs/RELEASING.md and .github/workflows/{release,publish}.yml.
+# See .github/workflows/{release,publish}.yml.
 melos:
   command:
     version:

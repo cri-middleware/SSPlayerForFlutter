@@ -16,21 +16,21 @@
 
 - **セットアップ**
     - [インストール](guide/install.md)
-    - [クイックスタート](guide/quickstart.md)
+    - [ビルドガイド](contributing/build.md)
 - **ワークフロー**
+    - [クイックスタート](guide/quickstart.md)
     - [再生制御とイベント](guide/playback.md)
+    - [パーツオーバーライド](guide/part-overrides.md)
     - [Flame との連携](guide/flame.md)
     - [アセットの準備（`.sspj` → `.ssab`）](guide/conversion.md)（初回の変換はこちら）
     - [ライブリロード](guide/live-reload.md)
-- **応用**
+- [**API リファレンス**](api.md)
+- [**制約と適用範囲**](limitations.md)
+- **コントリビューター向け**
     - [アーキテクチャ](contributing/architecture.md)
-    - [ビルドガイド](contributing/build.md)
     - [ネイティブランタイム](contributing/native-runtime.md)
     - [リリース](contributing/releasing.md)
-- **リファレンス**
-    - [パッケージ](packages.md)
-    - [API リファレンス](api.md)
-- [ロードマップと制約事項](contributing/roadmap.md)
+- [**パッケージ**](packages.md)
 
 ## 主な機能 (Key Features)
 
@@ -39,7 +39,7 @@
 
 *   **アニメーションコードはゼロ:** キャラクター・**UI・シーン全体**を SpriteStudio 7 で作り、`play()` を呼ぶだけ。
 *   **完全な機能サポート:** 全コア描画種別（Normal・PartColor・Mask・Mesh・Effect（パーティクル）・Instance・Shape）に加え、ボーン階層とメッシュ変形を標準サポート。
-*   **ネイティブな Canvas 描画:** `dart:ffi` で Rust ランタイムを駆動し `Canvas.drawVertices` で描画。WebView でも動画デコードでもありません。
+*   **ネイティブ GPU 描画:** `dart:ffi` で Rust ランタイムを駆動し、Flutter 自身のレンダラで描画（Impeller では `flutter_gpu`、それ以外は `Canvas.drawVertices`）。WebView でも動画デコードでもありません。
 *   **ウィジェットツリーに、[Flame](guide/flame.md) にも合成:** `SpriteStudioView` は普通の `RenderBox`。`ssplayer_flame` パッケージが `SpriteStudioComponent` を追加します。
 *   **滑らかなサブフレーム補間:** ディスプレイのリフレッシュレートに追従（固定 fps ではありません）—— スローモーションでもカクつきません。
 *   **自分の素材を、ライブリロードで:** `.sspj` → `.ssab` を [CLI / CI](guide/conversion.md) で変換し、エディタでの編集を **[ライブリロード](guide/live-reload.md)** で実行中アプリへそのまま反映。
@@ -80,7 +80,7 @@ graph LR
 ## 対応バージョン
 
 - **Flutter**: 3.38 以降 / **Dart**: 3.10 以降（この世代で native assets が安定・デフォルト有効になります）。
-- **プラットフォーム**: macOS・iOS（シミュレータ）・Android（エミュレータ）で確認済み。実機 iOS と Web は未確認です —— [ロードマップと制約事項](contributing/roadmap.md) を参照してください。
+- **プラットフォーム**: macOS・iOS（シミュレータ）・Android（エミュレータ）・Web（開発者プレビュー）で確認済み。実機 iOS と 32bit `armeabi-v7a` ABI は未確認です。
 
 ## サンプル
 
@@ -92,7 +92,6 @@ graph LR
 ## 関連リポジトリ
 
 - [SpriteStudio-SDK](https://github.com/cri-middleware/SpriteStudio-SDK) — `libssruntime` / `libssconverter` を提供する SDK 本体。
-- 他エンジン向けの兄弟プレイヤー: [Godot](https://github.com/cri-middleware/SSPlayerForGodot)・[Unity](https://github.com/cri-middleware/SSPlayerForUnity)・[Web](https://github.com/cri-middleware/SSPlayerForWeb)・[Ren'Py](https://github.com/cri-middleware/SSPlayerForRenPy)。
 
 ## ライセンス
 

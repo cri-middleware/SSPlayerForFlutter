@@ -4,7 +4,7 @@
 
 !!! note "このページは `.ssab` が手元にある前提です"
     SpriteStudio プロジェクト（`.sspj`）しか無い場合は、まず
-    [CLI 変換（`.sspj` → `.ssab`）](conversion.md) で `.ssab` を生成してください。
+    [アセットの準備（`.sspj` → `.ssab`）](conversion.md) で `.ssab` を生成してください。
 
 ## 1. アセットを追加する
 
@@ -62,7 +62,7 @@ class _MyState extends State<MyWidget> with SingleTickerProviderStateMixin {
 !!! tip "テクスチャ: embedded と reference"
     どちらのモードも追加引数なしで解決します。**embedded** な `.ssab`（`ssconvert -e` で生成）は
     画像を内包し、**reference** な `.ssab` は同じフォルダの画像ファイルを参照して `loadAsset` が
-    キー自身のフォルダから解決します。→ [CLI 変換](conversion.md)。
+    キー自身のフォルダから解決します。→ [アセットの準備](conversion.md)。
 
 サブフレーム補間は**既定でオン**なので、フレームレートに関係なく滑らかに動きます。
 

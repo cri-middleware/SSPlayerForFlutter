@@ -10,7 +10,7 @@ Flutter アプリに SpriteStudioPlayer for Flutter を追加する手順です�
 |---|---|
 | Flutter / Dart | **Flutter 3.38+ / Dart 3.10+**（Native Assets が標準・既定で有効） |
 | 動作確認済み | macOS · iOS · Android |
-| その他 | Windows / Linux はソースからビルド、Web はロードマップ上 |
+| その他 | Windows / Linux はソースからビルド、Web は開発者プレビュー |
 | ネイティブツールチェーン | 不要 —— Brain は `ssruntime_dart` のビルドフックがプリビルドを取得 |
 
 ## インストール方法
@@ -63,6 +63,6 @@ dependencies:
 
 ## 次のステップ
 
-- **まだ `.ssab` が無い** → [CLI 変換（`.sspj` → `.ssab`）](conversion.md) で SpriteStudio
+- **まだ `.ssab` が無い** → [アセットの準備（`.sspj` → `.ssab`）](conversion.md) で SpriteStudio
   プロジェクトから生成します。
 - **`.ssab` がある** → [クイックスタート](quickstart.md) でウィジェットに読み込んで再生します。

@@ -5,7 +5,7 @@ name: Publish
 # gated on its own tag prefix. dart-lang's reusable workflow sets up BOTH Dart and
 # Flutter, so it publishes our Flutter and pure-Dart packages alike. Before the
 # first automated run, enable "Automated publishing" per package in the pub.dev
-# Admin tab with tag pattern `<package>-v{{version}}` (see docs/RELEASING.md).
+# Admin tab with tag pattern `<package>-v{{version}}`.
 on:
   push:
     tags:

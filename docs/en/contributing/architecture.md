@@ -46,12 +46,10 @@ The Brain emits a `DrawBatch` plan; `paint` dispatches on `DrawBatch.kind`
 (`Normal / Mesh / Effect / Instance / Shape`) and bakes each batch into one indexed `ui.Vertices`.
 Because the canvas is immediate-mode and everything is rebuilt per frame, the performance levers are
 **per-frame allocation** and **draw-call count** — not the batch grouping, which already matches the
-Brain's plan. See [Roadmap & Limitations](roadmap.md#performance) for what has been optimized.
+Brain's plan.
 
-## Full design docs
+## Further reading
 
-The authoritative design reference — repository layout, the exact per-frame render recipe, per-kind
-rules, and the code-verified **kind × cross-cutting feature matrix (§11-A)** — is
-[`docs/architecture.ja.md`](https://github.com/cri-middleware/SSPlayerForFlutter/blob/main/docs/architecture.ja.md).
-Implementation rules, FFI-lifetime invariants, and the native-assets packaging notes are in
+Implementation rules, FFI-lifetime invariants, per-kind rendering rules, and the native-assets
+packaging notes are in
 [`AGENTS.md`](https://github.com/cri-middleware/SSPlayerForFlutter/blob/main/AGENTS.md).

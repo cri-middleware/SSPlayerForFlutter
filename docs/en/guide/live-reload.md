@@ -75,4 +75,4 @@ identical bytes — and may not even trip the watcher).
 | Windows / Linux desktop | VM Service push (file) | Expected (OS-independent), not yet confirmed |
 | Web (`-d chrome`, debug) | VM Service push (embedded, via DWDS) | Debug DDC only — not `--wasm`/`build web` |
 
-For a one-off manual conversion instead, see [CLI Conversion](conversion.md).
+For a one-off manual conversion instead, see [Preparing Assets](conversion.md).

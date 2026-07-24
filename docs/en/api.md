@@ -23,4 +23,4 @@ dart doc
 - **`SsBlendOp` / `SsOverridePriority` / `PartNameTable`** — part overrides. See
   [Part Overrides](guide/part-overrides.md).
 - **`SsAnimeInfo`** — enumerate animation / cellmap / cell names from `.ssab` bytes.
-- **`SsConverter` / `ssconvert`** (`ssconverter_dart`) — see [CLI Conversion](guide/conversion.md).
+- **`SsConverter` / `ssconvert`** (`ssconverter_dart`) — see [Preparing Assets](guide/conversion.md).

@@ -6,12 +6,6 @@ repo_name: "cri-middleware/SSPlayerForFlutter"
 repo_url: "https://github.com/cri-middleware/SSPlayerForFlutter"
 edit_uri: "edit/main/docs/"
 
-# Internal design docs live at docs/ root and are referenced by code/AGENTS.md —
-# keep them in the repo but out of the published site.
-exclude_docs: |
-  architecture.ja.md
-  RELEASING.md
-
 theme:
   name: material
   language: en
@@ -50,30 +44,29 @@ plugins:
           name: 日本語
           build: true
 
-# Two-tier, audience-first navigation: everything an app developer needs — playback,
-# Flame, and the .sspj→.ssab / live-reload automation — lives under "For Users"; the
-# Rust/SDK/native internals sit under the developer tab. (There is deliberately no
-# middle "customization" tier: unlike a game engine, a Flutter UI player has no
-# audience that extends the Player itself, so the asset/automation pages that a
-# sibling player would file under "Customization" live under "For Users" here.)
+# Task-oriented navigation modeled on the sibling players (Godot / Ren'Py):
+# Setup → Workflow → API Reference → Limitations. The monorepo/runtime internals
+# live under "For Contributors" — Flutter is a multi-package library, not a single
+# plugin, so it keeps that one contributor-facing section the siblings don't need.
 nav:
   - Home: index.md
-  - For Users:
+  - Setup:
       - Installation: guide/install.md
+      - Build Guide: contributing/build.md
+  - Workflow:
       - Quick Start: guide/quickstart.md
       - Playback & Events: guide/playback.md
       - Part Overrides: guide/part-overrides.md
       - Flame Integration: guide/flame.md
       - Preparing Assets (.sspj → .ssab): guide/conversion.md
       - Live Reload: guide/live-reload.md
-  - For Player & SDK Developers:
+  - API Reference: api.md
+  - Limitations & Scope: limitations.md
+  - For Contributors:
       - Architecture: contributing/architecture.md
-      - Build Guide: contributing/build.md
       - Native Runtime: contributing/native-runtime.md
       - Releasing: contributing/releasing.md
-      - Roadmap & Limitations: contributing/roadmap.md
   - Packages: packages.md
-  - API Reference: api.md
   - License:
       - License: license/index.md
       - Third-Party Notices: license/third-party.md
