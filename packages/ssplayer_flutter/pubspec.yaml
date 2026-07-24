@@ -64,9 +64,16 @@ flutter:
   # module is bundled as a plain Flutter asset and loaded at runtime; native
   # builds tree-shake these out (they only ship where dart.library.js_interop is).
   assets:
-    - assets/runtime-web/ssruntime.js
-    - assets/runtime-web/ssruntime_bg.wasm
-    - assets/runtime-web/ssruntime_bg.nosimd.wasm
+    # A DIRECTORY entry, NOT three individual files — on purpose. The wasm is
+    # git-ignored and built on demand (scripts/build-runtime.sh platform=web), so
+    # a native-only checkout has just .gitignore in here. A directory entry
+    # bundles whatever files are present and does NOT fail when the wasm is
+    # absent, so `flutter build/run macos` (and every non-web target) never needs
+    # the web runtime built. Listing the files individually made a missing wasm a
+    # hard "asset not found" on ALL targets, forcing desktop/mobile devs to build
+    # the web wasm too. Web bundles ssruntime.js + ssruntime_bg{,.nosimd}.wasm
+    # from here once they exist (the loader keys are unchanged).
+    - assets/runtime-web/
     # flutter_gpu shader bundle, compiled by hook/build.dart (impellerc) into
     # build/shaderbundles/ (gitignored, regenerated every build). Listed here so
     # the legacy shader-bundle delivery bundles it as a normal asset; loaded at
