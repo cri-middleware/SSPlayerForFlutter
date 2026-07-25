@@ -13,9 +13,20 @@ import 'ssab_identity.dart';
 ///
 /// Drives the SDK's wasm-bindgen `web` build (`ssruntime.js` + `ssruntime_bg.wasm`,
 /// bundled as a Flutter asset by `ssplayer_flutter`). Handles are the wasm-bindgen
-/// JS objects; SoA buffers are typed-array views over the wasm `memory.buffer`,
-/// re-created on every read because `memory.grow` detaches the backing
-/// `ArrayBuffer`.
+/// JS objects; SoA buffers live in the wasm `memory.buffer`.
+///
+/// **Every buffer this backend returns is a copy**, unlike the native backend's
+/// zero-copy `asTypedList` views. It has to be: there is one shared
+/// `memory.buffer` behind all of them, and *any* wasm allocation can
+/// `memory.grow`, which detaches it and turns every outstanding view into a
+/// `TypeError` on next read. A view is only safe until the very next call into
+/// the Brain — not until the next `update`, which is all [SsRuntime]'s lifetime
+/// contract requires — and Layer 2 legitimately holds buffers across calls: an
+/// effect's draw plan is cached during `updateMs` and read back during paint,
+/// and a parent's frame data stays live across an instance child's whole paint
+/// (§8), which re-enters the Brain. Copying on the way out makes the documented
+/// contract true here, at the cost of a per-frame memcpy that native does not
+/// pay. See [_f32] and friends.
 ///
 /// The wasm module loads asynchronously but [SsRuntime] is synchronous, so the
 /// app must `await loadSsRuntime(url)` once before creating a player on the web.
@@ -106,14 +117,22 @@ extension type _U8View._(JSUint8Array _) implements JSUint8Array {
 
 JSArrayBuffer get _buffer => _memory!.getProperty('buffer'.toJS) as JSArrayBuffer;
 
-Float32List _f32(int ptr, int len) =>
-    len == 0 ? Float32List(0) : _F32View(_buffer, ptr, len).toDart;
-Uint32List _u32(int ptr, int len) =>
-    len == 0 ? Uint32List(0) : _U32View(_buffer, ptr, len).toDart;
-Int32List _i32(int ptr, int len) =>
-    len == 0 ? Int32List(0) : _I32View(_buffer, ptr, len).toDart;
+// Each reads through a fresh view and returns a COPY. `toDart` does not copy on
+// either web compiler — it casts on dart2js and wraps on dart2wasm, so the
+// result still reads through to `memory.buffer` and detaches when the wasm heap
+// grows. `fromList` is what actually detaches the caller from that hazard; see
+// the class doc for why holding a live view is not an option here.
+Float32List _f32(int ptr, int len) => len == 0
+    ? Float32List(0)
+    : Float32List.fromList(_F32View(_buffer, ptr, len).toDart);
+Uint32List _u32(int ptr, int len) => len == 0
+    ? Uint32List(0)
+    : Uint32List.fromList(_U32View(_buffer, ptr, len).toDart);
+Int32List _i32(int ptr, int len) => len == 0
+    ? Int32List(0)
+    : Int32List.fromList(_I32View(_buffer, ptr, len).toDart);
 Uint8List _u8(int ptr, int len) =>
-    len == 0 ? Uint8List(0) : _U8View(_buffer, ptr, len).toDart;
+    len == 0 ? Uint8List(0) : Uint8List.fromList(_U8View(_buffer, ptr, len).toDart);
 
 // --- js_interop shapes of the wasm-bindgen classes -------------------------
 

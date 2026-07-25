@@ -482,6 +482,11 @@ class SpriteStudioPlayer extends ChangeNotifier {
   bool get isPaused => _internal?.isPausing ?? false;
 
   /// Draws the current frame — delegates to Layer 2's single paint path.
+  ///
+  /// At most once per frame per player: the render backend recycles per-frame
+  /// resources here, so two adapters painting the same player in one frame
+  /// corrupt each other's output. One player per view; share a [TextureRegistry]
+  /// between their `load`s if you want the atlases decoded once.
   void paint(ui.Canvas canvas, {ui.Rect? dst, ui.Size? sourceSize}) {
     _internal?.paint(canvas, dst: dst, sourceSize: sourceSize);
   }

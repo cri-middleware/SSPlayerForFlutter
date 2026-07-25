@@ -9,8 +9,10 @@ import 'dart:typed_data';
 ///     are zero-copy `asTypedList` views over the native heap.
 ///   * **web** — `dart:js_interop` over the SDK's wasm-bindgen `web` build
 ///     (`web_runtime.dart`). Handles are the wasm-bindgen JS objects; SoA buffers
-///     are typed-array views over the wasm `memory.buffer` (recreated per read,
-///     since `memory.grow` detaches the backing `ArrayBuffer`).
+///     are **copied** out of the wasm `memory.buffer`, because a view over it
+///     survives only until the next wasm allocation grows the heap and detaches
+///     it — a stricter rule than the lifetime below, so the backend pays a
+///     per-frame copy to honour the same contract native does.
 ///
 /// [SsRuntime.instance] resolves to the right backend at compile time via a
 /// conditional export in `ssruntime_dart.dart`. Layer 2 talks only to this API,
@@ -24,9 +26,12 @@ import 'dart:typed_data';
 /// backend carry its native representation (an FFI struct / a JS object) with no
 /// per-call re-marshalling.
 ///
-/// **Lifetime.** [getFrameData] and every SoA getter return a view that aliases
-/// the Brain's internal buffer and is valid only until the next [update] — read
-/// it within the current frame. Call [getFrameData] before the SoA getters.
+/// **Lifetime.** [getFrameData] and every SoA getter return a buffer that is
+/// valid only until the next [update] — read it within the current frame. Call
+/// [getFrameData] before the SoA getters. On native the buffer aliases the
+/// Brain's own memory (zero-copy); on web it is a copy, because the shared wasm
+/// heap cannot promise a view that long. Either way, treat it as read-only and
+/// do not keep it past the frame.
 abstract interface class SsRuntime {
   // The compile-time-selected backend is exposed via a conditional export in
   // `ssruntime_dart.dart` (native FFI vs web js_interop), added together with the

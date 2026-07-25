@@ -802,6 +802,17 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   /// (backend-agnostic control flow); only the pixel operations go to the
   /// backend. Nines / Text are pre-cut seams and not drawn; BoxFit / scale
   /// placement into [dst] is likewise not supported.
+  ///
+  /// **Call this at most once per frame per player.** The hooks below recycle
+  /// resources that stay live until the recorded picture rasterises, and this is
+  /// the only place they run — so painting one player into two adapters (two
+  /// [SpriteStudioView]s, a view plus a Flame component) within a single frame
+  /// makes the second call free and rebind what the first call's already-recorded
+  /// draws still point at: a disposed coverage bitmap, or a pooled shader whose
+  /// uniforms are overwritten before it rasterises. The visible result is the
+  /// wrong mask or tint in the first view, or "Image has been disposed". Give
+  /// each view its own player; they are cheap next to the textures, and a shared
+  /// [TextureRegistry] passed to both `load`s keeps the atlases single-copy.
   void paint(ui.Canvas canvas, {ui.Rect? dst, ui.Size? sourceSize}) {
     _ensureAlive();
     // Per-FRAME, not per-player: both hooks recycle resources that stay live
