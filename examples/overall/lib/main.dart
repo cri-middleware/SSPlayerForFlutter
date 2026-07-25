@@ -368,6 +368,13 @@ class _PlayerPageState extends State<PlayerPage>
   @override
   Widget build(BuildContext context) {
     final source = _dropped ? _assetDir : 'bundled assets';
+    // The animation's render box, from the authored canvas — null until an
+    // animation is selected. See the InteractiveViewer below for why the view
+    // wants its own box rather than the viewport's.
+    final canvas = _player.canvasSize;
+    final viewBox = canvas == null
+        ? null
+        : Size(canvas.width * 2, canvas.height * 2);
     return Scaffold(
       appBar: AppBar(
         title: const Text('ssplayer_flutter'),
@@ -439,9 +446,9 @@ class _PlayerPageState extends State<PlayerPage>
         },
         child: Column(
           children: [
-            // The display area fills the window and resizes with it. Omitting
-            // width/height lets SpriteStudioView expand to the box constraints;
-            // the animation stays centered (drag/zoom to reframe).
+            // The display area fills the window and resizes with it; the
+            // animation gets its own box inside it (see the InteractiveViewer
+            // below) and stays centered in that box.
             Expanded(
               child: Container(
                 margin: const EdgeInsets.all(8),
@@ -454,12 +461,39 @@ class _PlayerPageState extends State<PlayerPage>
                   ),
                 ),
                 // Drag to reposition, scroll/pinch to zoom (clipped to the box).
+                //
+                // The view gets an explicit box sized from the animation's own
+                // canvas, and `constrained: false` so InteractiveViewer pans
+                // that box around instead of forcing it to the viewport. Both
+                // halves matter for the flutter_gpu backend: it renders into an
+                // offscreen the size of its box and crops everything outside
+                // that box BEFORE any ancestor transform, so a viewport-sized
+                // view (the `constrained: true` default) makes dragging slide an
+                // already-cropped image around — the parts of the animation that
+                // started off-box can never be revealed. The Canvas backend
+                // draws unbounded and does not show it, which is exactly the
+                // kind of backend disagreement worth not shipping in a demo.
+                //
+                // 2x the canvas per axis because the world origin can sit
+                // anywhere inside it (Ringo's is near its feet, not the centre),
+                // so a box centred on the origin needs a full canvas-dimension
+                // of reach to the far side. Same reasoning, same factor, as
+                // SpriteStudioComponent's zero-size fallback in ssplayer_flame.
                 child: InteractiveViewer(
                   transformationController: _view,
                   minScale: 0.25,
                   maxScale: 16,
+                  // Before the first animation is selected there is no canvas to
+                  // size from; stay constrained until there is, since a null
+                  // width/height under unbounded constraints resolves to
+                  // infinity.
+                  constrained: viewBox == null,
                   boundaryMargin: const EdgeInsets.all(double.infinity),
-                  child: SpriteStudioView(player: _player),
+                  child: SpriteStudioView(
+                    player: _player,
+                    width: viewBox?.width,
+                    height: viewBox?.height,
+                  ),
                 ),
               ),
             ),

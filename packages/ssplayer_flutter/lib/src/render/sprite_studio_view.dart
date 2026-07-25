@@ -13,6 +13,30 @@ import '../player.dart';
 /// Sizing honours [width]/[height] (or the incoming constraints). BoxFit /
 /// alignment of the animation's design bounds into the box is not currently
 /// supported.
+///
+/// ## The box is the frame, on the GPU backend
+///
+/// This box is what [SpriteStudioPlayer.paint] receives as its `dst`, and the
+/// two backends treat it differently:
+///
+///  * **Canvas** draws in unbounded player-local space. Art that reaches past
+///    the box still lands on the canvas (and on whatever is drawn around it,
+///    unless an ancestor clips).
+///  * **flutter_gpu** renders into an offscreen target exactly the size of the
+///    box, so art outside it is cropped *when the frame is rasterised* — before
+///    any ancestor transform sees it.
+///
+/// That difference is invisible while the box is static and shows up the moment
+/// something transforms this widget. Inside an `InteractiveViewer`, for example,
+/// panning slides the already-cropped image on the GPU backend, so whatever
+/// started outside the box can never be revealed, while the Canvas backend
+/// reveals it.
+///
+/// A SpriteStudio origin can sit anywhere inside the authored canvas, and
+/// [paint] centres that origin in the box — so a box the size of the canvas is
+/// not necessarily big enough. Give the view a box that fits the art, sized from
+/// [SpriteStudioPlayer.canvasSize] (the Flame adapter uses 2x per axis for the
+/// same reason), rather than letting it inherit a viewport-sized one.
 class SpriteStudioView extends LeafRenderObjectWidget {
   const SpriteStudioView({
     super.key,

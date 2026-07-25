@@ -23,6 +23,16 @@ import 'package:ssplayer_flutter/ssplayer_flutter.dart';
 /// [position]; give it a [size] (and, per Flame convention, `anchor:
 /// Anchor.center` if you want [position] to be the centre) to place it in a box.
 ///
+/// That box is also the frame on the flutter_gpu backend, which renders into an
+/// offscreen its size and crops whatever falls outside — so an explicit [size]
+/// wants to fit the art, not just position it. A SpriteStudio origin can sit
+/// anywhere inside the authored canvas and the origin is what gets centred, so
+/// the canvas size alone may not be enough; [render]'s zero-size fallback uses
+/// 2x per axis for exactly that reason, and is a reasonable starting point for a
+/// size you set yourself. The Canvas backend draws unbounded and never shows
+/// this, which is why it is worth getting right rather than discovering on a
+/// backend switch.
+///
 /// ```dart
 /// // In your FlameGame.onLoad — straight from a bundled asset key; sibling
 /// // reference textures resolve from the key's own folder:
