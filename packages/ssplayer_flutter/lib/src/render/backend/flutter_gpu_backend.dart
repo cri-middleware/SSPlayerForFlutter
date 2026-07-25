@@ -293,6 +293,37 @@ class FlutterGpuBackend implements RenderBackend {
     return _shapeMaskPipeline = p;
   }
 
+  /// Starts one draw on [pass] with [pipeline]. **Every** draw must go through
+  /// here, and the [gpu.RenderPass.clearBindings] is not a tidy-up — it is what
+  /// makes switching pipelines mid-pass correct.
+  ///
+  /// A `RenderPass` accumulates its uniform/texture bindings and keeps them
+  /// across `draw()` calls: flutter_gpu keys each one by *(shader, uniform name)*
+  /// (`RenderPass._bindTexture` / `_bindAsUniform`), so a binding stays live
+  /// until something replaces that exact key. Five pipelines share this backend's
+  /// single pass (sprite / PartColor / ss-shader / ShapeMask / colour-matrix) and
+  /// their shaders are *different objects*, so re-binding by name inside the next
+  /// draw does NOT replace the previous pipeline's entries — it adds to them. The
+  /// leftovers are then applied alongside the current draw's, and on
+  /// macOS/Metal that silently mis-renders: the sampler and vertex-buffer state
+  /// the resolved binding set lands on is not the one the bound pipeline
+  /// describes.
+  ///
+  /// Observed on the official SpriteStudio Mask sample (`Walk_Gate.ssab`): a
+  /// plain sprite run drawn *after* a peeled PartColor run rendered as opaque
+  /// black, or not at all — the gates and the platform vanished while the
+  /// PartColor background beside them was pixel-exact. Neither the atlas upload
+  /// nor the baked vertices were wrong (both were dumped and verified); only the
+  /// draw order mattered, and clearing first fixes it exactly.
+  ///
+  /// The cost is one call per draw, and every call site here re-binds its whole
+  /// state (pipeline, uniforms, vertex/index buffers, textures, blend) before
+  /// `draw()`, so nothing legitimately relies on inheritance.
+  static void _beginDraw(gpu.RenderPass pass, gpu.RenderPipeline pipeline) {
+    pass.clearBindings();
+    pass.bindPipeline(pipeline);
+  }
+
   /// Longest edge, in pixels, of the mask coverage texture (§3-2) — a quality
   /// knob; the Canvas backend and the flagship cap at the same 1024.
   static const double _kMaxCoverageDim = 1024.0;
@@ -606,7 +637,7 @@ class FlutterGpuBackend implements RenderBackend {
 
     try {
       final cov = coverage ?? dummyCov;
-      pass.bindPipeline(pipeline);
+      _beginDraw(pass, pipeline);
       pass.bindUniform(
           pipeline.vertexShader.getUniformSlot('FrameInfo'), _mvpView!);
       pass.setColorBlendEquation(blend);
@@ -697,7 +728,7 @@ class FlutterGpuBackend implements RenderBackend {
 
     try {
       final pass = _pass!;
-      pass.bindPipeline(pipeline);
+      _beginDraw(pass, pipeline);
       pass.bindUniform(
           pipeline.vertexShader.getUniformSlot('FrameInfo'), _mvpView!);
       pass.bindUniform(pipeline.fragmentShader.getUniformSlot('ShaderInfo'),
@@ -758,10 +789,11 @@ class FlutterGpuBackend implements RenderBackend {
     final pass = _pass!;
     final pipeline = _spritePipeline!;
     try {
-      // Pipeline + FrameInfo + blend are set per draw (two pipelines share the
-      // pass, and blend state persists — an additive effect draw must not leak
-      // into the next batch).
-      pass.bindPipeline(pipeline);
+      // Pipeline + FrameInfo + blend are set per draw (several pipelines share
+      // the pass — see [_beginDraw] for why the bindings must be cleared first —
+      // and blend state persists, so an additive effect draw must not leak into
+      // the next batch).
+      _beginDraw(pass, pipeline);
       pass.bindUniform(
           pipeline.vertexShader.getUniformSlot('FrameInfo'), _mvpView!);
       pass.setColorBlendEquation(blend);
@@ -1027,7 +1059,7 @@ class FlutterGpuBackend implements RenderBackend {
 
     try {
       final cov = coverage ?? dummyCov;
-      pass.bindPipeline(pipeline);
+      _beginDraw(pass, pipeline);
       pass.bindUniform(
           pipeline.vertexShader.getUniformSlot('FrameInfo'), _mvpView!);
       pass.setColorBlendEquation(blend);
@@ -1147,7 +1179,7 @@ class FlutterGpuBackend implements RenderBackend {
         ubo[9] = mask.uvOffset[1];
       }
 
-      pass.bindPipeline(pipeline);
+      _beginDraw(pass, pipeline);
       pass.bindUniform(
           pipeline.vertexShader.getUniformSlot('FrameInfo'), _mvpView!);
       pass.bindUniform(pipeline.fragmentShader.getUniformSlot('MaskInfo'),
@@ -1325,7 +1357,7 @@ class FlutterGpuBackend implements RenderBackend {
             .createDeviceBufferWithCopy(ByteData.sublistView(verts));
         final ib = gpu.gpuContext
             .createDeviceBufferWithCopy(ByteData.sublistView(indices));
-        pass.bindPipeline(pipeline);
+        _beginDraw(pass, pipeline);
         pass.bindUniform(mvpSlot, covMvpView);
         pass.bindUniform(bitSlot,
             _hostBuffer!.emplace(ByteData.sublistView(_bitColor(writer.bit, threshold))));
@@ -1467,7 +1499,7 @@ class FlutterGpuBackend implements RenderBackend {
       subCmd.submit();
       _frameCoverages.add(sub); // keep it alive until the frame is submitted
       final pipeline = _ensureColorMatrixPipeline()!;
-      _pass!.bindPipeline(pipeline);
+      _beginDraw(_pass!, pipeline);
       _pass!.bindUniform(pipeline.fragmentShader.getUniformSlot('TintInfo'),
           _hostBuffer!.emplace(ByteData.sublistView(_tintRows(layer.matrix))));
       // The tinted subtree composites over the parent exactly as the Canvas
