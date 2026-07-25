@@ -55,19 +55,17 @@ through the Canvas backend.
 
 ## Playback Feature Constraints
 
-These come from the shared `libssruntime` and therefore apply on every platform and backend.
+These come from the shared `libssruntime` and therefore apply on every platform and backend — and
+to every official player, so the full explanations and the rest of the shared constraints
+(embedded mode, unvalidated `.ssab` input, and so on) live in the portal:
+**[Shared Limitations](https://cri-middleware.github.io/SpriteStudio-Docs/sdk/limitations/)**.
 
 !!! warning
-    - **`independent = true` parts (Instance / Effect) do not reverse or seek correctly.** An
-      `independent = true` child runs on its own real-time clock, detached from the parent timeline.
-      Parent **reverse playback** and **seeking** break it; only **forward** playback (including
-      forward frame-skips) is correct.
-    - **Seeking does not fire the events it skips over.** Jumping the playhead directly does **not**
-      emit the `UserData` / `Signal` / `Audio` events on the frames passed over — only the destination
-      frame's events fire. To receive every intermediate event, advance step by step instead of jumping.
-    - **No reverse audio.** Sounds fire only while the animation advances forward in time. When the
-      effective direction is backward (reverse, ping-pong return, or negative speed), audio events are
-      skipped.
-    - **Animation blending is same-`.ssab` only.** Cross-`.ssab` blending is not supported, and every
-      blended animation must assign the **same cell to the same part**; mismatched cells cause size /
-      pivot mismatches that break the pose.
+    - **`independent = true` parts (Instance / Effect) do not reverse or seek correctly.** Only
+      forward playback (including forward frame-skips) is correct.
+    - **Seeking does not fire the events it skips over.** Only the destination frame's
+      `UserData` / `Signal` / `Audio` events fire.
+    - **No reverse audio.** Sounds are skipped whenever the effective direction is backward
+      (reverse, ping-pong return, or negative speed).
+    - **Animation blending is same-`.ssab` only**, and every blended animation must assign the
+      same cell to the same part.
