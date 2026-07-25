@@ -30,11 +30,17 @@ class TextureLoadReport {
 class SsTextureLoader {
   /// Decodes and registers every cellmap texture. Cellmaps that are neither
   /// embedded nor resolvable as an asset are collected in the returned report.
+  /// [claimed] deduplicates across *concurrent* sibling calls that share one
+  /// registry (a root pack and its instance children, §8, routinely name the
+  /// same atlas). Every call claims its hashes synchronously before the first
+  /// await, so a hash decodes exactly once no matter how the loads interleave;
+  /// pass the same set to each. Omit it for a standalone load.
   static Future<TextureLoadReport> load(
     TextureRegistry registry,
     Uint8List ssabBytes, {
     AssetBundle? bundle,
     String? baseAssetDir,
+    Set<int>? claimed,
   }) async {
     final anime = ssab.SsAnimeBinary(ssabBytes);
     final cellmaps = anime.cellmaps ?? const <ssab.CellMap>[];
@@ -46,6 +52,14 @@ class SsTextureLoader {
     final unresolved = <String>[];
 
     await Future.wait(cellmaps.map((cm) async {
+      // Already brought in by a sibling pack (§8 instance children share their
+      // parent's registry, and a shared atlas is the normal case). Skipping is
+      // both the cheaper path and the safe one — decoding again would hand
+      // `register` a second image for the same hash, disposing the first while
+      // the pack that registered it is still live. The claim is synchronous, so
+      // it also holds against a sibling load that has not registered yet.
+      if (registry.contains(cm.nameHash)) return;
+      if (claimed != null && !claimed.add(cm.nameHash)) return;
       // Sampling is a cellmap property (design §7): honour its declared filter +
       // wrap so drawVertices doesn't fall back to nearest-neighbour (jaggy).
       final filterQuality = _filterQualityFor(cm);
@@ -99,10 +113,18 @@ class SsTextureLoader {
       load(registry, ssabBytes);
 
   /// Decodes an encoded image (PNG/etc.) to a [ui.Image] via dart:ui.
+  ///
+  /// The codec is disposed once the frame is out: it retains the encoded bytes
+  /// and any decode scratch, none of which is needed for a single-frame atlas.
+  /// The returned [ui.Image] outlives it and is the caller's to release.
   static Future<ui.Image> decodeImage(Uint8List bytes) async {
     final codec = await ui.instantiateImageCodec(bytes);
-    final frame = await codec.getNextFrame();
-    return frame.image;
+    try {
+      final frame = await codec.getNextFrame();
+      return frame.image;
+    } finally {
+      codec.dispose();
+    }
   }
 
   static Uint8List _asBytes(List<int> data) =>

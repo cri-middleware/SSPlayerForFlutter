@@ -277,9 +277,17 @@ class CanvasBackend implements RenderBackend {
           texWidth: image.width.toDouble(),
           texHeight: image.height.toDouble());
       shader.setImageSampler(0, image);
-      // Disjoint bits + additive blend == a lossless OR.
-      canvas.drawPath(_quadPath(quad),
-          ui.Paint()..blendMode = ui.BlendMode.plus..shader = shader);
+      // Disjoint bits + additive blend == a lossless OR. Binary fill for the
+      // same reason as the shape/mesh writers above: the shader thresholds the
+      // texel alpha, but rasterizer coverage is applied after it, so an
+      // anti-aliased edge would still emit a fraction of the bit and decode as
+      // some other writer's.
+      canvas.drawPath(
+          _quadPath(quad),
+          ui.Paint()
+            ..blendMode = ui.BlendMode.plus
+            ..isAntiAlias = false
+            ..shader = shader);
       wrote = true;
     }
     if (!wrote) {
@@ -760,15 +768,28 @@ class CanvasBackend implements RenderBackend {
     // the pool's distinct-instance rule is satisfied), which also guarantees the
     // inversion passes of a Sub / Invert plan cover exactly the same pixels.
     final path = _quadPath(quad);
+    final antiAlias = _antiAliasFor(passes);
     for (final pass in passes) {
       canvas.drawPath(
           path,
           ui.Paint()
             ..blendMode = pass.mode
             ..colorFilter = pass.filter
+            ..isAntiAlias = antiAlias
             ..shader = shader);
     }
   }
+
+  /// Whether a blend plan's passes may be anti-aliased.
+  ///
+  /// Rasterizer coverage is applied *after* the paint's colour filter, so on a
+  /// partly-covered edge pixel a multi-pass plan's two inversions no longer
+  /// cancel: `difference` against white returns `c + b - 2bc` rather than
+  /// `1 - b`, and the round trip lands on ~0.5 regardless of the source — a dark
+  /// fringe around every anti-aliased Sub / Invert part. Single-pass modes are
+  /// unaffected and keep their smooth edges, which is the overwhelmingly common
+  /// case; only the reconstructed plans pay the hard edge. One bool per part.
+  static bool _antiAliasFor(List<BlendPass> passes) => passes.length == 1;
 
   /// Draws one Normal part carrying an integration shader (`SHDR`) through
   /// that effect's `shaders/ss_*.frag` program.
@@ -819,12 +840,14 @@ class CanvasBackend implements RenderBackend {
     shader.setImageSampler(0, image, filterQuality: ui.FilterQuality.low);
 
     final path = _quadPath(quad); // same geometry every pass — see [_drawPeeledPart]
+    final antiAlias = _antiAliasFor(passes); // see [_antiAliasFor]
     for (final pass in passes) {
       canvas.drawPath(
           path,
           ui.Paint()
             ..blendMode = pass.mode
             ..colorFilter = pass.filter
+            ..isAntiAlias = antiAlias
             ..shader = shader);
     }
   }

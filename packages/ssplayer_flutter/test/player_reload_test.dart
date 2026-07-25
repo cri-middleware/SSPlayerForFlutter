@@ -45,6 +45,67 @@ void main() {
     await player.load(bytes, animationName: anim, loadTextures: false);
     expect(player.frameNo, closeTo(0, 1e-6));
   });
+
+  // The case above never calls play(), so it cannot see the head-out: `play` is
+  // defined to rewind to the start frame, and reload restoring transport by
+  // calling it *after* seeking would throw the playhead away on every save —
+  // precisely what live reload exists to avoid.
+  testWidgets('reload preserves the playhead of a PLAYING player',
+      (tester) async {
+    if (ssabPath == null) {
+      markTestSkipped('Basic.ssab missing — run deploy-examples.sh');
+      return;
+    }
+    final bytes = Uint8List.fromList(File(ssabPath).readAsBytesSync());
+
+    final player = SpriteStudioPlayer(vsync: tester);
+    addTearDown(player.dispose);
+
+    await player.load(bytes, loadTextures: false);
+    final anim = player.getAnimations().first;
+    player.setupAnimation(anim);
+    player.play();
+    player.seek(3); // after play(), which head-outs to the start frame
+    expect(player.isPlaying, isTrue);
+    expect(player.isPaused, isFalse);
+    expect(player.frameNo, closeTo(3, 1e-6));
+
+    await player.reload(bytes, loadTextures: false);
+
+    expect(player.currentAnimation, anim);
+    expect(player.frameNo, closeTo(3, 1e-6), reason: 'reload head-out rewound');
+    expect(player.isPlaying, isTrue);
+    expect(player.isPaused, isFalse);
+
+    // Still ticking — which is the point of the assertions above, but the
+    // binding fails the test on a live Ticker before tearDown gets to dispose.
+    player.pause();
+  });
+
+  // `isPlaying` is "active", which stays true across a pause — so a reload that
+  // keys off it alone force-resumes a preview the user deliberately paused.
+  testWidgets('reload leaves a PAUSED player paused', (tester) async {
+    if (ssabPath == null) {
+      markTestSkipped('Basic.ssab missing — run deploy-examples.sh');
+      return;
+    }
+    final bytes = Uint8List.fromList(File(ssabPath).readAsBytesSync());
+
+    final player = SpriteStudioPlayer(vsync: tester);
+    addTearDown(player.dispose);
+
+    await player.load(bytes, loadTextures: false);
+    player.setupAnimation(player.getAnimations().first);
+    player.play();
+    player.seek(3);
+    player.pause();
+    expect(player.isPaused, isTrue);
+
+    await player.reload(bytes, loadTextures: false);
+
+    expect(player.isPaused, isTrue, reason: 'a paused preview was resumed');
+    expect(player.frameNo, closeTo(3, 1e-6));
+  });
 }
 
 String? _firstExisting(List<String> paths) {

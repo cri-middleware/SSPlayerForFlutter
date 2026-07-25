@@ -267,12 +267,16 @@ class SpriteStudioPlayer extends ChangeNotifier {
       // texture keys are cellmap name hashes, so a shared atlas resolves once
       // and a child-only cellmap simply adds to it. Without this pass an
       // instance child draws untextured.
+      // These run concurrently into the one registry, so they share a claim set
+      // — otherwise every pack naming the same atlas decodes its own copy of it
+      // and all but the last are thrown away.
+      final claimed = <int>{};
       final reports = await Future.wait(<Future<TextureLoadReport>>[
         SsTextureLoader.load(internal.textures, ssab,
-            bundle: bundle, baseAssetDir: baseAssetDir),
+            bundle: bundle, baseAssetDir: baseAssetDir, claimed: claimed),
         for (final child in packs.packs.values)
           SsTextureLoader.load(internal.textures, child,
-              bundle: bundle, baseAssetDir: baseAssetDir),
+              bundle: bundle, baseAssetDir: baseAssetDir, claimed: claimed),
       ]);
       // Guard against a concurrent reload/dispose while awaiting.
       if (_disposed || !identical(_internal, internal)) return;
@@ -338,6 +342,9 @@ class SpriteStudioPlayer extends ChangeNotifier {
     Map<String, Uint8List>? instancePacks,
   }) async {
     final wasPlaying = isPlaying;
+    // [isPlaying] is "active", which stays true across a pause — a paused
+    // preview must come back paused, not force-resumed.
+    final wasPaused = isPaused;
     final frame = frameNo;
     final anim = _currentAnimation;
 
@@ -359,8 +366,14 @@ class SpriteStudioPlayer extends ChangeNotifier {
         ? anim
         : (names.isEmpty ? null : names.first);
     if (target != null) setupAnimation(target);
-    seek(frame);
+    // Transport first, playhead second. [play] is a head-out that rewinds to the
+    // start frame, so seeking before it would simply be undone — the whole point
+    // of [reload] is that the playhead survives. The head-out itself is right
+    // here: every slot belongs to the freshly loaded resource and has no prior
+    // state to preserve, so it is [play] (not [resume]) that re-arms them.
     if (wasPlaying) play();
+    seek(frame);
+    if (wasPaused) pause();
   }
 
   /// Switches the current animation (keeps the loaded resource).
@@ -481,8 +494,19 @@ class SpriteStudioPlayer extends ChangeNotifier {
         ? Duration.zero
         : elapsed - _lastElapsed;
     _lastElapsed = elapsed;
-    advance(delta);
+    // Cap the catch-up. A Ticker muted by `TickerMode` — which every pushed
+    // route does to the page beneath it — stops delivering ticks but keeps
+    // accumulating `elapsed`, so the first tick after the page returns carries
+    // the entire off-screen span. Advancing the Brain by that in one step would
+    // enumerate every frame it crossed, firing a whole animation's worth of
+    // events at once and teleporting the playhead. One comparison per frame.
+    advance(delta > _maxTickDelta ? _maxTickDelta : delta);
   }
+
+  /// Largest delta [_onTick] will hand to [advance] in one step. Comfortably
+  /// above real jank (so a genuinely slow frame still advances truthfully) and
+  /// far below the multi-second spans a muted Ticker produces.
+  static const Duration _maxTickDelta = Duration(milliseconds: 100);
 
   /// Advances playback by [delta], dispatches this frame's events / loop /
   /// complete callbacks, then notifies listeners so Layer-4 adapters repaint.

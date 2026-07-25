@@ -39,6 +39,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
     this._partNames,
     this._effects,
     this._backend,
+    this._ownsTextures,
   ) {
     // Backstop finalizers: if the caller forgets dispose(), the Brain-side
     // Context/Resource are still reclaimed on GC. The Arc refcount inside the
@@ -55,6 +56,12 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   /// part of [RenderHost].
   @override
   final TextureRegistry textures;
+
+  /// Whether [dispose] should release [textures]. True only when [load] created
+  /// the registry itself; a caller-supplied one stays the caller's (it may well
+  /// outlive this player or be shared between several), and an instance child
+  /// draws from its parent's and must never release it.
+  final bool _ownsTextures;
 
   /// Static per-part mask flags (§1-2), read once from the `.ssab` `PartData` at
   /// load — they never change per frame. Empty when the pack has no parts, which
@@ -212,6 +219,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
         partNames,
         EffectSlots(resource, effectParts),
         renderBackend,
+        textures == null, // we built `registry`, so we release it
       );
     } catch (_) {
       ssRuntime.destroyContext(context);
@@ -1066,6 +1074,10 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
     // their own Context/Resource and are torn down recursively from here.
     _effects.dispose();
     _instances.dispose();
+    // Decoded atlases are native bitmap memory the GC cannot see, so a dropped
+    // registry leaks a full texture set per load. Children share ours and have
+    // already run their own dispose above with `_ownsTextures == false`.
+    if (_ownsTextures) textures.dispose();
     ssRuntime.unregisterFromGc(this);
     ssRuntime.destroyContext(_context);
     ssRuntime.destroyResource(_resource);

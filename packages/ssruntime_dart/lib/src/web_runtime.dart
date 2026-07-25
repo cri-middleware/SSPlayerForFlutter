@@ -168,8 +168,11 @@ extension type _JsCtx(JSObject _) implements JSObject {
   external int get_shape_vertex_counts_len();
   external int get_passed_event_count();
   external int get_passed_event_index(int index);
-  external JSObject get_active_effect_event(int slotIndex);
-  external JSObject get_active_event_instance(int slotIndex);
+  // Both return the event **owned** (a plain Rust value → a fresh wasm-heap
+  // allocation behind a JS wrapper), while the `step` that consumes it takes it
+  // by reference. See [_JsOwned]: the caller must free it.
+  external _JsOwned get_active_effect_event(int slotIndex);
+  external _JsOwned get_active_event_instance(int slotIndex);
   // Override layer (web/mod.rs §Override Layer). Every setter but
   // `clear_all_part_overrides` returns a Rust `Result`, which wasm-bindgen
   // surfaces as a THROW rather than a false — the callers below translate.
@@ -189,6 +192,17 @@ extension type _JsCtx(JSObject _) implements JSObject {
 }
 
 extension type _JsRes(JSObject _) implements JSObject {
+  external void free();
+}
+
+/// A wasm-bindgen wrapper the Rust side handed over **owned**, so its wasm-heap
+/// allocation is the Dart caller's to release.
+///
+/// Only the JS FinalizationRegistry would otherwise reclaim it, and JS GC does
+/// not see wasm-heap pressure — at 60 fps × every effect and instance slot that
+/// is thousands of live structs per second, which is also exactly the
+/// `memory.grow` churn that detaches the typed-array views above.
+extension type _JsOwned(JSObject _) implements JSObject {
   external void free();
 }
 
@@ -569,9 +583,16 @@ class _WebRuntime implements SsRuntime {
     required int vertStride,
   }) {
     final s = (slot as _WebEffectSlot).js;
+    // `step` borrows the event; the allocation is ours to release (see
+    // [_JsOwned]). The draw plan below lives on the slot, not the event.
     final ev = _ctx(context).get_active_effect_event(slotIndex);
-    final visible =
-        s.step(ev, parentFrame, deltaSeconds, fps, parentLooped, yFlip, vertStride);
+    final bool visible;
+    try {
+      visible = s.step(
+          ev, parentFrame, deltaSeconds, fps, parentLooped, yFlip, vertStride);
+    } finally {
+      ev.free();
+    }
     final len = visible ? s.get_draw_plan_len() : 0;
     return SsEffectStep(
       visible: visible,
@@ -610,9 +631,15 @@ class _WebRuntime implements SsRuntime {
     required bool parentLooped,
   }) {
     final s = (slot as _WebInstanceSlot).js;
+    // Owned event, borrowed by `step` — see [stepEffectSlot].
     final ev = _ctx(parentContext).get_active_event_instance(slotIndex);
-    final visible = s.step(
-        ev, _ctx(childContext), parentFrame, deltaSeconds, parentLooped);
+    final bool visible;
+    try {
+      visible = s.step(
+          ev, _ctx(childContext), parentFrame, deltaSeconds, parentLooped);
+    } finally {
+      ev.free();
+    }
     return SsInstanceStep(
       visible: visible,
       transitioned: s.transitioned(),
