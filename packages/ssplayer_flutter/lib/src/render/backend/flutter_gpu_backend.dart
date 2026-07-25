@@ -14,6 +14,7 @@ import '../part_color.dart';
 import '../part_shader.dart';
 import 'render_backend.dart';
 import 'render_host.dart';
+import 'target_ring.dart';
 
 RenderBackend createFlutterGpuBackend() => FlutterGpuBackend();
 
@@ -323,6 +324,12 @@ class FlutterGpuBackend implements RenderBackend {
   /// Reused uniform bump allocator (aligned per platform). Reset each frame.
   gpu.HostBuffer? _hostBuffer;
 
+  ui.VoidCallback? _onResourcesReady;
+
+  @override
+  set onResourcesReady(ui.VoidCallback? callback) =>
+      _onResourcesReady = callback;
+
   // Per-frame state (valid between beginFrame and finish; _active gates use).
   bool _active = false;
   ui.Canvas? _canvas;
@@ -331,6 +338,19 @@ class FlutterGpuBackend implements RenderBackend {
   gpu.Texture? _target;
   gpu.CommandBuffer? _cmd;
   gpu.RenderPass? _pass;
+
+  /// Recycled offscreen render targets (see [TargetRing]).
+  ///
+  /// The backend used to allocate a fresh device-resolution target every frame
+  /// — at DPR 3 a 640x480 box is a ~44 MB texture, 60 times a second — and
+  /// `gpu.Texture` has no explicit destroy, so every one of them left its GPU
+  /// allocation waiting on the GC. Recycling is safe content-wise because the
+  /// colour attachment's default `LoadAction.clear` zeroes the target at the
+  /// start of every pass, and safe timing-wise at depth 3 (see [TargetRing]).
+  late final TargetRing<gpu.Texture> _targets = TargetRing<gpu.Texture>(
+    3,
+    (w, h) => gpu.gpuContext.createTexture(gpu.StorageMode.devicePrivate, w, h),
+  );
 
   /// Device pixels per logical pixel for the offscreen target, so it is
   /// rasterised at display resolution instead of being a logical-pixel bitmap
@@ -373,11 +393,9 @@ class FlutterGpuBackend implements RenderBackend {
     if (_ensureSpritePipeline() == null) return;
 
     try {
-      // Fresh render target every frame: the composited ui.Image aliases it until
-      // the layer rasterises after paint returns, so it must not be reused before
-      // then (pooling with double-buffering is a later optimisation).
-      _target = gpu.gpuContext
-          .createTexture(gpu.StorageMode.devicePrivate, w, h);
+      // Recycled, not freshly allocated — a size change (resize, DPR change, a
+      // different `dst`) transparently starts a new ring.
+      _target = _targets.acquire(w, h);
       _cmd = gpu.gpuContext.createCommandBuffer();
       // Transparent clear (ColorAttachment defaults: LoadAction.clear, zero).
       _pass = _cmd!.createRenderPass(
@@ -788,6 +806,7 @@ class FlutterGpuBackend implements RenderBackend {
   }
 
   Future<void> _upload(int hash, ui.Image image) async {
+    var ready = false;
     try {
       // rawRgba is premultiplied — matches the sprite.frag / bake convention.
       final bytes = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
@@ -798,10 +817,15 @@ class FlutterGpuBackend implements RenderBackend {
           gpu.StorageMode.hostVisible, image.width, image.height);
       tex.overwrite(bytes); // throws on failure (caught below)
       _gpuTextures[hash] = tex;
+      ready = true;
     } catch (_) {
       // Leave it absent; the part keeps skipping (or the Canvas backend is used).
     } finally {
       _uploading.remove(hash);
+      // Ask for another paint: the frame that triggered this upload drew without
+      // the texture, and a paused / seeked / single-shot player has no next frame
+      // of its own to correct it. See [onResourcesReady].
+      if (ready) _onResourcesReady?.call();
     }
   }
 
@@ -837,6 +861,9 @@ class FlutterGpuBackend implements RenderBackend {
           gpu.gpuContext.createTexture(gpu.StorageMode.hostVisible, w, h);
       tex.overwrite(bytes!);
       _whiteTexture = tex;
+      // Same as the atlas path: the frame that needed this drew without it, and
+      // a static player has no next frame of its own. See [onResourcesReady].
+      _onResourcesReady?.call();
     } catch (_) {
       _whiteUploading = false; // retry on the next frame
     }
@@ -1533,6 +1560,7 @@ class FlutterGpuBackend implements RenderBackend {
     _viewStack.clear();
     _hostBuffer = null;
     _target = null;
+    _targets.clear();
     _cmd = null;
     _pass = null;
     _canvas = null;

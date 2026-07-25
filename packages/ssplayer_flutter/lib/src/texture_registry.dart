@@ -28,18 +28,33 @@ class TextureRegistry {
   /// honours it — otherwise the shader inherits `Paint.filterQuality`, which
   /// defaults to [ui.FilterQuality.none] and makes every scaled/rotated sprite
   /// jaggy. Defaults match the SpriteStudio project defaults (bilinear + clamp).
+  ///
+  /// Replacing an existing hash disposes what it replaces, so the caller must
+  /// not re-register a texture that an already-recorded (but not yet rasterised)
+  /// picture still draws with. Load-time registration is always safe; a live
+  /// swap must go through a fresh registry, which is what [reload] does.
   void register(
     int textureHash,
     ui.Image image, {
     ui.FilterQuality filterQuality = ui.FilterQuality.low,
     ui.TileMode tileMode = ui.TileMode.clamp,
   }) {
+    final previous = _images[textureHash];
     _images[textureHash] = image;
     _sampling[textureHash] = _Sampling(filterQuality, tileMode);
-    _shaders.remove(textureHash); // invalidate any stale cached shader
+    // Invalidate the stale cached shader — and release it, along with the image
+    // it sampled. Nothing else holds either, so dropping the reference alone
+    // would leak the decoded bitmap until (if ever) the GC got to it.
+    _shaders.remove(textureHash)?.dispose();
+    if (previous != null && !identical(previous, image)) previous.dispose();
   }
 
   ui.Image? imageFor(int textureHash) => _images[textureHash];
+
+  /// Whether a texture is already registered for [textureHash]. Lets a loader
+  /// skip re-decoding an atlas a sibling pack has already brought in (§8: a root
+  /// and its instance children routinely share one cellmap).
+  bool contains(int textureHash) => _images.containsKey(textureHash);
 
   /// The identity-matrix [ui.ImageShader] for a texture hash (cached), or null
   /// when no image is registered. `drawVertices` samples it in image-pixel
@@ -60,10 +75,33 @@ class TextureRegistry {
     );
   }
 
+  /// Drops every entry **without** releasing it — for a registry whose images
+  /// are owned elsewhere. Prefer [dispose] unless the caller is handing the
+  /// textures on to something else.
   void clear() {
     _images.clear();
     _sampling.clear();
     _shaders.clear();
+  }
+
+  /// Releases every decoded image and cached shader, then empties the maps.
+  ///
+  /// A [ui.Image] holds GPU/native bitmap memory that Dart's GC does not account
+  /// for, so a registry that is merely dropped leaks a full texture set — over a
+  /// dev live-reload session (one registry per reload) that grows without bound.
+  /// The owning player calls this from its own `dispose`; a registry supplied by
+  /// the caller is the caller's to release, and instance children share their
+  /// parent's and must never release it.
+  ///
+  /// Idempotent — safe to call twice, and safe on an already-cleared registry.
+  void dispose() {
+    for (final shader in _shaders.values) {
+      shader.dispose();
+    }
+    for (final image in _images.values) {
+      image.dispose();
+    }
+    clear();
   }
 
   static final Float64List _identity4x4 = Float64List.fromList(

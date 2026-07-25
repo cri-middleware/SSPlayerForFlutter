@@ -458,6 +458,17 @@ class GeometryBuilder {
   /// Two triangles per quad: `lt,rt,lb,rb` → `{lt,rt,lb, rt,rb,lb}`.
   static const List<int> _quad = [0, 1, 2, 1, 3, 2];
 
+  /// Most quads one bake can index: indices are 16-bit (`ui.Vertices` and the
+  /// GPU index buffer both), and a quad is 4 vertices.
+  ///
+  /// Past this the `vBase + q` writes wrap silently in the [Uint16List] and the
+  /// batch rasterises as garbage triangles smeared across the atlas, so the
+  /// bake declines instead — the same contract the mesh / shape / effect bakes
+  /// already enforce with their `vTotal > 0xFFFF` guards. Unreachable for real
+  /// content (it takes a run of 16384 consecutive plain parts in one batch);
+  /// the check is one comparison per bake against a count already in hand.
+  static const int _maxQuads = 0xFFFF ~/ 4;
+
   // Grow-only scratch for the per-batch vertex arrays (see the class doc's
   // reuse/aliasing contract). Separate cells because a single bake needs
   // positions, UVs, colours and indices live at once; sized to the largest
@@ -488,7 +499,7 @@ class GeometryBuilder {
   /// batch.
   ui.Vertices? buildNormalParts(List<int> parts, DrawFrame frame) {
     final count = parts.length;
-    if (count == 0) return null;
+    if (count == 0 || count > _maxQuads) return null;
 
     final world = frame.world;
     final local = frame.local;
@@ -632,7 +643,7 @@ class GeometryBuilder {
   InterleavedGeometry? buildNormalInterleaved(List<int> parts, DrawFrame frame,
       {required double texWidth, required double texHeight}) {
     final count = parts.length;
-    if (count == 0) return null;
+    if (count == 0 || count > _maxQuads) return null;
 
     final world = frame.world;
     final local = frame.local;
@@ -771,7 +782,7 @@ class GeometryBuilder {
       List<PartColor> pcs, List<Float32List?> masks, DrawFrame frame,
       {required double texWidth, required double texHeight}) {
     final count = parts.length;
-    if (count == 0) return null;
+    if (count == 0 || count > _maxQuads) return null;
 
     final verts = _inter(count * 4 * partColorStride);
     final indices = _idx(count * 6);
@@ -1531,7 +1542,7 @@ class GeometryBuilder {
       vTotal += n;
       iTotal += (n - 2) * 3; // center-first fan
     }
-    if (vTotal == 0 || iTotal == 0) return null;
+    if (vTotal == 0 || iTotal == 0 || vTotal > 0xFFFF) return null;
 
     final positions = _pos(vTotal * 2);
     final colors = _cols(vTotal);

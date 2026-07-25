@@ -23,6 +23,16 @@ import 'package:ssplayer_flutter/ssplayer_flutter.dart';
 /// [position]; give it a [size] (and, per Flame convention, `anchor:
 /// Anchor.center` if you want [position] to be the centre) to place it in a box.
 ///
+/// That box is also the frame on the flutter_gpu backend, which renders into an
+/// offscreen its size and crops whatever falls outside — so an explicit [size]
+/// wants to fit the art, not just position it. A SpriteStudio origin can sit
+/// anywhere inside the authored canvas and the origin is what gets centred, so
+/// the canvas size alone may not be enough; [render]'s zero-size fallback uses
+/// 2x per axis for exactly that reason, and is a reasonable starting point for a
+/// size you set yourself. The Canvas backend draws unbounded and never shows
+/// this, which is why it is worth getting right rather than discovering on a
+/// backend switch.
+///
 /// ```dart
 /// // In your FlameGame.onLoad — straight from a bundled asset key; sibling
 /// // reference textures resolve from the key's own folder:
@@ -201,6 +211,24 @@ class SpriteStudioComponent extends PositionComponent {
   /// Note they need an animation selected first, which [onLoad] does.
   SpriteStudioPlayer? get player => _player;
 
+  /// Why [onLoad] failed, or null if it did not.
+  ///
+  /// A load error is captured rather than thrown (see [onLoad]), so this is the
+  /// only place it surfaces: [player] stays null and the component renders
+  /// nothing. Check it after `add`ing if a missing or malformed `.ssab` is a
+  /// case your game needs to react to.
+  Object? get loadError => _loadError;
+  Object? _loadError;
+
+  /// Builds the player and loads the `.ssab`.
+  ///
+  /// **Never completes with an error.** Flame chains `onLoad` as
+  /// `onLoadFuture.then((_) => _finishLoading())`, so a rejected future leaves
+  /// `isLoaded` false forever; every subsequent lifecycle event on this parent
+  /// then returns `block`, and the parent's whole add/remove queue stalls for
+  /// the life of the app. A bad asset key must not be able to do that, so the
+  /// failure is caught, the half-built player released, and the error parked in
+  /// [loadError].
   @override
   Future<void> onLoad() async {
     final player = SpriteStudioPlayer() // no vsync → Flame drives the clock
@@ -208,45 +236,50 @@ class SpriteStudioComponent extends PositionComponent {
       ..onComplete = onComplete
       ..onLoop = onLoop;
 
-    // Route by ctor: in-memory bytes keep the explicit baseAssetDir; an asset
-    // key delegates to loadAsset, which derives the texture/pack folder from it.
-    if (_bytes != null) {
-      await player.load(
-        _bytes,
-        animationName: animation,
-        baseAssetDir: baseAssetDir,
-        bundle: bundle,
-      );
-    } else {
-      await player.loadAsset(
-        _assetPath!,
-        animationName: animation,
-        bundle: bundle,
-      );
-    }
+    try {
+      // Route by ctor: in-memory bytes keep the explicit baseAssetDir; an asset
+      // key delegates to loadAsset, which derives the texture/pack folder from it.
+      if (_bytes != null) {
+        await player.load(
+          _bytes,
+          animationName: animation,
+          baseAssetDir: baseAssetDir,
+          bundle: bundle,
+        );
+      } else {
+        await player.loadAsset(
+          _assetPath!,
+          animationName: animation,
+          bundle: bundle,
+        );
+      }
 
-    // The component may have been removed while we awaited the fetch/decode.
-    if (isRemoving || isRemoved) {
+      // The component may have been removed while we awaited the fetch/decode.
+      if (isRemoving || isRemoved) {
+        player.dispose();
+        return;
+      }
+
+      // load() only selects an animation when one is named; default to the first
+      // so something plays out of the box (mirrors the Widget example).
+      if (animation == null) {
+        final names = player.getAnimations();
+        if (names.isNotEmpty) player.setupAnimation(names.first);
+      }
+      // Apply transport AFTER the animation is set up: `setupAnimation` rewinds
+      // and resets the Brain's loop/speed, so setting these earlier (or via
+      // `load`) would be clobbered and `loop` would silently fall back to
+      // infinite. subFrame is Body-side (safe either way; set here for symmetry).
+      player
+        ..loop = loop
+        ..speed = speed
+        ..subFrame = subFrame;
+      if (autoStart) player.play();
+      _player = player;
+    } catch (e) {
+      _loadError = e;
       player.dispose();
-      return;
     }
-
-    // load() only selects an animation when one is named; default to the first
-    // so something plays out of the box (mirrors the Widget example).
-    if (animation == null) {
-      final names = player.getAnimations();
-      if (names.isNotEmpty) player.setupAnimation(names.first);
-    }
-    // Apply transport AFTER the animation is set up: `setupAnimation` rewinds
-    // and resets the Brain's loop/speed, so setting these earlier (or via
-    // `load`) would be clobbered and `loop` would silently fall back to
-    // infinite. subFrame is Body-side (safe either way; set here for symmetry).
-    player
-      ..loop = loop
-      ..speed = speed
-      ..subFrame = subFrame;
-    if (autoStart) player.play();
-    _player = player;
   }
 
   @override
@@ -292,6 +325,23 @@ class SpriteStudioComponent extends PositionComponent {
     player.paint(canvas, dst: box, sourceSize: box.size);
   }
 
+  /// Releases the player — the native Brain context and every decoded atlas.
+  ///
+  /// This is the component's only release path, and Flame reaches it only when
+  /// the component is *removed from the tree*. Tearing down a `GameWidget` does
+  /// not do that: `disposeCurrentGame` calls `finalizeRemoval()` and the game's
+  /// `onDispose()`, neither of which walks the children (flame 1.38.0). So a
+  /// game that is simply dropped — a popped route, a rebuilt widget — never runs
+  /// this, and leaks one Brain plus one texture set per teardown.
+  ///
+  /// Override `onDispose` in your game and call `dispose()` on it:
+  ///
+  /// ```dart
+  /// class MyGame extends FlameGame {
+  ///   @override
+  ///   void onDispose() => dispose(); // removeAll(children) → onRemove here
+  /// }
+  /// ```
   @override
   void onRemove() {
     _player?.dispose();

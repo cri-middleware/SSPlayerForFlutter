@@ -39,6 +39,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
     this._partNames,
     this._effects,
     this._backend,
+    this._ownsTextures,
   ) {
     // Backstop finalizers: if the caller forgets dispose(), the Brain-side
     // Context/Resource are still reclaimed on GC. The Arc refcount inside the
@@ -55,6 +56,23 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   /// part of [RenderHost].
   @override
   final TextureRegistry textures;
+
+  /// Called when the backend finishes preparing a resource the last paint drew
+  /// without (a GPU texture upload), so the frame should be painted again.
+  ///
+  /// L3 points this at its `notifyListeners`. Without it a player that is not
+  /// continuously animating — paused, seeked, or drawn once — keeps whatever the
+  /// first, texture-less paint produced, which for a single-atlas animation is a
+  /// blank frame. Fires outside paint (the upload awaits), and only on the
+  /// backend this player owns, so an instance child (which draws through its
+  /// parent's) does not double-notify.
+  ui.VoidCallback? onNeedsRepaint;
+
+  /// Whether [dispose] should release [textures]. True only when [load] created
+  /// the registry itself; a caller-supplied one stays the caller's (it may well
+  /// outlive this player or be shared between several), and an instance child
+  /// draws from its parent's and must never release it.
+  final bool _ownsTextures;
 
   /// Static per-part mask flags (§1-2), read once from the `.ssab` `PartData` at
   /// load — they never change per frame. Empty when the pack has no parts, which
@@ -212,7 +230,11 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
         partNames,
         EffectSlots(resource, effectParts),
         renderBackend,
+        textures == null, // we built `registry`, so we release it
       );
+      // Route the backend's "a resource I was preparing is ready" signal up to
+      // whoever drives repaints (L3 sets [onNeedsRepaint] to notifyListeners).
+      renderBackend.onResourcesReady = () => player.onNeedsRepaint?.call();
     } catch (_) {
       ssRuntime.destroyContext(context);
       ssRuntime.destroyResource(resource);
@@ -794,6 +816,17 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   /// (backend-agnostic control flow); only the pixel operations go to the
   /// backend. Nines / Text are pre-cut seams and not drawn; BoxFit / scale
   /// placement into [dst] is likewise not supported.
+  ///
+  /// **Call this at most once per frame per player.** The hooks below recycle
+  /// resources that stay live until the recorded picture rasterises, and this is
+  /// the only place they run — so painting one player into two adapters (two
+  /// [SpriteStudioView]s, a view plus a Flame component) within a single frame
+  /// makes the second call free and rebind what the first call's already-recorded
+  /// draws still point at: a disposed coverage bitmap, or a pooled shader whose
+  /// uniforms are overwritten before it rasterises. The visible result is the
+  /// wrong mask or tint in the first view, or "Image has been disposed". Give
+  /// each view its own player; they are cheap next to the textures, and a shared
+  /// [TextureRegistry] passed to both `load`s keeps the atlases single-copy.
   void paint(ui.Canvas canvas, {ui.Rect? dst, ui.Size? sourceSize}) {
     _ensureAlive();
     // Per-FRAME, not per-player: both hooks recycle resources that stay live
@@ -1066,6 +1099,10 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
     // their own Context/Resource and are torn down recursively from here.
     _effects.dispose();
     _instances.dispose();
+    // Decoded atlases are native bitmap memory the GC cannot see, so a dropped
+    // registry leaks a full texture set per load. Children share ours and have
+    // already run their own dispose above with `_ownsTextures == false`.
+    if (_ownsTextures) textures.dispose();
     ssRuntime.unregisterFromGc(this);
     ssRuntime.destroyContext(_context);
     ssRuntime.destroyResource(_resource);

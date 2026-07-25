@@ -201,6 +201,14 @@ class ChangeRunner {
     _timer = Timer(debounce, _fire);
   }
 
+  /// Runs [onChange], coalescing anything that arrives while it is in flight.
+  ///
+  /// **Never completes with an error.** `bump` schedules this as a bare `Timer`
+  /// callback, which drops the returned Future — so an escaping exception is an
+  /// unhandled async error and takes the whole watcher process down with it,
+  /// orphaning the `flutter run` child and leaking the temp dir. A save that
+  /// races the app quitting (the VM Service call throws) is an ordinary event
+  /// here, not a reason to stop watching: report it and wait for the next save.
   Future<void> _fire() async {
     if (_busy) {
       _pending = true;
@@ -212,6 +220,8 @@ class ChangeRunner {
         _pending = false;
         await onChange();
       } while (_pending);
+    } catch (e) {
+      stderr.writeln('[sswatch] reload failed: $e');
     } finally {
       _busy = false;
     }
@@ -311,7 +321,16 @@ Future<void> runSsWatch(List<String> argv) async {
     onChange: () => _reconvertAndPush(service, sync, projectRoot, opts),
   );
   final watcher = DirectoryWatcher(sourceDir);
-  final sub = watcher.events.listen((_) => runner.bump());
+  // onError matters as much as the data callback: package:watcher surfaces a
+  // FileSystemException on the stream when the watched tree is renamed or
+  // deleted, or when the OS watch limit is hit. Unhandled, that error kills the
+  // session; the watch is dead either way, so say so and keep the process up
+  // for the Ctrl-C / app-exit paths below to shut down cleanly.
+  final sub = watcher.events.listen(
+    (_) => runner.bump(),
+    onError: (Object e) =>
+        stderr.writeln('[sswatch] watch error (no longer watching): $e'),
+  );
   // Don't claim to be watching until fs events are actually live, or an edit
   // made right after startup is missed (the watch initializes asynchronously).
   await watcher.ready;

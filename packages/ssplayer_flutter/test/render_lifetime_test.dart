@@ -82,6 +82,9 @@ class _SpyBackend implements RenderBackend {
   int pushTransforms = 0;
 
   @override
+  set onResourcesReady(ui.VoidCallback? callback) {} // nothing async here
+
+  @override
   void beginFrame(ui.Canvas canvas, {ui.Rect? dst, ui.Size? sourceSize}) =>
       beginFrames++;
 

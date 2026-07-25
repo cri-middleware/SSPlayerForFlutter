@@ -252,6 +252,12 @@ class SpriteStudioPlayer extends ChangeNotifier {
       backend: _backend,
     );
     _internal = internal;
+    // The GPU backend uploads atlases asynchronously and draws without them
+    // until they land, so it needs another paint once they do — a player that is
+    // paused or drawn once has no next frame of its own and would stay blank.
+    internal.onNeedsRepaint = () {
+      if (!_disposed && identical(_internal, internal)) notifyListeners();
+    };
     internal.subFrame = _subFrame;
     _currentAnimation = animationName;
     if (animationName != null) {
@@ -267,15 +273,20 @@ class SpriteStudioPlayer extends ChangeNotifier {
       // texture keys are cellmap name hashes, so a shared atlas resolves once
       // and a child-only cellmap simply adds to it. Without this pass an
       // instance child draws untextured.
-      final reports = await Future.wait(<Future<TextureLoadReport>>[
-        SsTextureLoader.load(internal.textures, ssab,
-            bundle: bundle, baseAssetDir: baseAssetDir),
-        for (final child in packs.packs.values)
-          SsTextureLoader.load(internal.textures, child,
-              bundle: bundle, baseAssetDir: baseAssetDir),
-      ]);
-      // Guard against a concurrent reload/dispose while awaiting.
-      if (_disposed || !identical(_internal, internal)) return;
+      // One pack at a time, so each sees what the previous ones registered and a
+      // shared atlas decodes once instead of once per pack. Concurrently, every
+      // pack would find the registry empty; a claim-taken-before-the-decode set
+      // fixes that but then loses a cellmap this pack cannot resolve and the next
+      // one can (embedded in one, referenced in the other) — see
+      // [SsTextureLoader.load]. Cellmaps *within* a pack still decode
+      // concurrently, which is where the parallelism is worth having.
+      final reports = <TextureLoadReport>[];
+      for (final pack in <Uint8List>[ssab, ...packs.packs.values]) {
+        reports.add(await SsTextureLoader.load(internal.textures, pack,
+            bundle: bundle, baseAssetDir: baseAssetDir));
+        // Guard against a concurrent reload/dispose while awaiting.
+        if (_disposed || !identical(_internal, internal)) return;
+      }
       _lastTextureReport = TextureLoadReport(
           <String>[for (final r in reports) ...r.unresolved]);
       notifyListeners();
@@ -338,6 +349,9 @@ class SpriteStudioPlayer extends ChangeNotifier {
     Map<String, Uint8List>? instancePacks,
   }) async {
     final wasPlaying = isPlaying;
+    // [isPlaying] is "active", which stays true across a pause — a paused
+    // preview must come back paused, not force-resumed.
+    final wasPaused = isPaused;
     final frame = frameNo;
     final anim = _currentAnimation;
 
@@ -359,8 +373,14 @@ class SpriteStudioPlayer extends ChangeNotifier {
         ? anim
         : (names.isEmpty ? null : names.first);
     if (target != null) setupAnimation(target);
-    seek(frame);
+    // Transport first, playhead second. [play] is a head-out that rewinds to the
+    // start frame, so seeking before it would simply be undone — the whole point
+    // of [reload] is that the playhead survives. The head-out itself is right
+    // here: every slot belongs to the freshly loaded resource and has no prior
+    // state to preserve, so it is [play] (not [resume]) that re-arms them.
     if (wasPlaying) play();
+    seek(frame);
+    if (wasPaused) pause();
   }
 
   /// Switches the current animation (keeps the loaded resource).
@@ -469,6 +489,11 @@ class SpriteStudioPlayer extends ChangeNotifier {
   bool get isPaused => _internal?.isPausing ?? false;
 
   /// Draws the current frame — delegates to Layer 2's single paint path.
+  ///
+  /// At most once per frame per player: the render backend recycles per-frame
+  /// resources here, so two adapters painting the same player in one frame
+  /// corrupt each other's output. One player per view; share a [TextureRegistry]
+  /// between their `load`s if you want the atlases decoded once.
   void paint(ui.Canvas canvas, {ui.Rect? dst, ui.Size? sourceSize}) {
     _internal?.paint(canvas, dst: dst, sourceSize: sourceSize);
   }
@@ -481,8 +506,19 @@ class SpriteStudioPlayer extends ChangeNotifier {
         ? Duration.zero
         : elapsed - _lastElapsed;
     _lastElapsed = elapsed;
-    advance(delta);
+    // Cap the catch-up. A Ticker muted by `TickerMode` — which every pushed
+    // route does to the page beneath it — stops delivering ticks but keeps
+    // accumulating `elapsed`, so the first tick after the page returns carries
+    // the entire off-screen span. Advancing the Brain by that in one step would
+    // enumerate every frame it crossed, firing a whole animation's worth of
+    // events at once and teleporting the playhead. One comparison per frame.
+    advance(delta > _maxTickDelta ? _maxTickDelta : delta);
   }
+
+  /// Largest delta [_onTick] will hand to [advance] in one step. Comfortably
+  /// above real jank (so a genuinely slow frame still advances truthfully) and
+  /// far below the multi-second spans a muted Ticker produces.
+  static const Duration _maxTickDelta = Duration(milliseconds: 100);
 
   /// Advances playback by [delta], dispatches this frame's events / loop /
   /// complete callbacks, then notifies listeners so Layer-4 adapters repaint.

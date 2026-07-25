@@ -30,6 +30,12 @@ class TextureLoadReport {
 class SsTextureLoader {
   /// Decodes and registers every cellmap texture. Cellmaps that are neither
   /// embedded nor resolvable as an asset are collected in the returned report.
+  ///
+  /// A cellmap already in [registry] is skipped, so several packs sharing one
+  /// registry (a root and its instance children, §8, routinely name the same
+  /// atlas) decode it once. That only holds if the calls are *sequenced* — see
+  /// the caller in `player.dart`; two concurrent calls would both find the
+  /// registry empty.
   static Future<TextureLoadReport> load(
     TextureRegistry registry,
     Uint8List ssabBytes, {
@@ -46,6 +52,19 @@ class SsTextureLoader {
     final unresolved = <String>[];
 
     await Future.wait(cellmaps.map((cm) async {
+      // Already brought in by a pack loaded before this one (§8 instance children
+      // share their parent's registry, and a shared atlas is the normal case).
+      // Skipping is both the cheaper path and the safe one — decoding again would
+      // hand `register` a second image for the same hash, disposing the first
+      // while the pack that registered it is still live.
+      //
+      // Deliberately keyed on "is it registered", not on "has someone claimed
+      // it": a claim taken before the decode has to be released when the decode
+      // fails, and by then a sibling that skipped on the claim is already gone —
+      // so a cellmap this pack cannot resolve but the next one could (embedded
+      // here, referenced there) would be lost entirely. A missing atlas is
+      // silent for a mask writer, which is dropped rather than drawn wrong.
+      if (registry.contains(cm.nameHash)) return;
       // Sampling is a cellmap property (design §7): honour its declared filter +
       // wrap so drawVertices doesn't fall back to nearest-neighbour (jaggy).
       final filterQuality = _filterQualityFor(cm);
@@ -99,10 +118,18 @@ class SsTextureLoader {
       load(registry, ssabBytes);
 
   /// Decodes an encoded image (PNG/etc.) to a [ui.Image] via dart:ui.
+  ///
+  /// The codec is disposed once the frame is out: it retains the encoded bytes
+  /// and any decode scratch, none of which is needed for a single-frame atlas.
+  /// The returned [ui.Image] outlives it and is the caller's to release.
   static Future<ui.Image> decodeImage(Uint8List bytes) async {
     final codec = await ui.instantiateImageCodec(bytes);
-    final frame = await codec.getNextFrame();
-    return frame.image;
+    try {
+      final frame = await codec.getNextFrame();
+      return frame.image;
+    } finally {
+      codec.dispose();
+    }
   }
 
   static Uint8List _asBytes(List<int> data) =>

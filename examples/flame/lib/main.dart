@@ -5,12 +5,21 @@ import 'package:ssplayer_flame/ssplayer_flame.dart';
 
 void main() => runApp(const FlameExampleApp());
 
-class FlameExampleApp extends StatelessWidget {
+class FlameExampleApp extends StatefulWidget {
   const FlameExampleApp({super.key});
 
   @override
+  State<FlameExampleApp> createState() => _FlameExampleAppState();
+}
+
+class _FlameExampleAppState extends State<FlameExampleApp> {
+  // Built once and held, NOT constructed in `build`: a game made there is
+  // replaced on every rebuild (and every hot reload), and the one it replaces
+  // keeps its native Brain and decoded textures alive.
+  late final SpriteStudioGame game = SpriteStudioGame();
+
+  @override
   Widget build(BuildContext context) {
-    final game = SpriteStudioGame();
     return MaterialApp(
       title: 'ssplayer_flame example',
       theme: ThemeData.dark(useMaterial3: true),
@@ -77,4 +86,14 @@ class SpriteStudioGame extends FlameGame {
   /// Toggle play/pause from the Flutter tap handler (the player is null until
   /// the component finishes loading).
   void toggle() => _ringo?.player?.togglePlayPause();
+
+  /// Tearing down a `GameWidget` calls this but does **not** walk the component
+  /// tree, so without `dispose()` the SpriteStudioComponent's `onRemove` never
+  /// runs and its Brain + textures leak. Every game hosting a
+  /// SpriteStudioComponent wants this.
+  @override
+  void onDispose() {
+    dispose(); // removeAll(children) → onRemove on each
+    super.onDispose();
+  }
 }

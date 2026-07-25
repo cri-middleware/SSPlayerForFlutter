@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:audioplayers/audioplayers.dart';
@@ -114,6 +115,42 @@ class _PlayerPageState extends State<PlayerPage>
   // pinch to zoom (also handy for inspecting rendering up close). Reset via the
   // AppBar's center-focus button.
   final TransformationController _view = TransformationController();
+
+  static const double _minScale = 0.25;
+  static const double _maxScale = 16;
+
+  // Latest viewport of the display area, from the LayoutBuilder in [build] — the
+  // "Reset view" button needs it to re-fit outside of layout.
+  Size? _viewport;
+
+  // The render box [_fitView] last fitted, so a new animation re-fits and an
+  // ordinary rebuild does not stomp on the user's pan/zoom.
+  Size? _fittedFor;
+
+  /// Centres [box] in [viewport] at the largest scale that shows all of it.
+  ///
+  /// The animation's box is `canvasSize * 2` and the window is whatever it is, so
+  /// neither "1:1" nor "always shrink" is right on its own — fit is what makes an
+  /// arbitrary pack land fully in view on load. Clamped to the InteractiveViewer's
+  /// own scale bounds, which it would otherwise enforce on the first gesture.
+  void _fitView(Size box, Size viewport) {
+    if (box.isEmpty || viewport.isEmpty) return;
+    final scale = math
+        .min(viewport.width / box.width, viewport.height / box.height)
+        .clamp(_minScale, _maxScale);
+    _view.value = Matrix4.identity()
+      ..translateByDouble((viewport.width - box.width * scale) / 2,
+          (viewport.height - box.height * scale) / 2, 0, 1)
+      ..scaleByDouble(scale, scale, 1, 1);
+  }
+
+  /// The animation's render box for the current animation, or null before one is
+  /// selected. 2x the authored canvas per axis — see the InteractiveViewer in
+  /// [build] for why.
+  Size? get _viewBox {
+    final canvas = _player.canvasSize;
+    return canvas == null ? null : Size(canvas.width * 2, canvas.height * 2);
+  }
 
   @override
   void initState() {
@@ -368,15 +405,25 @@ class _PlayerPageState extends State<PlayerPage>
   @override
   Widget build(BuildContext context) {
     final source = _dropped ? _assetDir : 'bundled assets';
+    final viewBox = _viewBox;
     return Scaffold(
       appBar: AppBar(
         title: const Text('ssplayer_flutter'),
         actions: [
-          // Reset the pan/zoom back to the centered, 1:1 view.
+          // Reset the pan/zoom back to the whole animation, centered — the same
+          // framing a fresh load gets, not 1:1 (which for a big canvas is a
+          // corner of it).
           IconButton(
             icon: const Icon(Icons.center_focus_strong),
             tooltip: 'Reset view',
-            onPressed: () => _view.value = Matrix4.identity(),
+            onPressed: () {
+              final box = viewBox, viewport = _viewport;
+              if (box != null && viewport != null) {
+                _fitView(box, viewport);
+              } else {
+                _view.value = Matrix4.identity();
+              }
+            },
           ),
           // Menus read left→right: sspj (source project) · ssab (pack) · anime.
           // sspj = a bundled source = a deployed project dir (overall / Ringo).
@@ -439,9 +486,9 @@ class _PlayerPageState extends State<PlayerPage>
         },
         child: Column(
           children: [
-            // The display area fills the window and resizes with it. Omitting
-            // width/height lets SpriteStudioView expand to the box constraints;
-            // the animation stays centered (drag/zoom to reframe).
+            // The display area fills the window and resizes with it; the
+            // animation gets its own box inside it (see the InteractiveViewer
+            // below) and stays centered in that box.
             Expanded(
               child: Container(
                 margin: const EdgeInsets.all(8),
@@ -454,13 +501,59 @@ class _PlayerPageState extends State<PlayerPage>
                   ),
                 ),
                 // Drag to reposition, scroll/pinch to zoom (clipped to the box).
-                child: InteractiveViewer(
-                  transformationController: _view,
-                  minScale: 0.25,
-                  maxScale: 16,
-                  boundaryMargin: const EdgeInsets.all(double.infinity),
-                  child: SpriteStudioView(player: _player),
-                ),
+                //
+                // The view gets an explicit box sized from the animation's own
+                // canvas, and `constrained: false` so InteractiveViewer pans
+                // that box around instead of forcing it to the viewport. Both
+                // halves matter for the flutter_gpu backend: it renders into an
+                // offscreen the size of its box and crops everything outside
+                // that box BEFORE any ancestor transform, so a viewport-sized
+                // view (the `constrained: true` default) makes dragging slide an
+                // already-cropped image around — the parts of the animation that
+                // started off-box can never be revealed. The Canvas backend
+                // draws unbounded and does not show it, which is exactly the
+                // kind of backend disagreement worth not shipping in a demo.
+                //
+                // 2x the canvas per axis because the world origin can sit
+                // anywhere inside it (Ringo's is near its feet, not the centre),
+                // so a box centred on the origin needs a full canvas-dimension
+                // of reach to the far side. Same reasoning, same factor, as
+                // SpriteStudioComponent's zero-size fallback in ssplayer_flame.
+                // `constrained: false` also means InteractiveViewer no longer
+                // scales the child to fit, so the initial view is the box at 1:1
+                // anchored top-left — a corner of anything bigger than the
+                // window. [LayoutBuilder] supplies the viewport so [_fitView] can
+                // set that starting transform itself.
+                child: LayoutBuilder(builder: (context, constraints) {
+                  final viewport = constraints.biggest;
+                  _viewport = viewport;
+                  if (viewBox != null && _fittedFor != viewBox) {
+                    _fittedFor = viewBox;
+                    // After this frame: the controller is a ValueNotifier, and
+                    // setting it mid-build would notify listeners during build.
+                    // Deliberately keyed on the box, not the viewport, so a window
+                    // resize leaves the framing the user chose alone.
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      if (mounted) _fitView(viewBox, viewport);
+                    });
+                  }
+                  return InteractiveViewer(
+                    transformationController: _view,
+                    minScale: _minScale,
+                    maxScale: _maxScale,
+                    // Before the first animation is selected there is no canvas to
+                    // size from; stay constrained until there is, since a null
+                    // width/height under unbounded constraints resolves to
+                    // infinity.
+                    constrained: viewBox == null,
+                    boundaryMargin: const EdgeInsets.all(double.infinity),
+                    child: SpriteStudioView(
+                      player: _player,
+                      width: viewBox?.width,
+                      height: viewBox?.height,
+                    ),
+                  );
+                }),
               ),
             ),
             Padding(
