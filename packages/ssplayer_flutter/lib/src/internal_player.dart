@@ -57,6 +57,17 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   @override
   final TextureRegistry textures;
 
+  /// Called when the backend finishes preparing a resource the last paint drew
+  /// without (a GPU texture upload), so the frame should be painted again.
+  ///
+  /// L3 points this at its `notifyListeners`. Without it a player that is not
+  /// continuously animating — paused, seeked, or drawn once — keeps whatever the
+  /// first, texture-less paint produced, which for a single-atlas animation is a
+  /// blank frame. Fires outside paint (the upload awaits), and only on the
+  /// backend this player owns, so an instance child (which draws through its
+  /// parent's) does not double-notify.
+  ui.VoidCallback? onNeedsRepaint;
+
   /// Whether [dispose] should release [textures]. True only when [load] created
   /// the registry itself; a caller-supplied one stays the caller's (it may well
   /// outlive this player or be shared between several), and an instance child
@@ -221,6 +232,9 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
         renderBackend,
         textures == null, // we built `registry`, so we release it
       );
+      // Route the backend's "a resource I was preparing is ready" signal up to
+      // whoever drives repaints (L3 sets [onNeedsRepaint] to notifyListeners).
+      renderBackend.onResourcesReady = () => player.onNeedsRepaint?.call();
     } catch (_) {
       ssRuntime.destroyContext(context);
       ssRuntime.destroyResource(resource);

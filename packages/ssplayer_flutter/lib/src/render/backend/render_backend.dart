@@ -22,6 +22,17 @@ import 'render_host.dart';
 /// draw through the same backend using the CHILD's host. The `canvas` is likewise
 /// threaded per call (a child draws under the parent's `canvas.transform`).
 abstract class RenderBackend {
+  /// Invoked when a resource the backend was still preparing becomes usable, so
+  /// the host can paint the frame again and pick it up.
+  ///
+  /// The GPU backend uploads textures asynchronously (`Image.toByteData`) and
+  /// skips the parts using one until it lands. Without this hook that only
+  /// resolves on the *next* paint, which a playing animation supplies and a
+  /// paused, seeked or single-shot one never does — leaving it blank forever.
+  /// Always fired outside the synchronous paint (after an await). No-op on
+  /// Canvas, which prepares nothing asynchronously.
+  set onResourcesReady(ui.VoidCallback? callback);
+
   /// Begins a top-level frame — called only from the root `paint()`, never from
   /// the recursive `_paintTree`. Canvas: saves + translates the world origin to
   /// the centre of [dst]/[sourceSize]. GPU: allocates a render target + builds

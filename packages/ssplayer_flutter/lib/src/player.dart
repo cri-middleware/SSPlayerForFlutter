@@ -252,6 +252,12 @@ class SpriteStudioPlayer extends ChangeNotifier {
       backend: _backend,
     );
     _internal = internal;
+    // The GPU backend uploads atlases asynchronously and draws without them
+    // until they land, so it needs another paint once they do — a player that is
+    // paused or drawn once has no next frame of its own and would stay blank.
+    internal.onNeedsRepaint = () {
+      if (!_disposed && identical(_internal, internal)) notifyListeners();
+    };
     internal.subFrame = _subFrame;
     _currentAnimation = animationName;
     if (animationName != null) {

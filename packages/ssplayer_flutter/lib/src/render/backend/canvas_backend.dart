@@ -27,6 +27,12 @@ const double _maxCoverageDim = 1024.0;
 /// textures, mask roles, effect plans) through the [RenderHost] passed to each
 /// emit call, so one instance serves an entire instance-recursion tree.
 class CanvasBackend implements RenderBackend {
+  /// No-op: nothing here is prepared asynchronously, so there is never a frame
+  /// to re-request. (Fragment programs do load lazily, but a part whose program
+  /// is not ready falls back to a visible draw rather than being skipped.)
+  @override
+  set onResourcesReady(ui.VoidCallback? callback) {}
+
   /// PartColor (§10) + mask-replay (§3-2) fragment program — the shader every
   /// *peeled* part goes through. Compiled once, shared across players.
   static final _LazyProgram _partColorProgram =
