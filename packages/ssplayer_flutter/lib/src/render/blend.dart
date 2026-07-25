@@ -22,9 +22,8 @@ import 'package:ssruntime_dart/framedata.dart' as fbs;
 ///
 /// Skia's stock separable [ui.BlendMode]s are defined on **premultiplied** colours,
 /// so — reading the table against a premultiplied source `Cs` — most rows have an
-/// *exact* stock equivalent (verified component-wise; the alpha channel matches too
-/// because these modes composite alpha as source-over, and SS renders onto an opaque
-/// target where `Cb`'s alpha is 1):
+/// *exact* stock equivalent. `test/blend_pixel_test.dart` measures every row against
+/// the formula above rather than trusting this algebra:
 ///
 ///   * Mix       → `srcOver`   (`Cs + Cb·(1-αs)`)
 ///   * Add       → `plus`      (`Cs + Cb`, both clamp)
@@ -32,18 +31,23 @@ import 'package:ssruntime_dart/framedata.dart' as fbs;
 ///   * Screen/2  → `screen`    (`Cs + Cb - Cs·Cb`)
 ///   * Exclusion → `exclusion` (`Cs + Cb - 2·Cs·Cb`)
 ///
-/// Two rows have **no stock equivalent** — Flutter's fixed blend enum offers
-/// neither a reverse-subtract nor a "replace dst with `Cs·(1-Cb)`" — so they fall
-/// back to `difference` (`|Cs - Cb|`), the closest honest approximation:
+/// Screen and Exclusion are exact for **any** backdrop alpha — the `αs`/`αb` terms
+/// of Skia's separable composite cancel identically for those two. `multiply` keeps
+/// one extra term, `Cs·(1-αb)`, so Mul is exact wherever `Cb` is **opaque** (which
+/// is what SS itself assumes: it renders onto an opaque target) and diverges over
+/// transparency, where the reference drops the part to black and Skia keeps it.
+/// Choosing `modulate` (`Cs·Cb`, the literal `DST_COLOR, ZERO` row) would fix that
+/// corner at the cost of blacking out every semi-transparent texel of every Mul
+/// part, so `multiply` stays.
 ///
-///   * Sub    (`max(0, Cb - Cs)`)  → `difference` is exact wherever `Cb ≥ Cs`
-///     (the darkening regime Sub targets) and only diverges — giving `Cs - Cb`
-///     instead of clamping to black — in the opposite regime. Strictly closer than
-///     `darken` (`min(Cs, Cb)`), which is wrong across the whole range.
-///   * Invert (`Cs·(1-Cb)`)        → `difference` is *exact* for the white/opaque
-///     overlay these inversions are authored with (`|1 - Cb| = 1 - Cb`), diverging
-///     only for a partial/coloured source. Pixel-exact Sub/Invert would need a
-///     framebuffer read-back pass Flutter's immediate-mode canvas can't cheaply do.
+/// Two rows have **no *single* stock equivalent** — Flutter's fixed blend enum
+/// offers neither a reverse-subtract nor a "replace dst with `Cs·(1-Cb)`" — so
+/// `Sub` / `Invert` map to `difference` (`|Cs - Cb|`), which is exact only in the
+/// narrow regime each mode is authored for (measured: `Sub` while `Cs ≤ αs·Cb`,
+/// `Invert` for an opaque white overlay). **The Canvas backend does not use that
+/// approximation** — it reconstructs both exactly out of three stock passes; see
+/// [blendPassesFor]. [blendModeFor] keeps returning `difference` as the honest
+/// one-pass answer for callers that cannot run a multi-pass plan.
 ///
 /// Div2 / Overlay2 have no GL mapping in ssplayer-webgl either (its `default`
 /// clamps them to Mix), so they follow suit → `srcOver`.
@@ -68,12 +72,135 @@ ui.BlendMode blendModeFor(fbs.BlendType type) {
     case fbs.BlendType.Sub:
     case fbs.BlendType.Invert:
       // No stock reverse-subtract / dst-replace; difference is the closest
-      // approximation (exact for the darkening / opaque-overlay case each targets).
+      // one-pass approximation (exact for the darkening / opaque-overlay case
+      // each targets). Prefer [blendPassesFor], which is exact.
       return ui.BlendMode.difference;
     case fbs.BlendType.Mix:
     case fbs.BlendType.Div2: // no GL mapping upstream → Mix
     case fbs.BlendType.Overlay2: // no GL mapping upstream → Mix
       return ui.BlendMode.srcOver;
+  }
+}
+
+/// What one pass of a [blendPassesFor] plan actually draws.
+enum BlendPassSource {
+  /// The part itself — the ordinary draw, with its own texture / shader / tint.
+  part,
+
+  /// The part's **coverage only**: saturated opaque white wherever the part puts
+  /// any alpha at all, and nothing where it puts none. Realised as a colour
+  /// filter, so it works uniformly for a textured `drawVertices`, a peeled
+  /// `FragmentShader` quad (whose alpha already carries the mask gate) and a
+  /// tinted layer alike — the filter replaces whatever colour the draw would
+  /// have produced and keeps only "did it cover this pixel".
+  coverage,
+
+  /// Opaque black over the whole geometry, whatever the part's own colours are.
+  black,
+}
+
+/// One pass of a reconstructed framebuffer blend: a stock [ui.BlendMode] plus
+/// what the draw should put through it.
+class BlendPass {
+  const BlendPass(this.mode, [this.source = BlendPassSource.part]);
+
+  /// The framebuffer composite for this pass.
+  final ui.BlendMode mode;
+
+  /// What the pass draws.
+  final BlendPassSource source;
+
+  /// The colour filter this pass forces onto the draw's paint, or null to keep
+  /// the draw's own (a peeled Mesh part's whole-part tint, typically).
+  ///
+  /// A pass that only needs coverage may safely drop that tint: the tint is an
+  /// rgb affine and cannot change *whether* a pixel is covered.
+  ui.ColorFilter? get filter => switch (source) {
+        BlendPassSource.part => null,
+        BlendPassSource.coverage => _coverageFilter,
+        BlendPassSource.black => _blackFilter,
+      };
+}
+
+/// `rgb = white`, `α = saturate(255·α)` — see [BlendPassSource.coverage]. The
+/// translation column of a [ui.ColorFilter.matrix] is in 0..255 space while the
+/// coefficients are normalised, so `255·α` saturates for any non-zero alpha.
+const ui.ColorFilter _coverageFilter = ui.ColorFilter.matrix(<double>[
+  0, 0, 0, 0, 255, //
+  0, 0, 0, 0, 255,
+  0, 0, 0, 0, 255,
+  0, 0, 0, 255, 0,
+]);
+
+/// `rgba = opaque black` — see [BlendPassSource.black].
+const ui.ColorFilter _blackFilter = ui.ColorFilter.matrix(<double>[
+  0, 0, 0, 0, 0, //
+  0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0,
+  0, 0, 0, 0, 255,
+]);
+
+/// The stock-[ui.BlendMode] passes that realise [type] over **one part's**
+/// geometry, in order. All but two modes are a single pass — [blendModeFor].
+///
+/// `Sub` and `Invert` have no stock equivalent, but both are exactly
+/// reconstructible from three passes over the same geometry, because a
+/// `difference` against opaque white *is* a destination inversion (`|1-Cb| =
+/// 1-Cb`) and inverting twice cancels:
+///
+///   * **Sub** = `max(0, Cb - Cs)`:
+///     `difference` white → `1-Cb`; `plus` the part → `clamp(1-Cb+Cs)`;
+///     `difference` white again → `1 - clamp(1-Cb+Cs)` = `max(0, Cb-Cs)`. The
+///     clamp in pass 2 is what reproduces SS's clamp-to-black, and wherever the
+///     part contributes nothing the two inversions cancel to a no-op.
+///   * **Invert** = `Cs·(1-Cb)` with the destination *replaced*:
+///     `difference` white → `1-Cb`; `modulate` the part → `Cs·(1-Cb)`;
+///     `dstOver` opaque black restores the alpha `modulate` multiplied down.
+///     The dst-replace shows up for free — `modulate` zeroes the destination
+///     where the part's texel is transparent, which is exactly what a ZERO dst
+///     factor does.
+///
+/// Both are pixel-exact over an **opaque** destination — the case SS itself
+/// assumes, and already the caveat on Mul / Screen / Exclusion. Over transparency
+/// the rgb still matches but the inversion passes force alpha to 1 across the
+/// part's covered area (source-over is the only alpha composite a stock blend
+/// mode has), so a part hanging off the animation's opaque content reads as an
+/// opaque silhouette rather than a translucent one.
+///
+/// Two constraints the caller must honour:
+///
+///  1. **One part per plan.** The inversion passes must cover each pixel exactly
+///     once, so a batch's parts cannot be run through it together — two
+///     overlapping Sub parts would invert their overlap twice and cancel it.
+///     Callers peel multi-pass parts out of their batched run.
+///  2. **Same geometry every pass.** Build the geometry once and draw it once per
+///     pass; a different tessellation between passes would leave the inversion
+///     un-cancelled at the seams.
+List<BlendPass> blendPassesFor(fbs.BlendType type) => _passPlans[type]!;
+
+/// Plans are immutable and cheap to share, so they are built once rather than
+/// allocated per batch on the paint hot path.
+final Map<fbs.BlendType, List<BlendPass>> _passPlans =
+    <fbs.BlendType, List<BlendPass>>{
+  for (final type in fbs.BlendType.values) type: _planFor(type),
+};
+
+List<BlendPass> _planFor(fbs.BlendType type) {
+  switch (type) {
+    case fbs.BlendType.Sub:
+      return const <BlendPass>[
+        BlendPass(ui.BlendMode.difference, BlendPassSource.coverage),
+        BlendPass(ui.BlendMode.plus),
+        BlendPass(ui.BlendMode.difference, BlendPassSource.coverage),
+      ];
+    case fbs.BlendType.Invert:
+      return const <BlendPass>[
+        BlendPass(ui.BlendMode.difference, BlendPassSource.coverage),
+        BlendPass(ui.BlendMode.modulate),
+        BlendPass(ui.BlendMode.dstOver, BlendPassSource.black),
+      ];
+    default:
+      return <BlendPass>[BlendPass(blendModeFor(type))];
   }
 }
 
@@ -84,6 +211,10 @@ ui.BlendMode blendModeFor(fbs.BlendType type) {
 /// says so, and the flagship agrees). Passing it through [blendModeFor] would
 /// read 1 as `BlendType.Mul` and silently turn every additive particle into a
 /// multiply, so the two mappings stay separate on purpose.
+///
+/// The additive row is `(ONE, ONE, ONE, ONE)` upstream — alpha adds too, unlike
+/// the batch-level Add, whose alpha stays on source-over — and `plus` is exactly
+/// that on all four channels.
 ui.BlendMode effectBlendModeFor(int blend) =>
     blend == 1 ? ui.BlendMode.plus : ui.BlendMode.srcOver;
 

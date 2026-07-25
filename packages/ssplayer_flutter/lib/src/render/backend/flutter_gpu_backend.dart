@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter_gpu/gpu.dart' as gpu;
 import 'package:ssruntime_dart/effect_draw_plan.dart' as efbs;
 import 'package:ssruntime_dart/framedata.dart' as fbs;
@@ -26,9 +27,10 @@ RenderBackend createFlutterGpuBackend() => FlutterGpuBackend();
 /// its Add/Mix blend), all reusing one textured pipeline — Shape samples a 1×1
 /// white texel so its per-vertex colour (incl. PartColor) passes through.
 ///
-/// Per-batch blend is mapped for the fixed-function-expressible modes (Mix / Add
-/// / Sub — see [_blendFor]); Mul / Screen / Exclusion / Invert need advanced
-/// blend and fall back to source-over.
+/// Per-batch blend is **exact for every SS mode** (see [blendEquationFor]):
+/// SpriteStudio realises each one as a fixed-function GPU blend state, which is
+/// precisely what a `RenderPass` takes — so where the Canvas path has to rebuild
+/// Sub / Invert out of three stock passes, this backend just sets the state.
 ///
 /// Peeled parts (§9 mask replay / §10 PartColor tint) draw on the dedicated
 /// PartColor pipeline, which carries every per-part value as a **per-vertex
@@ -55,66 +57,115 @@ class FlutterGpuBackend implements RenderBackend {
   /// confirmed on-device). `-1` assumes a Metal-style +Y-up NDC.
   static const double _kNdcYSign = -1.0;
 
-  /// Premultiplied source-over — the framebuffer composite for Mix, Div2, Overlay2,
-  /// and the modes that need a framebuffer-read shader (Exclusion / Invert). This is exactly the
-  /// [gpu.ColorBlendEquation] default.
+  // --- Framebuffer blend equations (§7B) -----------------------------------
+  //
+  // SpriteStudio realises EVERY blend as a fixed-function GPU blend state, so
+  // this backend can reproduce the reference **exactly** rather than
+  // approximating with a stock enum the way the Canvas path must. The ground
+  // truth is ssplayer-webgl's `applyBlend` (itself verified against
+  // SS6PlayerForUnity), which for every mode issues
+  //
+  //   blendFuncSeparate(sRGB, dRGB, ONE, ONE_MINUS_SRC_ALPHA)
+  //   blendEquationSeparate(rgbEq, FUNC_ADD)
+  //
+  // i.e. **only the RGB channels vary**; the alpha channel is premultiplied
+  // source-over (`αr = αs + αb·(1-αs)`) for all of them. Honouring that is not
+  // cosmetic: a reverse-subtract or a `×dstAlpha` on the *alpha* channel makes a
+  // Sub / Mul part **erase** the pixels underneath instead of darkening them,
+  // punching a transparent hole through the offscreen this backend composites
+  // from. Every equation below therefore shares [_kSrcAlpha] / [_kDstAlpha].
+  static const gpu.BlendFactor _kSrcAlpha = gpu.BlendFactor.one;
+  static const gpu.BlendFactor _kDstAlpha = gpu.BlendFactor.oneMinusSourceAlpha;
+
+  /// One SS row: `out.rgb = Cs·[src] ⊕ Cb·[dst]`, alpha always source-over.
+  static gpu.ColorBlendEquation _ssBlend(
+    gpu.BlendFactor src,
+    gpu.BlendFactor dst, {
+    gpu.BlendOperation op = gpu.BlendOperation.add,
+  }) =>
+      gpu.ColorBlendEquation(
+        colorBlendOperation: op,
+        sourceColorBlendFactor: src,
+        destinationColorBlendFactor: dst,
+        alphaBlendOperation: gpu.BlendOperation.add,
+        sourceAlphaBlendFactor: _kSrcAlpha,
+        destinationAlphaBlendFactor: _kDstAlpha,
+      );
+
+  /// Premultiplied source-over (SS Mix; Div2 / Overlay2 clamp to it upstream):
+  /// `Cs + Cb·(1-αs)`. Exactly the [gpu.ColorBlendEquation] default.
   static final gpu.ColorBlendEquation _srcOver = gpu.ColorBlendEquation();
 
-  /// Additive (SpriteStudio Add / effect blend byte 1): `src + dst`.
-  static final gpu.ColorBlendEquation _add = gpu.ColorBlendEquation(
+  /// SS Add: `Cs + Cb`.
+  static final gpu.ColorBlendEquation _add =
+      _ssBlend(gpu.BlendFactor.one, gpu.BlendFactor.one);
+
+  /// SS Sub: `Cb - Cs` (reverse-subtract). One state here; the Canvas path needs
+  /// a three-pass reconstruction to reach the same pixels (`blendPassesFor`), so
+  /// the two agree over an opaque destination and diverge in alpha over
+  /// transparency, where that reconstruction can only force alpha to 1.
+  static final gpu.ColorBlendEquation _sub = _ssBlend(
+      gpu.BlendFactor.one, gpu.BlendFactor.one,
+      op: gpu.BlendOperation.reverseSubtract);
+
+  /// SS Screen: `Cs·(1-Cb) + Cb` — algebraically `Cs + Cb - Cs·Cb`, which is
+  /// exactly Skia's premultiplied `screen`, so it matches Canvas bit-for-bit
+  /// (measured in `test/blend_pixel_test.dart`).
+  static final gpu.ColorBlendEquation _screen = _ssBlend(
+      gpu.BlendFactor.oneMinusDestinationColor, gpu.BlendFactor.one);
+
+  /// SS Mul / Mulalpha / Mul2: `Cs·Cb + Cb·(1-αs)`.
+  ///
+  /// Skia's premultiplied `multiply` adds one more term (`Cs·(1-αb)`), so the two
+  /// backends agree wherever the destination is **opaque** — the case SS itself
+  /// assumes — and diverge over transparency, where this (reference) form drops
+  /// the part and Canvas keeps it. Not fixable in fixed function; documented.
+  static final gpu.ColorBlendEquation _multiply = _ssBlend(
+      gpu.BlendFactor.destinationColor, gpu.BlendFactor.oneMinusSourceAlpha);
+
+  /// SS Exclusion: `Cs·(1-Cb) + Cb·(1-Cs)` — algebraically `Cs + Cb - 2·Cs·Cb`,
+  /// i.e. Skia's `exclusion`, so this too matches Canvas exactly.
+  static final gpu.ColorBlendEquation _exclusion = _ssBlend(
+      gpu.BlendFactor.oneMinusDestinationColor,
+      gpu.BlendFactor.oneMinusSourceColor);
+
+  /// SS Invert: `Cs·(1-Cb)` with the destination **replaced** (dst factor zero) —
+  /// so the part blacks out its own quad wherever its cell is transparent, which
+  /// is the mode's real behaviour, not a bug. Skia has no dst-replace, hence the
+  /// Canvas path's three-pass reconstruction; same caveat as [_sub].
+  static final gpu.ColorBlendEquation _invert = _ssBlend(
+      gpu.BlendFactor.oneMinusDestinationColor, gpu.BlendFactor.zero);
+
+  /// Straight additive on **all four** channels — `src + dst`, alpha included.
+  ///
+  /// Deliberately not [_add]: two callers want alpha to *accumulate* rather than
+  /// composite. An **effect** emitter's additive blend, which the reference
+  /// writes as `blendFuncSeparate(ONE, ONE, ONE, ONE)` (effect blend is a raw
+  /// byte, a different enum space from [fbs.BlendType] — see `blend.dart`), and
+  /// the mask coverage pass, where the disjoint per-writer bits OR losslessly.
+  static final gpu.ColorBlendEquation _additive = gpu.ColorBlendEquation(
     colorBlendOperation: gpu.BlendOperation.add,
     sourceColorBlendFactor: gpu.BlendFactor.one,
     destinationColorBlendFactor: gpu.BlendFactor.one,
     alphaBlendOperation: gpu.BlendOperation.add,
     sourceAlphaBlendFactor: gpu.BlendFactor.one,
     destinationAlphaBlendFactor: gpu.BlendFactor.one,
-  );
-
-  /// Subtractive (SpriteStudio Sub): `dst - src`. This is the exact reverse-
-  /// subtract the Canvas path can only approximate as `BlendMode.difference` —
-  /// so a Sub batch renders *more* correctly here, and intentionally does NOT
-  /// pixel-match the Canvas reference for that mode.
-  static final gpu.ColorBlendEquation _sub = gpu.ColorBlendEquation(
-    colorBlendOperation: gpu.BlendOperation.reverseSubtract,
-    sourceColorBlendFactor: gpu.BlendFactor.one,
-    destinationColorBlendFactor: gpu.BlendFactor.one,
-    alphaBlendOperation: gpu.BlendOperation.reverseSubtract,
-    sourceAlphaBlendFactor: gpu.BlendFactor.one,
-    destinationAlphaBlendFactor: gpu.BlendFactor.one,
-  );
-
-  /// Screen (premultiplied): `Cr = Cs + Cd·(1 - Cs)` — exactly Skia's separable
-  /// screen, so it matches the Canvas reference bit-for-bit.
-  static final gpu.ColorBlendEquation _screen = gpu.ColorBlendEquation(
-    colorBlendOperation: gpu.BlendOperation.add,
-    sourceColorBlendFactor: gpu.BlendFactor.one,
-    destinationColorBlendFactor: gpu.BlendFactor.oneMinusSourceColor,
-    alphaBlendOperation: gpu.BlendOperation.add,
-    sourceAlphaBlendFactor: gpu.BlendFactor.one,
-    destinationAlphaBlendFactor: gpu.BlendFactor.oneMinusSourceAlpha,
-  );
-
-  /// Multiply as `Cr = Cs·Cd` (src×dst). This equals Skia's separable multiply
-  /// only where the destination is **opaque** (the common case); over
-  /// transparency it drops the `Cs·(1-Ad) + Cd·(1-As)` terms, which needs a
-  /// framebuffer-read shader to reproduce exactly.
-  static final gpu.ColorBlendEquation _multiply = gpu.ColorBlendEquation(
-    colorBlendOperation: gpu.BlendOperation.add,
-    sourceColorBlendFactor: gpu.BlendFactor.destinationColor,
-    destinationColorBlendFactor: gpu.BlendFactor.zero,
-    alphaBlendOperation: gpu.BlendOperation.add,
-    sourceAlphaBlendFactor: gpu.BlendFactor.destinationAlpha,
-    destinationAlphaBlendFactor: gpu.BlendFactor.zero,
   );
 
   /// The framebuffer blend equation for a batch's [fbs.BlendType].
   ///
-  /// Fixed-function reaches more SS modes than first assumed: Mix / Div2 /
-  /// Overlay2 → source-over, Add → additive, Sub → reverse-subtract, **Screen →
-  /// exact**, **Mul → src×dst (exact over opaque)**. Only **Exclusion / Invert**
-  /// (and Multiply *over transparency*) truly need a framebuffer-read shader —
-  /// those still fall back to source-over here.
-  static gpu.ColorBlendEquation _blendFor(fbs.BlendType type) {
+  /// Every mode SpriteStudio defines is expressible here, so — unlike the Canvas
+  /// mapping — there is **no approximation and no fallback**: Mix → source-over,
+  /// Add → additive, Sub → reverse-subtract, Screen / Exclusion / Invert /
+  /// Mul → their `Dst*Color` factor rows, Div2 / Overlay2 → Mix (which is what
+  /// the reference does too — they have no GL mapping upstream either).
+  ///
+  /// The one residual caveat is **Mul over a transparent destination** (see
+  /// [_multiply]) and, structurally, that this backend blends inside its own
+  /// offscreen, so the modes that read the destination see the animation's own
+  /// pixels rather than whatever the app painted behind the widget.
+  @visibleForTesting
+  static gpu.ColorBlendEquation blendEquationFor(fbs.BlendType type) {
     switch (type) {
       case fbs.BlendType.Add:
         return _add;
@@ -127,11 +178,13 @@ class FlutterGpuBackend implements RenderBackend {
       case fbs.BlendType.Mulalpha:
       case fbs.BlendType.Mul2:
         return _multiply;
-      case fbs.BlendType.Mix:
-      case fbs.BlendType.Div2:
-      case fbs.BlendType.Overlay2:
       case fbs.BlendType.Exclusion:
+        return _exclusion;
       case fbs.BlendType.Invert:
+        return _invert;
+      case fbs.BlendType.Mix:
+      case fbs.BlendType.Div2: // no GL mapping upstream → Mix
+      case fbs.BlendType.Overlay2: // no GL mapping upstream → Mix
         return _srcOver;
     }
   }
@@ -399,7 +452,7 @@ class FlutterGpuBackend implements RenderBackend {
 
     final texW = image.width.toDouble();
     final texH = image.height.toDouble();
-    final blend = _blendFor(batch.blendType);
+    final blend = blendEquationFor(batch.blendType);
     final drawOrder = frame.drawOrder;
     final partsColor = frame.partsColor;
     final shaders = frame.shaders;
@@ -844,7 +897,7 @@ class FlutterGpuBackend implements RenderBackend {
 
     final texW = image.width.toDouble();
     final texH = image.height.toDouble();
-    final blend = _blendFor(batch.blendType);
+    final blend = blendEquationFor(batch.blendType);
     final drawOrder = frame.drawOrder;
     final partsColor = frame.partsColor;
 
@@ -985,7 +1038,7 @@ class FlutterGpuBackend implements RenderBackend {
       RenderHost host, MaskContext? maskCtx, MaskDraw? inheritedMask) {
     if (!_active) return;
     if (batch.count == 0) return;
-    final blend = _blendFor(batch.blendType);
+    final blend = blendEquationFor(batch.blendType);
     final drawOrder = frame.drawOrder;
 
     // Every Shape draws through the ShapeMask pipeline, which outputs the baked
@@ -1156,8 +1209,10 @@ class FlutterGpuBackend implements RenderBackend {
           texHeight: image.height.toDouble(),
         );
         if (geo == null) continue;
-        // Effect blend byte: 1 = Add → additive, else Mix → source-over.
-        _drawInterleaved(geo, tex, blend == 1 ? _add : _srcOver);
+        // Effect blend byte: 1 = Add → additive, else Mix → source-over. The
+        // reference writes the additive case as `(ONE, ONE, ONE, ONE)` — alpha
+        // included — so it takes [_additive], not the batch-level [_add].
+        _drawInterleaved(geo, tex, blend == 1 ? _additive : _srcOver);
       }
     }
   }
@@ -1188,7 +1243,7 @@ class FlutterGpuBackend implements RenderBackend {
       final pass = cmd.createRenderPass(
         gpu.RenderTarget.singleColor(gpu.ColorAttachment(texture: target)),
       );
-      pass.setColorBlendEnable(true); // disjoint bits OR losslessly under `_add`
+      pass.setColorBlendEnable(true); // disjoint bits OR losslessly: `_additive`
 
       // Player-local -> coverage NDC, built from the SAME uvBasis/uvOffset the
       // main-pass shader samples with, so the two are guaranteed to agree.
@@ -1247,7 +1302,7 @@ class FlutterGpuBackend implements RenderBackend {
         pass.bindUniform(mvpSlot, covMvpView);
         pass.bindUniform(bitSlot,
             _hostBuffer!.emplace(ByteData.sublistView(_bitColor(writer.bit, threshold))));
-        pass.setColorBlendEquation(_add);
+        pass.setColorBlendEquation(_additive); // bit accumulator: alpha adds too
         pass.bindVertexBuffer(
             gpu.BufferView(vb, offsetInBytes: 0, lengthInBytes: vb.sizeInBytes),
             verts.length ~/ 4);

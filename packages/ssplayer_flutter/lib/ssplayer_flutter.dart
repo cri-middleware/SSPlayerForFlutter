@@ -45,7 +45,13 @@ export 'src/render/geometry_builder.dart'
         PartColorQuad,
         ShapeBuffers;
 export 'src/render/blend.dart'
-    show blendModeFor, effectBlendModeFor, partColorCoef;
+    show
+        BlendPass,
+        BlendPassSource,
+        blendModeFor,
+        blendPassesFor,
+        effectBlendModeFor,
+        partColorCoef;
 export 'src/render/effect.dart' show EffectPart, EffectSlots;
 export 'src/render/instance.dart'
     show InstanceChild, InstancePart, InstanceSlot, InstanceSlots;

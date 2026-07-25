@@ -300,8 +300,7 @@ class CanvasBackend implements RenderBackend {
     final count = batch.count;
     if (count == 0) return;
     final drawOrder = frame.drawOrder;
-    final paint = _paintForBatch(batch, host);
-    final blend = blendModeFor(batch.blendType);
+    final passes = blendPassesFor(batch.blendType);
     // Fetch the frame's parts_color / shaders vectors once (see
     // [DrawFrame.partsColor]).
     final partsColor = frame.partsColor;
@@ -314,7 +313,10 @@ class CanvasBackend implements RenderBackend {
       // shader; paint.blendMode is the framebuffer composite.
       final vertices = host.geometry.buildNormalParts(run, frame);
       if (vertices != null) {
-        canvas.drawVertices(vertices, ui.BlendMode.modulate, paint);
+        for (final pass in passes) {
+          canvas.drawVertices(vertices, ui.BlendMode.modulate,
+              _paintForBatch(batch, host, pass));
+        }
       }
       run.clear();
     }
@@ -343,12 +345,16 @@ class CanvasBackend implements RenderBackend {
           (part == null || mask != null) ? null : PartShader.read(shaders, part);
       if (pc == null && mask == null && sh == null) {
         run.add(p);
+        // A multi-pass blend (Sub / Invert) must cover each pixel exactly once
+        // per pass, so its parts cannot share a run — two overlapping ones would
+        // invert their overlap twice and cancel it (see [blendPassesFor]).
+        if (passes.length > 1) flushRun();
       } else {
         flushRun();
         if (sh != null) {
-          _drawShaderPart(canvas, p, sh, pc, frame, host, batch, blend);
+          _drawShaderPart(canvas, p, sh, pc, frame, host, batch, passes);
         } else {
-          _drawPeeledPart(canvas, p, pc, frame, host, batch, blend, mask);
+          _drawPeeledPart(canvas, p, pc, frame, host, batch, passes, mask);
         }
       }
     }
@@ -359,15 +365,23 @@ class CanvasBackend implements RenderBackend {
   void emitShape(ui.Canvas canvas, fbs.DrawBatch batch, DrawFrame frame,
       RenderHost host, MaskContext? maskCtx, MaskDraw? inheritedMask) {
     if (batch.count == 0 || frame.shape == null) return;
-    final blend = blendModeFor(batch.blendType);
+    final passes = blendPassesFor(batch.blendType);
 
     final run = <int>[];
     void flushRun() {
       if (run.isEmpty) return;
       final v = host.geometry.buildShapeParts(run, frame);
       if (v != null) {
-        canvas.drawVertices(v.toVertices(), ui.BlendMode.modulate,
-            ui.Paint()..blendMode = blend..color = const ui.Color(0xFFFFFFFF));
+        final vertices = v.toVertices();
+        for (final pass in passes) {
+          canvas.drawVertices(
+              vertices,
+              ui.BlendMode.modulate,
+              ui.Paint()
+                ..blendMode = pass.mode
+                ..colorFilter = pass.filter
+                ..color = const ui.Color(0xFFFFFFFF));
+        }
       }
       run.clear();
     }
@@ -382,9 +396,10 @@ class CanvasBackend implements RenderBackend {
       final mask = ownBits != null ? maskCtx!.drawFor(ownBits) : inheritedMask;
       if (mask == null) {
         run.add(p);
+        if (passes.length > 1) flushRun(); // see [emitNormal]
       } else {
         flushRun();
-        _drawMaskedShape(canvas, p, frame, host, blend, mask);
+        _drawMaskedShape(canvas, p, frame, host, passes, mask);
       }
     }
     flushRun();
@@ -403,14 +418,22 @@ class CanvasBackend implements RenderBackend {
   /// (§2-1..§2-4 scope, polarity, invert/increment) that a copy of it would be a
   /// standing invitation to drift.
   void _drawMaskedShape(ui.Canvas canvas, int part, DrawFrame frame,
-      RenderHost host, ui.BlendMode blend, MaskDraw mask) {
+      RenderHost host, List<BlendPass> passes, MaskDraw mask) {
     final program = _partColorProgram.get();
     final geometry = host.geometry.buildShapeParts(<int>[part], frame);
     if (geometry == null) return;
     if (program == null) {
       // Still compiling — draw unmasked rather than dropping the shape.
-      canvas.drawVertices(geometry.toVertices(), ui.BlendMode.modulate,
-          ui.Paint()..blendMode = blend..color = const ui.Color(0xFFFFFFFF));
+      final vertices = geometry.toVertices();
+      for (final pass in passes) {
+        canvas.drawVertices(
+            vertices,
+            ui.BlendMode.modulate,
+            ui.Paint()
+              ..blendMode = pass.mode
+              ..colorFilter = pass.filter
+              ..color = const ui.Color(0xFFFFFFFF));
+      }
       return;
     }
 
@@ -429,8 +452,19 @@ class CanvasBackend implements RenderBackend {
     // backend passes null, and it never runs this path).
     shader.setImageSampler(1, mask.coverage!);
 
-    canvas.drawVertices(geometry.toVertices(), ui.BlendMode.modulate,
-        ui.Paint()..blendMode = blend..shader = shader);
+    // One shader instance across all passes: the pool's "distinct object per
+    // draw" rule exists because uniforms are read at raster time, and every pass
+    // here reads the *same* uniforms.
+    final vertices = geometry.toVertices();
+    for (final pass in passes) {
+      canvas.drawVertices(
+          vertices,
+          ui.BlendMode.modulate,
+          ui.Paint()
+            ..blendMode = pass.mode
+            ..colorFilter = pass.filter
+            ..shader = shader);
+    }
   }
 
   /// A degenerate quad for the mask gate: with `rate == 0` the shader never uses
@@ -451,6 +485,7 @@ class CanvasBackend implements RenderBackend {
     if (count == 0) return;
     final drawOrder = frame.drawOrder;
     final partsColor = frame.partsColor;
+    final passes = blendPassesFor(batch.blendType);
 
     // Same run/peel shape as [emitNormal]: plain parts batch into one
     // `drawVertices`, tinted/masked ones are drawn individually in z-order.
@@ -459,8 +494,10 @@ class CanvasBackend implements RenderBackend {
       if (run.isEmpty) return;
       final vertices = host.geometry.buildMeshParts(run, frame);
       if (vertices != null) {
-        canvas.drawVertices(
-            vertices, ui.BlendMode.modulate, _paintForBatch(batch, host));
+        for (final pass in passes) {
+          canvas.drawVertices(vertices, ui.BlendMode.modulate,
+              _paintForBatch(batch, host, pass));
+        }
       }
       run.clear();
     }
@@ -477,9 +514,10 @@ class CanvasBackend implements RenderBackend {
       final mask = ownBits != null ? maskCtx!.drawFor(ownBits) : inheritedMask;
       if (pc == null && mask == null) {
         run.add(p);
+        if (passes.length > 1) flushRun(); // see [emitNormal]
       } else {
         flushRun();
-        _drawPeeledMesh(canvas, p, pc, frame, host, batch, mask);
+        _drawPeeledMesh(canvas, p, pc, frame, host, batch, passes, mask);
       }
     }
     flushRun();
@@ -507,6 +545,7 @@ class CanvasBackend implements RenderBackend {
     DrawFrame frame,
     RenderHost host,
     fbs.DrawBatch batch,
+    List<BlendPass> passes,
     MaskDraw? mask,
   ) {
     // With a tint the corner alpha already carries the hierarchical alpha
@@ -517,36 +556,33 @@ class CanvasBackend implements RenderBackend {
         alphaOverride: tinted?.lt.a);
     if (geometry == null) return;
     final matrix = tinted?.wholeTintMatrix();
-    final blend = blendModeFor(batch.blendType);
+    final vertices = geometry.toVertices();
 
     final program = mask == null ? null : _partColorProgram.get();
     if (mask == null || program == null) {
       // Unmasked (or the gate program is still compiling — draw ungated rather
       // than dropping the part): one plain draw, tint folded into the paint.
-      canvas.drawVertices(
-        geometry.toVertices(),
-        ui.BlendMode.modulate,
-        _paintForBatch(batch, host,
-            colorFilter: matrix == null ? null : ui.ColorFilter.matrix(matrix)),
-      );
+      for (final pass in passes) {
+        canvas.drawVertices(
+          vertices,
+          ui.BlendMode.modulate,
+          _paintForBatch(batch, host, pass,
+              colorFilter:
+                  matrix == null ? null : ui.ColorFilter.matrix(matrix)),
+        );
+      }
       return;
     }
 
     // Inflated so neither the layer nor the gate rect can shave the geometry's
     // outermost pixel row (the bbox lands exactly on it).
     final bounds = geometry.bounds.inflate(1.0);
-    canvas.saveLayer(bounds, ui.Paint()..blendMode = blend);
-    canvas.drawVertices(
-      geometry.toVertices(),
-      ui.BlendMode.modulate,
-      ui.Paint()
-        ..shader = host.textures.shaderFor(batch.textureHash)
-        ..colorFilter = matrix == null ? null : ui.ColorFilter.matrix(matrix),
-    );
     // The gate: `partcolor.frag` over a 1×1 white texel at rate 0 is opaque
     // white where the mask passes and transparent where it does not (the same
     // no-op configuration `_drawMaskedShape` uses), so `dstIn` keeps exactly the
-    // fragments that pass.
+    // fragments that pass. Built once and reused across the passes below — they
+    // all read the same uniforms, which is what the pool's one-object-per-draw
+    // rule actually guards against.
     final shader = _partColorShaders.next(program);
     _setPartColorUniforms(shader, PartColor.identity, _unitQuad,
         texWidth: 1.0,
@@ -556,13 +592,31 @@ class CanvasBackend implements RenderBackend {
         maskUvOffset: mask.uvOffset);
     shader.setImageSampler(0, _ensureWhitePixel());
     shader.setImageSampler(1, mask.coverage!);
-    canvas.drawRect(
-        bounds,
+
+    // A masked part composites as one layer, so a multi-pass blend records the
+    // layer once per pass — with the pass's filter on the *layer's* paint, which
+    // is where it belongs: the layer result is the part's final colour.
+    for (final pass in passes) {
+      canvas.saveLayer(
+          bounds,
+          ui.Paint()
+            ..blendMode = pass.mode
+            ..colorFilter = pass.filter);
+      canvas.drawVertices(
+        vertices,
+        ui.BlendMode.modulate,
         ui.Paint()
-          ..blendMode = ui.BlendMode.dstIn
-          ..isAntiAlias = false
-          ..shader = shader);
-    canvas.restore();
+          ..shader = host.textures.shaderFor(batch.textureHash)
+          ..colorFilter = matrix == null ? null : ui.ColorFilter.matrix(matrix),
+      );
+      canvas.drawRect(
+          bounds,
+          ui.Paint()
+            ..blendMode = ui.BlendMode.dstIn
+            ..isAntiAlias = false
+            ..shader = shader);
+      canvas.restore();
+    }
   }
 
   @override
@@ -655,7 +709,7 @@ class CanvasBackend implements RenderBackend {
     DrawFrame frame,
     RenderHost host,
     fbs.DrawBatch batch,
-    ui.BlendMode blend,
+    List<BlendPass> passes,
     MaskDraw? mask,
   ) {
     final program = _partColorProgram.get();
@@ -665,7 +719,10 @@ class CanvasBackend implements RenderBackend {
       // Fallback: plain textured draw so the part stays visible.
       final v = host.geometry.buildNormalParts(<int>[part], frame);
       if (v != null) {
-        canvas.drawVertices(v, ui.BlendMode.modulate, _paintForBatch(batch, host));
+        for (final pass in passes) {
+          canvas.drawVertices(
+              v, ui.BlendMode.modulate, _paintForBatch(batch, host, pass));
+        }
       }
       return;
     }
@@ -699,8 +756,18 @@ class CanvasBackend implements RenderBackend {
     shader.setImageSampler(
         1, mask == null ? _ensureDummyCoverage() : mask.coverage!);
 
-    canvas.drawPath(
-        _quadPath(quad), ui.Paint()..blendMode = blend..shader = shader);
+    // One path + one shader across the passes (identical uniforms every time, so
+    // the pool's distinct-instance rule is satisfied), which also guarantees the
+    // inversion passes of a Sub / Invert plan cover exactly the same pixels.
+    final path = _quadPath(quad);
+    for (final pass in passes) {
+      canvas.drawPath(
+          path,
+          ui.Paint()
+            ..blendMode = pass.mode
+            ..colorFilter = pass.filter
+            ..shader = shader);
+    }
   }
 
   /// Draws one Normal part carrying an integration shader (`SHDR`) through
@@ -726,13 +793,13 @@ class CanvasBackend implements RenderBackend {
     DrawFrame frame,
     RenderHost host,
     fbs.DrawBatch batch,
-    ui.BlendMode blend,
+    List<BlendPass> passes,
   ) {
     final program = _ssPrograms[sh.id]!.get();
     final image = host.textures.imageFor(batch.textureHash);
     final quad = host.geometry.buildPartColorQuad(part, frame);
     if (program == null || image == null || quad == null) {
-      _drawPeeledPart(canvas, part, pc, frame, host, batch, blend, null);
+      _drawPeeledPart(canvas, part, pc, frame, host, batch, passes, null);
       return;
     }
 
@@ -751,8 +818,15 @@ class CanvasBackend implements RenderBackend {
     // turn into visible stair-stepping.
     shader.setImageSampler(0, image, filterQuality: ui.FilterQuality.low);
 
-    canvas.drawPath(
-        _quadPath(quad), ui.Paint()..blendMode = blend..shader = shader);
+    final path = _quadPath(quad); // same geometry every pass — see [_drawPeeledPart]
+    for (final pass in passes) {
+      canvas.drawPath(
+          path,
+          ui.Paint()
+            ..blendMode = pass.mode
+            ..colorFilter = pass.filter
+            ..shader = shader);
+    }
   }
 
   /// The union of a baked block's triangles, as one non-zero-wound path.
@@ -972,21 +1046,23 @@ class CanvasBackend implements RenderBackend {
     f(writer.threshold);
   }
 
-  /// Configures the shared [_batchPaint] for a batch — framebuffer blend
-  /// (`render/blend.dart`) plus the resolved texture's identity [ui.ImageShader]
-  /// (design §7B/§7C) — and returns it. The result aliases [_batchPaint]; a
-  /// caller must consume it (draw) before the next [_paintForBatch] call, which
-  /// every call site does within one batch's scope.
+  /// Configures the shared [_batchPaint] for one [pass] of a batch — the pass's
+  /// framebuffer blend (`render/blend.dart`) plus the resolved texture's identity
+  /// [ui.ImageShader] (design §7B/§7C) — and returns it. The result aliases
+  /// [_batchPaint]; a caller must consume it (draw) before the next
+  /// [_paintForBatch] call, which every call site does within one pass's scope.
   ///
   /// [colorFilter] is the whole-part PartColor tint of a peeled Mesh part
-  /// ([_drawPeeledMesh]); it is written unconditionally — like every other field
-  /// here — so a tinted part can never leak its filter into the next draw.
-  ui.Paint _paintForBatch(fbs.DrawBatch batch, RenderHost host,
+  /// ([_drawPeeledMesh]). A pass that wants coverage or a flat fill overrides it
+  /// ([BlendPass.filter]); either way it is written unconditionally — like every
+  /// other field here — so a tinted part can never leak its filter into the next
+  /// draw.
+  ui.Paint _paintForBatch(fbs.DrawBatch batch, RenderHost host, BlendPass pass,
           {ui.ColorFilter? colorFilter}) =>
       _batchPaint
-        ..blendMode = blendModeFor(batch.blendType)
+        ..blendMode = pass.mode
         ..shader = host.textures.shaderFor(batch.textureHash)
-        ..colorFilter = colorFilter;
+        ..colorFilter = pass.filter ?? colorFilter;
 }
 
 /// A `FragmentProgram` loaded lazily from an asset and cached process-wide.

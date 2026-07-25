@@ -61,7 +61,16 @@ Legend: ☐ **Ready** (Player-only, can start now) · ⛔ **Blocked on SDK** (ne
   `drawPath` quad mask-writer, matching the Shape/Mesh writers; coverage is a
   number, not a picture, so an AA'd edge can decode as another writer's bits.
   Impact is bounded to a 1px edge.
-- 🕒 **Framebuffer-read blend shader** — Exclusion / Invert / Multiply-over-
-  transparency need a ping-pong pass to be exact on the flutter_gpu backend
-  (fixed-function approximates them). Deliberately skipped: no shipped pack
-  diverges, and Canvas is already exact.
+- ☐ **Batch the Canvas `Sub` / `Invert` reconstruction** — those two modes have no
+  stock `ui.BlendMode`, so the Canvas backend rebuilds them from three passes over
+  one part's geometry (`blendPassesFor`), which also forces each such part out of
+  its batched run: the inversion passes must cover every pixel exactly once. Two
+  overlapping parts could still batch if the emitter proved their quads disjoint.
+  Bounded cost — 3 draws per Sub/Invert part — so it is only worth doing for a pack
+  that leans on those modes heavily.
+- 🕒 **`Mul` over transparency** — SpriteStudio's Mul row (`DST_COLOR`,
+  `1-SRC_ALPHA`) assumes an opaque target; over transparency the two backends
+  diverge from each other by one `Cs·(1-αb)` term, and the Canvas Sub / Invert
+  reconstruction likewise forces alpha to 1 over transparency. Exactness there
+  would need a framebuffer-read shader. Deliberately skipped: give a blend-heavy
+  pack an opaque background layer instead. See [Limitations](docs/en/limitations.md).

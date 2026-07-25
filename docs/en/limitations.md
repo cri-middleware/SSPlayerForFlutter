@@ -24,10 +24,34 @@ through the Canvas backend.
 - **Two render backends.** `flutter_gpu` (Impeller) is used where available and the dart:ui **Canvas**
   (`Canvas.drawVertices`) otherwise; the default `auto` probes and falls back safely. Web is always
   Canvas.
-- **Blend modes.** On the Canvas backend, `Sub` / `Invert` approximate to `difference` and `Div2` /
-  `Overlay2` fall back to `srcOver` — Flutter's fixed blend enum can't express reverse-subtract /
-  dst-replace. The `flutter_gpu` backend maps more modes exactly (e.g. reverse-subtract, Screen,
-  Multiply); only `Exclusion` / `Invert` / Multiply-over-transparency fall back to `srcOver` there.
+- **Blend modes.** SpriteStudio realises every blend as a fixed-function GPU blend state, so how
+  closely a mode can be reproduced depends on the backend:
+
+    | SpriteStudio mode | `flutter_gpu` | Canvas |
+    |---|---|---|
+    | `Mix`, `Add` | exact | exact |
+    | `Screen`, `Screen2`, `Exclusion` | exact | exact |
+    | `Mul`, `Mulalpha`, `Mul2` | exact over opaque content | exact over opaque content |
+    | `Sub`, `Invert` | exact | exact over opaque content (3 draws) |
+    | `Div2`, `Overlay2` | renders as `Mix` | renders as `Mix` |
+
+    `flutter_gpu` sets the reference blend state directly, so every mode is reproduced as-is. On the
+    Canvas backend, `Sub` and `Invert` have no single `ui.BlendMode` — Flutter's fixed enum has no
+    reverse-subtract and no destination-replace — so the player reconstructs them exactly from three
+    stock passes over the same geometry. The reconstruction costs two extra draws per part and prevents
+    those parts from batching, which matters only if an animation uses `Sub` / `Invert` on many parts
+    at once.
+
+    `Div2` / `Overlay2` matching `Mix` is intentional: they have no GPU blend mapping in the reference
+    players either.
+
+- **Blends read an opaque backdrop.** The modes that sample the destination (`Mul`, `Sub`, `Screen`,
+  `Exclusion`, `Invert`) match the editor where the pixels underneath are opaque — the case
+  SpriteStudio itself assumes, since it renders onto an opaque target. Over transparency they differ,
+  and the two backends differ from each other: the Canvas backend blends against whatever your app
+  already painted behind the widget, while `flutter_gpu` blends inside its own offscreen and so sees
+  only the animation's own pixels. Give a blend-heavy animation an opaque background layer if you need
+  the two to agree.
 
 ## Playback Feature Constraints
 

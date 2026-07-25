@@ -21,9 +21,11 @@ const int _h = 256;
 // reach pixel parity with Canvas; a kind not yet on GPU (Effect/Instance) or a
 // peeled part (PartColor/mask Normal) would diverge and is kept out of these.
 // Packs that must be byte-exact vs Canvas. BlendMode exercises the SS blend
-// modes; it reaches parity because fixed-function covers Mix/Add/Sub/Screen and
-// Multiply-over-opaque (Exclusion / Invert / Multiply-over-transparency would
-// need a framebuffer-read shader, but this pack does not diverge on them).
+// modes — Mix/Mul/Add/Sub/Mulalpha/Screen/Exclusion/Invert, each over the pack's
+// own opaque BG group. Both backends are exact against the reference GL state
+// there (the GPU sets it directly; Canvas maps the stock modes and rebuilds
+// Sub/Invert from three passes), so the two must agree. They would part company
+// only over a transparent destination, which this pack never has.
 const List<String> _packs = <String>[
   'Basic',
   'Mesh',
