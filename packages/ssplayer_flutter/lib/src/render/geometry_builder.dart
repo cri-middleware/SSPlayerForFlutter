@@ -259,6 +259,20 @@ class DrawFrame {
     return _partsColor;
   }
 
+  List<fbs.PartAttributeShader>? _shaders;
+  bool _shadersFetched = false;
+
+  /// The frame's `shaders` vector (the `SHDR` integration-shader attributes),
+  /// fetched once and cached (incl. a null result) — same reasoning as
+  /// [partsColor]. Pass the result to [PartShader.read].
+  List<fbs.PartAttributeShader>? get shaders {
+    if (!_shadersFetched) {
+      _shaders = frameData.shaders;
+      _shadersFetched = true;
+    }
+    return _shaders;
+  }
+
   /// The hierarchical alpha for part [partIndex], clamped to 0..1 (1 if the part
   /// is not present in the `parts` vector), times this frame's [alphaScale].
   ///
@@ -379,6 +393,37 @@ class PartColorQuad {
   /// `(LT.u,LT.v, RT.u,RT.v)` and `(LB.u,LB.v, RB.u,RB.v)` in texture pixels.
   final Float32List uvA;
   final Float32List uvB;
+
+  /// The cell's UV rect `(minU, minV, maxU, maxV)`, **normalised** by
+  /// [texWidth]/[texHeight] — the axis-aligned bounding box of the four corner
+  /// UVs.
+  ///
+  /// The `ss-circle` / `ss-spot` integration shaders (§`SHDR`) centre their
+  /// polar unwrap / spotlight on the *cell*, not the atlas, so they need to know
+  /// where in the atlas the cell sits. Derived from the quad's own corners
+  /// (which is how the Web port does it) rather than from cell metadata, so it
+  /// automatically follows a flipped or cell-overridden part.
+  Float32List cellRect(double texWidth, double texHeight) {
+    var minU = uvA[0], maxU = uvA[0];
+    var minV = uvA[1], maxV = uvA[1];
+    void fold(double u, double v) {
+      if (u < minU) minU = u;
+      if (u > maxU) maxU = u;
+      if (v < minV) minV = v;
+      if (v > maxV) maxV = v;
+    }
+
+    fold(uvA[2], uvA[3]);
+    fold(uvB[0], uvB[1]);
+    fold(uvB[2], uvB[3]);
+    final invW = texWidth > 0 ? 1.0 / texWidth : 0.0;
+    final invH = texHeight > 0 ? 1.0 / texHeight : 0.0;
+    return Float32List(4)
+      ..[0] = minU * invW
+      ..[1] = minV * invH
+      ..[2] = maxU * invW
+      ..[3] = maxV * invH;
+  }
 }
 
 /// Bakes the Brain's SoA buffers into `ui.Vertices` for `Canvas.drawVertices`
@@ -764,6 +809,77 @@ class GeometryBuilder {
       vBase,
       ip,
     );
+  }
+
+  /// Floats per vertex in the integration-shader bake
+  /// ([buildSsShaderInterleaved]) — 12 floats = 48 bytes, every `vec4` attribute
+  /// on a 16-byte boundary (and the stride itself a multiple of 16) so Impeller
+  /// reads them correctly. Layout matches `shaders/gpu/ssshader.vert`:
+  /// `[pos.xy, uv.xy, color.rgba, coef.xyz+rate]`.
+  static const int ssShaderStride = 12;
+
+  /// Interleaved flutter_gpu bake of ONE `SHDR` shader part's [quad] — the feed
+  /// for the `SsShaderVertex/Fragment` pipeline.
+  ///
+  /// The [buildPartColorInterleaved] layout minus the mask-replay attributes
+  /// (shader × mask is not combined — a masked part drops its shader), and
+  /// single-part rather than a run: the effect's parameters are a per-part
+  /// uniform block, so there is nothing to batch across parts.
+  ///
+  /// The caller supplies the [quad] it already built (it needs
+  /// [PartColorQuad.cellRect] for the same draw) and the *effective* [pc] — the
+  /// part's own PartColor scaled by the instance chain, or
+  /// [PartColor.passthrough] when it has none. Views alias scratch — consume
+  /// before the next bake.
+  InterleavedGeometry? buildSsShaderInterleaved(PartColorQuad quad, PartColor pc,
+      {required double texWidth, required double texHeight}) {
+    final verts = _inter(4 * ssShaderStride);
+    final indices = _idx(6);
+    final invW = texWidth > 0 ? 1.0 / texWidth : 0.0;
+    final invH = texHeight > 0 ? 1.0 / texHeight : 0.0;
+
+    final c = quad.corners, ua = quad.uvA, ub = quad.uvB;
+    var fp = 0;
+    // Corners in quad-winding order lt, rt, lb, rb — each carries its own colour
+    // + rate so the 4-corner gradient falls out of interpolation.
+    fp = _writeSsVertex(
+        verts, fp, c[0], c[1], ua[0] * invW, ua[1] * invH, pc.lt, pc.coef);
+    fp = _writeSsVertex(
+        verts, fp, c[2], c[3], ua[2] * invW, ua[3] * invH, pc.rt, pc.coef);
+    fp = _writeSsVertex(
+        verts, fp, c[4], c[5], ub[0] * invW, ub[1] * invH, pc.lb, pc.coef);
+    fp = _writeSsVertex(
+        verts, fp, c[6], c[7], ub[2] * invW, ub[3] * invH, pc.rb, pc.coef);
+    var ip = 0;
+    for (final q in _quad) {
+      indices[ip++] = q;
+    }
+    return InterleavedGeometry(
+      Float32List.view(verts.buffer, verts.offsetInBytes, fp),
+      Uint16List.view(indices.buffer, indices.offsetInBytes, ip),
+      4,
+      ip,
+    );
+  }
+
+  /// Writes one integration-shader vertex ([ssShaderStride] floats) at [fp] and
+  /// returns the next cursor. ALL 12 floats are written every call, so no stale
+  /// scratch leaks through.
+  static int _writeSsVertex(Float32List v, int fp, double x, double y, double u,
+      double vv, PartColorCorner col, List<double> coef) {
+    v[fp] = x; // a_position
+    v[fp + 1] = y;
+    v[fp + 2] = u; // a_uv (normalised)
+    v[fp + 3] = vv;
+    v[fp + 4] = col.r; // a_color (straight)
+    v[fp + 5] = col.g;
+    v[fp + 6] = col.b;
+    v[fp + 7] = col.a;
+    v[fp + 8] = coef[0]; // a_coef.xyz + rate
+    v[fp + 9] = coef[1];
+    v[fp + 10] = coef[2];
+    v[fp + 11] = col.rate;
+    return fp + ssShaderStride;
   }
 
   /// Interleaved flutter_gpu bake of *peeled* mesh [parts] — the mesh sibling of

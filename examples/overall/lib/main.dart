@@ -79,6 +79,8 @@ class _PlayerPageState extends State<PlayerPage>
       'Mesh',
       'Mask',
       'PartsColor',
+      // Every built-in `ss-*` integration shader (SHDR), one per animation.
+      'Shader',
       'Basic',
       'BlendMode',
       'Interpolation',

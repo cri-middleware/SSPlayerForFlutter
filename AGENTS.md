@@ -50,12 +50,25 @@ Examples: `examples/overall` (Basic validation) and `examples/flame`.
 
 **L2 render internals** (`ssplayer_flutter/lib/src/render/`): `geometry_builder.dart`
 (SoA→geometry bake — `ui.Vertices` for Canvas and interleaved VBOs for GPU — plus `DrawFrame`,
-Mesh/Shape buffers), `blend.dart`, `part_color.dart`, `mask.dart`/`mask_context.dart`,
+Mesh/Shape buffers), `blend.dart`, `part_color.dart`, `part_shader.dart` (the built-in
+`ss-*` integration-shader catalog + `SHDR` attribute reader), `mask.dart`/`mask_context.dart`,
 `part_override.dart` (per-part color/cell/visibility), `part_anchor.dart`, `effect.dart`/`instance.dart`;
 the pluggable render backends in `backend/` (`render_backend.dart` abstraction + `canvas_backend.dart` /
 `flutter_gpu_backend.dart` + the capability probe); Canvas shaders `shaders/{partcolor,mask_write}.frag`
+plus `shaders/ss_*.frag` over the shared `shaders/ss_shader_common.glsl`
 (dart:ui runtime-effect) and GPU shaders `shaders/gpu/*.{vert,frag}` (real GLSL); loaders
 `texture_loader.dart`/`instance_loader.dart`; generated `lib/src/ssab/*.g.dart` (never hand-edit).
+
+**Integration shaders (`SHDR`)**: a per-part attribute, not a draw kind — the Brain
+does not split batches by it, so the Body peels shader parts out of ordinary Normal
+batches exactly as it peels PartColor ones. All 13 built-in `ss-*` effects ship on
+both backends; every one but `ss-blur` folds the PartColor formula as its output
+tail. Deliberately out of scope (matching both siblings' v1): `map0`/`map1` extra
+textures, shader × mask combined (a masked part drops its shader), and shader parts
+on Mesh/Shape/Effect kinds. Canvas uses **one program per effect** (a runtime effect
+impellerc rejects fails *silently*, so one bad shader must not blank the rest); the
+GPU backend uses **one pipeline branching on an id** (a bad shader fails the bundle
+build loudly, and the parts draw individually anyway).
 
 ## Toolchain scripts (`scripts/`, `.sh`+`.ps1`; SDK via `$SSSDK` else `./SpriteStudio-SDK`)
 
@@ -82,6 +95,8 @@ downloads the pinned SDK release for Rust-less consumers.
 * **Mask has no C-API** — roles come from the static `.ssab` `PartData`, read once at load; ignore `FrameData.mask_indices`.
 * **PartColor alpha is pre-folded by the Brain** — do not re-multiply `PartState.alpha` when a PartColor is present.
 * **dart:ui shaders ≠ full GLSL** — the Canvas backend's runtime-effect shaders (`shaders/*.frag`) take no per-vertex varyings and `impellerc` rejects bitwise ops & `discard`; a bad one fails silently and falls back (grep test output for `impellerc failure`/`SkSL Error`; verifiable only in `examples/overall`). The **flutter_gpu** shaders (`shaders/gpu/`) are real GLSL — varyings, bitwise ops, UBOs — which is how the GPU backend batches the peeled PartColor/mask fan-out the Canvas path cannot.
+* **A local `#include` in a Canvas `.frag` works** — the Flutter shader build passes the shader's own directory to impellerc, so `shaders/ss_*.frag` share `ss_shader_common.glsl`. It also **keeps declared-but-unused uniforms in their slots**, which is why all 13 can share one uniform block and one Dart writer even though most never read `uCellRect`. `test/part_shader_test.dart` pins the float count (48) per program — that test failing is how a rejected shader or a block edit surfaces.
+* **`ss-blur` skips the PartColor fold** and **shader × mask is not combined** (a masked part drops its shader) — both deliberate, both matching the Web/Godot ports.
 * **Blend table** (`render/blend.dart`, Canvas) is ported from ssplayer-webgl; Sub/Invert approximate to `difference`, Div2/Overlay2 → `srcOver`. The flutter_gpu backend maps blends via fixed-function pipeline equations (more modes exact), falling back to `srcOver` only for Exclusion/Invert/Multiply-over-transparency.
 
 ## Verification

@@ -38,5 +38,13 @@
   "ColorMatrixFragment": {
     "type": "fragment",
     "file": "shaders/gpu/colormatrix.frag"
+  },
+  "SsShaderVertex": {
+    "type": "vertex",
+    "file": "shaders/gpu/ssshader.vert"
+  },
+  "SsShaderFragment": {
+    "type": "fragment",
+    "file": "shaders/gpu/ssshader.frag"
   }
 }

@@ -10,6 +10,7 @@ import '../geometry_builder.dart';
 import '../mask.dart';
 import '../mask_context.dart';
 import '../part_color.dart';
+import '../part_shader.dart';
 import 'render_backend.dart';
 import 'render_host.dart';
 
@@ -36,6 +37,21 @@ class CanvasBackend implements RenderBackend {
   static final _LazyProgram _maskWriteProgram =
       _LazyProgram('packages/ssplayer_flutter/shaders/mask_write.frag');
 
+  /// The built-in integration shaders (`SHDR`), one fragment program per effect,
+  /// each compiled the first time a part actually uses it.
+  ///
+  /// Deliberately 13 programs rather than one mega-shader switching on an id: a
+  /// runtime effect that impellerc rejects fails **silently** and falls back, so
+  /// one shader per effect keeps a bad one from blanking the other twelve. They
+  /// share `shaders/ss_shader_common.glsl` (hence one uniform layout and one
+  /// writer, [_setSsShaderUniforms]), so the duplication is only in the file
+  /// list. Shared across players; a load failure latches per effect.
+  static final Map<SsShaderId, _LazyProgram> _ssPrograms =
+      <SsShaderId, _LazyProgram>{
+    for (final id in SsShaderId.values)
+      id: _LazyProgram('packages/ssplayer_flutter/shaders/${id.asset}.frag'),
+  };
+
   /// One [ui.Paint] reused across every plain Normal/Mesh batch draw instead of
   /// allocating one per batch. `Canvas.drawVertices` snapshots the paint's state
   /// at the call, so a single mutable instance is safe as long as every mutated
@@ -53,6 +69,11 @@ class CanvasBackend implements RenderBackend {
 
   /// Same, for the coverage pass's writers.
   final _ShaderPool _maskWriteShaders = _ShaderPool();
+
+  /// Same again, per integration-shader effect — a pool holds instances of ONE
+  /// program, so the 13 effects cannot share one. Grown on demand: an animation
+  /// with no shader parts allocates none.
+  final Map<SsShaderId, _ShaderPool> _ssShaders = <SsShaderId, _ShaderPool>{};
 
   /// A 1×1 transparent image bound to the peeled shader's coverage sampler when
   /// the part is not masked (a sampler must always be bound). Shared; never
@@ -138,6 +159,9 @@ class CanvasBackend implements RenderBackend {
   void rewindShaderPools() {
     _partColorShaders.rewind();
     _maskWriteShaders.rewind();
+    for (final pool in _ssShaders.values) {
+      pool.rewind();
+    }
   }
 
   @override
@@ -153,6 +177,10 @@ class CanvasBackend implements RenderBackend {
     releaseCoverage();
     _partColorShaders.dispose();
     _maskWriteShaders.dispose();
+    for (final pool in _ssShaders.values) {
+      pool.dispose();
+    }
+    _ssShaders.clear();
   }
 
   @override
@@ -274,8 +302,10 @@ class CanvasBackend implements RenderBackend {
     final drawOrder = frame.drawOrder;
     final paint = _paintForBatch(batch, host);
     final blend = blendModeFor(batch.blendType);
-    // Fetch the frame's parts_color vector once (see [DrawFrame.partsColor]).
+    // Fetch the frame's parts_color / shaders vectors once (see
+    // [DrawFrame.partsColor]).
     final partsColor = frame.partsColor;
+    final shaders = frame.shaders;
 
     final run = <int>[];
     void flushRun() {
@@ -305,11 +335,21 @@ class CanvasBackend implements RenderBackend {
       // (a rare nested-mask case that would need a second peel pass to combine).
       final ownBits = maskCtx?.bitsForTarget(rank, flags);
       final mask = ownBits != null ? maskCtx!.drawFor(ownBits) : inheritedMask;
-      if (pc == null && mask == null) {
+      // Integration shader (`SHDR`). NOT combined with a mask test: the
+      // peeled shader binds no coverage sampler, so a masked shader part keeps
+      // the plain masked path and drops its effect — the v1 limitation both
+      // sibling ports share.
+      final sh =
+          (part == null || mask != null) ? null : PartShader.read(shaders, part);
+      if (pc == null && mask == null && sh == null) {
         run.add(p);
       } else {
         flushRun();
-        _drawPeeledPart(canvas, p, pc, frame, host, batch, blend, mask);
+        if (sh != null) {
+          _drawShaderPart(canvas, p, sh, pc, frame, host, batch, blend);
+        } else {
+          _drawPeeledPart(canvas, p, pc, frame, host, batch, blend, mask);
+        }
       }
     }
     flushRun();
@@ -663,6 +703,58 @@ class CanvasBackend implements RenderBackend {
         _quadPath(quad), ui.Paint()..blendMode = blend..shader = shader);
   }
 
+  /// Draws one Normal part carrying an integration shader (`SHDR`) through
+  /// that effect's `shaders/ss_*.frag` program.
+  ///
+  /// Structurally [_drawPeeledPart] with a different fragment program: the part
+  /// is drawn on its own quad and the shader rebuilds the UV / colour / rate
+  /// gradient from the CPU-supplied affine (see `ss_shader_common.glsl`), so the
+  /// effect bodies get the `vUV` / `vColor` varyings their WebGL originals
+  /// assume. Every effect but `ss-blur` then folds the PartColor formula as its
+  /// output tail, which is why [pc] travels along: a part can carry both, and
+  /// one without a PartColor still needs the passthrough corner so its
+  /// hierarchical alpha survives (§1-3, same contract as [_drawPeeledPart]).
+  ///
+  /// Falls back to the ordinary peeled path — effect dropped, colours intact —
+  /// when the program is still compiling (or failed to) or the texture/quad is
+  /// unavailable, so the part stays visible either way.
+  void _drawShaderPart(
+    ui.Canvas canvas,
+    int part,
+    PartShader sh,
+    PartColor? pc,
+    DrawFrame frame,
+    RenderHost host,
+    fbs.DrawBatch batch,
+    ui.BlendMode blend,
+  ) {
+    final program = _ssPrograms[sh.id]!.get();
+    final image = host.textures.imageFor(batch.textureHash);
+    final quad = host.geometry.buildPartColorQuad(part, frame);
+    if (program == null || image == null || quad == null) {
+      _drawPeeledPart(canvas, part, pc, frame, host, batch, blend, null);
+      return;
+    }
+
+    final effective = pc == null
+        ? PartColor.passthrough(frame.alphaOf(part))
+        : pc.scaleAlpha(frame.alphaScale);
+    final texWidth = image.width.toDouble();
+    final texHeight = image.height.toDouble();
+
+    final shader =
+        _ssShaders.putIfAbsent(sh.id, _ShaderPool.new).next(program);
+    _setSsShaderUniforms(shader, effective, quad, sh,
+        texWidth: texWidth, texHeight: texHeight);
+    // Bilinear, like the batched ImageShader path — the peeled sampler defaults
+    // to nearest, which the multi-tap effects (blur / outline / move) would
+    // turn into visible stair-stepping.
+    shader.setImageSampler(0, image, filterQuality: ui.FilterQuality.low);
+
+    canvas.drawPath(
+        _quadPath(quad), ui.Paint()..blendMode = blend..shader = shader);
+  }
+
   /// The union of a baked block's triangles, as one non-zero-wound path.
   ///
   /// Built from the very triangles the colour pass draws rather than from a
@@ -773,6 +865,72 @@ class CanvasBackend implements RenderBackend {
     f(maskUvBasis?[3] ?? 0.0);
     f(maskUvOffset?[0] ?? 0.0);
     f(maskUvOffset?[1] ?? 0.0);
+  }
+
+  /// Writes the integration-shader uniforms in the declaration order of
+  /// `shaders/ss_shader_common.glsl` — the block all 13 `ss_*.frag` programs
+  /// share, which is what lets ONE writer serve every effect.
+  ///
+  /// The first eleven entries are `partcolor.frag`'s reconstruction + PartColor
+  /// block verbatim (see [_setPartColorUniforms]); the two after them are the
+  /// effect's own parameters and, for `ss-circle` / `ss-spot`, the cell's UV
+  /// rect. An effect that reads neither still has them in its layout — impellerc
+  /// keeps a declared-but-unused uniform in its slot — so the indices below hold
+  /// for all 13.
+  static void _setSsShaderUniforms(
+    ui.FragmentShader shader,
+    PartColor pc,
+    PartColorQuad quad,
+    PartShader sh, {
+    required double texWidth,
+    required double texHeight,
+  }) {
+    var i = 0;
+    void f(double v) => shader.setFloat(i++, v);
+    void corner(PartColorCorner c) {
+      f(c.r);
+      f(c.g);
+      f(c.b);
+      f(c.a);
+    }
+
+    f(quad.originX); // uOrigin
+    f(quad.originY);
+    f(quad.inv[0]); // uInv
+    f(quad.inv[1]);
+    f(quad.inv[2]);
+    f(quad.inv[3]);
+    f(texWidth); // uTexSize
+    f(texHeight);
+    f(pc.coef[0]); // uCoef
+    f(pc.coef[1]);
+    f(pc.coef[2]);
+    f(pc.coef[3]);
+    f(pc.lt.rate); // uRate (lt,rt,lb,rb)
+    f(pc.rt.rate);
+    f(pc.lb.rate);
+    f(pc.rb.rate);
+    corner(pc.lt); // uColLT..uColRB
+    corner(pc.rt);
+    corner(pc.lb);
+    corner(pc.rb);
+    f(quad.uvA[0]); // uUvA (lt.uv, rt.uv)
+    f(quad.uvA[1]);
+    f(quad.uvA[2]);
+    f(quad.uvA[3]);
+    f(quad.uvB[0]); // uUvB (lb.uv, rb.uv)
+    f(quad.uvB[1]);
+    f(quad.uvB[2]);
+    f(quad.uvB[3]);
+    f(sh.params[0]); // uParams (param0..param3)
+    f(sh.params[1]);
+    f(sh.params[2]);
+    f(sh.params[3]);
+    final cell = quad.cellRect(texWidth, texHeight); // uCellRect
+    f(cell[0]);
+    f(cell[1]);
+    f(cell[2]);
+    f(cell[3]);
   }
 
   /// Writes the coverage-writer uniforms in the declaration order of

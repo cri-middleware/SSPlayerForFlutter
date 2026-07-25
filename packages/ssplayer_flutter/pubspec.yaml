@@ -83,11 +83,29 @@ flutter:
     - build/shaderbundles/ssplayer.shaderbundle
 
   # Fragment shaders, loaded lazily (only once a part actually needs one), so
-  # animations that use neither PartColor nor masks pay nothing and keep the
-  # stock batched textured path. Consumers get them as
+  # animations that use neither PartColor nor masks nor an integration shader
+  # pay nothing and keep the stock batched textured path. Consumers get them as
   # `packages/ssplayer_flutter/shaders/<name>.frag`.
   #   partcolor  — PartColor (§10) blend + mask (§9) replay, for peeled parts.
   #   mask_write — writes one mask writer's bit into the coverage bitmap (§9).
+  #   ss_*       — the 13 built-in integration shaders (`SHDR`), one program per
+  #                effect so a shader impellerc rejects (a SILENT failure that
+  #                falls back to the plain path) cannot take the others with it.
+  #                They share shaders/ss_shader_common.glsl, which is #included
+  #                rather than listed — it is not a program of its own.
   shaders:
     - shaders/partcolor.frag
     - shaders/mask_write.frag
+    - shaders/ss_sepia.frag
+    - shaders/ss_hsb.frag
+    - shaders/ss_step.frag
+    - shaders/ss_pix.frag
+    - shaders/ss_noise.frag
+    - shaders/ss_bmask.frag
+    - shaders/ss_outline.frag
+    - shaders/ss_blur.frag
+    - shaders/ss_wave.frag
+    - shaders/ss_move.frag
+    - shaders/ss_scatter.frag
+    - shaders/ss_circle.frag
+    - shaders/ss_spot.frag

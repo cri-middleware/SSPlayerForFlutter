@@ -10,6 +10,7 @@ import '../geometry_builder.dart';
 import '../mask.dart';
 import '../mask_context.dart';
 import '../part_color.dart';
+import '../part_shader.dart';
 import 'render_backend.dart';
 import 'render_host.dart';
 
@@ -204,6 +205,27 @@ class FlutterGpuBackend implements RenderBackend {
     return _colorMatrixPipeline = p;
   }
 
+  /// The built-in integration shaders (`SHDR`) — ONE pipeline for all 13,
+  /// branching on the effect id in its uniform block.
+  ///
+  /// The Canvas backend takes the opposite trade (13 programs) because a
+  /// runtime effect it cannot compile fails silently; here a bad shader breaks
+  /// the bundle build loudly, and a shader part is drawn on its own quad
+  /// regardless (its parameters are per-part uniforms), so 13 pipelines would
+  /// buy nothing but bundle entries.
+  static gpu.RenderPipeline? _ssShaderPipeline;
+  static bool _ssShaderPipelineFailed = false;
+  static gpu.RenderPipeline? _ensureSsShaderPipeline() {
+    if (_ssShaderPipeline != null) return _ssShaderPipeline;
+    if (_ssShaderPipelineFailed) return null;
+    final p = _buildPipeline('SsShaderVertex', 'SsShaderFragment');
+    if (p == null) {
+      _ssShaderPipelineFailed = true;
+      return null;
+    }
+    return _ssShaderPipeline = p;
+  }
+
   static gpu.RenderPipeline? _shapeMaskPipeline;
   static bool _shapeMaskPipelineFailed = false;
   static gpu.RenderPipeline? _ensureShapeMaskPipeline() {
@@ -380,6 +402,7 @@ class FlutterGpuBackend implements RenderBackend {
     final blend = _blendFor(batch.blendType);
     final drawOrder = frame.drawOrder;
     final partsColor = frame.partsColor;
+    final shaders = frame.shaders;
 
     // Same run/peel structure as the Canvas path, but the peeled parts also
     // BATCH: a run of consecutive PartColor/mask parts draws in ONE PartColor
@@ -423,6 +446,29 @@ class FlutterGpuBackend implements RenderBackend {
       final pc = part == null ? null : PartColor.read(partsColor, part);
       final ownBits = maskCtx?.bitsForTarget(rank, flags);
       final mask = ownBits != null ? maskCtx!.drawFor(ownBits) : inheritedMask;
+      // Integration shader (`SHDR`): its parameters are per-part uniforms,
+      // so it cannot join either run — flush both to keep z-order and draw it on
+      // its own. NOT combined with a mask test (v1, both siblings agree): a
+      // masked shader part keeps the plain masked path and drops its effect.
+      final sh =
+          (part == null || mask != null) ? null : PartShader.read(shaders, part);
+      if (sh != null) {
+        flushRun();
+        flushPc();
+        _drawSsShaderPart(
+            p,
+            sh,
+            pc == null
+                ? PartColor.passthrough(frame.alphaOf(p))
+                : pc.scaleAlpha(frame.alphaScale),
+            frame,
+            host,
+            tex,
+            texW,
+            texH,
+            blend);
+        continue;
+      }
       if (pc == null && mask == null) {
         flushPc();
         run.add(p);
@@ -516,6 +562,96 @@ class FlutterGpuBackend implements RenderBackend {
       // Coverage MUST stay nearest — its texels are bit fields.
       pass.bindTexture(
           pipeline.fragmentShader.getUniformSlot('u_coverage'), cov);
+      pass.draw();
+    } catch (_) {
+      // Skip this draw; keep the rest of the frame.
+    }
+  }
+
+  /// Draws ONE Normal part carrying an integration shader (`SHDR`) through
+  /// the shared `SsShaderVertex/Fragment` pipeline.
+  ///
+  /// Per-part rather than batched: the effect id, its `param0..3` and the cell
+  /// UV rect are a uniform block, so two parts can only share a draw if all
+  /// three agree — not worth detecting for a part kind this rare.
+  ///
+  /// [pc] is the *effective* PartColor the caller resolved (the part's own
+  /// scaled by the instance chain, or [PartColor.passthrough] when it has none):
+  /// every effect but `ss-blur` folds it as its output tail, and even `ss-blur`
+  /// multiplies by it, so it is never optional. Falls back to the ordinary
+  /// PartColor path — effect dropped, colours intact — when the pipeline is
+  /// unavailable, mirroring what the Canvas backend does.
+  void _drawSsShaderPart(
+      int part,
+      PartShader sh,
+      PartColor pc,
+      DrawFrame frame,
+      RenderHost host,
+      gpu.Texture tex,
+      double texW,
+      double texH,
+      gpu.ColorBlendEquation blend) {
+    final pipeline = _ensureSsShaderPipeline();
+    final quad =
+        pipeline == null ? null : host.geometry.buildPartColorQuad(part, frame);
+    if (pipeline == null || quad == null) {
+      _drawPartColorRun(<int>[part], <PartColor>[pc], const <MaskDraw?>[null],
+          null, frame, host, tex, texW, texH, blend);
+      return;
+    }
+
+    final geo = host.geometry
+        .buildSsShaderInterleaved(quad, pc, texWidth: texW, texHeight: texH);
+    if (geo == null) return;
+
+    // `ShaderInfo` — three vec4s, so every field lands on a 16-byte boundary
+    // (the alignment Impeller needs). `TEXTURE_PIXEL_SIZE` is 1/atlas size, NOT
+    // 1/offscreen size: the effects step in texture space, and the offscreen is
+    // DPR-scaled underneath them.
+    final cell = quad.cellRect(texW, texH);
+    final info = Float32List(12)
+      ..[0] = sh.params[0] // params
+      ..[1] = sh.params[1]
+      ..[2] = sh.params[2]
+      ..[3] = sh.params[3]
+      ..[4] = cell[0] // cell_rect
+      ..[5] = cell[1]
+      ..[6] = cell[2]
+      ..[7] = cell[3]
+      // misc: (effect id, 1/texW, 1/texH, -). The id is SsShaderId's index —
+      // shaders/gpu/ssshader.frag's SS_* constants mirror that order.
+      ..[8] = sh.id.index.toDouble()
+      ..[9] = texW > 0 ? 1.0 / texW : 0.0
+      ..[10] = texH > 0 ? 1.0 / texH : 0.0;
+
+    try {
+      final pass = _pass!;
+      pass.bindPipeline(pipeline);
+      pass.bindUniform(
+          pipeline.vertexShader.getUniformSlot('FrameInfo'), _mvpView!);
+      pass.bindUniform(pipeline.fragmentShader.getUniformSlot('ShaderInfo'),
+          _hostBuffer!.emplace(ByteData.sublistView(info)));
+      pass.setColorBlendEquation(blend);
+
+      final vb = gpu.gpuContext
+          .createDeviceBufferWithCopy(ByteData.sublistView(geo.vertices));
+      final ib = gpu.gpuContext
+          .createDeviceBufferWithCopy(ByteData.sublistView(geo.indices));
+      pass.bindVertexBuffer(
+          gpu.BufferView(vb, offsetInBytes: 0, lengthInBytes: vb.sizeInBytes),
+          geo.vertexCount);
+      pass.bindIndexBuffer(
+          gpu.BufferView(ib, offsetInBytes: 0, lengthInBytes: ib.sizeInBytes),
+          gpu.IndexType.int16,
+          geo.indexCount);
+      pass.bindTexture(
+        pipeline.fragmentShader.getUniformSlot('u_texture'),
+        tex,
+        sampler: gpu.SamplerOptions(
+          minFilter: gpu.MinMagFilter.linear,
+          magFilter: gpu.MinMagFilter.linear,
+        ),
+      );
       pass.draw();
     } catch (_) {
       // Skip this draw; keep the rest of the frame.

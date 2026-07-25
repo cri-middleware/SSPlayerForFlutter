@@ -50,6 +50,9 @@ export 'src/render/effect.dart' show EffectPart, EffectSlots;
 export 'src/render/instance.dart'
     show InstanceChild, InstancePart, InstanceSlot, InstanceSlots;
 export 'src/render/part_color.dart' show PartColor, PartColorCorner;
+// Integration shaders (`SHDR`) — the built-in `ss-*` effect catalog and the
+// per-part attribute reader. The programs themselves live in shaders/.
+export 'src/render/part_shader.dart' show PartShader, SsShaderId;
 // Part overrides (§65) — the enums and the part-name table the by-name
 // overrides resolve through. The calls themselves live on the L2/L3 players.
 export 'src/render/part_override.dart'

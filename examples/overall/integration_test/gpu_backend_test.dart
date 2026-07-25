@@ -35,6 +35,14 @@ const List<String> _packs = <String>[
   'BlendMode',
 ];
 
+// `Shader` (the 13 `ss-*` integration shaders) is deliberately NOT in the gate
+// above. Both backends implement the same maths, but through separately authored
+// programs — a dart:ui runtime effect that rebuilds the UV/colour gradient per
+// fragment vs real GLSL that interpolates it — and `ss-noise` / `ss-scatter`
+// hash with `fract(sin(...))`, whose last bits differ between the two compile
+// paths. That makes a byte-level mean-difference gate the wrong instrument here;
+// verify the pack by eye in the example app on both backends instead.
+
 // A subset for the reload regression — the heaviest GPU resource sets: Basic
 // (sprite pipeline + atlas texture), PartsColor (partcolor pipeline + per-part
 // UBO + coverage texture). Enough to prove the backend rebuilds cleanly after a
