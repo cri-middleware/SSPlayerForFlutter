@@ -267,19 +267,20 @@ class SpriteStudioPlayer extends ChangeNotifier {
       // texture keys are cellmap name hashes, so a shared atlas resolves once
       // and a child-only cellmap simply adds to it. Without this pass an
       // instance child draws untextured.
-      // These run concurrently into the one registry, so they share a claim set
-      // — otherwise every pack naming the same atlas decodes its own copy of it
-      // and all but the last are thrown away.
-      final claimed = <int>{};
-      final reports = await Future.wait(<Future<TextureLoadReport>>[
-        SsTextureLoader.load(internal.textures, ssab,
-            bundle: bundle, baseAssetDir: baseAssetDir, claimed: claimed),
-        for (final child in packs.packs.values)
-          SsTextureLoader.load(internal.textures, child,
-              bundle: bundle, baseAssetDir: baseAssetDir, claimed: claimed),
-      ]);
-      // Guard against a concurrent reload/dispose while awaiting.
-      if (_disposed || !identical(_internal, internal)) return;
+      // One pack at a time, so each sees what the previous ones registered and a
+      // shared atlas decodes once instead of once per pack. Concurrently, every
+      // pack would find the registry empty; a claim-taken-before-the-decode set
+      // fixes that but then loses a cellmap this pack cannot resolve and the next
+      // one can (embedded in one, referenced in the other) — see
+      // [SsTextureLoader.load]. Cellmaps *within* a pack still decode
+      // concurrently, which is where the parallelism is worth having.
+      final reports = <TextureLoadReport>[];
+      for (final pack in <Uint8List>[ssab, ...packs.packs.values]) {
+        reports.add(await SsTextureLoader.load(internal.textures, pack,
+            bundle: bundle, baseAssetDir: baseAssetDir));
+        // Guard against a concurrent reload/dispose while awaiting.
+        if (_disposed || !identical(_internal, internal)) return;
+      }
       _lastTextureReport = TextureLoadReport(
           <String>[for (final r in reports) ...r.unresolved]);
       notifyListeners();

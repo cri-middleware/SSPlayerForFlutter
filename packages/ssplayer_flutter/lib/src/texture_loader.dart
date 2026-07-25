@@ -30,17 +30,17 @@ class TextureLoadReport {
 class SsTextureLoader {
   /// Decodes and registers every cellmap texture. Cellmaps that are neither
   /// embedded nor resolvable as an asset are collected in the returned report.
-  /// [claimed] deduplicates across *concurrent* sibling calls that share one
-  /// registry (a root pack and its instance children, §8, routinely name the
-  /// same atlas). Every call claims its hashes synchronously before the first
-  /// await, so a hash decodes exactly once no matter how the loads interleave;
-  /// pass the same set to each. Omit it for a standalone load.
+  ///
+  /// A cellmap already in [registry] is skipped, so several packs sharing one
+  /// registry (a root and its instance children, §8, routinely name the same
+  /// atlas) decode it once. That only holds if the calls are *sequenced* — see
+  /// the caller in `player.dart`; two concurrent calls would both find the
+  /// registry empty.
   static Future<TextureLoadReport> load(
     TextureRegistry registry,
     Uint8List ssabBytes, {
     AssetBundle? bundle,
     String? baseAssetDir,
-    Set<int>? claimed,
   }) async {
     final anime = ssab.SsAnimeBinary(ssabBytes);
     final cellmaps = anime.cellmaps ?? const <ssab.CellMap>[];
@@ -52,14 +52,19 @@ class SsTextureLoader {
     final unresolved = <String>[];
 
     await Future.wait(cellmaps.map((cm) async {
-      // Already brought in by a sibling pack (§8 instance children share their
-      // parent's registry, and a shared atlas is the normal case). Skipping is
-      // both the cheaper path and the safe one — decoding again would hand
-      // `register` a second image for the same hash, disposing the first while
-      // the pack that registered it is still live. The claim is synchronous, so
-      // it also holds against a sibling load that has not registered yet.
+      // Already brought in by a pack loaded before this one (§8 instance children
+      // share their parent's registry, and a shared atlas is the normal case).
+      // Skipping is both the cheaper path and the safe one — decoding again would
+      // hand `register` a second image for the same hash, disposing the first
+      // while the pack that registered it is still live.
+      //
+      // Deliberately keyed on "is it registered", not on "has someone claimed
+      // it": a claim taken before the decode has to be released when the decode
+      // fails, and by then a sibling that skipped on the claim is already gone —
+      // so a cellmap this pack cannot resolve but the next one could (embedded
+      // here, referenced there) would be lost entirely. A missing atlas is
+      // silent for a mask writer, which is dropped rather than drawn wrong.
       if (registry.contains(cm.nameHash)) return;
-      if (claimed != null && !claimed.add(cm.nameHash)) return;
       // Sampling is a cellmap property (design §7): honour its declared filter +
       // wrap so drawVertices doesn't fall back to nearest-neighbour (jaggy).
       final filterQuality = _filterQualityFor(cm);
