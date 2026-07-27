@@ -53,6 +53,20 @@ through the Canvas backend.
   only the animation's own pixels. Give a blend-heavy animation an opaque background layer if you need
   the two to agree.
 
+## Part Following
+
+Sticking a widget to a part (see [Part Following](guide/part-following.md)) is currently limited to
+the following scope.
+
+- **Top-level parts only.** A part inside an Instance part lives in the child animation's own player
+  and cannot be followed; the Instance part itself can.
+- **Transform only, not draw order.** The following widget paints above the whole animation — it
+  cannot be interleaved between the character's own parts.
+- **Assumes the view draws unscaled.** Scale / `BoxFit` placement is not implemented on
+  `SpriteStudioView` yet; the anchor will need the same fit once it is.
+- The anchor must cover the **same box as the view** (a `Positioned.fill` sibling in one `Stack`),
+  since both derive their centring from their own constraints.
+
 ## Playback Feature Constraints
 
 These come from the shared `libssruntime` and therefore apply on every platform and backend — and

@@ -141,6 +141,8 @@ player.setPartColorOverrideByName('body', SsBlendOp.mul, Colors.red);
 
 ## See also
 
+- [Part Following](part-following.md) — read the other direction: follow a part's live pose with a
+  widget
 - [Playback & Events](playback.md) — transport and event callbacks
 - To swap a **whole cellmap (texture)** at once, use texture replacement instead. This feature works
   on **one part at a time**, replacing the cell it draws.
