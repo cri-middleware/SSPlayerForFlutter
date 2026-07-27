@@ -76,6 +76,11 @@ _player.onComplete = () {
 };
 ```
 
+## Attaching a widget to a part
+
+To make a widget follow a named part's position, rotation and scale every frame — or just to read a
+part's pose once — see [Part Following](part-following.md).
+
 ## Overriding individual parts
 
 To give one part a different colour / cell — or hide it — in a way that beats the keyframes, see
