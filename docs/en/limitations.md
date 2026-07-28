@@ -8,6 +8,21 @@ guides.
     This is a living document. Items are added as they are confirmed; wording and coverage may change
     as the player evolves.
 
+## Not Yet Implemented
+
+!!! warning
+    - **Text parts** — not drawn on either backend. The runtime reserves the part's slot in the
+      draw plan but supplies no glyphs (glyph layout and rasterization are the player's job), and
+      the player has no Flutter text pass yet.
+    - **9-slice parts** — not drawn on either backend. The runtime builds the whole grid into its
+      dedicated `Nines` buffers, but the player does not read them yet, so the part renders as
+      nothing rather than as a stretched cell.
+
+Both part types still occupy their place in the draw order, so an animation that uses them plays
+with those parts missing rather than failing. They are also skipped as mask writers: a text or
+9-slice part authored as a mask contributes no coverage. If you ship one, replace it with an
+ordinary part at authoring time.
+
 ## Platforms
 
 Verified on **macOS**, **iOS (simulator)**, **Android (emulator)**, and **Web (developer preview)**.
