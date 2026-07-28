@@ -470,6 +470,148 @@ external void ss_runtime_get_mesh_index_offsets(
   ffi.Pointer<ffi.UintPtr> out_len,
 );
 
+/// Nine-Slice per-vertex positions for the current frame, interleaved
+/// `[x, y, ...]` and concatenated across all parts, written by
+/// `ss_runtime_get_frame_data`. Slice per part with
+/// `ss_runtime_get_nines_vertex_offsets`; parts drawn by another
+/// `DrawBatchKind` occupy an empty range.
+///
+/// Coordinates are part-local with pivot, image flip and the
+/// `coordinate_system` (Y-Up/Y-Down) flip already applied — exactly like
+/// `ss_runtime_get_local_vertices` — so a Player just multiplies them by the
+/// part's world matrix. The grid is a 4x4 sheet for `nines_fill_mode == 0`
+/// (stretch) and independent quads per repeat for `== 1` (tile).
+///
+/// # Safety
+///
+/// This function is unsafe because it dereferences raw pointers for output.
+/// The caller must ensure `out_data` and `out_len` are valid if they are not null.
+@ffi.Native<
+  ffi.Void Function(
+    ffi.Pointer<ffi.Void>,
+    ffi.Pointer<ffi.Pointer<ffi.Float>>,
+    ffi.Pointer<ffi.UintPtr>,
+  )
+>()
+external void ss_runtime_get_nines_vertices(
+  ffi.Pointer<ffi.Void> context,
+  ffi.Pointer<ffi.Pointer<ffi.Float>> out_data,
+  ffi.Pointer<ffi.UintPtr> out_len,
+);
+
+/// Nine-Slice per-vertex UVs in cellmap texture-pixel space, interleaved
+/// `[u, v, ...]`. Shares the vertex CSR of
+/// `ss_runtime_get_nines_vertex_offsets`. Divide by the texture size to
+/// normalize, the same as `ss_runtime_get_local_uvs`.
+///
+/// # Safety
+///
+/// This function is unsafe because it dereferences raw pointers for output.
+/// The caller must ensure `out_data` and `out_len` are valid if they are not null.
+@ffi.Native<
+  ffi.Void Function(
+    ffi.Pointer<ffi.Void>,
+    ffi.Pointer<ffi.Pointer<ffi.Float>>,
+    ffi.Pointer<ffi.UintPtr>,
+  )
+>()
+external void ss_runtime_get_nines_uvs(
+  ffi.Pointer<ffi.Void> context,
+  ffi.Pointer<ffi.Pointer<ffi.Float>> out_data,
+  ffi.Pointer<ffi.UintPtr> out_len,
+);
+
+/// Nine-Slice per-vertex box coordinates, interleaved `[fx, fy, ...]` with
+/// `0` at the part's left / top edge and `1` at its right / bottom edge.
+/// Shares the vertex CSR of `ss_runtime_get_nines_vertex_offsets`.
+///
+/// Use them to bilinearly interpolate the four `part_color` corners across the
+/// grid — the same weighting `ss_runtime_get_shape_vertex_box_coords` provides
+/// for Shape parts. A part flip is already folded in, so `fx` / `fy` always
+/// describe the drawn box.
+///
+/// # Safety
+///
+/// This function is unsafe because it dereferences raw pointers for output.
+/// The caller must ensure `out_data` and `out_len` are valid if they are not null.
+@ffi.Native<
+  ffi.Void Function(
+    ffi.Pointer<ffi.Void>,
+    ffi.Pointer<ffi.Pointer<ffi.Float>>,
+    ffi.Pointer<ffi.UintPtr>,
+  )
+>()
+external void ss_runtime_get_nines_box_coords(
+  ffi.Pointer<ffi.Void> context,
+  ffi.Pointer<ffi.Pointer<ffi.Float>> out_data,
+  ffi.Pointer<ffi.UintPtr> out_len,
+);
+
+/// Nine-Slice triangle indices, concatenated across all parts and sliced by
+/// `ss_runtime_get_nines_index_offsets`. Values are **part-local**
+/// (`0..vertex_count`), so a Player passes them alongside the part's vertex
+/// slice without rebasing. Each quad is wound `LT, RT, LB / LB, RT, RB`.
+///
+/// # Safety
+///
+/// This function is unsafe because it dereferences raw pointers for output.
+/// The caller must ensure `out_data` and `out_len` are valid if they are not null.
+@ffi.Native<
+  ffi.Void Function(
+    ffi.Pointer<ffi.Void>,
+    ffi.Pointer<ffi.Pointer<ffi.Int32>>,
+    ffi.Pointer<ffi.UintPtr>,
+  )
+>()
+external void ss_runtime_get_nines_indices(
+  ffi.Pointer<ffi.Void> context,
+  ffi.Pointer<ffi.Pointer<ffi.Int32>> out_data,
+  ffi.Pointer<ffi.UintPtr> out_len,
+);
+
+/// CSR-style prefix sum (length = `num_parts + 1`) over the vertex buffers
+/// `ss_runtime_get_nines_vertices` / `_uvs` / `_box_coords`. Part `p` occupies
+/// vertices `[offsets[p], offsets[p + 1])` — multiply by 2 to index the
+/// interleaved floats. Non-nines parts have an empty range.
+///
+/// # Safety
+///
+/// This function is unsafe because it dereferences raw pointers for output.
+/// The caller must ensure `out_data` and `out_len` are valid if they are not null.
+@ffi.Native<
+  ffi.Void Function(
+    ffi.Pointer<ffi.Void>,
+    ffi.Pointer<ffi.Pointer<ffi.Uint32>>,
+    ffi.Pointer<ffi.UintPtr>,
+  )
+>()
+external void ss_runtime_get_nines_vertex_offsets(
+  ffi.Pointer<ffi.Void> context,
+  ffi.Pointer<ffi.Pointer<ffi.Uint32>> out_data,
+  ffi.Pointer<ffi.UintPtr> out_len,
+);
+
+/// CSR-style prefix sum (length = `num_parts + 1`) for the triangle indices in
+/// `ss_runtime_get_nines_indices`. Part `p` occupies
+/// `[offsets[p], offsets[p + 1])`; non-nines parts have an empty range.
+///
+/// # Safety
+///
+/// This function is unsafe because it dereferences raw pointers for output.
+/// The caller must ensure `out_data` and `out_len` are valid if they are not null.
+@ffi.Native<
+  ffi.Void Function(
+    ffi.Pointer<ffi.Void>,
+    ffi.Pointer<ffi.Pointer<ffi.Uint32>>,
+    ffi.Pointer<ffi.UintPtr>,
+  )
+>()
+external void ss_runtime_get_nines_index_offsets(
+  ffi.Pointer<ffi.Void> context,
+  ffi.Pointer<ffi.Pointer<ffi.Uint32>> out_data,
+  ffi.Pointer<ffi.UintPtr> out_len,
+);
+
 @ffi.Native<ffi.Float Function(ffi.Pointer<ffi.Void>)>()
 external double ss_runtime_get_frame_no(ffi.Pointer<ffi.Void> context);
 
@@ -1161,5 +1303,9 @@ const int LIFE_EXTEND_MIN = 64;
 const int SHAPE_VERTICES_STRIDE = 24;
 
 const int LOCAL_VERTICES_STRIDE = 10;
+
+const int NINES_MAX_TILE_DIV = 4096;
+
+const int NINES_MAX_TILE_QUADS = 65536;
 
 const int SS_RUNTIME_INVALID_HANDLE = 4294967295;
