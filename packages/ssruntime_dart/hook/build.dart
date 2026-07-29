@@ -168,7 +168,7 @@ _Target _targetFor(CodeConfig code) {
 /// source of truth for the pinned version. MUST stay in lockstep with the
 /// committed ffigen bindings' ABI: bump this whenever you regenerate the bindings
 /// against a newer SDK, or the downloaded binary and the Dart bindings disagree.
-const _sdkVersion = 'v7.0.0-alpha.1';
+const _sdkVersion = 'v7.0.0-beta.1';
 
 /// GitHub Releases base for the SpriteStudio-SDK.
 const _releaseBase =

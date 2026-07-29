@@ -37,7 +37,7 @@ class SsConverterException implements Exception {
 class SsConverter {
   const SsConverter();
 
-  /// The converter version string (e.g. `7.0.0-alpha.1+<sha>`).
+  /// The converter version string (e.g. `7.0.0-beta.1+<sha>`).
   String get version {
     final p = ss_converter_version();
     if (p == ffi.nullptr) return 'unknown';

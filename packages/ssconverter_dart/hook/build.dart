@@ -123,7 +123,7 @@ _Target _targetFor(CodeConfig code) {
 /// The SpriteStudio-SDK release the download branch fetches from — the single
 /// source of truth for the pinned version. MUST stay in lockstep with the
 /// committed ffigen bindings' ABI.
-const _sdkVersion = 'v7.0.0-alpha.1';
+const _sdkVersion = 'v7.0.0-beta.1';
 
 /// GitHub Releases base for the SpriteStudio-SDK.
 const _releaseBase =
