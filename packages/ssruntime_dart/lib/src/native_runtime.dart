@@ -203,6 +203,30 @@ class _NativeRuntime implements SsRuntime {
       ss_runtime_set_frame_no(_ctx(context), frame);
 
   @override
+  void setAnimationSection(SsContext context, int startFrame, int endFrame) =>
+      ss_runtime_set_animation_section(_ctx(context), startFrame, endFrame);
+
+  @override
+  void setPlaybackDirection(SsContext context, int direction, int style) =>
+      ss_runtime_set_playback_direction(_ctx(context), direction, style);
+
+  @override
+  int playbackDirection(SsContext context) =>
+      ss_runtime_get_playback_direction(_ctx(context));
+
+  @override
+  int playbackStyle(SsContext context) =>
+      ss_runtime_get_playback_style(_ctx(context));
+
+  @override
+  void setSkipFrames(SsContext context, bool skip) =>
+      ss_runtime_set_skip_frames(_ctx(context), skip);
+
+  @override
+  bool skipFrames(SsContext context) =>
+      ss_runtime_get_skip_frames(_ctx(context));
+
+  @override
   double update(SsContext context, double deltaMs) =>
       ss_runtime_update(_ctx(context), deltaMs);
 

@@ -96,6 +96,19 @@ abstract interface class SsRuntime {
   void setFrameRate(SsContext context, int fps);
   void seek(SsContext context, double frame);
 
+  /// Restricts playback to `[startFrame, endFrame]` of the current animation.
+  void setAnimationSection(SsContext context, int startFrame, int endFrame);
+
+  /// `direction`: 0 = forward, 1 = backward. `style`: 0 = normal, 1 = ping-pong.
+  void setPlaybackDirection(SsContext context, int direction, int style);
+  int playbackDirection(SsContext context);
+  int playbackStyle(SsContext context);
+
+  /// Whether a long tick advances by elapsed time (true, dropping frames) or by
+  /// exactly one frame (false).
+  void setSkipFrames(SsContext context, bool skip);
+  bool skipFrames(SsContext context);
+
   /// Advances internal time by [deltaMs]; returns the new (sub-frame) frame.
   double update(SsContext context, double deltaMs);
 
