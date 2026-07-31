@@ -16,7 +16,7 @@ _player.play();                    // 先頭から再生
 | `pause()` / `resume()` | メソッド | 一時停止（現在フレームを保持）/ 再開 |
 | `togglePlayPause()` | メソッド | 再生中なら一時停止、停止中なら再開 |
 | `stop()` | メソッド | 再生を停止 |
-| `seek(double frame)` | メソッド | 任意フレームへジャンプ（小数可） |
+| `seek(double frame)` | メソッド | 任意フレームへジャンプ（小数可）。独立再生のインスタンス / エフェクトは追従しません |
 | `loop` | `set int` | ループ回数 —— `-1`（または `0`）で無限、`n` で n 回 |
 | `speed` | `set double` | 再生速度倍率（負で逆再生） |
 | `frameRate` | `int` | 進行レート（fps）。上書きしなければパックに設定された値 |
@@ -67,12 +67,11 @@ _player..loop = -1..play();            // 10〜24 の範囲でループ
 
 ## アニメを切り替える
 
-`setupAnimation(name)` はアニメを選択して**先頭フレームで待機**します —— 再生は開始せず、
-**loop / speed をランタイム既定にリセット**します。
+`setupAnimation(name)` はアニメを選択して**先頭フレームで待機**します —— 再生は開始しません。
 
-!!! warning "`loop` / `speed` は `setupAnimation` の後に設定する"
-    `setupAnimation` は巻き戻してトランスポートをリセットするため、後から `loop` / `speed` を
-    再設定しないと、ループが暗黙に無限へ戻ってしまいます。
+Brain 側のトランスポートはリセットされますが、`SpriteStudioPlayer` は**あなたが設定した
+`loop` / `speed` を覚えていて再適用**するので、アニメを切り替えるたびに設定し直す必要は
+ありません（「`setupAnimation` をまたいで残るもの」の表のとおり）。
 
 ```dart
 _player.setupAnimation('walk');

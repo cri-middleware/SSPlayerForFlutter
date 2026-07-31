@@ -339,6 +339,107 @@ void main() {
       expect(advanced, isNotEmpty, reason: 'no child clock ever advanced');
     });
 
+    test('setupAnimation poses the children for the idle frame', () {
+      final a = assets;
+      if (a == null) {
+        markTestSkipped('Instance.ssab missing');
+        return;
+      }
+      // `loadPlayer` sets an animation up and stops there — no `play`, no
+      // `update`. That is the SDK's recommended "show the first frame posed"
+      // idle pose, and the instance children have to be part of it.
+      final player = loadPlayer(a);
+      addTearDown(player.dispose);
+
+      expect(
+        player.instanceParts
+            .any((p) => player.instanceSlotFor(p.partIndex)!.visible),
+        isTrue,
+        reason: 'no instance child was resolved for the idle pose — they would '
+            'be missing until something advanced the clock',
+      );
+    });
+
+    test('seek resolves the slots at the new frame without any update', () {
+      final a = assets;
+      if (a == null) {
+        markTestSkipped('Instance.ssab missing');
+        return;
+      }
+      final player = loadPlayer(a);
+      addTearDown(player.dispose);
+      player.play();
+
+      // Straight to the middle of the animation — no `update` in between, which
+      // is exactly what a scrubber (or a paused, frozen frame) does. `seek` used
+      // to move only the parent's playhead, leaving every slot on its initial
+      // "not visible", so the children silently vanished from the frame.
+      final mid = (player.startFrame + player.endFrame) / 2.0;
+      player.seek(mid);
+
+      var sawVisible = false;
+      for (final p in player.instanceParts) {
+        final slot = player.instanceSlotFor(p.partIndex)!;
+        if (!slot.visible) continue;
+        sawVisible = true;
+        // The invariant `paint` relies on: the child context really is where the
+        // slot claims it is.
+        expect(slot.child.frameNo, closeTo(slot.childFrame, 1e-3));
+      }
+      expect(sawVisible, isTrue,
+          reason: 'seek left every instance slot unresolved — the children '
+              'would be dropped from a scrubbed frame');
+    });
+
+    test('a synced child follows the parent frame across seeks', () {
+      final a = assets;
+      if (a == null) {
+        markTestSkipped('Instance.ssab missing');
+        return;
+      }
+      final player = loadPlayer(a);
+      addTearDown(player.dispose);
+      player.play();
+      // Get past frame 0 so every key has fired and `isIndependent` is decided.
+      for (var i = 0; i < 20; i++) {
+        player.update(const Duration(milliseconds: 33));
+      }
+      player.pause();
+
+      // Independent children ride their own real-time clock, which cannot rewind
+      // — the SDK leaves seeking them undefined, so only synced slots are
+      // asserted on here.
+      List<InstanceSlot<SpriteStudioInternalPlayer>> syncedVisible() => <
+          InstanceSlot<SpriteStudioInternalPlayer>>[
+        for (final p in player.instanceParts)
+          if (player.instanceSlotFor(p.partIndex)!.visible &&
+              !player.instanceSlotFor(p.partIndex)!.isIndependent)
+            player.instanceSlotFor(p.partIndex)!
+      ];
+
+      final span = player.endFrame - player.startFrame;
+      final laterFrame = player.startFrame + span * 3 ~/ 4;
+      final earlierFrame = player.startFrame + span ~/ 4;
+
+      player.seek(laterFrame.toDouble());
+      final atLater = <InstanceSlot<SpriteStudioInternalPlayer>, double>{
+        for (final s in syncedVisible()) s: s.childFrame,
+      };
+      expect(atLater, isNotEmpty,
+          reason: 'Instance.ssab authors synced parts; none were visible');
+
+      player.seek(earlierFrame.toDouble());
+      final moved = atLater.entries
+          .where((e) => e.key.visible)
+          .where((e) => (e.key.childFrame - e.value).abs() > 1e-6);
+      expect(moved, isNotEmpty,
+          reason: 'seeking the parent backwards must move its synced children '
+              'with it — their frame is a pure function of the parent frame');
+      for (final s in syncedVisible()) {
+        expect(s.child.frameNo, closeTo(s.childFrame, 1e-3));
+      }
+    });
+
     test('an independent child keeps running while the parent is paused', () {
       final a = assets;
       if (a == null) {
