@@ -8,6 +8,7 @@ import 'package:vector_math/vector_math_64.dart' show Matrix4;
 import 'event.dart';
 import 'instance_loader.dart';
 import 'internal_player.dart';
+import 'playback.dart';
 import 'render/backend/backend_kind.dart';
 import 'render/part_override.dart';
 import 'ssab_info.dart';
@@ -67,6 +68,9 @@ class SpriteStudioPlayer extends ChangeNotifier {
   String? _currentAnimation;
   int? _loop;
   double? _speed;
+  SsPlaybackDirection? _direction;
+  SsPlaybackStyle? _style;
+  bool? _skipFrames;
 
   /// Sub-frame interpolation (default ON): smooth playback beyond the source
   /// FPS. Applies to the current and future loaded animations.
@@ -265,7 +269,7 @@ class SpriteStudioPlayer extends ChangeNotifier {
     }
     // Re-apply cached loop/speed AFTER setupAnimation: the Brain resets them to
     // the pack default there, so setting them any earlier would be clobbered.
-    _applyLoopSpeed(internal);
+    _applyTransportSettings(internal);
     notifyListeners();
 
     if (loadTextures) {
@@ -392,7 +396,7 @@ class SpriteStudioPlayer extends ChangeNotifier {
       // The Brain reset loop/speed to the pack default; restore the cached values
       // so a mid-session animation switch (or [reload]) keeps the caller's loop
       // count and speed instead of silently reverting to infinite looping.
-      _applyLoopSpeed(internal);
+      _applyTransportSettings(internal);
     }
     notifyListeners();
     return ok;
@@ -471,6 +475,59 @@ class SpriteStudioPlayer extends ChangeNotifier {
     _internal?.speed = rate;
   }
 
+  /// Which way the playhead walks, and what it does at the far end. Both reset
+  /// to [SsPlaybackDirection.forward] / [SsPlaybackStyle.normal] when an
+  /// animation is set up, but — unlike [frameRate] and [setAnimationSection] —
+  /// the player re-applies whatever you last chose, because "play this
+  /// backwards" is a decision about the playback, not about the animation.
+  ///
+  /// With [SsPlaybackStyle.pingPong] one loop is a full round trip, so a
+  /// [loop] of 1 plays there and back once.
+  SsPlaybackDirection get playbackDirection =>
+      _internal?.playbackDirection ??
+      _direction ??
+      SsPlaybackDirection.forward;
+
+  /// See [playbackDirection].
+  SsPlaybackStyle get playbackStyle =>
+      _internal?.playbackStyle ?? _style ?? SsPlaybackStyle.normal;
+
+  /// See [playbackDirection]. Both are set together because the Brain takes
+  /// them as one call — pass the current value for whichever you are not
+  /// changing.
+  void setPlaybackDirection(
+      SsPlaybackDirection direction, SsPlaybackStyle style) {
+    _direction = direction;
+    _style = style;
+    _internal?.setPlaybackDirection(direction, style);
+  }
+
+  /// How a long tick is spent: ON (the default) advances by the elapsed time
+  /// and drops the frames in between, keeping playback on the wall clock; OFF
+  /// advances exactly one frame per tick, so nothing is ever skipped but a
+  /// stalled app plays in slow motion.
+  ///
+  /// Turn it OFF when every frame matters — an animation whose events must all
+  /// fire, or a deterministic recording. Re-applied across [setupAnimation].
+  bool get skipFrames => _internal?.skipFrames ?? _skipFrames ?? true;
+  set skipFrames(bool value) {
+    _skipFrames = value;
+    _internal?.skipFrames = value;
+  }
+
+  /// Restricts playback to `[startFrame, endFrame]` of the **current**
+  /// animation, so [play] / looping / ping-pong all work within that range.
+  /// [startFrame] and [endFrame] report the result.
+  ///
+  /// Not restored across [setupAnimation]: frame numbers only mean something
+  /// inside the animation they were measured in, so carrying a section into a
+  /// different one would clamp it to an arbitrary range. Call this again after
+  /// each setup, and only once the animation is selected — a section set before
+  /// [setupAnimation] is wiped by it.
+  void setAnimationSection(int startFrame, int endFrame) {
+    _internal?.setAnimationSection(startFrame, endFrame);
+  }
+
   /// Frames per second the animation advances at — the rate authored in the
   /// pack unless overridden. 0 before [load].
   int get frameRate => _internal?.fps ?? 0;
@@ -486,11 +543,23 @@ class SpriteStudioPlayer extends ChangeNotifier {
     _internal?.frameRate = fps;
   }
 
-  // The Brain's `setupAnimation` rewinds and resets loop/speed to the pack
-  // default, so the cached transport must be re-applied after every setup.
-  void _applyLoopSpeed(SpriteStudioInternalPlayer internal) {
+  // `setupAnimation` resets the Brain's whole transport (loop, speed, fps,
+  // direction, style, skip-frames and the section) to the new animation's
+  // defaults, so anything the host chose has to be re-applied afterwards.
+  //
+  // Only *host policy* is re-applied — settings that mean the same thing
+  // whichever animation is playing. The two that describe the animation itself
+  // are deliberately left to reset: `frameRate` is authored in the pack, and a
+  // section is a range of frame numbers that means nothing in a different
+  // animation. Re-applying either would silently outrank the new animation.
+  void _applyTransportSettings(SpriteStudioInternalPlayer internal) {
     if (_loop != null) internal.loop = _loop!;
     if (_speed != null) internal.speed = _speed!;
+    if (_skipFrames != null) internal.skipFrames = _skipFrames!;
+    if (_direction != null || _style != null) {
+      internal.setPlaybackDirection(_direction ?? SsPlaybackDirection.forward,
+          _style ?? SsPlaybackStyle.normal);
+    }
   }
 
   double get frameNo => _internal?.frameNo ?? 0;

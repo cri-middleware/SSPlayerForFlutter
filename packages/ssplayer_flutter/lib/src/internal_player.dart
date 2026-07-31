@@ -6,6 +6,7 @@ import 'package:vector_math/vector_math_64.dart' show Matrix4;
 
 import 'package:ssruntime_dart/effect_draw_plan.dart' as efbs;
 import 'package:ssruntime_dart/ssruntime_dart.dart';
+import 'playback.dart';
 import 'render/backend/backend_kind.dart';
 import 'render/backend/canvas_backend.dart';
 import 'render/backend/gpu_backend_factory.dart';
@@ -365,6 +366,24 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   set speed(double rate) => ssRuntime.setSpeed(_context, rate);
   set frameRate(int fps) => ssRuntime.setFrameRate(_context, fps);
   void seek(double frame) => ssRuntime.seek(_context, frame);
+
+  /// Restricts playback to `[startFrame, endFrame]` of the current animation.
+  /// Reflected by [startFrame] / [endFrame], which report the *played* range.
+  void setAnimationSection(int startFrame, int endFrame) =>
+      ssRuntime.setAnimationSection(_context, startFrame, endFrame);
+
+  void setPlaybackDirection(SsPlaybackDirection direction,
+          SsPlaybackStyle style) =>
+      ssRuntime.setPlaybackDirection(_context, direction.value, style.value);
+
+  SsPlaybackDirection get playbackDirection =>
+      SsPlaybackDirection.fromValue(ssRuntime.playbackDirection(_context));
+
+  SsPlaybackStyle get playbackStyle =>
+      SsPlaybackStyle.fromValue(ssRuntime.playbackStyle(_context));
+
+  set skipFrames(bool skip) => ssRuntime.setSkipFrames(_context, skip);
+  bool get skipFrames => ssRuntime.skipFrames(_context);
 
   // --- Per-frame update ----------------------------------------------------
 
