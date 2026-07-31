@@ -16,6 +16,9 @@ export 'src/render/part_anchor.dart'
 
 // Layer 3 — user-facing controller.
 export 'src/player.dart' show SpriteStudioPlayer, SsEventCallback;
+// Playback shape — the direction / round-trip enums taken by
+// SpriteStudioPlayer.setPlaybackDirection.
+export 'src/playback.dart' show SsPlaybackDirection, SsPlaybackStyle;
 // Render backend selector (Canvas default / flutter_gpu opt-in). Passed to the
 // SpriteStudioPlayer constructor.
 export 'src/render/backend/backend_kind.dart' show SpriteStudioBackend;

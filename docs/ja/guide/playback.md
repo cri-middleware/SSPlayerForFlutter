@@ -20,17 +20,50 @@ _player.play();                    // 先頭から再生
 | `loop` | `set int` | ループ回数 —— `-1`（または `0`）で無限、`n` で n 回 |
 | `speed` | `set double` | 再生速度倍率（負で逆再生） |
 | `frameRate` | `int` | 進行レート（fps）。上書きしなければパックに設定された値 |
+| `setPlaybackDirection(dir, style)` | メソッド | 再生方向（`SsPlaybackDirection.forward` / `.backward`）と終端での挙動（`SsPlaybackStyle.normal` / `.pingPong`） |
+| `playbackDirection` / `playbackStyle` | 読取 | 上記 2 つの現在値 |
+| `setAnimationSection(start, end)` | メソッド | **現在の**アニメの再生範囲をフレーム区間で限定する |
+| `skipFrames` | `bool` | ON（既定）はフレームを落として実時間に追従、OFF は 1 ティックにつき厳密に 1 フレーム進む |
 | `subFrame` | `bool` | サブフレーム補間（既定オン） |
 | `isPlaying` / `isPaused` | `bool`（読取） | 現在のトランスポート状態 |
 | `isFinished` / `isLooped` | `bool`（読取） | 全ループを再生し終えた（sticky）/ 直前の進行でループ境界を跨いだ（エッジ） |
 | `frameNo` / `currentAnimation` | 読取 | 現在フレーム / 再生中のアニメ名 |
 | `startFrame` / `endFrame` / `totalFrames` | `int`（読取） | 再生対象のフレーム区間とその長さ。`totalFrames` はスクラバに渡す用 |
 
-!!! note "`frameRate` は `setupAnimation` をまたいで復元されない"
-    `loop` / `speed` はセットアップ後に自動で再適用されますが、`frameRate` は意図的にしていません。
-    Brain はそこでパックに設定された fps を読み直すので、ホスト側の上書きを重ねると
-    アニメの設定値を黙って上書きしてしまうためです。維持したい場合はセットアップのたびに
-    再設定してください。設定値に触れずに再生を伸縮させたいだけなら `speed` を使います。
+### `setupAnimation` をまたいで残るもの
+
+アニメをセットアップすると Brain のトランスポートは全部リセットされます。プレイヤーは
+**あなたが決めた設定**を復元し、**アニメ自身を表す設定**はリセットされるに任せます。
+
+| 自動で再適用される | リセットされる |
+|---|---|
+| `loop` / `speed` / `skipFrames` / `playbackDirection`・`playbackStyle` / `subFrame` | `frameRate`、再生区間 |
+
+`frameRate` はパックに設定された値であり、再生区間は別のアニメでは意味を持たないフレーム番号の
+範囲です。どちらも再適用すると、いま選んだアニメの設定を黙って上書きしてしまいます。必要なら
+セットアップのたびに設定し直してください。特に区間を `setupAnimation` の**前**に設定しても
+消えてしまう点に注意してください。設定値に触れずに再生を伸縮させたいだけなら `frameRate` ではなく
+`speed` を使います。
+
+### 逆再生と往復再生
+
+```dart
+_player.setPlaybackDirection(SsPlaybackDirection.backward, SsPlaybackStyle.pingPong);
+```
+
+`pingPong` では 1 ループが**往復 1 回**なので、`loop = 1` で行って戻って終わりです。`speed` に負の値を
+渡しても逆再生できますが、セットアップをまたいで残るのは `playbackDirection` の方です。
+
+### アニメの一部だけ再生する
+
+```dart
+_player.setupAnimation('attack');
+_player.setAnimationSection(10, 24);   // setup の後で。前だと消える
+_player..loop = -1..play();            // 10〜24 の範囲でループ
+```
+
+`startFrame` / `endFrame` / `totalFrames` は区間を反映するので、それらに紐づけたスクラバもそのまま
+追従します。
 
 ## アニメを切り替える
 

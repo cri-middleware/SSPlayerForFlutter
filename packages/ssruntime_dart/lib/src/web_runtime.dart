@@ -156,6 +156,14 @@ extension type _JsCtx(JSObject _) implements JSObject {
   external void set_animation_speed(double rate);
   external void set_frame_rate(int fps);
   external void set_frame_no(double frame);
+  external void set_animation_section(int startFrame, int endFrame);
+  // wasm-bindgen marshals WebPlaybackDirection / WebPlaybackStyle as their
+  // numeric discriminants, so these cross as plain ints.
+  external void set_playback_direction(int direction, int style);
+  external int get_playback_direction();
+  external int get_playback_style();
+  external void set_skip_frames(bool skip);
+  external bool get_skip_frames();
   external double update(double delta);
   external int get_frame_data_buf(double frameNo);
   external int get_frame_data_len(double frameNo);
@@ -395,6 +403,28 @@ class _WebRuntime implements SsRuntime {
   @override
   void seek(SsContext context, double frame) =>
       _ctx(context).set_frame_no(frame);
+
+  @override
+  void setAnimationSection(SsContext context, int startFrame, int endFrame) =>
+      _ctx(context).set_animation_section(startFrame, endFrame);
+
+  @override
+  void setPlaybackDirection(SsContext context, int direction, int style) =>
+      _ctx(context).set_playback_direction(direction, style);
+
+  @override
+  int playbackDirection(SsContext context) =>
+      _ctx(context).get_playback_direction();
+
+  @override
+  int playbackStyle(SsContext context) => _ctx(context).get_playback_style();
+
+  @override
+  void setSkipFrames(SsContext context, bool skip) =>
+      _ctx(context).set_skip_frames(skip);
+
+  @override
+  bool skipFrames(SsContext context) => _ctx(context).get_skip_frames();
 
   @override
   double update(SsContext context, double deltaMs) =>

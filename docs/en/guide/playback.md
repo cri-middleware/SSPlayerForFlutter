@@ -20,17 +20,49 @@ _player.play();                    // start from the beginning
 | `loop` | `set int` | Loop count — `-1` (or `0`) forever, `n` plays *n* times |
 | `speed` | `set double` | Playback speed multiplier (negative reverses) |
 | `frameRate` | `int` | Advance rate in fps — the pack's authored rate unless you override it |
+| `setPlaybackDirection(dir, style)` | method | Direction (`SsPlaybackDirection.forward` / `.backward`) and end-of-range behaviour (`SsPlaybackStyle.normal` / `.pingPong`) |
+| `playbackDirection` / `playbackStyle` | read | What the two above are currently set to |
+| `setAnimationSection(start, end)` | method | Restrict playback to a frame range of the **current** animation |
+| `skipFrames` | `bool` | ON (default) keeps playback on the wall clock by dropping frames; OFF advances exactly one frame per tick |
 | `subFrame` | `bool` | Sub-frame interpolation (on by default) |
 | `isPlaying` / `isPaused` | `bool` (read) | Current transport state |
 | `isFinished` / `isLooped` | `bool` (read) | Every loop has played (sticky) / the last advance crossed a loop boundary (edge) |
 | `frameNo` / `currentAnimation` | read | Current frame / active animation name |
 | `startFrame` / `endFrame` / `totalFrames` | `int` (read) | The frame range being played, and its length — feed `totalFrames` to a scrubber |
 
-!!! note "`frameRate` is not restored across `setupAnimation`"
-    `loop` and `speed` are re-applied for you after a setup, but `frameRate` is not: the Brain
-    re-reads the pack's authored fps there, and re-applying a host override on top would silently
-    outrank what the animation was authored at. Set it again after each setup if you need it to
-    persist — or use `speed`, which scales playback without touching the authored rate.
+### What survives `setupAnimation`
+
+Setting up an animation resets the Brain's whole transport. The player puts back the settings that are
+**your** decision, and lets the ones that describe **the animation** reset:
+
+| Re-applied for you | Left to reset |
+|---|---|
+| `loop`, `speed`, `skipFrames`, `playbackDirection` / `playbackStyle`, `subFrame` | `frameRate`, the animation section |
+
+`frameRate` is authored in the pack, and a section is a range of frame numbers that means nothing in a
+different animation — re-applying either would silently outrank the animation you just selected. Set them
+again after each setup if you need them, and note that a section set *before* `setupAnimation` is wiped by
+it. To scale playback without touching the authored rate, use `speed` rather than `frameRate`.
+
+### Playing backwards, and round trips
+
+```dart
+_player.setPlaybackDirection(SsPlaybackDirection.backward, SsPlaybackStyle.pingPong);
+```
+
+With `pingPong` one loop is a **full round trip**, so `loop = 1` plays there and back once. `speed` also
+accepts a negative multiplier, but `playbackDirection` is the one that survives a setup.
+
+### Playing part of an animation
+
+```dart
+_player.setupAnimation('attack');
+_player.setAnimationSection(10, 24);   // after setup — setup would wipe it
+_player..loop = -1..play();            // loops within 10..24
+```
+
+`startFrame` / `endFrame` / `totalFrames` report the sectioned range, so a scrubber bound to them follows
+along.
 
 ## Switching animations
 

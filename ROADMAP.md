@@ -13,9 +13,10 @@ Legend: ☐ **Ready** (Player-only, can start now) · ⛔ **Blocked on SDK** (ne
 
 ## Player features (no SDK dependency)
 
-- ☐ **Label / frame-range / index playback** — play a named label range, a start
-  offset, or by animation index. Labels already ride in the `.ssab` FlatBuffers
-  payload, so no SDK change is needed; add `play_range` / `play_by_index` on L3.
+- ☐ **Label / index playback** — play a *named label* range, or play by animation
+  index. Labels already ride in the `.ssab` FlatBuffers payload, so no SDK change
+  is needed; add `play_range` / `play_by_index` on L3 over the existing
+  `setAnimationSection`, which already covers the frame-number form.
 - ☐ **`Nines` / `Text` kinds + `BoxFit` / alignment** — the remaining Phase-2 draw
   kinds, plus fitting the animation's design bounds into the destination box.
   Unimplemented on both render backends.
