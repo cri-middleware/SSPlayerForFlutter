@@ -471,6 +471,21 @@ class SpriteStudioPlayer extends ChangeNotifier {
     _internal?.speed = rate;
   }
 
+  /// Frames per second the animation advances at — the rate authored in the
+  /// pack unless overridden. 0 before [load].
+  int get frameRate => _internal?.fps ?? 0;
+
+  /// Overrides the advance rate for the *current* animation.
+  ///
+  /// Unlike [loop] and [speed] this is deliberately **not** cached across a
+  /// [setupAnimation]: the Brain re-reads the pack's authored fps there, and
+  /// re-applying a host override on top of it would silently outrank what the
+  /// animation was authored at. Set it again after each setup if you want it to
+  /// persist. To scale playback without touching the authored rate, use [speed].
+  set frameRate(int fps) {
+    _internal?.frameRate = fps;
+  }
+
   // The Brain's `setupAnimation` rewinds and resets loop/speed to the pack
   // default, so the cached transport must be re-applied after every setup.
   void _applyLoopSpeed(SpriteStudioInternalPlayer internal) {
@@ -480,6 +495,24 @@ class SpriteStudioPlayer extends ChangeNotifier {
 
   double get frameNo => _internal?.frameNo ?? 0;
 
+  /// First and last frame of the range being played, and its length in frames
+  /// ([endFrame] - [startFrame] + 1). All 0 before [load].
+  ///
+  /// These describe the range the transport actually walks, which is the whole
+  /// animation today. Feed [totalFrames] to a scrubber; feed [startFrame] /
+  /// [endFrame] to [seek] to jump to either end.
+  int get startFrame => _internal?.startFrame ?? 0;
+
+  /// See [startFrame].
+  int get endFrame => _internal?.endFrame ?? 0;
+
+  /// See [startFrame].
+  int get totalFrames {
+    final internal = _internal;
+    if (internal == null) return 0;
+    return internal.endFrame - internal.startFrame + 1;
+  }
+
   /// Whether the animation is active (playing or *paused*), i.e. not stopped and
   /// not finished. Pair with [isPaused] to distinguish a live pause; a UI toggle
   /// wanting "currently advancing" should check `isPlaying && !isPaused`.
@@ -487,6 +520,17 @@ class SpriteStudioPlayer extends ChangeNotifier {
 
   /// Whether playback is paused in place (still [isPlaying], just held).
   bool get isPaused => _internal?.isPausing ?? false;
+
+  /// Whether every configured loop has played. **Sticky** until the next [play]
+  /// or [setupAnimation], so polling it tells you the run is over but not when
+  /// it ended — take the rising edge, or just use [onComplete]. Always false
+  /// while [loop] is infinite.
+  bool get isFinished => _internal?.isFinished ?? false;
+
+  /// Whether the most recent advance crossed a loop boundary. This is the loop
+  /// *edge*, cleared at the top of every update, so it only reads true inside
+  /// the tick that crossed — poll it from a per-frame callback or use [onLoop].
+  bool get isLooped => _internal?.isLooped ?? false;
 
   /// Draws the current frame — delegates to Layer 2's single paint path.
   ///

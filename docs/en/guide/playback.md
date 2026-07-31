@@ -19,9 +19,18 @@ _player.play();                    // start from the beginning
 | `seek(double frame)` | method | Jump to a frame (fractional allowed) |
 | `loop` | `set int` | Loop count — `-1` (or `0`) forever, `n` plays *n* times |
 | `speed` | `set double` | Playback speed multiplier (negative reverses) |
+| `frameRate` | `int` | Advance rate in fps — the pack's authored rate unless you override it |
 | `subFrame` | `bool` | Sub-frame interpolation (on by default) |
 | `isPlaying` / `isPaused` | `bool` (read) | Current transport state |
+| `isFinished` / `isLooped` | `bool` (read) | Every loop has played (sticky) / the last advance crossed a loop boundary (edge) |
 | `frameNo` / `currentAnimation` | read | Current frame / active animation name |
+| `startFrame` / `endFrame` / `totalFrames` | `int` (read) | The frame range being played, and its length — feed `totalFrames` to a scrubber |
+
+!!! note "`frameRate` is not restored across `setupAnimation`"
+    `loop` and `speed` are re-applied for you after a setup, but `frameRate` is not: the Brain
+    re-reads the pack's authored fps there, and re-applying a host override on top would silently
+    outrank what the animation was authored at. Set it again after each setup if you need it to
+    persist — or use `speed`, which scales playback without touching the authored rate.
 
 ## Switching animations
 
@@ -52,16 +61,35 @@ Assign callbacks on the player. They fire as playback progresses:
 
 | Callback | Signature | Fires when |
 |---|---|---|
-| `onEvents` | `void Function(List<int> passedEventIndices)` | A frame carrying user-data / signal events is passed; you receive the event indices |
+| `onUserData` | `void Function(SsUserData)` | A **User Data** marker authored on the timeline is crossed. Once per marker |
+| `onSignal` | `void Function(SsSignal)` | An active **Signal** keyframe is crossed. Inactive signals are not surfaced |
+| `onAudio` | `void Function(SsAudioEvent)` | An **Audio** trigger is crossed. The player never produces sound itself — see below |
 | `onComplete` | `VoidCallback` | Every configured loop has played. **Never** fires while `loop` is infinite, and not on `stop()` |
 | `onLoop` | `VoidCallback` | Playback crosses a loop boundary (the final cycle fires `onComplete` instead) |
+| `onEvents` | `void Function(List<int> passedEventIndices)` | Low-level escape hatch: the raw event indices passed this frame, before decoding |
 
-### Example: play a sound on a user-data event
+Prefer the decoded `onUserData` / `onSignal` / `onAudio` callbacks — `onEvents` hands you indices into
+the current animation's event table and leaves the decoding to you. The decode is skipped entirely
+when none of the three decoded callbacks is set, so registering only `onEvents` costs nothing extra.
+
+### Example: react to a user-data marker
 
 ```dart
-_player.onEvents = (indices) {
-  // Indices identify the user-data / signal keys authored in SpriteStudio for this frame.
-  if (indices.contains(footstepEventIndex)) _audio.play();
+_player.onUserData = (userData) {
+  // Only the fields authored in SpriteStudio are non-null.
+  if (userData.string == 'footstep') _audio.play();
+};
+```
+
+### Example: play an audio trigger
+
+SpriteStudio audio is trigger-only: the player hands you the sound to play and stays out of your
+audio stack. Resolve the hash to a pack-relative path and feed it to whatever you use.
+
+```dart
+_player.onAudio = (audio) {
+  final path = _player.soundFilePath(audio.soundNameHash); // e.g. "sound/foo.mp3"
+  if (path != null) _audio.play(path, times: audio.loopNum);
 };
 ```
 
