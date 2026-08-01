@@ -55,9 +55,8 @@ float bitAt(float set, float p) {
 // coverage bitmap and decide whether the fragment survives.
 //
 // Unlike the flagship we do NOT carry a `mask_meta[]` array: scope (§2-1) is
-// resolved on the CPU into two 24-bit sets, and because coverage bits are handed
-// out in ascending draw rank (mask.dart), walking bits 0->23 replays the ops in
-// draw order — which is what makes the increment/invert mix order-correct.
+// resolved on the CPU into two 24-bit sets — one per OP, which is exactly the
+// plane split §3-1-4 demands, handed to us for free.
 bool maskPasses(vec2 local) {
   if (uMaskBits.w < 0.5) return true; // not masked this frame
 
@@ -78,22 +77,34 @@ bool maskPasses(vec2 local) {
              + floor(cov.g * 255.0 + 0.5) * 256.0
              + floor(cov.b * 255.0 + 0.5) * 65536.0;
 
-  float stencil = 0.0;
+  // §3-1-4: `Invert` and `IncrementWrap` are each their own inverse alone, but
+  // they do NOT commute, so replaying both into one accumulator would make
+  // coverage depend on the order the writers happen to be walked in (`incr then
+  // invert` lands on 254 = covered where `invert then incr` wraps back to 0 =
+  // not covered). A stencil buffer keeps them apart by giving each OP its own
+  // WriteMask; replaying in a shader, separate accumulators do the same job with
+  // no bit budget to divide — so the counter has no overlap ceiling here (it is
+  // 7 for ForUnity under URP).
+  float parity = 0.0; // invert writers: covered where an ODD number overlap
+  float count = 0.0;  // increment writers: covered where ANY overlap
   float p = 1.0; // 2^i
   for (int i = 0; i < 24; i++) {
     if (bitAt(bits, p) > 0.5) {
       // A writer in neither set is out of this target's scope — skip it.
       if (bitAt(uMaskBits.y, p) > 0.5) {
-        stencil = 255.0 - stencil;          // §2-3 invert (8-bit ~x == 255 - x)
+        parity = 1.0 - parity; // §2-3 invert (parity plane)
       } else if (bitAt(uMaskBits.x, p) > 0.5) {
-        stencil = mod(stencil + 1.0, 256.0); // §2-3 increment (wraps)
+        count += 1.0;          // §2-3 increment (counter plane)
       }
     }
     p *= 2.0;
   }
 
+  // The union of the two planes — what SpriteStudio specifies where writers of
+  // differing mask_influence overlap.
+  bool masked = parity > 0.5 || count > 0.5;
   // §2-4: polarity is the target's, not the writer's.
-  return (stencil > 0.5) == visibleInside;
+  return masked == visibleInside;
 }
 
 void main() {

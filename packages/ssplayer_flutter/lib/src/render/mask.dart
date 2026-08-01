@@ -103,9 +103,15 @@ class MaskPartFlags {
   /// the parts drawn *after* it (pure masks mask the ones *before*).
   bool get isClipping => maskWrite && !pureMask;
 
-  /// Whether this part is subject to the mask test at all. Clipping writers are
-  /// always targets (their `mask_influence` encodes the OP, not an opt-out).
-  bool get isTarget => maskInfluence || maskWrite;
+  /// Whether this part is subject to the mask test at all, judged on its own
+  /// flags. Clipping writers are always targets (their `mask_influence` encodes
+  /// the OP, not an opt-out).
+  ///
+  /// This is the top-level reading. Inside an instance sub-animation the
+  /// caller's settings compose with these (§2-6) — ask
+  /// [MaskComposition.targets] there, which reduces to this under
+  /// [MaskComposition.identity].
+  bool get isTarget => MaskComposition.identity.targets(this);
 
   /// Reads the per-part flags out of the `.ssab` `PartData` list, indexed by
   /// part index (`SsAnimeBinary.parts` is part-index ordered).
@@ -137,6 +143,54 @@ class MaskPartFlags {
   }
 }
 
+/// The mask settings an instance hierarchy has accumulated above a part (§2-6).
+///
+/// A mask reaching an instance part applies to the whole sub-animation, but the
+/// calling part's settings do **not** replace the callee's — SpriteStudio
+/// composes them, and both directions matter:
+///
+/// * `mask_influence` chains with **AND**. Once a caller opts out, "not masked"
+///   is settled for the entire subtree — including against the sub-animation's
+///   *own* masks, which is why this travels with the child rather than only with
+///   the inherited coverage.
+/// * `visible_inside_mask` accumulates with **OR**. Any level asking to draw
+///   inside the mask puts everything below it inside.
+///
+/// [identity] is the unit of both, so a top-level animation resolves to each
+/// part's own flags and unnested playback is unchanged.
+///
+/// `mask_write` deliberately stays out: writing a mask is a local fact about one
+/// part, not something its descendants inherit (it still makes that part itself
+/// a target, see [targets]).
+class MaskComposition {
+  const MaskComposition({this.influence = true, this.visibleInside = false});
+
+  /// The top of a hierarchy: every part evaluates by its own flags.
+  static const MaskComposition identity = MaskComposition();
+
+  /// AND-chain of `mask_influence` — false once any caller opted out.
+  final bool influence;
+
+  /// OR-chain of `visible_inside_mask`.
+  final bool visibleInside;
+
+  /// Folds one more level in: [flags] is the calling instance part's.
+  MaskComposition compose(MaskPartFlags flags) => MaskComposition(
+        influence: influence && flags.maskInfluence,
+        visibleInside: visibleInside || flags.visibleInsideMask,
+      );
+
+  /// §2-2 under this composition: is a part with [flags] subject to the mask
+  /// test at all? A clipping writer always is — its `mask_influence` encodes the
+  /// write OP rather than an opt-out, and `mask_write` does not compose.
+  bool targets(MaskPartFlags flags) =>
+      (influence && flags.maskInfluence) || flags.maskWrite;
+
+  /// §2-4 under this composition: which side of the mask a part draws on.
+  bool visibleInsideFor(MaskPartFlags flags) =>
+      visibleInside || flags.visibleInsideMask;
+}
+
 /// One coverage-bitmap writer for the current frame (§3-2-1).
 class MaskWriter {
   const MaskWriter({
@@ -154,8 +208,9 @@ class MaskWriter {
   /// Its position in `draw_order` — the scope pivot (§2-1).
   final int drawRank;
 
-  /// Coverage bit, `0..kMaxMaskWriters-1`. Assigned in ascending [drawRank],
-  /// which is what lets the replay loop walk bits in order (see [MaskBits]).
+  /// Coverage bit, `0..kMaxMaskWriters-1`. Assigned in ascending [drawRank]
+  /// simply because [MaskPlan.build] walks `draw_order`; the replay does not
+  /// depend on the order (see [MaskBits]).
   final int bit;
 
   /// Stencil OP: `false` = increment, `true` = invert (§2-3).
@@ -173,12 +228,16 @@ class MaskWriter {
 /// polarity.
 ///
 /// [increment] / [invert] are 24-bit sets indexed by [MaskWriter.bit], already
-/// filtered to the writers whose scope (§2-1) reaches this target. Because bits
-/// are handed out in ascending draw rank, the shader can replay the ops in the
-/// correct order by simply walking bits 0→23 — which is why the flagship's
-/// `mask_meta[]` array (4 floats per writer) is not needed here: scope is
-/// resolved on the CPU and only these two sets reach the shader. 24-bit integers
-/// are exactly representable in a float32 uniform.
+/// filtered to the writers whose scope (§2-1) reaches this target. Resolving
+/// scope on the CPU is why the flagship's `mask_meta[]` array (4 floats per
+/// writer) is not needed here — only these two sets reach the shader. 24-bit
+/// integers are exactly representable in a float32 uniform.
+///
+/// Splitting them by OP is also what §3-1-4 requires of the replay: `Invert` and
+/// `IncrementWrap` do not commute, so each accumulates on its own plane and the
+/// shader takes the union. The two sets are therefore disjoint by construction —
+/// a writer's OP puts it in exactly one — and the replay is independent of the
+/// order the bits are walked in.
 class MaskBits {
   const MaskBits({
     required this.increment,
@@ -341,16 +400,23 @@ class MaskPlan {
   /// The mask test for the target at [rank], or null when the part is not
   /// masked and keeps the plain batched path.
   ///
-  /// A part is tested when it opts in ([MaskPartFlags.isTarget]) **and** either
+  /// A part is tested when it opts in ([MaskComposition.targets]) **and** either
   /// a writer's scope reaches it or it is `visible_inside_mask` — the latter
   /// draws only inside a mask, so it must run the test even out of scope (where
   /// the empty writer set then correctly discards it).
   ///
   /// Scope (§2-1): a pure mask applies to parts drawn *before* it
   /// (`rank < writer.drawRank`); a clipping writer to parts drawn *after* it.
-  MaskBits? bitsFor(int rank, MaskPartFlags flags) {
-    if (!flags.isTarget) return null;
-    if (!inScope(rank) && !flags.visibleInsideMask) return null;
+  ///
+  /// [comp] is the instance hierarchy above this player (§2-6); it governs the
+  /// opt-in and the polarity, so a caller that opted out disables even this
+  /// player's own mask. [MaskComposition.identity] at the top level leaves the
+  /// part's own flags deciding.
+  MaskBits? bitsFor(int rank, MaskPartFlags flags,
+      {MaskComposition comp = MaskComposition.identity}) {
+    if (!comp.targets(flags)) return null;
+    final visibleInside = comp.visibleInsideFor(flags);
+    if (!inScope(rank) && !visibleInside) return null;
 
     var increment = 0;
     var invert = 0;
@@ -367,7 +433,7 @@ class MaskPlan {
     return MaskBits(
       increment: increment,
       invert: invert,
-      visibleInside: flags.visibleInsideMask,
+      visibleInside: visibleInside,
     );
   }
 

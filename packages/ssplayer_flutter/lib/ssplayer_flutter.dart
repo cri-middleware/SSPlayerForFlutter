@@ -69,6 +69,7 @@ export 'src/render/part_override.dart'
 export 'src/render/mask.dart'
     show
         MaskBits,
+        MaskComposition,
         MaskPartFlags,
         MaskPlan,
         MaskWriter,

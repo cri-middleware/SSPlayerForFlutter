@@ -40,18 +40,25 @@ bool maskPasses() {
   int inc = int(v_mask_bits.x);
   int inv = int(v_mask_bits.y);
 
-  int stencil = 0;
+  // §3-1-4: `Invert` and `IncrementWrap` do not commute, so one shared
+  // accumulator would make coverage depend on the order the writers are walked
+  // in. Keep a plane each — the shader has no bit budget to divide, so unlike a
+  // real stencil the counter takes no overlap ceiling. See shaders/partcolor.frag.
+  int parity = 0; // invert writers: covered where an ODD number overlap
+  int count = 0;  // increment writers: covered where ANY overlap
   for (int i = 0; i < 24; i++) {
     int bit = 1 << i;
     if ((bits & bit) != 0) {
       if ((inv & bit) != 0) {
-        stencil = 255 - stencil; // §2-3 invert
+        parity ^= 1; // §2-3 invert (parity plane)
       } else if ((inc & bit) != 0) {
-        stencil = (stencil + 1) & 255; // §2-3 increment
+        count += 1; // §2-3 increment (counter plane)
       }
     }
   }
-  return (stencil > 0) == visibleInside;
+  // The union of the two planes (§3-1-4).
+  bool masked = (parity != 0) || (count != 0);
+  return masked == visibleInside;
 }
 
 void main() {
