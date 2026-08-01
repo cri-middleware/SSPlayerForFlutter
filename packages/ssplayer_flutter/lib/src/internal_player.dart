@@ -134,6 +134,10 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
     for (final part in _instances.parts) {
       _instances.slotFor(part.partIndex)?.child.subFrame = value;
     }
+    // Effects sample `subFrame ? frame : floor(frame)`, so on a frozen frame the
+    // toggle would otherwise not show until something advances the clock. The
+    // flagship's `setSubFrameEnabled` re-resolves for the same reason.
+    _stepSlots(frameNo, 0.0, false);
   }
 
   bool _subFrame = true;
@@ -310,9 +314,17 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   bool setupAnimation(String name) {
     _ensureAlive();
     final ok = ssRuntime.setupAnimation(_context, name);
-    // A different animation has different effect/instance keys — drop each
-    // slot's "last started key" memory so the new animation fires its own.
-    if (ok) _resetSlots();
+    if (ok) {
+      // A different animation has different effect/instance keys — drop each
+      // slot's "last started key" memory so the new animation fires its own.
+      _resetSlots();
+      // Then resolve them *at* the frame we just rewound to. `setupAnimation`
+      // poses the first frame without playing (the idle pose the SDK's player
+      // guidelines call for), and without this the instance children are
+      // missing from that pose until something advances the clock. The flagship
+      // ends its `_fetchAnimation` with the same re-resolve.
+      _stepSlots(frameNo, 0.0, false);
+    }
     return ok;
   }
 
@@ -365,7 +377,26 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   set loop(int count) => ssRuntime.setLoop(_context, count);
   set speed(double rate) => ssRuntime.setSpeed(_context, rate);
   set frameRate(int fps) => ssRuntime.setFrameRate(_context, fps);
-  void seek(double frame) => ssRuntime.seek(_context, frame);
+  /// Moves the playhead, then re-resolves the slot-based kinds (§8) *at the new
+  /// frame*. Without that second half an instance child keeps whatever
+  /// visibility and child frame the last [updateMs] left it on, so a scrubbed or
+  /// frozen frame can drop the children entirely.
+  ///
+  /// The delta is zero — a seek is a jump, not elapsed time. That is exactly
+  /// right for **synced** slots, which are a pure function of the parent frame
+  /// (`ss_instance_slot_step` re-seeks the child with `set_frame_relative`, and
+  /// an effect slot re-derives its relative frame from `parent_frame`), so they
+  /// land where playing to [frame] would have left them. **Independent** slots
+  /// ride their own real-time clock and a zero delta deliberately leaves them
+  /// untouched: the SDK defines seeking them as undefined
+  /// ([InstanceSlot.isIndependent]).
+  void seek(double frame) {
+    _ensureAlive();
+    ssRuntime.seek(_context, frame);
+    // Read the frame back rather than reusing the argument: the Brain confines a
+    // seek to the animation section, and the slots must see where it landed.
+    _stepSlots(frameNo, 0.0, false);
+  }
 
   /// Restricts playback to `[startFrame, endFrame]` of the current animation.
   /// Reflected by [startFrame] / [endFrame], which report the *played* range.

@@ -16,7 +16,7 @@ _player.play();                    // start from the beginning
 | `pause()` / `resume()` | method | Pause (holds the current frame) / resume |
 | `togglePlayPause()` | method | Pause if playing, resume if paused |
 | `stop()` | method | Stop playback |
-| `seek(double frame)` | method | Jump to a frame (fractional allowed) |
+| `seek(double frame)` | method | Jump to a frame (fractional allowed). Independent instances / effects do not follow |
 | `loop` | `set int` | Loop count — `-1` (or `0`) forever, `n` plays *n* times |
 | `speed` | `set double` | Playback speed multiplier (negative reverses) |
 | `frameRate` | `int` | Advance rate in fps — the pack's authored rate unless you override it |
@@ -67,11 +67,11 @@ along.
 ## Switching animations
 
 `setupAnimation(name)` selects an animation and **waits on its first frame** — it does not start
-playback, and it **resets loop / speed** to the runtime defaults.
+playback.
 
-!!! warning "Set `loop` / `speed` *after* `setupAnimation`"
-    `setupAnimation` rewinds and resets the transport, so re-apply `loop` / `speed` afterward or the
-    loop silently falls back to infinite.
+It resets the Brain's transport, but `SpriteStudioPlayer` remembers the `loop` / `speed` you set and
+**re-applies them for you**, so you do not have to set them again on every switch (see
+"What survives `setupAnimation`" above).
 
 ```dart
 _player.setupAnimation('walk');

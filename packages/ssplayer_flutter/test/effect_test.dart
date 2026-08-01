@@ -283,6 +283,64 @@ void main() {
     expect(sawPlan, isTrue,
         reason: 'Effect.ssab should emit particles within 120 frames');
   });
+
+  test('toggling subFrame re-resolves the effects on a frozen frame', () async {
+    final ssabPath = _firstExisting([
+      'examples/overall/assets/spritestudio/overall/Effect.ssab',
+      '../../examples/overall/assets/spritestudio/overall/Effect.ssab',
+    ]);
+    if (ssabPath == null) {
+      markTestSkipped('Effect.ssab missing — run deploy-examples.sh');
+      return;
+    }
+
+    final bytes = Uint8List.fromList(File(ssabPath).readAsBytesSync());
+    final player = SpriteStudioInternalPlayer.load(bytes);
+    addTearDown(player.dispose);
+    expect(player.setupAnimation(SsAnimeInfo(bytes).animationNames.first),
+        isTrue);
+    player.play();
+
+    // Stop on a frame with a fractional part: sub-frame ON samples the effects
+    // at `frameNo`, OFF at `floor(frameNo)`, so the two only differ off an
+    // integer boundary.
+    Map<int, Float32List> snapshot() => <int, Float32List>{
+          for (final p in EffectPart.readAll(bytes))
+            if (player.effectPlanFor(p.partIndex)?.verts case final v?
+                when v.isNotEmpty)
+              // The plan aliases the Brain's memory and is only valid until the
+              // slot is stepped again — copy before stepping anything.
+              p.partIndex: Float32List.fromList(v),
+        };
+
+    var before = <int, Float32List>{};
+    for (var i = 0; i < 120; i++) {
+      player.update(const Duration(milliseconds: 33));
+      final frac = player.frameNo - player.frameNo.floorToDouble();
+      if (frac < 0.15 || frac > 0.85) continue;
+      before = snapshot();
+      if (before.isNotEmpty) break;
+    }
+    expect(before, isNotEmpty,
+        reason: 'no effect particles on a fractional frame within 120 frames');
+
+    player.pause();
+    // The whole point: nothing advances the clock from here on.
+    player.subFrame = false;
+
+    final after = snapshot();
+    final moved = before.keys.where((i) {
+      final a = after[i];
+      if (a == null || a.length != before[i]!.length) return true;
+      for (var k = 0; k < a.length; k++) {
+        if ((a[k] - before[i]![k]).abs() > 1e-4) return true;
+      }
+      return false;
+    });
+    expect(moved, isNotEmpty,
+        reason: 'sub-frame was switched off but the frozen frame still shows '
+            'the particles simulated at the fractional frame');
+  });
 }
 
 String? _firstExisting(List<String> paths) {
