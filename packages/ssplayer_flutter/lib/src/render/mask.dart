@@ -154,8 +154,9 @@ class MaskWriter {
   /// Its position in `draw_order` — the scope pivot (§2-1).
   final int drawRank;
 
-  /// Coverage bit, `0..kMaxMaskWriters-1`. Assigned in ascending [drawRank],
-  /// which is what lets the replay loop walk bits in order (see [MaskBits]).
+  /// Coverage bit, `0..kMaxMaskWriters-1`. Assigned in ascending [drawRank]
+  /// simply because [MaskPlan.build] walks `draw_order`; the replay does not
+  /// depend on the order (see [MaskBits]).
   final int bit;
 
   /// Stencil OP: `false` = increment, `true` = invert (§2-3).
@@ -173,12 +174,16 @@ class MaskWriter {
 /// polarity.
 ///
 /// [increment] / [invert] are 24-bit sets indexed by [MaskWriter.bit], already
-/// filtered to the writers whose scope (§2-1) reaches this target. Because bits
-/// are handed out in ascending draw rank, the shader can replay the ops in the
-/// correct order by simply walking bits 0→23 — which is why the flagship's
-/// `mask_meta[]` array (4 floats per writer) is not needed here: scope is
-/// resolved on the CPU and only these two sets reach the shader. 24-bit integers
-/// are exactly representable in a float32 uniform.
+/// filtered to the writers whose scope (§2-1) reaches this target. Resolving
+/// scope on the CPU is why the flagship's `mask_meta[]` array (4 floats per
+/// writer) is not needed here — only these two sets reach the shader. 24-bit
+/// integers are exactly representable in a float32 uniform.
+///
+/// Splitting them by OP is also what §3-1-4 requires of the replay: `Invert` and
+/// `IncrementWrap` do not commute, so each accumulates on its own plane and the
+/// shader takes the union. The two sets are therefore disjoint by construction —
+/// a writer's OP puts it in exactly one — and the replay is independent of the
+/// order the bits are walked in.
 class MaskBits {
   const MaskBits({
     required this.increment,
