@@ -309,7 +309,7 @@ class CanvasBackend implements RenderBackend {
 
   @override
   void emitNormal(ui.Canvas canvas, fbs.DrawBatch batch, DrawFrame frame,
-      RenderHost host, MaskContext? maskCtx, MaskDraw? inheritedMask) {
+      RenderHost host, MaskContext? maskCtx, InheritedMask? inheritedMask) {
     final start = batch.startRank;
     final count = batch.count;
     if (count == 0) return;
@@ -350,7 +350,9 @@ class CanvasBackend implements RenderBackend {
       // one coverage per fragment, so the inherited clip is dropped for it
       // (a rare nested-mask case that would need a second peel pass to combine).
       final ownBits = maskCtx?.bitsForTarget(rank, flags);
-      final mask = ownBits != null ? maskCtx!.drawFor(ownBits) : inheritedMask;
+      final mask = ownBits != null
+          ? maskCtx!.drawFor(ownBits)
+          : inheritedMask?.drawFor(flags);
       // Integration shader (`SHDR`). NOT combined with a mask test: the
       // peeled shader binds no coverage sampler, so a masked shader part keeps
       // the plain masked path and drops its effect — the v1 limitation both
@@ -377,7 +379,7 @@ class CanvasBackend implements RenderBackend {
 
   @override
   void emitShape(ui.Canvas canvas, fbs.DrawBatch batch, DrawFrame frame,
-      RenderHost host, MaskContext? maskCtx, MaskDraw? inheritedMask) {
+      RenderHost host, MaskContext? maskCtx, InheritedMask? inheritedMask) {
     if (batch.count == 0 || frame.shape == null) return;
     final passes = blendPassesFor(batch.blendType);
 
@@ -407,7 +409,9 @@ class CanvasBackend implements RenderBackend {
       final flags = host.flagsFor(p);
       if (flags.pureMask) continue; // coverage only, never colour
       final ownBits = maskCtx?.bitsForTarget(rank, flags);
-      final mask = ownBits != null ? maskCtx!.drawFor(ownBits) : inheritedMask;
+      final mask = ownBits != null
+          ? maskCtx!.drawFor(ownBits)
+          : inheritedMask?.drawFor(flags);
       if (mask == null) {
         run.add(p);
         if (passes.length > 1) flushRun(); // see [emitNormal]
@@ -494,7 +498,7 @@ class CanvasBackend implements RenderBackend {
 
   @override
   void emitMesh(ui.Canvas canvas, fbs.DrawBatch batch, DrawFrame frame,
-      RenderHost host, MaskContext? maskCtx, MaskDraw? inheritedMask) {
+      RenderHost host, MaskContext? maskCtx, InheritedMask? inheritedMask) {
     final count = batch.count;
     if (count == 0) return;
     final drawOrder = frame.drawOrder;
@@ -525,7 +529,9 @@ class CanvasBackend implements RenderBackend {
       final state = frame.partOf(p);
       final pc = state == null ? null : PartColor.read(partsColor, state);
       final ownBits = maskCtx?.bitsForTarget(rank, flags);
-      final mask = ownBits != null ? maskCtx!.drawFor(ownBits) : inheritedMask;
+      final mask = ownBits != null
+          ? maskCtx!.drawFor(ownBits)
+          : inheritedMask?.drawFor(flags);
       if (pc == null && mask == null) {
         run.add(p);
         if (passes.length > 1) flushRun(); // see [emitNormal]

@@ -906,7 +906,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
     RenderBackend backend, {
     double? frameOverride,
     double alphaScale = 1.0,
-    MaskDraw? inheritedMask,
+    InheritedMask? inheritedMask,
   }) {
     // Sub-frame ON (default): sample the fractional frame for smooth playback;
     // OFF: snap to the integer frame. This is the ONLY place a frame gets
@@ -969,13 +969,16 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
     // Unlike the flagship's viewport (1-frame latency, size classes, shrink
     // hysteresis) `toImageSync` gives us the bitmap within this same frame, so
     // none of that machinery is needed.
-    final maskCtx = _buildMaskContext(backend, frame, batches);
+    // The composition (§2-6) reaches the own mask too — a caller that opted out
+    // settles "not masked" for this whole player, its own writers included.
+    final maskCtx = _buildMaskContext(backend, frame, batches,
+        inheritedMask?.comp ?? MaskComposition.identity);
 
     // A mask inherited from a parent instance (§3-2-2) reaches the child's
-    // peel-maskable kinds — Normal, Shape and Mesh. Effect is not peeled (its
-    // plan carries its own colours), and nested Instances are deliberately
-    // single-level, so those child kinds escape the parent clip — the same kinds
-    // an own-mask can't gate either.
+    // peel-maskable kinds — Normal, Shape and Mesh — resolved per part against
+    // the composed settings. Effect is not peeled (its plan carries its own
+    // colours), so it escapes the parent clip — the same kind an own-mask can't
+    // gate either. A nested Instance forwards it another level down.
     for (final batch in batches) {
       switch (batch.kind) {
         case fbs.DrawBatchKind.Normal:
@@ -985,7 +988,8 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
         case fbs.DrawBatchKind.Effect:
           backend.emitEffect(canvas, batch, frame, this);
         case fbs.DrawBatchKind.Instance:
-          _emitInstanceBatch(canvas, backend, batch, frame, maskCtx);
+          _emitInstanceBatch(
+              canvas, backend, batch, frame, maskCtx, inheritedMask);
         case fbs.DrawBatchKind.Shape:
           backend.emitShape(canvas, batch, frame, this, maskCtx, inheritedMask);
         case fbs.DrawBatchKind.Mask: // §9: coverage only, never colour
@@ -1007,8 +1011,13 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   /// The whole child occupies exactly the instance part's z-slot: it can never
   /// interleave with this player's other parts. Painting it recursively at this
   /// point in the batch loop reproduces that ordering for free.
-  void _emitInstanceBatch(ui.Canvas canvas, RenderBackend backend,
-      fbs.DrawBatch batch, DrawFrame frame, MaskContext? maskCtx) {
+  void _emitInstanceBatch(
+      ui.Canvas canvas,
+      RenderBackend backend,
+      fbs.DrawBatch batch,
+      DrawFrame frame,
+      MaskContext? maskCtx,
+      InheritedMask? inheritedMask) {
     for (var k = 0; k < batch.count; k++) {
       final rank = batch.startRank + k;
       if (rank >= frame.drawOrder.length) break;
@@ -1035,15 +1044,25 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
           partAlpha: frame.alphaOf(part), chainScale: frame.alphaScale);
       if (alpha <= 0.0) continue;
 
-      // §3-2-2: this player's mask reaches an instance child that is itself a
-      // mask target, gating the WHOLE sub-animation with the instance part's own
-      // rank + polarity (not the child's individual parts). The coverage + meta
-      // come from this player; only the UV affine is re-composed with the slot
-      // matrix so the child's local fragments sample the parent's coverage.
-      // Single-level (the child does not forward it to its own instances).
-      final ownBits = maskCtx?.bitsForTarget(rank, flagsFor(part));
+      // §2-6 / §3-2-2: a mask reaching this instance part applies to the whole
+      // sub-animation, but the calling part's settings do NOT replace the
+      // callee's — they compose (`mask_influence` AND, `visible_inside_mask` OR)
+      // and each child part resolves its own test from the pair. So what goes
+      // down is the composed context, not a finished test.
+      //
+      // The coverage that reaches the child is this player's own if it has one
+      // (a fragment can test only one), else the one this player itself
+      // inherited, forwarded another level. Only the UV affine is re-composed
+      // with the slot matrix, so the child's local fragments sample it correctly.
+      // Scope (§2-1) is settled here, at the instance part's rank.
+      final flags = flagsFor(part);
+      final ownBits = maskCtx?.bitsForTarget(rank, flags);
+      final source = ownBits != null
+          ? maskCtx!.drawFor(ownBits)
+          : inheritedMask?.drawFor(flags);
       final inherited =
-          ownBits == null ? null : maskCtx!.drawFor(ownBits).composeSlot(world);
+          (inheritedMask ?? const InheritedMask(comp: MaskComposition.identity))
+              .forChild(flags, source?.composeSlot(world));
 
       // The child draws through THIS player's [backend] (shared across the
       // recursion) under the composed transform — Canvas: save+transform; GPU:
@@ -1074,9 +1093,13 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   /// Builds this frame's mask plan and rasterises its coverage bitmap, or null
   /// when nothing masks this frame (the overwhelmingly common case — the whole
   /// mask path then costs one [MaskPlan.build] walk of `draw_order`).
-  MaskContext? _buildMaskContext(
-      RenderBackend backend, DrawFrame frame, List<fbs.DrawBatch> batches) {
+  MaskContext? _buildMaskContext(RenderBackend backend, DrawFrame frame,
+      List<fbs.DrawBatch> batches, MaskComposition comp) {
     if (_maskFlags.isEmpty) return null;
+    // NB no early-out on `!comp.influence`: the AND-chain settles the *targets*,
+    // not the writers, and a clipping writer stays a target of its own mask
+    // regardless (`mask_write` does not compose, §2-6). The coverage is still
+    // needed for those.
     final plan = MaskPlan.build(frame, _maskFlags);
     if (plan == null) return null;
 

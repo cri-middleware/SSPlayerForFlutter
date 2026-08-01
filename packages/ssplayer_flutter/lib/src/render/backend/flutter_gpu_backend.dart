@@ -488,7 +488,7 @@ class FlutterGpuBackend implements RenderBackend {
 
   @override
   void emitNormal(ui.Canvas canvas, fbs.DrawBatch batch, DrawFrame frame,
-      RenderHost host, MaskContext? maskCtx, MaskDraw? inheritedMask) {
+      RenderHost host, MaskContext? maskCtx, InheritedMask? inheritedMask) {
     if (!_active) return;
     final count = batch.count;
     if (count == 0) return;
@@ -547,7 +547,9 @@ class FlutterGpuBackend implements RenderBackend {
       final part = frame.partOf(p);
       final pc = part == null ? null : PartColor.read(partsColor, part);
       final ownBits = maskCtx?.bitsForTarget(rank, flags);
-      final mask = ownBits != null ? maskCtx!.drawFor(ownBits) : inheritedMask;
+      final mask = ownBits != null
+          ? maskCtx!.drawFor(ownBits)
+          : inheritedMask?.drawFor(flags);
       // Integration shader (`SHDR`): its parameters are per-part uniforms,
       // so it cannot join either run — flush both to keep z-order and draw it on
       // its own. NOT combined with a mask test (v1, both siblings agree): a
@@ -945,7 +947,7 @@ class FlutterGpuBackend implements RenderBackend {
 
   @override
   void emitMesh(ui.Canvas canvas, fbs.DrawBatch batch, DrawFrame frame,
-      RenderHost host, MaskContext? maskCtx, MaskDraw? inheritedMask) {
+      RenderHost host, MaskContext? maskCtx, InheritedMask? inheritedMask) {
     if (!_active) return;
     final count = batch.count;
     if (count == 0) return;
@@ -995,7 +997,9 @@ class FlutterGpuBackend implements RenderBackend {
       final state = frame.partOf(p);
       final pc = state == null ? null : PartColor.read(partsColor, state);
       final ownBits = maskCtx?.bitsForTarget(rank, flags);
-      final mask = ownBits != null ? maskCtx!.drawFor(ownBits) : inheritedMask;
+      final mask = ownBits != null
+          ? maskCtx!.drawFor(ownBits)
+          : inheritedMask?.drawFor(flags);
       if (pc == null && mask == null) {
         flushPc();
         parts.add(p);
@@ -1094,7 +1098,7 @@ class FlutterGpuBackend implements RenderBackend {
 
   @override
   void emitShape(ui.Canvas canvas, fbs.DrawBatch batch, DrawFrame frame,
-      RenderHost host, MaskContext? maskCtx, MaskDraw? inheritedMask) {
+      RenderHost host, MaskContext? maskCtx, InheritedMask? inheritedMask) {
     if (!_active) return;
     if (batch.count == 0) return;
     final blend = blendEquationFor(batch.blendType);
@@ -1120,7 +1124,9 @@ class FlutterGpuBackend implements RenderBackend {
       final flags = host.flagsFor(p);
       if (flags.pureMask) continue; // coverage-only, never colour
       final ownBits = maskCtx?.bitsForTarget(rank, flags);
-      final mask = ownBits != null ? maskCtx!.drawFor(ownBits) : inheritedMask;
+      final mask = ownBits != null
+          ? maskCtx!.drawFor(ownBits)
+          : inheritedMask?.drawFor(flags);
       // Gate only when a GPU coverage texture exists (own or inherited); else draw
       // unmasked (mask disabled).
       if (mask == null || mask.coverageHandle is! gpu.Texture) {
