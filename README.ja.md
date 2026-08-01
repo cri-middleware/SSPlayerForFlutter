@@ -23,6 +23,7 @@
 - [**ドキュメントサイト（ホスト版）**](https://cri-middleware.github.io/SSPlayerForFlutter/) — 🚧 最初のリリース後に公開
 - [**Documentation (English)**](./docs/en/index.md)
 - [**ドキュメント (日本語)**](./docs/ja/index.md)
+- [**SpriteStudio Docs（ポータル）**](https://cri-middleware.github.io/SpriteStudio-Docs/) — SDK と全公式 Player の入口 — 🚧 最初のリリース後に公開
 
 ### クイックリンク
 - [インストール](docs/ja/guide/install.md)

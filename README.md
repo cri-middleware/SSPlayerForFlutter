@@ -23,6 +23,7 @@ For installation, the asset pipeline, and API references, see the MkDocs documen
 - [**Documentation site (hosted)**](https://cri-middleware.github.io/SSPlayerForFlutter/) — 🚧 live after the first release
 - [**Documentation (English)**](./docs/en/index.md)
 - [**ドキュメント (日本語)**](./docs/ja/index.md)
+- [**SpriteStudio Docs (portal)**](https://cri-middleware.github.io/SpriteStudio-Docs/) — the SDK and every official player in one place — 🚧 live after the first release
 
 ### Quick Links
 - [Installation](docs/en/guide/install.md)
