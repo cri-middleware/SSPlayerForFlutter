@@ -38,6 +38,7 @@ Stack(
 | **`partName`** | The name of the part to follow (the `PartData` name in the `.ssab`). An unknown name — or one absent from the current animation — simply draws nothing until it resolves |
 | **`child`** | The widget stuck to the part. Its **top-left origin** is pinned to the part's origin |
 | **`onHidden`** | Behaviour on frames where the part is hidden. `hideChild` (default) / `followAlways` |
+| **`onMirrored`** | What a flipped player does to the child. `follow` (default) / `cancel` |
 | **`filterQuality`** | Optional `Transform.filterQuality` — e.g. `FilterQuality.low` to smooth a rotated or scaled child. Null keeps Flutter's nearest-neighbour default |
 
 ### Behaviour on hidden frames (`SpriteStudioAnchorHidden`)
@@ -49,6 +50,39 @@ Stack(
 
 "Hidden" here is the keyframe `hide` composed with any visibility override — the same value
 [Part Overrides](part-overrides.md) writes.
+
+### Behaviour under a flipped player (`SpriteStudioAnchorMirror`)
+
+A player's [`flipX` / `flipY`](playback.md) reaches the anchor as well, so a character can turn around
+without its followers coming off their parts. All this setting decides is whether the **child itself**
+is mirrored along with them.
+
+| Value | Behaviour |
+|---|---|
+| `follow` (default) | Apply the part's pose as-is, so a flipped player mirrors the child too |
+| `cancel` | Follow the mirrored **position**, but keep the child's own orientation |
+
+Pick `follow` for anything that should turn around with the character — a weapon, an effect — and
+`cancel` for anything that stops being readable when mirrored: text, icons, a health bar.
+
+```dart
+SpriteStudioPartAnchor(
+  player: _player,
+  partName: 'Head',
+  onMirrored: SpriteStudioAnchorMirror.cancel, // the name plate stays readable
+  child: const Text('Ringo'),
+)
+```
+
+!!! info "`cancel` is exact, and leaves no residue"
+    It undoes a ±1 diagonal this library applied itself, so the position stays exact and no stray
+    rotation is left behind. ForUnity and ForGodot carry the pose as rotation + scale, where the
+    equivalent setting (`Drive Scale` / `update_scale` off) leaves an extra 180° on a horizontal flip;
+    that does not happen here.
+
+    Either way, mirroring the **artist** authored on the part (a negative scale on it or an ancestor)
+    always reaches the child — that one is part of the animation. `cancel` only takes back the
+    player's own `flipX` / `flipY`.
 
 !!! tip "Choosing the anchor point"
     The child's top-left is what lands on the part. To attach a different point of it, wrap the child.
@@ -92,6 +126,31 @@ rotation, scale and skew all ride in those six terms — hand the matrix straigh
 widget. The translation is at `storage[12]` / `storage[13]`.
 
 The Y-Down flip is **already applied by the runtime**, so never flip again on your side.
+
+The player's [`flipX` / `flipY` / `offset`](playback.md) are applied too: this is the pose **as drawn**,
+which is why a follower stays on its part across a flip.
+
+### The matrix can be a reflection
+
+The returned matrix is sometimes a **reflection** — a matrix whose determinant is negative. Two things
+cause that, and they **compose**:
+
+- A negative scale the artist authored on the part or an ancestor — ordinary in real data
+- The player's [`flipX` / `flipY`](playback.md)
+
+Two mirrorings **cancel**, returning the determinant to positive. So neither "I flipped, therefore it is
+mirrored" nor "I did not flip, therefore it is not" holds. When you need the sign, read it off the
+matrix you are actually holding, with `determinant()`.
+
+!!! tip "This port never decomposes, so it stays exact"
+    The pose reaches a `Transform` widget as a whole `Matrix4`, so a reflection rides along without
+    loss. ForUnity and ForGodot decompose into a `Quaternion` / `Transform2D` and inherit the caveats
+    that come with it (`Matrix4x4.rotation` is undefined on a mirrored matrix; a horizontal flip leaves
+    an extra 180° in the extracted rotation) — none of which applies here.
+
+    Decompose it **yourself**, though, and you take those caveats on: check the sign of
+    `determinant()` before reading a rotation out of the matrix. The translation
+    (`storage[12]` / `storage[13]`) is exact whatever the sign.
 
 !!! note "The same reads exist on the low-level API"
     The drawing engine beneath `SpriteStudioPlayer` (L3) exposes the same two reads, addressed by index only and under different names —

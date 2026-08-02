@@ -20,8 +20,10 @@ dart doc
 - **`SpriteStudioPlayer`**（L3）—— トランスポート / イベント。[再生とイベント](guide/playback.md) を参照。
 - **`SpriteStudioView`**（L4）—— `RenderBox` ウィジェット。[クイックスタート](guide/quickstart.md) を参照。
 - **`SpriteStudioComponent`**（`ssplayer_flame`）—— Flame アダプタ。[Flame 連携](guide/flame.md) を参照。
-- **`SpriteStudioPartAnchor` / `SpriteStudioAnchorHidden`**（L4）—— パーツにウィジェットを追従させる。
-  [パーツトラッキング](guide/part-following.md) を参照。
+- **`SpriteStudioPartAnchor` / `SpriteStudioAnchorHidden` / `SpriteStudioAnchorMirror`**（L4）——
+  パーツにウィジェットを追従させる。[パーツトラッキング](guide/part-following.md) を参照。
+- **`SsRootTransform`** —— プレイヤー単位の反転 / オフセット（`flipX` / `flipY` / `offset`）。
+  [再生とイベント](guide/playback.md) を参照。
 - **`SsBlendOp` / `SsOverridePriority` / `PartNameTable`** —— パーツオーバーライド。
   [パーツオーバーライド](guide/part-overrides.md) を参照。
 - **`SsAnimeInfo`** —— `.ssab` バイト列からアニメーション / セルマップ / セル名を列挙。

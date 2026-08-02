@@ -6,6 +6,7 @@ import 'package:ssruntime_dart/framedata.dart' as fbs;
 import '../geometry_builder.dart';
 import '../mask.dart';
 import '../mask_context.dart';
+import '../root_transform.dart';
 import 'render_host.dart';
 
 /// The pixel-operation seam under L2 (design: keep the batch-loop / mask-plan /
@@ -37,7 +38,19 @@ abstract class RenderBackend {
   /// the recursive `_paintTree`. Canvas: saves + translates the world origin to
   /// the centre of [dst]/[sourceSize]. GPU: allocates a render target + builds
   /// the ortho projection.
-  void beginFrame(ui.Canvas canvas, {ui.Rect? dst, ui.Size? sourceSize});
+  ///
+  /// [root] is the player's flip / offset, which belongs here rather than in the
+  /// geometry bake: both backends already carry a root transform (the centring
+  /// translate / the ortho projection), so folding it in costs one composition
+  /// instead of a term on every vertex — and it leaves the whole tree *below* it
+  /// in player-local space, which is what keeps the mask coverage pass and the
+  /// runtime-effect shaders (both of which work in that space) untouched.
+  /// Instance children inherit it by construction: they draw through this same
+  /// backend without ever beginning a frame of their own.
+  void beginFrame(ui.Canvas canvas,
+      {ui.Rect? dst,
+      ui.Size? sourceSize,
+      SsRootTransform root = SsRootTransform.identity});
 
   /// Ends the top-level frame. Canvas: restores. GPU: submits the command buffer
   /// and composites the render target onto [beginFrame]'s canvas.

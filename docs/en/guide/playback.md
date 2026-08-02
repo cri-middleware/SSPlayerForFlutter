@@ -64,6 +64,43 @@ _player..loop = -1..play();            // loops within 10..24
 `startFrame` / `endFrame` / `totalFrames` report the sectioned range, so a scrubber bound to them follows
 along.
 
+## Flip and offset
+
+Mirror or shift **what the player draws**, leaving the widget tree alone.
+
+| Property | Type | Description |
+|---|---|---|
+| `flipX` | `bool` | Mirror the drawn animation horizontally, in the manner of Flutter's own `Transform.flip(flipX: …)` |
+| `flipY` | `bool` | Mirror it vertically |
+| `offset` | `Offset` | Shift it by this many logical pixels. Applied **after** the flip, so the offset is not itself mirrored |
+| `rootTransform` | `SsRootTransform` | All three as one value — assign it to change several at once and repaint once |
+
+```dart
+// Face the way we are walking.
+_player.flipX = velocity.dx < 0;
+```
+
+They apply to the whole tree including instance children, survive `reload()`, and notify listeners, so
+the view repaints on its own.
+
+!!! question "Why not just wrap the view in `Transform.flip`?"
+    Because that mirrors the **whole** wrapped subtree, which becomes a problem as soon as
+    [part tracking](part-following.md) is in play.
+
+    | Approach | Result |
+    |---|---|
+    | Wrap the whole `Stack` in `Transform.flip` | The anchored widgets — icons, text — come out mirrored too |
+    | Wrap only the `SpriteStudioView` | The anchors are left behind at the unflipped positions |
+    | **`player.flipX`** | The animation mirrors, the anchors travel with it, and their own children can stay upright |
+
+    Without part tracking, wrapping in `Transform.flip` is perfectly sufficient.
+
+    See [Part Tracking](part-following.md) for what a flipped player does to a follower.
+
+!!! note "Not on the Flame adapter"
+    `SpriteStudioComponent` is a Flame `PositionComponent` and already has `flipHorizontally()` and
+    friends, so the player-level flip is not exposed there.
+
 ## Switching animations
 
 `setupAnimation(name)` selects an animation and **waits on its first frame** — it does not start

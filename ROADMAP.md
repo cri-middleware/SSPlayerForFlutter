@@ -17,6 +17,11 @@ Legend: ☐ **Ready** (Player-only, can start now) · ⛔ **Blocked on SDK** (ne
   index. Labels already ride in the `.ssab` FlatBuffers payload, so no SDK change
   is needed; add `play_range` / `play_by_index` on L3 over the existing
   `setAnimationSection`, which already covers the frame-number form.
+- ☐ **Flip / offset on the Flame adapter** — `SpriteStudioPlayer` has `flipX` / `flipY` / `offset`;
+  `SpriteStudioComponent` does not surface them, since a Flame `PositionComponent` already offers
+  `flipHorizontally()` and a `scale`. Worth revisiting if the two turn out to compose badly (a
+  component flip also mirrors the component's children, which is exactly what the player-level one
+  avoids).
 - ☐ **`Nines` / `Text` kinds + `BoxFit` / alignment** — the remaining Phase-2 draw
   kinds, plus fitting the animation's design bounds into the destination box.
   Unimplemented on both render backends.
