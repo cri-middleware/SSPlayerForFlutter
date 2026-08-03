@@ -6,8 +6,10 @@ import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ssplayer_flutter/ssplayer_flutter.dart';
-import 'package:ssruntime_dart/effect_draw_plan.dart' as efbs;
-import 'package:ssruntime_dart/framedata.dart' as fbs;
+// The `_builders.g.dart` shims re-export the reader libraries and add back the
+// flatc write-side classes, which live outside lib/ (see scripts/strip_fbs_builders.dart).
+import 'support/effect_draw_plan_builders.g.dart' as efbs;
+import 'support/framedata_builders.g.dart' as fbs;
 
 void main() {
   group('effectBlendModeFor', () {

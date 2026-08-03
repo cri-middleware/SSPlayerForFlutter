@@ -88,7 +88,12 @@ flatc. Regenerate and commit after the corresponding change:
   `scripts/generate-ffigen-code.sh` and commit. This is **standalone** — `build-runtime` does *not*
   run it.
 - **FlatBuffers** (`lib/src/ssab/*.g.dart` asset format; `ssruntime_dart` runtime fbs) — after a
-  `.fbs` change, run `scripts/generate-fbs-code.sh`.
+  `.fbs` change, run `scripts/generate-fbs-code.sh`. flatc always emits a serializer next to every
+  reader, and `scripts/strip_fbs_builders.dart` moves those
+  `*Builder` / `*ObjectBuilder` classes out of `lib/` (nothing there writes a buffer — the `.ssab`
+  assets come from the SpriteStudio tooling and the runtime fbs come back over dart:ffi) into
+  `packages/ssplayer_flutter/test/support/*_builders.g.dart`, which the tests use to synthesise
+  fixtures. That is ~2/3 of flatc's output kept out of the published packages.
 
 ## Verify
 

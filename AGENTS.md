@@ -77,7 +77,7 @@ build loudly, and the parts draw individually anyway).
 |---|---|---|
 | `build-runtime` | Build `ssruntime`/`ssconverter`; place bare dylibs into each binding pkg's `native/libs/…` + copy C headers to `native/include/`. Does **not** run ffigen. | After Rust / first setup |
 | `generate-ffigen-code` | `dart run ffigen` → each pkg's `lib/src/*_bindings.g.dart`. Standalone; commit result. | After a C-API change |
-| `generate-fbs-code` | `flatc --dart` → `lib/src/ssab/*.g.dart`. Standalone. | After a `.fbs` change |
+| `generate-fbs-code` | `flatc --dart` → `lib/src/ssab/*.g.dart`, then `strip_fbs_builders.dart` splits the write side out of `lib/`. Standalone. | After a `.fbs` change |
 | `deploy-examples` | Convert `tests/overall/overall.sspj` → example assets. | Refresh example assets |
 
 Generated code (ffigen bindings + flatc accessors) is **committed** and never
@@ -87,6 +87,7 @@ downloads the pinned SDK release for Rust-less consumers.
 ## Traps (hard-won)
 
 * **Never call `PartState.updateFlag`** — the flatc `bit_flags` enum throws on OR-combined bits; read the raw `uint64` and bitwise-AND.
+* **The flatc write side is not in `lib/`** — `*Builder`/`*ObjectBuilder` are split into `ssplayer_flutter/test/support/*_builders.g.dart` (~2/3 of flatc's output; nothing in `lib/` ever writes a buffer). Those shims re-export their reader library, so a test that needs to synthesise a fixture imports `support/<schema>_builders.g.dart` under the usual prefix. Every schema gets one, `ssqb` included — its shim is unused until sequence playback lands, but it means adding `.ssqb` support needs no codegen change.
 * **`local_uvs`/`local_vertices` are texture-PIXEL, stride 10** (`lt,rt,lb,rb,center`), not normalized/×8 — pass straight to `drawVertices`. World matrix is column-major 4×4 (`x' = m0·x + m4·y + m12`).
 * **Texture key = `cellmap.name_hash` == `DrawBatch.texture_hash`** — use the pre-baked hash; never re-implement FNV-1a on the Dart side.
 * **Coordinate system = 1 (Y-Down); the Brain flips once** — do not double-flip in the Body.

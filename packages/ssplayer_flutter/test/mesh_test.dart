@@ -7,7 +7,9 @@ import 'dart:ui' as ui;
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ssplayer_flutter/ssplayer_flutter.dart';
-import 'package:ssruntime_dart/framedata.dart' as fbs;
+// Re-exports the FrameData readers and adds back the flatc write-side classes,
+// which live outside lib/ (see scripts/strip_fbs_builders.dart).
+import 'support/framedata_builders.g.dart' as fbs;
 
 void main() {
   // Two mesh parts: part 0 owns vertices [0,3) / indices [0,3), part 1 is a

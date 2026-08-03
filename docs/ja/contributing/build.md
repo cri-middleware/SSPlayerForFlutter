@@ -87,7 +87,12 @@ flutter run -d chrome --wasm   # Skwasm レンダラ（WebAssembly ビルドモ�
   `scripts/generate-ffigen-code.sh` を実行してコミット。**スタンドアロン**で、`build-runtime` は実行
   しません。
 - **FlatBuffers**（`lib/src/ssab/*.g.dart` アセット形式・`ssruntime_dart` のランタイム fbs）——
-  `.fbs` を変えたら `scripts/generate-fbs-code.sh`。
+  `.fbs` を変えたら `scripts/generate-fbs-code.sh`。flatc は
+  reader ごとに必ずシリアライザも吐くので、`scripts/strip_fbs_builders.dart` がその
+  `*Builder` / `*ObjectBuilder` を `lib/` から追い出します（`lib/` 側でバッファを書く箇所は無く、
+  `.ssab` は SpriteStudio ツールの出力、ランタイム fbs は dart:ffi 越しに読むだけ）。移動先は
+  `packages/ssplayer_flutter/test/support/*_builders.g.dart` で、テストのフィクスチャ合成に使います。
+  これで flatc 出力の約 2/3 が公開パッケージから外れます。
 
 ## 検証
 
