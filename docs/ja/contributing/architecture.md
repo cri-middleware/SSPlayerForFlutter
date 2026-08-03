@@ -1,4 +1,4 @@
-# アーキテクチャ
+# 🏗️ アーキテクチャ
 
 SpriteStudioPlayer for Flutter は、SpriteStudio-SDK の **Brain** に対する **Body** です。Brain
 （`libssruntime`、Rust `no_std`）が `.ssab` を読み込んで時間を進め、フレームごとの **SoA バッファ**

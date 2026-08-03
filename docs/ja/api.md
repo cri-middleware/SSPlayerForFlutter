@@ -1,4 +1,4 @@
-# API リファレンス
+# 📖 API リファレンス
 
 クラスレベルの API リファレンスは、Dart のドキュメントコメントから
 [`dart doc`](https://dart.dev/tools/dart-doc) が生成します。パッケージが pub.dev に公開されると、

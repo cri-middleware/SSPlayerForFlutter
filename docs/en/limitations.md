@@ -1,4 +1,4 @@
-# Limitations & Scope
+# ⚠️ Limitations & Scope
 
 Constraints and platform caveats to be aware of when shipping with the current SpriteStudio Player
 for Flutter. For what *is* supported, see the [Key Features](index.md#key-features) and the workflow

@@ -1,4 +1,4 @@
-# Part Overrides
+# 🎨 Part Overrides
 
 Per-part runtime overrides let your code say "make this part this colour / this cell / hidden **now**".
 An override wins over both the keyframes and any animation blending, so it never fights the animation.

@@ -1,4 +1,4 @@
-# SpriteStudioPlayer for Flutter
+# 📱 SpriteStudioPlayer for Flutter
 
 **OPTPiX SpriteStudio 7** のラスター（スプライト）アニメーション（`.ssab`）を Flutter でそのまま再生
 します。アーティストが専用エディタでリグを組み、Flutter の `Canvas` に直接描画 —— 手書きの

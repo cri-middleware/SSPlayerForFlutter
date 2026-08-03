@@ -1,4 +1,4 @@
-# Preparing Assets (`.sspj` → `.ssab`)
+# 🔄 Preparing Assets (`.sspj` → `.ssab`)
 
 The player renders **`.ssab`** (a parse-free runtime binary), not the editor's `.sspj`. A converter
 reads the `.sspj` and its referenced files (`.ssae` / `.ssee` / `.ssqe` / `.ssce`) and produces

@@ -1,4 +1,4 @@
-# Packages
+# 📦 Packages
 
 This monorepo will publish the following packages 🚧 (not yet on pub.dev — see
 [Installation](guide/install.md)). `ssplayer_flutter` is the one most apps depend on; the rest are

@@ -1,4 +1,4 @@
-# Third-Party Notices
+# 📜 Third-Party Notices
 
 This project uses third-party open-source components. The authoritative list is
 [`THIRD_PARTY_NOTICES.md`](https://github.com/cri-middleware/SSPlayerForFlutter/blob/main/THIRD_PARTY_NOTICES.md)

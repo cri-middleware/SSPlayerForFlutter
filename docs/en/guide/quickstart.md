@@ -1,4 +1,4 @@
-# Quick Start
+# ⚡ Quick Start
 
 The shortest path from an `.ssab` file to a playing animation in a widget.
 

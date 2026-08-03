@@ -5,6 +5,8 @@ site_url: "https://cri-middleware.github.io/SSPlayerForFlutter/"
 repo_name: "cri-middleware/SSPlayerForFlutter"
 repo_url: "https://github.com/cri-middleware/SSPlayerForFlutter"
 edit_uri: "edit/main/docs/"
+# Rendered in the site footer. Deliberately year-less so it never goes stale.
+copyright: "Copyright &copy; CRI Middleware Co., Ltd."
 
 theme:
   name: material
@@ -43,17 +45,51 @@ plugins:
         - locale: ja
           name: 日本語
           build: true
+          extra:
+            # Footer icon labels (title / aria-label). Mirrors the `extra.social` list below.
+            social:
+              - icon: fontawesome/brands/github
+                link: https://github.com/cri-middleware
+                name: GitHub の cri-middleware
+              - icon: material/web
+                link: https://www.webtech.co.jp/spritestudio/
+                name: OPTPiX SpriteStudio
+          # Japanese nav labels. Keys must match the `nav:` titles below *exactly*,
+          # emoji included - a mismatched key silently leaves the English label.
+          nav_translations:
+            🏠 Home: 🏠 ホーム
+            🚀 Setup: 🚀 セットアップ
+            Installation: インストール
+            Build Guide: ビルドガイド
+            🎬 Workflow: 🎬 ワークフロー
+            Quick Start: クイックスタート
+            Playback & Events: 再生とイベント
+            Part Following: パーツトラッキング
+            Part Overrides: パーツオーバーライド
+            Flame Integration: Flame 連携
+            Preparing Assets (.sspj → .ssab): アセットの準備（.sspj → .ssab）
+            Live Reload: ライブリロード
+            📖 API Reference: 📖 API リファレンス
+            ⚠️ Limitations & Scope: ⚠️ 制約と適用範囲
+            🛠️ For Contributors: 🛠️ コントリビューター向け
+            Architecture: アーキテクチャ
+            Native Runtime: ネイティブランタイム
+            Releasing: リリース
+            📦 Packages: 📦 パッケージ
+            ⚖️ License: ⚖️ ライセンス
+            License: ライセンス
+            Third-Party Notices: サードパーティ通知
 
 # Task-oriented navigation modeled on the sibling players (Godot / Ren'Py):
 # Setup → Workflow → API Reference → Limitations. The monorepo/runtime internals
 # live under "For Contributors" — Flutter is a multi-package library, not a single
 # plugin, so it keeps that one contributor-facing section the siblings don't need.
 nav:
-  - Home: index.md
-  - Setup:
+  - 🏠 Home: index.md
+  - 🚀 Setup:
       - Installation: guide/install.md
       - Build Guide: contributing/build.md
-  - Workflow:
+  - 🎬 Workflow:
       - Quick Start: guide/quickstart.md
       - Playback & Events: guide/playback.md
       - Part Following: guide/part-following.md
@@ -61,14 +97,14 @@ nav:
       - Flame Integration: guide/flame.md
       - Preparing Assets (.sspj → .ssab): guide/conversion.md
       - Live Reload: guide/live-reload.md
-  - API Reference: api.md
-  - Limitations & Scope: limitations.md
-  - For Contributors:
+  - 📖 API Reference: api.md
+  - ⚠️ Limitations & Scope: limitations.md
+  - 🛠️ For Contributors:
       - Architecture: contributing/architecture.md
       - Native Runtime: contributing/native-runtime.md
       - Releasing: contributing/releasing.md
-  - Packages: packages.md
-  - License:
+  - 📦 Packages: packages.md
+  - ⚖️ License:
       - License: license/index.md
       - Third-Party Notices: license/third-party.md
 
@@ -88,6 +124,14 @@ markdown_extensions:
   - pymdownx.snippets
 
 extra:
+  # Footer icons. Keep to destinations that outlive any single release.
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/cri-middleware
+      name: cri-middleware on GitHub
+    - icon: material/web
+      link: https://www.webtech.co.jp/spritestudio/
+      name: OPTPiX SpriteStudio
   alternate:
     - name: English
       link: ./

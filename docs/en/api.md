@@ -1,4 +1,4 @@
-# API Reference
+# 📖 API Reference
 
 The class-level API reference is generated from the Dart doc comments by
 [`dart doc`](https://dart.dev/tools/dart-doc). Once the packages are on pub.dev, each renders its API

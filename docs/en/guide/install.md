@@ -1,4 +1,4 @@
-# Installation
+# 📥 Installation
 
 How to add SpriteStudioPlayer for Flutter to your app. The native runtime (`libssruntime`) is
 delivered automatically through Dart **native assets** — there is no CocoaPods, framework, or

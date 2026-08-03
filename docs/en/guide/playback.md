@@ -1,4 +1,4 @@
-# Playback & Events
+# ▶️ Playback & Events
 
 `SpriteStudioPlayer` exposes an intuitive transport plus event callbacks, so it drops straight into
 your app logic. This page covers controlling playback, switching animations, and reacting to events.

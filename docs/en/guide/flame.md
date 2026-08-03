@@ -1,4 +1,4 @@
-# Flame Integration
+# 🔥 Flame Integration
 
 The [`ssplayer_flame`](https://github.com/cri-middleware/SSPlayerForFlutter/tree/main/packages/ssplayer_flame)
 package adds `SpriteStudioComponent` — a `PositionComponent` that plays a SpriteStudio animation

@@ -1,4 +1,4 @@
-# インストール
+# 📥 インストール
 
 Flutter アプリに SpriteStudioPlayer for Flutter を追加する手順です。ネイティブランタイム
 （`libssruntime`）は Dart の **Native Assets** で自動的に届くので、CocoaPods・framework・

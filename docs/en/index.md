@@ -1,4 +1,4 @@
-# SpriteStudioPlayer for Flutter
+# 📱 SpriteStudioPlayer for Flutter
 
 Play **OPTPiX SpriteStudio 7** raster (sprite) animations (`.ssab`) natively in Flutter — rigged by
 an artist in a dedicated editor, drawn straight to the Flutter `Canvas`, with no animation code to

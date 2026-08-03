@@ -1,4 +1,4 @@
-# Architecture
+# 🏗️ Architecture
 
 SpriteStudioPlayer for Flutter is the **Body** for the SpriteStudio-SDK **Brain**. The Brain
 (`libssruntime`, Rust `no_std`) loads a `.ssab`, advances time, and emits per-frame **SoA buffers**

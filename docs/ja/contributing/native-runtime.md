@@ -1,4 +1,4 @@
-# ネイティブランタイム
+# 🦀 ネイティブランタイム
 
 Rust ランタイム（`libssruntime`、"Brain"）は Dart の **Native Assets** でアプリに届きます。
 [`ssruntime_dart`](https://github.com/cri-middleware/SSPlayerForFlutter/tree/main/packages/ssruntime_dart)
