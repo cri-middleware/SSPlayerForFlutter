@@ -90,6 +90,7 @@ Sample apps live under the `examples/` folder in the repository.
 
 ## Related Repositories
 
+- [SpriteStudio Docs](https://cri-middleware.github.io/SpriteStudio-Docs/) — the documentation portal for the SDK and its official players.
 - [SpriteStudio-SDK](https://github.com/cri-middleware/SpriteStudio-SDK) — the SDK itself, providing `libssruntime` / `libssconverter`.
 
 ## License
