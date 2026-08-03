@@ -12,6 +12,7 @@ import '../mask.dart';
 import '../mask_context.dart';
 import '../part_color.dart';
 import '../part_shader.dart';
+import '../root_transform.dart';
 import 'render_backend.dart';
 import 'render_host.dart';
 import 'target_ring.dart';
@@ -403,7 +404,10 @@ class FlutterGpuBackend implements RenderBackend {
   final List<gpu.BufferView> _viewStack = <gpu.BufferView>[];
 
   @override
-  void beginFrame(ui.Canvas canvas, {ui.Rect? dst, ui.Size? sourceSize}) {
+  void beginFrame(ui.Canvas canvas,
+      {ui.Rect? dst,
+      ui.Size? sourceSize,
+      SsRootTransform root = SsRootTransform.identity}) {
     _active = false;
     _frameCoverages.clear();
     _tintStack.clear();
@@ -440,7 +444,7 @@ class FlutterGpuBackend implements RenderBackend {
       // stack. Built from the LOGICAL box (not the device pixel count): NDC maps
       // to the full render target either way. Each draw re-binds the top to its
       // pipeline's FrameInfo slot.
-      final mvp = _orthoMvp(logical.width, logical.height);
+      final mvp = _orthoMvp(logical.width, logical.height, root);
       final baseView = _hostBuffer!.emplace(ByteData.sublistView(mvp));
       _matStack
         ..clear()
@@ -933,14 +937,25 @@ class FlutterGpuBackend implements RenderBackend {
   }
 
   /// Column-major orthographic projection: player-local (origin centre, Y-Down)
-  /// → clip space. Diagonal, so major-ness is irrelevant. The Y term carries the
-  /// single [_kNdcYSign] flip (the Brain already flipped once; do not add a
-  /// second — this only maps Y-Down into NDC).
-  static Float32List _orthoMvp(double w, double h) {
+  /// → clip space, with the player's [root] flip / offset folded in. The Y term
+  /// carries the single [_kNdcYSign] flip (the Brain already flipped once; do not
+  /// add a second — this only maps Y-Down into NDC); [root]'s own Y sign is a
+  /// separate, user-driven mirror that multiplies onto it.
+  ///
+  /// `ortho · translate(offset) · scale(root)` written out: the projection is
+  /// diagonal, so composing it costs two extra multiplies and puts the offset in
+  /// the translation column. Note this is the *whole* per-vertex cost of the
+  /// feature on this backend — the shaders and the geometry bake never learn of
+  /// it.
+  static Float32List _orthoMvp(double w, double h, SsRootTransform root) {
     final m = Float32List(16);
-    m[0] = 2.0 / w; // x: [-w/2, w/2] → [-1, 1]
-    m[5] = _kNdcYSign * 2.0 / h; // y
+    final sx = 2.0 / w; // x: [-w/2, w/2] → [-1, 1]
+    final sy = _kNdcYSign * 2.0 / h; // y
+    m[0] = sx * root.scaleX;
+    m[5] = sy * root.scaleY;
     m[10] = 1.0; // z passthrough
+    m[12] = sx * root.offset.dx;
+    m[13] = sy * root.offset.dy;
     m[15] = 1.0;
     return m;
   }

@@ -52,7 +52,8 @@ Examples: `examples/overall` (Basic validation) and `examples/flame`.
 (SoA→geometry bake — `ui.Vertices` for Canvas and interleaved VBOs for GPU — plus `DrawFrame`,
 Mesh/Shape buffers), `blend.dart`, `part_color.dart`, `part_shader.dart` (the built-in
 `ss-*` integration-shader catalog + `SHDR` attribute reader), `mask.dart`/`mask_context.dart`,
-`part_override.dart` (per-part color/cell/visibility), `part_anchor.dart`, `effect.dart`/`instance.dart`;
+`part_override.dart` (per-part color/cell/visibility), `part_anchor.dart`, `root_transform.dart`
+(the player-level flip/offset), `effect.dart`/`instance.dart`;
 the pluggable render backends in `backend/` (`render_backend.dart` abstraction + `canvas_backend.dart` /
 `flutter_gpu_backend.dart` + the capability probe); Canvas shaders `shaders/{partcolor,mask_write}.frag`
 plus `shaders/ss_*.frag` over the shared `shaders/ss_shader_common.glsl`
@@ -92,6 +93,16 @@ downloads the pinned SDK release for Rust-less consumers.
 * **FFI pointer lifetime** — `FrameData`/SoA are borrows valid only until the next `update`; call `get_frame_data(frame)` *before* reading SoA getters, and keep the `.ssab` buffer alive past the resource.
 * **Per-kind geometry differs**: Normal & Shape verts are **local** (apply the world matrix); **Mesh & Effect verts are world/sim-space** (don't). Effect UVs are normalized 0..1 (scale back up); Mesh is CSR-sliced, Shape fixed-stride 24.
 * **Instance: the Brain owns all playback; the Body owns child player + pack resolution + drawing** — `play()` on `transitioned` is mandatory, and `childFrame` must stay raw.
+* **Flip/offset live in `SsRootTransform`, and BOTH consumers must read it** — the backends' `beginFrame`
+  (Canvas: on top of the centring translate; GPU: folded into the ortho) *and* `partWorldMatrix`. Put it in
+  the geometry bake alone and every `SpriteStudioPartAnchor` detaches the moment a player flips. Keeping it
+  at the root also leaves the whole tree below in player-local space, which is why the mask coverage pass
+  and the runtime-effect shaders need no changes. Instance children inherit it (they never `beginFrame`).
+* **A world matrix can be a reflection, and the sign is a PRODUCT** — authored negative scale (Ringo: 8 of
+  69 parts) × the player's flip, so the two cancel. Never infer it from the flip settings; read
+  `determinant()`. This port carries mirrors losslessly because it never decomposes (`Transform` takes the
+  whole `Matrix4`) — the siblings' quaternion/`Transform2D` caveats simply do not arise. See the SDK's
+  `libs/ssruntime/docs/30_core/30_render_loop.md`.
 * **Mask has no C-API** — roles come from the static `.ssab` `PartData`, read once at load; ignore `FrameData.mask_indices`.
 * **PartColor alpha is pre-folded by the Brain** — do not re-multiply `PartState.alpha` when a PartColor is present.
 * **dart:ui shaders ≠ full GLSL** — the Canvas backend's runtime-effect shaders (`shaders/*.frag`) take no per-vertex varyings and `impellerc` rejects bitwise ops & `discard`; a bad one fails silently and falls back (grep test output for `impellerc failure`/`SkSL Error`; verifiable only in `examples/overall`). The **flutter_gpu** shaders (`shaders/gpu/`) are real GLSL — varyings, bitwise ops, UBOs — which is how the GPU backend batches the peeled PartColor/mask fan-out the Canvas path cannot.

@@ -11,6 +11,7 @@ import 'internal_player.dart';
 import 'playback.dart';
 import 'render/backend/backend_kind.dart';
 import 'render/part_override.dart';
+import 'render/root_transform.dart';
 import 'ssab_info.dart';
 import 'texture_loader.dart';
 import 'texture_registry.dart';
@@ -78,6 +79,56 @@ class SpriteStudioPlayer extends ChangeNotifier {
   set subFrame(bool value) {
     _subFrame = value;
     _internal?.subFrame = value;
+  }
+
+  /// Mirror the drawn animation horizontally — the same idea as Flutter's own
+  /// `Transform.flip(flipX: …)`, and as ForUnity's `FlipX` / ForGodot's
+  /// `flip_h`.
+  ///
+  /// ```dart
+  /// // Face the way we are walking.
+  /// player.flipX = velocity.dx < 0;
+  /// ```
+  ///
+  /// **Why not just wrap the view in `Transform.flip`?** Because that mirrors
+  /// everything in the wrapped subtree. The case this exists for is a
+  /// [SpriteStudioPartAnchor] stuck to a part: wrap the whole `Stack` and the
+  /// anchored widgets come out mirrored too; wrap only the view and they stay
+  /// where the *unflipped* animation was. Setting it here mirrors the animation,
+  /// carries the anchors across with it, and leaves their own artwork upright
+  /// when they ask for that ([SpriteStudioAnchorMirror.cancel]).
+  ///
+  /// Applies to the whole tree including instance children, and survives
+  /// [reload]. Notifies listeners, so the view repaints.
+  bool get flipX => rootTransform.flipX;
+  set flipX(bool value) =>
+      _setRootTransform(rootTransform.copyWith(flipX: value));
+
+  /// Mirror the drawn animation vertically. See [flipX].
+  bool get flipY => rootTransform.flipY;
+  set flipY(bool value) =>
+      _setRootTransform(rootTransform.copyWith(flipY: value));
+
+  /// Shift the drawn animation by this many logical pixels without moving the
+  /// widget — useful for nudging artwork off its authored origin while the view
+  /// keeps marking the logical position. Applied after [flipX] / [flipY], so it
+  /// is not itself mirrored.
+  ui.Offset get offset => rootTransform.offset;
+  set offset(ui.Offset value) =>
+      _setRootTransform(rootTransform.copyWith(offset: value));
+
+  /// [flipX], [flipY] and [offset] as the one value both the drawing path and
+  /// the part poses read. Assign it to change several at once (one repaint).
+  SsRootTransform get rootTransform => _internal?.rootTransform ?? _root;
+  set rootTransform(SsRootTransform value) => _setRootTransform(value);
+
+  SsRootTransform _root = SsRootTransform.identity;
+
+  void _setRootTransform(SsRootTransform value) {
+    if (value == rootTransform) return;
+    _root = value;
+    _internal?.rootTransform = value;
+    notifyListeners();
   }
 
   /// Invoked (on the UI isolate) with the raw event indices passed each frame.
@@ -263,6 +314,7 @@ class SpriteStudioPlayer extends ChangeNotifier {
       if (!_disposed && identical(_internal, internal)) notifyListeners();
     };
     internal.subFrame = _subFrame;
+    internal.rootTransform = _root;
     _currentAnimation = animationName;
     if (animationName != null) {
       internal.setupAnimation(animationName);

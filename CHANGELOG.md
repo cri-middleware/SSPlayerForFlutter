@@ -20,6 +20,9 @@ adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **Rendering kinds**: Normal, PartColor, Mask, Mesh, Effect, Instance, and Shape.
 - **Rendering adapters**: `SpriteStudioView` (a `RenderBox` widget) and, in the separate
   `ssplayer_flame` package, `SpriteStudioComponent` (a Flame `PositionComponent`).
+- **Flip & offset** (`SpriteStudioPlayer.flipX` / `flipY` / `offset`): mirror or shift what the player
+  draws without touching the widget tree. Part anchors follow the mirrored pose, and can keep their
+  own child upright (`SpriteStudioAnchorMirror.cancel`).
 - **Native delivery via Dart native assets** — the runtime is bundled automatically (no CocoaPods,
   no vendored framework); verified on macOS, iOS, and Android.
 - **Asset conversion**: `ssconverter_dart` (`ssconvert` CLI + `SsConverter` library, desktop-only).

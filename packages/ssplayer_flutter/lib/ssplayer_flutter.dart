@@ -12,7 +12,10 @@ export 'src/render/sprite_studio_view.dart';
 // Flutter way): a Widget that sticks to a part's live transform. The read API it
 // drives (partTransform / isPartHidden) lives on SpriteStudioPlayer.
 export 'src/render/part_anchor.dart'
-    show SpriteStudioPartAnchor, SpriteStudioAnchorHidden;
+    show
+        SpriteStudioPartAnchor,
+        SpriteStudioAnchorHidden,
+        SpriteStudioAnchorMirror;
 
 // Layer 3 — user-facing controller.
 export 'src/player.dart' show SpriteStudioPlayer, SsEventCallback;
@@ -34,6 +37,10 @@ export 'src/event.dart'
 
 // Layer 2 — Widget-agnostic draw engine (reusable headless / Flame / GPU).
 export 'src/internal_player.dart' show SpriteStudioInternalPlayer;
+// The player-level flip / offset, resolved in one place and read by both the
+// drawing path and the part poses (SpriteStudioPlayer.flipX / flipY / offset are
+// the shorthand most callers want).
+export 'src/render/root_transform.dart' show SsRootTransform;
 export 'src/texture_registry.dart' show TextureRegistry;
 export 'src/texture_loader.dart' show SsTextureLoader, TextureLoadReport;
 export 'src/instance_loader.dart' show SsInstanceLoader, InstancePackLoadResult;

@@ -20,6 +20,7 @@ import 'render/mask.dart';
 import 'render/mask_context.dart';
 import 'render/part_color.dart';
 import 'render/part_override.dart';
+import 'render/root_transform.dart';
 import 'package:ssruntime_dart/framedata.dart' as fbs;
 import 'texture_registry.dart';
 
@@ -141,6 +142,19 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   }
 
   bool _subFrame = true;
+
+  /// The player-level flip / offset (default [SsRootTransform.identity]) — see
+  /// [SsRootTransform] for what it is and why it lives at this layer.
+  ///
+  /// Read by exactly two consumers, which is the whole point of storing it here:
+  /// [paint] hands it to the backend's `beginFrame`, and [partWorldMatrix] folds
+  /// it into the pose it reports. Split them and a follower comes off its part
+  /// the moment the player is flipped.
+  ///
+  /// **Top-level players only.** An instance child draws through its parent's
+  /// backend under the parent's transform, so the parent's flip already covers
+  /// it; setting one here too would apply it twice.
+  SsRootTransform rootTransform = SsRootTransform.identity;
 
   bool _disposed = false;
   bool get isDisposed => _disposed;
@@ -814,6 +828,15 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   /// rotation, scale and skew all ride in the matrix — hand it straight to a
   /// `Transform` widget.
   ///
+  /// [rootTransform] is folded in, so this is the pose as **drawn**, flip and
+  /// offset included. Note that the result can be a *reflection* — a matrix no
+  /// rotation can express — and that this port carries that fact without loss
+  /// precisely because it never decomposes: `Transform` takes the whole
+  /// [Matrix4]. Callers that do decompose (reading a rotation out of it) inherit
+  /// the siblings' caveats and should check `determinant()` first. The sign is
+  /// the *product* of this flip and any mirroring authored on the part, so the
+  /// two cancel in pairs — never infer it from the flip settings.
+  ///
   /// Re-reads `getFrameData` for the current (sub-)frame first: the SoA world
   /// buffer reflects whichever frame was last parsed (call `get_frame_data`
   /// before any SoA getter), and this samples the same frame [paint] draws
@@ -828,13 +851,16 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
     if (m + DrawFrame.worldStride > w.length) return null;
     // Identity seeds [10]/[15] = 1; overwrite only the six affine terms so a
     // stray Z scale or perspective row can never leak into `Transform`.
-    return Matrix4.identity()
+    final world = Matrix4.identity()
       ..[0] = w[m]
       ..[1] = w[m + 1]
       ..[4] = w[m + 4]
       ..[5] = w[m + 5]
       ..[12] = w[m + 12]
       ..[13] = w[m + 13];
+    // The same root transform `beginFrame` gave the backend — read from the one
+    // place that resolves it, so the pose can never drift from the geometry.
+    return rootTransform.compose(world);
   }
 
   /// Whether [partIndex] is hidden on the current frame — the keyframe `hide`
@@ -886,7 +912,8 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
     // uniforms get overwritten before it is rasterised).
     _backend.releaseCoverage();
     _backend.rewindShaderPools();
-    _backend.beginFrame(canvas, dst: dst, sourceSize: sourceSize);
+    _backend.beginFrame(canvas,
+        dst: dst, sourceSize: sourceSize, root: rootTransform);
     // The whole tree draws through THIS player's backend — including instance
     // children (§8), which share it so their geometry lands in the same target
     // (GPU) / on the same canvas (Canvas) under a pushed transform.

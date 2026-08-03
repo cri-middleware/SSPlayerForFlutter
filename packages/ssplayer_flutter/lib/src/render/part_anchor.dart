@@ -14,6 +14,31 @@ enum SpriteStudioAnchorHidden {
   hideChild,
 }
 
+/// What a [SpriteStudioPartAnchor] does with its child when the *player* is
+/// flipped ([SpriteStudioPlayer.flipX] / [SpriteStudioPlayer.flipY]).
+///
+/// Either way the child follows the part to its mirrored position; this only
+/// decides whether the child's own artwork is mirrored along with it. A weapon
+/// sprite usually wants [follow]; a health bar, a name plate or an icon usually
+/// wants [cancel], since mirrored text is not text.
+///
+/// Mirroring the *artist* authored on the part (a negative scale on it or an
+/// ancestor) is part of the animation and always reaches the child, whichever of
+/// these is chosen.
+enum SpriteStudioAnchorMirror {
+  /// Mirror the child exactly as the part is mirrored. The default: the child
+  /// then sits in the part's own frame, which is what a follower usually means.
+  follow,
+
+  /// Keep the child's own orientation, following only the mirrored position.
+  ///
+  /// Exact — it undoes a ±1 diagonal this library applied itself, leaving no
+  /// residue (the siblings, which carry the pose as rotation + scale, cannot do
+  /// this without leaving a stray 180° on a horizontal flip; see
+  /// `SsRootTransform.mirrorCancel`).
+  cancel,
+}
+
 /// Sticks [child] to a SpriteStudio part so it tracks that part's position,
 /// rotation and scale every frame — the Flutter-idiomatic form of ForUnity's
 /// part tracker and ForGodot's part attachment. Where those engines drive a
@@ -48,6 +73,10 @@ enum SpriteStudioAnchorHidden {
 /// origin; wrap [child] (e.g. in a `Transform.translate` or `Align`) to attach a
 /// different point of it.
 ///
+/// **Flips.** [SpriteStudioPlayer.flipX] / [SpriteStudioPlayer.flipY] carry the
+/// anchor with them, so a character can turn around without its followers coming
+/// off their parts; [onMirrored] decides whether the child is mirrored too.
+///
 /// **v1 limits.** Tracks top-level parts only — a part nested inside an Instance
 /// part lives in a child player and is not addressable here yet. Assumes the
 /// view draws unscaled (BoxFit placement is not implemented on the view yet); if
@@ -59,6 +88,7 @@ class SpriteStudioPartAnchor extends StatelessWidget {
     required this.partName,
     required this.child,
     this.onHidden = SpriteStudioAnchorHidden.hideChild,
+    this.onMirrored = SpriteStudioAnchorMirror.follow,
     this.filterQuality,
   });
 
@@ -75,6 +105,12 @@ class SpriteStudioPartAnchor extends StatelessWidget {
   /// What to do when the part is hidden this frame. Defaults to
   /// [SpriteStudioAnchorHidden.hideChild].
   final SpriteStudioAnchorHidden onHidden;
+
+  /// Whether a flipped player mirrors this child too. Defaults to
+  /// [SpriteStudioAnchorMirror.follow]; use
+  /// [SpriteStudioAnchorMirror.cancel] for a child that must stay readable
+  /// (text, icons, a health bar).
+  final SpriteStudioAnchorMirror onMirrored;
 
   /// Optional [Transform.filterQuality] — e.g. [FilterQuality.low] to smooth a
   /// rotated or scaled child. Null keeps Flutter's nearest-neighbour default.
@@ -103,6 +139,13 @@ class SpriteStudioPartAnchor extends StatelessWidget {
                     player.isPartHidden(partName))) {
               return const SizedBox.expand();
             }
+            // `world` already carries the player's flip / offset (it is the pose
+            // as drawn), so the child lands on the part across a flip with no
+            // help. Cancelling only takes the mirror back out of the child's own
+            // frame, on the right so the position it just followed is untouched.
+            final pose = onMirrored == SpriteStudioAnchorMirror.cancel
+                ? world.multiplied(player.rootTransform.mirrorCancel)
+                : world;
             // A Stack keyed to the view's box (Clip.none so a part near the edge
             // is not clipped); the single positioned child is nudged to the part
             // by `centre · world`.
@@ -114,7 +157,7 @@ class SpriteStudioPartAnchor extends StatelessWidget {
                   top: 0,
                   child: Transform(
                     transform: Matrix4.translationValues(cx, cy, 0.0)
-                      ..multiply(world),
+                      ..multiply(pose),
                     filterQuality: filterQuality,
                     child: child,
                   ),

@@ -11,6 +11,7 @@ import '../mask.dart';
 import '../mask_context.dart';
 import '../part_color.dart';
 import '../part_shader.dart';
+import '../root_transform.dart';
 import 'render_backend.dart';
 import 'render_host.dart';
 
@@ -127,12 +128,24 @@ class CanvasBackend implements RenderBackend {
   ui.Canvas? _frameCanvas;
 
   @override
-  void beginFrame(ui.Canvas canvas, {ui.Rect? dst, ui.Size? sourceSize}) {
+  void beginFrame(ui.Canvas canvas,
+      {ui.Rect? dst,
+      ui.Size? sourceSize,
+      SsRootTransform root = SsRootTransform.identity}) {
     // Place the animation's world origin at the center of the destination box.
     final origin = dst?.center ??
         ui.Offset((sourceSize?.width ?? 0) / 2, (sourceSize?.height ?? 0) / 2);
     canvas.save();
     canvas.translate(origin.dx, origin.dy);
+    // The player's flip / offset, on top of the centring and below everything
+    // else: `drawn = offset + scale · local`, so the translate precedes the
+    // scale. Everything under it — including the coverage pass and the
+    // runtime-effect shaders, which read player-local coordinates — is unaware
+    // this happened, which is the point of putting it here.
+    if (!root.isIdentity) {
+      canvas.translate(root.offset.dx, root.offset.dy);
+      canvas.scale(root.scaleX, root.scaleY);
+    }
     _frameCanvas = canvas;
   }
 

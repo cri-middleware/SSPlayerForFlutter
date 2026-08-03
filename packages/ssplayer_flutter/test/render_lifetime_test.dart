@@ -76,6 +76,7 @@ void main() {
 /// A no-op [RenderBackend] that only counts the lifecycle calls.
 class _SpyBackend implements RenderBackend {
   int beginFrames = 0;
+  SsRootTransform lastRoot = SsRootTransform.identity;
   int finishes = 0;
   int releaseCoverages = 0;
   int rewinds = 0;
@@ -85,8 +86,13 @@ class _SpyBackend implements RenderBackend {
   set onResourcesReady(ui.VoidCallback? callback) {} // nothing async here
 
   @override
-  void beginFrame(ui.Canvas canvas, {ui.Rect? dst, ui.Size? sourceSize}) =>
-      beginFrames++;
+  void beginFrame(ui.Canvas canvas,
+      {ui.Rect? dst,
+      ui.Size? sourceSize,
+      SsRootTransform root = SsRootTransform.identity}) {
+    beginFrames++;
+    lastRoot = root;
+  }
 
   @override
   void finish() => finishes++;
