@@ -1,4 +1,4 @@
-# Native Runtime
+# 🦀 Native Runtime
 
 The Rust runtime (`libssruntime`, the "Brain") reaches your app through Dart **native assets**: the
 [`ssruntime_dart`](https://github.com/cri-middleware/SSPlayerForFlutter/tree/main/packages/ssruntime_dart)

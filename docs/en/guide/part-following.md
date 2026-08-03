@@ -1,4 +1,4 @@
-# Part Following
+# 🎯 Part Following
 
 Part following makes an ordinary Flutter widget (a weapon, an effect, a hit marker, a health bar)
 follow a specified part every frame — its **position, rotation and scale**. The player neither

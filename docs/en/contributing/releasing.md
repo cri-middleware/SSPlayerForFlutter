@@ -1,4 +1,4 @@
-# Releasing
+# 🚢 Releasing
 
 The monorepo publishes several packages from a single `main` branch with **independent** SemVer per
 package. Three layers, each with one job:

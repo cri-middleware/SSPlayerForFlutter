@@ -1,4 +1,4 @@
-# Flame 連携
+# 🔥 Flame 連携
 
 [`ssplayer_flame`](https://github.com/cri-middleware/SSPlayerForFlutter/tree/main/packages/ssplayer_flame)
 パッケージは `SpriteStudioComponent` を追加します —— `FlameGame` の中で SpriteStudio アニメを再生する

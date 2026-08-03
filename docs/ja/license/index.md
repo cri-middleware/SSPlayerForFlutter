@@ -1,4 +1,4 @@
-# ライセンス
+# ⚖️ ライセンス
 
 SpriteStudioPlayer for Flutter は、`SpriteStudio-SDK` のライセンスに従い **BSD-3-Clause** で配布されます。
 

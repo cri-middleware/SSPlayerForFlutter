@@ -1,4 +1,4 @@
-# Build Guide
+# 🛠️ Build Guide
 
 For developing the core (the Rust runtime or the Player itself). **App users and customizers do not
 need this** — the native libraries are auto-downloaded (see

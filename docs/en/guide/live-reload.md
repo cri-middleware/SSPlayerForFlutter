@@ -1,4 +1,4 @@
-# Live Reload
+# ♻️ Live Reload
 
 Live reload closes the edit-to-runtime loop: **save a `.sspj` in SpriteStudio 7 and the running app
 updates** — only the changed project is re-converted, and the player keeps its transport state (the

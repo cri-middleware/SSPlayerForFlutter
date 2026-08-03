@@ -1,4 +1,4 @@
-# License
+# ⚖️ License
 
 SpriteStudioPlayer for Flutter is distributed under the **BSD-3-Clause** license, following the
 license of `SpriteStudio-SDK`.

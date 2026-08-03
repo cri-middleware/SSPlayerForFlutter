@@ -1,4 +1,4 @@
-# 制約と適用範囲
+# ⚠️ 制約と適用範囲
 
 現行の SpriteStudio Player for Flutter で出荷する際に留意する制約とプラットフォーム固有の注意点です。
 *できること*は [主な機能](index.md#key-features) と各ワークフローガイドを参照してください。
