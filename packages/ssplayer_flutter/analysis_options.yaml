@@ -5,6 +5,9 @@ analyzer:
     # Machine-generated: flatc FlatBuffers .ssab/.ssqb accessors. (The ffigen
     # @Native bindings live in the ssruntime_dart package, not here.)
     - lib/src/ssab/**
+    # Machine-generated too: the flatc write-side classes, split out of lib/ by
+    # scripts/strip_fbs_builders.dart because only the tests build buffers.
+    - test/support/**
   errors:
     # The generated FlatBuffers code trips a few lints; keep them quiet here
     # rather than editing generated output.

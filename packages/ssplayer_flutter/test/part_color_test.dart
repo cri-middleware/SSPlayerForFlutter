@@ -13,7 +13,9 @@ import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ssplayer_flutter/ssplayer_flutter.dart';
-import 'package:ssruntime_dart/framedata.dart' as fbs;
+// Re-exports the FrameData readers and adds back the flatc write-side classes,
+// which live outside lib/ (see scripts/strip_fbs_builders.dart).
+import 'support/framedata_builders.g.dart' as fbs;
 
 void main() {
   group('partColorCoef', () {

@@ -8,7 +8,9 @@ import 'dart:ui' show Offset, Rect;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ssplayer_flutter/ssplayer_flutter.dart';
 // ignore: implementation_imports
-import 'package:ssplayer_flutter/src/ssab/ssab.g.dart' as ssab;
+// Re-exports the .ssab readers and adds back the flatc write-side classes,
+// which live outside lib/ (see scripts/strip_fbs_builders.dart).
+import 'support/ssab_builders.g.dart' as ssab;
 
 /// A pack with one animation `anime_1` whose `events()` list has two entries:
 ///   [0] one UserData marker (all four payload kinds) on part 3.
