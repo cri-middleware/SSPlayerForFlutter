@@ -112,6 +112,16 @@ downloads the pinned SDK release for Rust-less consumers.
 * **Blend table**: the ground truth is ssplayer-webgl's `applyBlend` — every SS mode is a fixed-function GL state, and **only RGB varies; alpha is premultiplied source-over for all of them** (`ONE, ONE_MINUS_SRC_ALPHA`, ADD). Break that and a Sub/Mul part *erases* what's under it instead of darkening it. The flutter_gpu backend (`blendEquationFor`) reproduces **every** row exactly — no fallbacks. Canvas maps to stock `ui.BlendMode` (`blendModeFor`), exact for Mix/Add/Screen/Exclusion (any backdrop alpha) and Mul (opaque backdrop only). Div2/Overlay2 → Mix on both, as upstream. Effect blend is a separate byte whose additive row is `(ONE, ONE, ONE, ONE)` — alpha adds too, unlike batch Add. Tests: `test/blend_pixel_test.dart` (Canvas pixels vs the GL formula), `test/gpu_blend_test.dart` (the GPU table).
 * **Canvas Sub/Invert are multi-pass, not approximations** — no stock mode is a reverse-subtract or a dst-replace, so `blendPassesFor` rebuilds them exactly from 3 stock passes over the *same* geometry (`difference`-with-white **is** a dst inversion, and inverting twice cancels): Sub = invert → `plus` → invert; Invert = invert → `modulate` → `dstOver` black (restores the alpha `modulate` scaled down). Two hard rules: **one part per plan** (peel them out of the batched run — two overlapping parts would invert their overlap twice) and **same geometry every pass**. Exact over an opaque backdrop; over transparency the rgb still matches but alpha is forced to 1.
 
+## Documentation site
+
+Folder-based i18n (`mkdocs-static-i18n`, `docs_structure: folder`): every page exists as both `docs/en/<path>` and `docs/ja/<path>`, and `nav` is defined once in `mkdocs.yml` with Japanese labels from `nav_translations`. Three things do **not** follow that "everything twice" rule — check before duplicating:
+
+*   **`overrides/main.html`** (`theme.custom_dir`) emits the Open Graph / Twitter Card tags Material omits. **One template serves both locales**: the i18n plugin substitutes `languages.ja.site_description` before rendering, so Japanese cards need no second copy. Localize by adding a per-locale config override, never by branching in the template. Keep it in sync with the copies in SpriteStudio-Docs and the sibling player repos.
+*   **Footer social icons are defined twice** — `extra.social` and the `ja` block's `extra` override, which *replaces* the whole `social` list rather than merging into it. Add or reorder an icon in both, or Japanese readers lose it. Keep `twitter:site` in `overrides/main.html` in sync with the X link.
+*   **There is deliberately no `edit_uri`**, so no "edit this page" button renders. It is a branch name nothing validates, and it had drifted wrong in three of the five player repos. Do not reintroduce it.
+
+`mkdocs.yml` sets `strict: true`, so a plain `build` (and `serve`) fails on a broken link or nav mismatch. Nothing builds the docs on a pull request — `pages.yml` runs on `release: published` and dispatch — so the local build is the only gate: `.venv/bin/mkdocs build --strict`.
+
 ## Verification
 
 Build the native libs first (`bash ../../scripts/build-runtime.sh`). Tests pick up
