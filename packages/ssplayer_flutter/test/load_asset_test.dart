@@ -3,7 +3,8 @@
 // base. These tests drive a bundle that records every requested key and serves
 // it by basename from the real `examples/overall` assets — so the derived base
 // is observable in the keys the loader asks for, and the root-level (empty-base)
-// case proves `_joinAsset` never prepends a stray leading slash.
+// case proves `joinAssetPath` never prepends a stray leading slash. Separator
+// folding is pinned separately, in `asset_path_test.dart`.
 import 'dart:io';
 
 import 'package:flutter/services.dart' show ByteData, CachingAssetBundle;
