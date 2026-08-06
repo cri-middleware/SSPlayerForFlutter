@@ -114,13 +114,28 @@ downloads the pinned SDK release for Rust-less consumers.
 
 ## Documentation site
 
-Folder-based i18n (`mkdocs-static-i18n`, `docs_structure: folder`): every page exists as both `docs/en/<path>` and `docs/ja/<path>`, and `nav` is defined once in `mkdocs.yml` with Japanese labels from `nav_translations`. Three things do **not** follow that "everything twice" rule — check before duplicating:
+Built with [Zensical](https://zensical.org), the successor to MkDocs + Material for MkDocs. Zensical has no multi-locale build, so **each locale is built from its own config**: `mkdocs.yml` builds `docs/en` to `site/`, `mkdocs.ja.yml` builds `docs/ja` to `site/ja/`, and both inherit the shared settings from `mkdocs.base.yml`. Every page still exists as both `docs/en/<path>` and `docs/ja/<path>`; there is no fallback locale any more, so a page missing from one side is a nav entry pointing at nothing.
 
-*   **`overrides/main.html`** (`theme.custom_dir`) emits the Open Graph / Twitter Card tags Material omits. **One template serves both locales**: the i18n plugin substitutes `languages.ja.site_description` before rendering, so Japanese cards need no second copy. Localize by adding a per-locale config override, never by branching in the template. Keep it in sync with the copies in SpriteStudio-Docs and the sibling player repos.
-*   **Footer social icons are defined twice** — `extra.social` and the `ja` block's `extra` override, which *replaces* the whole `social` list rather than merging into it. Add or reorder an icon in both, or Japanese readers lose it. Keep `twitter:site` in `overrides/main.html` in sync with the X link.
+**The three-config split has one rule: a YAML sequence must be defined in exactly one of the three files.** Zensical's `INHERIT` *concatenates* parent and child sequences where MkDocs replaces them — put `nav` in the base as well as a locale config and the Japanese site renders the English navigation followed by the Japanese one. Shared sequences (`theme.palette`, `theme.features`, `plugins`, `markdown_extensions`, `extra.alternate`) live in `mkdocs.base.yml` and nowhere else; `nav` and `extra.social` live in the locale configs and never in the base.
+
+Things that do **not** follow the "everything twice" rule, or that changed with the migration — check before duplicating:
+
+*   **`overrides/main.html`** (`theme.custom_dir`) emits the Open Graph / Twitter Card tags the theme omits, **and repairs the page title**: Zensical never sets `page.is_homepage`, which its own `base.html` branches on, so the landing page would title itself "SpriteStudioPlayer for Flutter - SpriteStudioPlayer for Flutter". The override derives the flag from `page.url` and overrides the `htmltitle` block. **One template serves both locales** — everything is read from whichever locale config is building. Localize by adding a per-locale config override, never by branching in the template. Keep it in sync with the copies in SpriteStudio-Docs and the sibling player repos.
+*   **`overrides/partials/alternate.html`** rebuilds the header language selector so switching language keeps you on the same page. `mkdocs-static-i18n` used to rewrite those links per page; nothing does once the locales are separate builds, and the stock partial would send every reader to the other locale's home page. Driven by `extra.alternate[].link` (a locale subpath, not a URL) plus `extra.site_root_prefix` in each locale config. Known gap: the `<link rel="alternate" hreflang>` tags in `<head>` still point at each locale root — they sit inside the theme's `site_meta` block, and overriding that would mean copying thirty lines Zensical may change.
+*   **`site_url` is per locale** and the ja one keeps its `ja/` suffix — `page.canonical_url`, and therefore `og:url`, is built from it.
+*   **Footer social icons are defined twice** — in `mkdocs.yml` and `mkdocs.ja.yml` (translated labels, same icons and links). Add or reorder an icon in both, or the two footers diverge. Keep `twitter:site` in `overrides/main.html` in sync with the X link.
 *   **There is deliberately no `edit_uri`**, so no "edit this page" button renders. It is a branch name nothing validates, and it had drifted wrong in three of the five player repos. Do not reintroduce it.
 
-`mkdocs.yml` sets `strict: true`, so a plain `build` (and `serve`) fails on a broken link or nav mismatch. Nothing builds the docs on a pull request — `pages.yml` runs on `release: published` and dispatch — so the local build is the only gate: `.venv/bin/mkdocs build --strict`.
+`mkdocs.base.yml` sets `strict: true`, so a plain `build` fails on a broken link. `serve` validates nothing — `zensical serve --strict` is accepted and currently does nothing. Nothing builds the docs on a pull request either — `pages.yml` runs on `release: published` and dispatch — so the local build is the only gate, and **both locales have to be built**, English first because it clears `site/`, which contains `site/ja`:
+
+```bash
+.venv/bin/zensical build --strict
+.venv/bin/zensical build -f mkdocs.ja.yml --strict
+```
+
+Building only English is the easy mistake: it leaves a stale `site/ja` behind, so a Japanese page you just broke still looks fine.
+
+No page here uses `> [!NOTE]` callouts, but `pymdownx.quotes` keeps them working. If you start: a list inside one needs a blank `>` line before it, and `[!IMPORTANT]` renders unstyled until you copy the `docs/*/stylesheets/extra.css` the sibling player repos carry. Also **avoid `src="…"` / `href="…"` inside an inline code span** — Zensical rewrites paths there as if they were real links, corrupting the example. Use a fenced block, which it leaves alone.
 
 ## Verification
 
