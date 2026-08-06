@@ -5,7 +5,6 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart' show AssetBundle, rootBundle;
 import 'package:vector_math/vector_math_64.dart' show Matrix4;
 
-import 'asset_path.dart';
 import 'event.dart';
 import 'instance_loader.dart';
 import 'internal_player.dart';
@@ -381,10 +380,10 @@ class SpriteStudioPlayer extends ChangeNotifier {
   /// Parent directory of an asset key (`a/b/c.ssab` → `a/b`); `''` for a bare
   /// key or one anchored at the root (`/c.ssab`). Fed as the derived
   /// `baseAssetDir`; the loaders treat an empty base as "join is a no-op".
-  ///
-  /// Either separator counts, so a native path handed to a `dart:io`-backed
-  /// bundle derives its own folder too — see [assetDirOf].
-  static String _assetDirOf(String assetKey) => assetDirOf(assetKey);
+  static String _assetDirOf(String assetKey) {
+    final i = assetKey.lastIndexOf('/');
+    return i <= 0 ? '' : assetKey.substring(0, i);
+  }
 
   /// Live-swaps the resource to [ssab] while **preserving transport** — the
   /// selected animation ([currentAnimation]), the playhead ([frameNo]) and the

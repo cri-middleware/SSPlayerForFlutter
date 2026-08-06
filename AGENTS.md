@@ -90,15 +90,6 @@ downloads the pinned SDK release for Rust-less consumers.
 * **The flatc write side is not in `lib/`** — `*Builder`/`*ObjectBuilder` are split into `ssplayer_flutter/test/support/*_builders.g.dart` (~2/3 of flatc's output; nothing in `lib/` ever writes a buffer). Those shims re-export their reader library, so a test that needs to synthesise a fixture imports `support/<schema>_builders.g.dart` under the usual prefix. Every schema gets one, `ssqb` included — its shim is unused until sequence playback lands, but it means adding `.ssqb` support needs no codegen change.
 * **`local_uvs`/`local_vertices` are texture-PIXEL, stride 10** (`lt,rt,lb,rb,center`), not normalized/×8 — pass straight to `drawVertices`. World matrix is column-major 4×4 (`x' = m0·x + m4·y + m12`).
 * **Texture key = `cellmap.name_hash` == `DrawBatch.texture_hash`** — use the pre-baked hash; never re-implement FNV-1a on the Dart side.
-* **A `.ssab` file reference is stored exactly as authored** — ssconverter does no case or
-  separator normalization (SDK `docs/30_core/10_initialization.md` §3.0), so a Windows-authored
-  project yields `image\body.png` while a Flutter asset key is forward-slash on *every* platform.
-  Folding is the Body's job and lives in one place, `src/asset_path.dart`; both loaders go through
-  it. Fold the pack-authored component **only**: a base may be a real host path (dropped folder,
-  dev file push) whose UNC prefix must survive, and the embedded lookup matches
-  `cellmap.image_path_hash` — the Brain's hash over the *raw* text — so folding before that, or
-  re-hashing at all, kills every embedded pack. Getting this wrong is silent: an unresolved cellmap
-  is only collected into `lastTextureReport`, never thrown, and the part just stops drawing.
 * **Coordinate system = 1 (Y-Down); the Brain flips once** — do not double-flip in the Body.
 * **FFI pointer lifetime** — `FrameData`/SoA are borrows valid only until the next `update`; call `get_frame_data(frame)` *before* reading SoA getters, and keep the `.ssab` buffer alive past the resource.
 * **Per-kind geometry differs**: Normal & Shape verts are **local** (apply the world matrix); **Mesh & Effect verts are world/sim-space** (don't). Effect UVs are normalized 0..1 (scale back up); Mesh is CSR-sliced, Shape fixed-stride 24.
