@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/services.dart' show AssetBundle, rootBundle;
 
+import 'asset_path.dart';
 import 'render/instance.dart';
 
 /// The packs an animation's instance parts (§8) need, plus what went missing.
@@ -80,7 +81,7 @@ class SsInstanceLoader {
             continue;
           }
 
-          final path = _joinAsset(baseAssetDir, '$name.ssab');
+          final path = joinAssetPath(baseAssetDir, '$name.ssab');
           try {
             final data = (await bnd.load(path)).buffer.asUint8List();
             // Key by the pack's OWN name_hash, not a hash of the file name: it
@@ -96,13 +97,5 @@ class SsInstanceLoader {
     }
 
     return InstancePackLoadResult(packs, unresolved);
-  }
-
-  static String _joinAsset(String base, String path) {
-    final b = base.endsWith('/') ? base.substring(0, base.length - 1) : base;
-    final p = path.startsWith('/') ? path.substring(1) : path;
-    // A derived base is empty for a root-level `.ssab`; joining must not prepend
-    // a leading '/', which would miss the asset key.
-    return b.isEmpty ? p : '$b/$p';
   }
 }

@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/services.dart' show AssetBundle, rootBundle;
 
+import 'asset_path.dart';
 import 'ssab/ssab.g.dart' as ssab;
 import 'texture_registry.dart';
 
@@ -80,7 +81,7 @@ class SsTextureLoader {
       // 2. Reference: resolve the sibling image from the asset bundle.
       final path = cm.imagePath;
       if (path != null && path.isNotEmpty && baseAssetDir != null) {
-        final assetPath = _joinAsset(baseAssetDir, path);
+        final assetPath = joinAssetPath(baseAssetDir, path);
         try {
           final bytes = (await bnd.load(assetPath)).buffer.asUint8List();
           registry.register(cm.nameHash, await decodeImage(bytes),
@@ -134,12 +135,4 @@ class SsTextureLoader {
 
   static Uint8List _asBytes(List<int> data) =>
       data is Uint8List ? data : Uint8List.fromList(data);
-
-  static String _joinAsset(String base, String path) {
-    final b = base.endsWith('/') ? base.substring(0, base.length - 1) : base;
-    final p = path.startsWith('/') ? path.substring(1) : path;
-    // A derived base is empty for a root-level `.ssab`; joining must not prepend
-    // a leading '/', which would miss the asset key.
-    return b.isEmpty ? p : '$b/$p';
-  }
 }
