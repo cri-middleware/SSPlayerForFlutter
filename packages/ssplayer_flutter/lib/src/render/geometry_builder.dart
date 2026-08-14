@@ -157,13 +157,20 @@ class DrawFrame {
     this.mesh,
     this.shape,
     this.alphaScale = 1.0,
-  });
+    int? partCount,
+  }) : partCount = partCount ?? partByIndex.length;
 
   /// Bundles the frame's FlatBuffers root with its SoA views. Returns null when
   /// the frame carries no drawable structure (`draw_order` / `parts` absent).
   ///
   /// [mesh] is only needed by animations that actually have a Mesh batch; the
   /// caller fetches it lazily and leaves it null otherwise.
+  ///
+  /// [partByIndexScratch] lets a caller that builds a frame every tick supply a
+  /// grow-only backing array instead of paying a `List.filled` per frame (see
+  /// [GeometryBuilder.buildFrame]). It is adopted only when it is large enough,
+  /// and the frame it produces owns it until the next build — so the caller must
+  /// re-read [partByIndex] afterwards rather than assume its array was kept.
   static DrawFrame? build({
     required fbs.FrameData frameData,
     required Float32List world,
@@ -172,6 +179,7 @@ class DrawFrame {
     MeshBuffers? mesh,
     ShapeBuffers? shape,
     double alphaScale = 1.0,
+    List<fbs.PartState?>? partByIndexScratch,
   }) {
     final drawOrder = frameData.drawOrder;
     final parts = frameData.parts;
@@ -188,7 +196,14 @@ class DrawFrame {
     // parts, so the cap never drops a legitimate one; an index past it resolves
     // to null via [partOf] (bounds-checked) and is simply not drawn.
     final size = (maxIndex + 1).clamp(0, _maxDenseParts);
-    final partByIndex = List<fbs.PartState?>.filled(size, null);
+    // A recycled scratch is only cleared over [0, size) — [partCount] keeps
+    // [partOf] from ever reading the stale tail a longer array still holds.
+    final List<fbs.PartState?> partByIndex;
+    if (partByIndexScratch != null && partByIndexScratch.length >= size) {
+      partByIndex = partByIndexScratch..fillRange(0, size, null);
+    } else {
+      partByIndex = List<fbs.PartState?>.filled(size, null);
+    }
     for (final p in parts) {
       if (p.partIndex >= 0 && p.partIndex < size) partByIndex[p.partIndex] = p;
     }
@@ -196,6 +211,7 @@ class DrawFrame {
       frameData: frameData,
       drawOrder: drawOrder,
       partByIndex: partByIndex,
+      partCount: size,
       world: world,
       local: local,
       uv: uv,
@@ -211,8 +227,13 @@ class DrawFrame {
   /// Part states keyed by part index (dense; see the class doc). Read it through
   /// [partOf] rather than indexing directly — an index out of range (a part in
   /// `drawOrder` but absent from this frame's `parts`) must resolve to null, not
-  /// throw.
+  /// throw, and a recycled backing array may be longer than [partCount].
   final List<fbs.PartState?> partByIndex;
+
+  /// How much of [partByIndex] belongs to this frame. Equal to its length for a
+  /// freshly built table; smaller when the array is a recycled scratch whose
+  /// tail still holds a previous frame's parts (see [build]).
+  final int partCount;
   final Float32List world; // parts × 16
   final Float32List local; // parts × 10 (lt,rt,lb,rb,center)
   final Float32List uv; // parts × 10 (texture-pixel space)
@@ -239,7 +260,7 @@ class DrawFrame {
   /// in this frame's `parts` vector (bounds-checked — a `drawOrder` entry may
   /// name a part with no state this frame).
   fbs.PartState? partOf(int partIndex) =>
-      (partIndex >= 0 && partIndex < partByIndex.length)
+      (partIndex >= 0 && partIndex < partCount)
           ? partByIndex[partIndex]
           : null;
 
@@ -370,8 +391,14 @@ class InterleavedGeometry {
 /// (`s = inv[0]·dx + inv[1]·dy`, `t = inv[2]·dx + inv[3]·dy`, `d = frag - origin`),
 /// and `uvA`/`uvB` carry the corner UVs (texture pixels) the shader bilinearly
 /// samples. Built by [GeometryBuilder.buildPartColorQuad].
+///
+/// **Mutable, and the builder hands out a shared instance.** The fields are not
+/// `final` so [GeometryBuilder.buildPartColorQuad] can refill one quad per
+/// builder instead of allocating one per peeled part per frame; that method's
+/// result is therefore valid only until its next call. Construct your own if you
+/// need one that outlives a draw.
 class PartColorQuad {
-  const PartColorQuad({
+  PartColorQuad({
     required this.corners,
     required this.originX,
     required this.originY,
@@ -381,18 +408,18 @@ class PartColorQuad {
   });
 
   /// World corners, 8 floats: `ltx,lty, rtx,rty, lbx,lby, rbx,rby`.
-  final Float32List corners;
+  Float32List corners;
 
   /// LT world corner — the affine's frag-space origin (shader `uOrigin`).
-  final double originX;
-  final double originY;
+  double originX;
+  double originY;
 
   /// 2×2 inverse affine `[m00,m01,m10,m11]` mapping `frag - origin` → `(s,t)`.
-  final Float32List inv;
+  Float32List inv;
 
   /// `(LT.u,LT.v, RT.u,RT.v)` and `(LB.u,LB.v, RB.u,RB.v)` in texture pixels.
-  final Float32List uvA;
-  final Float32List uvB;
+  Float32List uvA;
+  Float32List uvB;
 
   /// The cell's UV rect `(minU, minV, maxU, maxV)`, **normalised** by
   /// [texWidth]/[texHeight] — the axis-aligned bounding box of the four corner
@@ -403,7 +430,7 @@ class PartColorQuad {
   /// where in the atlas the cell sits. Derived from the quad's own corners
   /// (which is how the Web port does it) rather than from cell metadata, so it
   /// automatically follows a flipped or cell-overridden part.
-  Float32List cellRect(double texWidth, double texHeight) {
+  Float32List cellRect(double texWidth, double texHeight, [Float32List? out]) {
     var minU = uvA[0], maxU = uvA[0];
     var minV = uvA[1], maxV = uvA[1];
     void fold(double u, double v) {
@@ -418,11 +445,12 @@ class PartColorQuad {
     fold(uvB[2], uvB[3]);
     final invW = texWidth > 0 ? 1.0 / texWidth : 0.0;
     final invH = texHeight > 0 ? 1.0 / texHeight : 0.0;
-    return Float32List(4)
-      ..[0] = minU * invW
-      ..[1] = minV * invH
-      ..[2] = maxU * invW
-      ..[3] = maxV * invH;
+    final res = out ?? Float32List(4);
+    res[0] = minU * invW;
+    res[1] = minV * invH;
+    res[2] = maxU * invW;
+    res[3] = maxV * invH;
+    return res;
   }
 }
 
@@ -486,6 +514,74 @@ class GeometryBuilder {
       _colScratch.length >= n ? _colScratch : (_colScratch = Int32List(n));
   Uint16List _idx(int n) =>
       _idxScratch.length >= n ? _idxScratch : (_idxScratch = Uint16List(n));
+
+  final List<int> _singlePartScratch = <int>[0];
+
+  /// A reusable 1-element part list holding [part] — the single-part argument
+  /// for the `build*Parts` bakes, which all take a run.
+  ///
+  /// **Aliases scratch:** every call returns the SAME list. Pass it straight to
+  /// the bake and never hold it across a second [singlePart] call (the bakes
+  /// consume their `parts` argument before returning, which is what makes this
+  /// safe).
+  List<int> singlePart(int part) => _singlePartScratch..[0] = part;
+
+  /// Grow-only backing array for [buildFrame]'s dense part table. Handed to
+  /// [DrawFrame.build] as its scratch and re-adopted from the frame it returns,
+  /// so a resize is picked up automatically.
+  List<fbs.PartState?> _partByIndexScratch = const <fbs.PartState?>[];
+
+  final Float32List _quadCorners = Float32List(8);
+  final Float32List _quadInv = Float32List(4);
+  final Float32List _quadUvA = Float32List(4);
+  final Float32List _quadUvB = Float32List(4);
+  final Float32List _cellRectScratch = Float32List(4);
+  late final PartColorQuad _quadScratch = PartColorQuad(
+    corners: _quadCorners,
+    originX: 0,
+    originY: 0,
+    inv: _quadInv,
+    uvA: _quadUvA,
+    uvB: _quadUvB,
+  );
+
+  /// Computes [quad]'s cell UV rect into this builder's reusable scratch buffer.
+  ///
+  /// **Aliases scratch** — consume before the next call.
+  Float32List cellRectScratch(
+          PartColorQuad quad, double texWidth, double texHeight) =>
+      quad.cellRect(texWidth, texHeight, _cellRectScratch);
+
+  /// [DrawFrame.build] against this builder's reusable dense part table, so the
+  /// per-frame `List.filled` the plain constructor does is paid once per player
+  /// instead of once per frame. Identical in every other respect.
+  ///
+  /// The returned frame's [DrawFrame.partByIndex] therefore **aliases scratch**:
+  /// it is valid only until the next [buildFrame] on this builder — the same
+  /// lifetime the SoA views it travels with already have.
+  DrawFrame? buildFrame({
+    required fbs.FrameData frameData,
+    required Float32List world,
+    required Float32List local,
+    required Float32List uv,
+    MeshBuffers? mesh,
+    ShapeBuffers? shape,
+    double alphaScale = 1.0,
+  }) {
+    final frame = DrawFrame.build(
+      frameData: frameData,
+      world: world,
+      local: local,
+      uv: uv,
+      mesh: mesh,
+      shape: shape,
+      alphaScale: alphaScale,
+      partByIndexScratch: _partByIndexScratch,
+    );
+    // Re-adopt: [DrawFrame.build] reallocates when the scratch is too small.
+    if (frame != null) _partByIndexScratch = frame.partByIndex;
+    return frame;
+  }
 
   /// Bakes the given [parts] (part indices, already in draw order) into a single
   /// indexed [ui.Vertices]: for each part transforms its 4 local corners
@@ -1486,7 +1582,11 @@ class GeometryBuilder {
   ///
   /// Shared by the PartColor quad and the mask coverage pass, which both need
   /// the same `x' = m0·x + m4·y + m12`, `y' = m1·x + m5·y + m13` transform.
-  static Float32List? worldCornersOf(int part, DrawFrame frame) {
+  ///
+  /// [out] is an optional scratch of at least 8 floats, with the same aliasing
+  /// contract as [shapeWorldOutlineOf]'s.
+  static Float32List? worldCornersOf(int part, DrawFrame frame,
+      [Float32List? out]) {
     final world = frame.world;
     final local = frame.local;
     final m = part * DrawFrame.worldStride;
@@ -1498,14 +1598,16 @@ class GeometryBuilder {
     final m12 = world[m + 12], m13 = world[m + 13];
 
     // World corners: lt=(0,1) rt=(2,3) lb=(4,5) rb=(6,7).
-    final corners = Float32List(8);
+    final corners = _outlineBuf(out, 8);
     for (var c = 0; c < 4; c++) {
       final lx = local[v + c * 2];
       final ly = local[v + c * 2 + 1];
       corners[c * 2] = m0 * lx + m4 * ly + m12;
       corners[c * 2 + 1] = m1 * lx + m5 * ly + m13;
     }
-    return corners;
+    // Exact length: [out] may be a buffer a longer outline grew, and a caller
+    // that walks `.length` (MaskPlan's bbox fold) must not see its stale tail.
+    return _outlineView(corners, 8);
   }
 
   /// Bakes Shape parts (§11) into one indexed vertex block, or null when none of
@@ -1624,7 +1726,12 @@ class GeometryBuilder {
   ///
   /// Every live vertex including the fan's center — callers use it for bounds,
   /// where the center is harmlessly interior.
-  static Float32List? shapeWorldOutlineOf(int part, DrawFrame frame) {
+  ///
+  /// [out] is an optional grow-only scratch; when it is supplied and big enough
+  /// the result is a **view into it**, valid only until the next call that
+  /// shares it.
+  static Float32List? shapeWorldOutlineOf(int part, DrawFrame frame,
+      [Float32List? out]) {
     final shape = frame.shape;
     if (shape == null) return null;
     final n = shape.countOf(part);
@@ -1637,15 +1744,28 @@ class GeometryBuilder {
     final m12 = frame.world[m + 12], m13 = frame.world[m + 13];
     final o = part * ShapeBuffers.stride;
 
-    final out = Float32List(n * 2);
+    final buf = _outlineBuf(out, n * 2);
     for (var v = 0; v < n; v++) {
       final lx = shape.vertices[o + 2 * v];
       final ly = shape.vertices[o + 2 * v + 1];
-      out[v * 2] = m0 * lx + m4 * ly + m12;
-      out[v * 2 + 1] = m1 * lx + m5 * ly + m13;
+      buf[v * 2] = m0 * lx + m4 * ly + m12;
+      buf[v * 2 + 1] = m1 * lx + m5 * ly + m13;
     }
-    return out;
+    return _outlineView(buf, n * 2);
   }
+
+  /// Backing store for an outline of [need] floats: [out] when it is big enough
+  /// (grow-only scratch), a fresh buffer otherwise.
+  static Float32List _outlineBuf(Float32List? out, int need) =>
+      (out != null && out.length >= need) ? out : Float32List(need);
+
+  /// [buf]'s first [need] floats. A view rather than the buffer itself so a
+  /// caller's `outline.length` still bounds the real data when [buf] is an
+  /// oversized scratch — the view object is the only allocation left.
+  static Float32List _outlineView(Float32List buf, int need) =>
+      buf.length == need
+          ? buf
+          : Float32List.view(buf.buffer, buf.offsetInBytes, need);
 
   /// Part [part]'s mesh vertices in world space, interleaved `[x,y,…]`, or null
   /// when it has no *drawable* mesh geometry this frame. Mesh SoA is already
@@ -1654,7 +1774,11 @@ class GeometryBuilder {
   /// the mask planner reserves a coverage bit only for a writer [_renderCoverage]
   /// can actually rasterise (else a vertex-only part would fold phantom verts
   /// into the bbox yet write nothing — an inert bit).
-  static Float32List? meshWorldOutlineOf(int part, DrawFrame frame) {
+  ///
+  /// [out] is an optional grow-only scratch, with the same aliasing contract as
+  /// [shapeWorldOutlineOf]'s.
+  static Float32List? meshWorldOutlineOf(int part, DrawFrame frame,
+      [Float32List? out]) {
     final mesh = frame.mesh;
     if (mesh == null) return null;
     final vr = mesh.vertexRange(part);
@@ -1662,12 +1786,12 @@ class GeometryBuilder {
     if (vr == null || ir == null) return null;
     final n = vr.$2 - vr.$1;
     if (n <= 0 || ir.$2 - ir.$1 < 3) return null; // no vertices / no triangle
-    final out = Float32List(n * 2);
+    final buf = _outlineBuf(out, n * 2);
     for (var v = 0; v < n; v++) {
-      out[v * 2] = mesh.x[vr.$1 + v];
-      out[v * 2 + 1] = mesh.y[vr.$1 + v];
+      buf[v * 2] = mesh.x[vr.$1 + v];
+      buf[v * 2 + 1] = mesh.y[vr.$1 + v];
     }
-    return out;
+    return _outlineView(buf, n * 2);
   }
 
   static int _argb(double r, double g, double b, double a) {
@@ -1688,19 +1812,33 @@ class GeometryBuilder {
   /// anywhere else — [worldCornersOf] uses exactly these six — and letting a
   /// stray Z scale or perspective term through `Canvas.transform` would silently
   /// distort the whole child subtree.
-  static Float64List? world2dOf(int part, DrawFrame frame) {
+  ///
+  /// [out] is an optional 16-element scratch to write into (fully overwritten,
+  /// zeros included) — valid only until the next call that shares it.
+  static Float64List? world2dOf(int part, DrawFrame frame, [Float64List? out]) {
     final world = frame.world;
     final m = part * DrawFrame.worldStride;
     if (m + 16 > world.length) return null;
-    return Float64List(16)
-      ..[0] = world[m] // m0
-      ..[1] = world[m + 1] // m1
-      ..[4] = world[m + 4] // m4
-      ..[5] = world[m + 5] // m5
-      ..[10] = 1.0
-      ..[12] = world[m + 12] // m12 (tx)
-      ..[13] = world[m + 13] // m13 (ty)
-      ..[15] = 1.0;
+    final r = out ?? Float64List(16);
+    // Every slot is written, not just the six that carry data: a recycled
+    // scratch must not keep the previous part's Z/W row.
+    r[0] = world[m]; // m0
+    r[1] = world[m + 1]; // m1
+    r[2] = 0.0;
+    r[3] = 0.0;
+    r[4] = world[m + 4]; // m4
+    r[5] = world[m + 5]; // m5
+    r[6] = 0.0;
+    r[7] = 0.0;
+    r[8] = 0.0;
+    r[9] = 0.0;
+    r[10] = 1.0;
+    r[11] = 0.0;
+    r[12] = world[m + 12]; // m12 (tx)
+    r[13] = world[m + 13]; // m13 (ty)
+    r[14] = 0.0;
+    r[15] = 1.0;
+    return r;
   }
 
   /// Builds the world quad + frag→`(s,t)` affine for part [part]'s PartColor
@@ -1714,10 +1852,15 @@ class GeometryBuilder {
   /// non-deformed (affine) quad, which holds for a Normal sprite; vertex-deform
   /// (`AttributeVertex`) breaks the affine assumption and is handled with the
   /// Mesh/deform path.
+  ///
+  /// **Aliases scratch** — every call refills and returns the SAME
+  /// [PartColorQuad] (and the same backing `Float32List`s), so consume it before
+  /// the next call on this builder. Note [buildPartColorInterleaved] calls this
+  /// per part, so a quad must not be held across one.
   PartColorQuad? buildPartColorQuad(int part, DrawFrame frame) {
     final uv = frame.uv;
     final v = part * DrawFrame.vertexStride;
-    final corners = worldCornersOf(part, frame);
+    final corners = worldCornersOf(part, frame, _quadCorners);
     if (corners == null || v + 8 > uv.length) return null;
 
     final ltx = corners[0], lty = corners[1];
@@ -1729,22 +1872,23 @@ class GeometryBuilder {
 
     final invDet = 1.0 / det;
     // [s;t] = inv([du dv]) · (frag - lt).
-    final inv = Float32List.fromList(<double>[
-      dvy * invDet, // m00
-      -dvx * invDet, // m01
-      -duy * invDet, // m10
-      dux * invDet, // m11
-    ]);
+    _quadInv[0] = dvy * invDet;
+    _quadInv[1] = -dvx * invDet;
+    _quadInv[2] = -duy * invDet;
+    _quadInv[3] = dux * invDet;
 
-    return PartColorQuad(
-      corners: corners,
-      originX: ltx,
-      originY: lty,
-      inv: inv,
-      uvA: Float32List.fromList(
-          <double>[uv[v], uv[v + 1], uv[v + 2], uv[v + 3]]),
-      uvB: Float32List.fromList(
-          <double>[uv[v + 4], uv[v + 5], uv[v + 6], uv[v + 7]]),
-    );
+    _quadUvA[0] = uv[v];
+    _quadUvA[1] = uv[v + 1];
+    _quadUvA[2] = uv[v + 2];
+    _quadUvA[3] = uv[v + 3];
+
+    _quadUvB[0] = uv[v + 4];
+    _quadUvB[1] = uv[v + 5];
+    _quadUvB[2] = uv[v + 6];
+    _quadUvB[3] = uv[v + 7];
+
+    _quadScratch.originX = ltx;
+    _quadScratch.originY = lty;
+    return _quadScratch;
   }
 }

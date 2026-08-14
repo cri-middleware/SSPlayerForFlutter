@@ -323,6 +323,13 @@ class MaskPlan {
   /// [flags] is indexed by part index ([MaskPartFlags.readAll]). Parts whose
   /// animated `mask` attribute is 0 are skipped (§2-2 opt-out); `hide` needs no
   /// check because the Brain already drops hidden parts from `draw_order`.
+  /// Grow-only scratch for [build]'s per-writer world outlines.
+  ///
+  /// Static because [build] is, which is safe only because the outline never
+  /// escapes the loop iteration that folds it into the bbox — [build] is
+  /// synchronous, so no second caller can be inside it at the same time.
+  static Float32List _outlineScratch = Float32List(8); // one sprite quad
+
   static MaskPlan? build(DrawFrame frame, List<MaskPartFlags> flags) {
     final drawOrder = frame.drawOrder;
     final writers = <MaskWriter>[];
@@ -350,12 +357,17 @@ class MaskPlan {
       // vertices, everything else's is the sprite quad. A shape/mesh part has no
       // cell and so no `local_vertices`, which is why they cannot share the quad
       // path here.
+      // Folded into the bbox below and dropped, so all three share one grow-only
+      // buffer rather than allocating per writer per frame.
       final outline = f.shapeGeometry
-          ? GeometryBuilder.shapeWorldOutlineOf(p, frame)
+          ? GeometryBuilder.shapeWorldOutlineOf(p, frame, _outlineScratch)
           : f.meshGeometry
-              ? GeometryBuilder.meshWorldOutlineOf(p, frame)
-              : GeometryBuilder.worldCornersOf(p, frame);
+              ? GeometryBuilder.meshWorldOutlineOf(p, frame, _outlineScratch)
+              : GeometryBuilder.worldCornersOf(p, frame, _outlineScratch);
       if (outline == null) continue; // no geometry this frame — nothing to write
+      // Too small to reuse: the helper allocated an exact-size buffer, so adopt
+      // it and the next writer reuses that instead.
+      if (outline.length > _outlineScratch.length) _outlineScratch = outline;
 
       writers.add(MaskWriter(
         partIndex: p,

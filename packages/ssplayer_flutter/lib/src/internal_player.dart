@@ -107,6 +107,17 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   /// backends draw from. Exposed to the backend as [geometry] ([RenderHost]).
   final GeometryBuilder _geometry = GeometryBuilder();
 
+  /// drawRank → texture hash for [_buildMaskContext]. Rebuilt each frame and
+  /// consumed inside `renderCoverage`, which never retains it.
+  final Map<int, int> _textureByRankScratch = <int, int>{};
+
+  /// The instance part's world matrix in [_emitInstanceBatch]. One per player,
+  /// not per part: an instance child recurses with its OWN player (and so its
+  /// own scratch), and the matrix is fully consumed — composed into the mask
+  /// affine, then pushed onto the backend's transform stack, which copies it —
+  /// before the next part refills it.
+  final Float64List _world2dScratch = Float64List(16);
+
   /// The render backend that turns this player's `DrawBatch`es into pixels —
   /// Canvas (`Canvas.drawVertices`) by default, flutter_gpu when requested and
   /// available. Chosen in [load] from the requested [SpriteStudioBackend] via the
@@ -965,7 +976,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
 
     // One zero-copy SoA gather per frame (mirrors the flagship's single-block
     // fetch); the views are valid only until the next update.
-    final frame = DrawFrame.build(
+    final frame = _geometry.buildFrame(
       frameData: frameData,
       world: worldMatrices(), // parts × 16
       local: localVertices(), // parts × 10
@@ -1054,7 +1065,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
       // Brain-reported dead child both draw nothing.
       if (state == null || !state.visible) continue;
 
-      final world = GeometryBuilder.world2dOf(part, frame);
+      final world = GeometryBuilder.world2dOf(part, frame, _world2dScratch);
       if (world == null) continue;
 
       // The instance part's own PartColor (§10) tints the entire child. The SDK
@@ -1132,7 +1143,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
 
     // Writers need their own texture; take it from the batch that owns each
     // rank, which is exactly what the colour path resolves against.
-    final textureByRank = <int, int>{};
+    final textureByRank = _textureByRankScratch..clear();
     for (final batch in batches) {
       for (var k = 0; k < batch.count; k++) {
         textureByRank[batch.startRank + k] = batch.textureHash;

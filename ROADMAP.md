@@ -53,20 +53,21 @@ Legend: ☐ **Ready** (Player-only, can start now) · ⛔ **Blocked on SDK** (ne
 
 ## Backlog (small / optional)
 
-- ☐ **PartColor struct direct-read (`ByteData`)** — read the packed
-  `PartAttributePartColor` struct straight from the `FrameData` bytes (as the
-  Unity / RenPy / Web siblings do), dropping ~9 throwaway FlatBuffers wrappers per
-  tinted part per frame. Residual win is small (the dominant per-frame churn is
-  already reclaimed); gate on a micro-benchmark and a **mandatory** layout-
-  equivalence test against the generated accessors.
+- ✖ **PartColor struct direct-read (`ByteData`)** — *measured, not worth it.* The
+  idea was to read the packed `PartAttributePartColor` struct straight from the
+  `FrameData` bytes (as the Unity / RenPy / Web siblings do), dropping the
+  throwaway wrappers plus the `PartColor` + 4 `PartColorCorner` PODs per tinted
+  part per frame. The gating micro-benchmark says no: on `PartsColor.ssab`
+  (17 parts, 16 tinted) the **whole** per-frame extraction is **0.97 µs** —
+  ~60 ns per tinted part, i.e. 0.006 % of a 60 fps budget, and still under 0.2 %
+  extrapolated to 500 tinted parts. (`scaleAlpha` 58 ns/call,
+  `wholeTintMatrix` 33 ns/call, both instance-chain only.) Making a public
+  immutable value type mutable and slot-pooling it through every render path is
+  not a trade worth that. Reopen only if a real profile contradicts the number.
 - ☐ **Instance child `Resource` sharing** — one Instance part = one `Resource`
   today; the parsed `.ssab` should be shareable across children of the same pack
   (each child's `Context` stays separate for its own clock). A Body-local dedup is
   possible before the SDK shared-resource registry lands.
-- ☐ **Quad mask-writer anti-aliasing** (low priority) — turn AA off on the
-  `drawPath` quad mask-writer, matching the Shape/Mesh writers; coverage is a
-  number, not a picture, so an AA'd edge can decode as another writer's bits.
-  Impact is bounded to a 1px edge.
 - ☐ **Batch the Canvas `Sub` / `Invert` reconstruction** — those two modes have no
   stock `ui.BlendMode`, so the Canvas backend rebuilds them from three passes over
   one part's geometry (`blendPassesFor`), which also forces each such part out of
