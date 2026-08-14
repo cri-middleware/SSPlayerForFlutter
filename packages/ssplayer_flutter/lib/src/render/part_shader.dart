@@ -91,7 +91,13 @@ enum SsShaderId {
 /// effect except [SsShaderId.blur] folds the PartColor formula as its output
 /// tail (see `shaders/ss_shader_common.glsl`'s `ssBlend`).
 class PartShader {
-  const PartShader({required this.id, required this.params});
+  const PartShader({
+    required this.id,
+    required this.param0,
+    required this.param1,
+    required this.param2,
+    required this.param3,
+  });
 
   final SsShaderId id;
 
@@ -102,7 +108,10 @@ class PartShader {
   /// one `vec4`). Surfacing `param4..7` would mean four dead floats in every
   /// shader draw's uniform block, so they are deliberately not read; add them
   /// here and to both backends' parameter blocks if a shader ever needs them.
-  final Float32List params;
+  final double param0;
+  final double param1;
+  final double param2;
+  final double param3;
 
   /// Resolves the shader attribute for [part] against [shaders] (the frame's
   /// `FrameData.shaders` vector), or null when it has none.
@@ -126,11 +135,10 @@ class PartShader {
     if (id == null) return null; // not a built-in — plain path
     return PartShader(
       id: id,
-      params: Float32List(4)
-        ..[0] = attr.param0
-        ..[1] = attr.param1
-        ..[2] = attr.param2
-        ..[3] = attr.param3,
+      param0: attr.param0,
+      param1: attr.param1,
+      param2: attr.param2,
+      param3: attr.param3,
     );
   }
 }

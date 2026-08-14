@@ -66,6 +66,51 @@ class CanvasBackend implements RenderBackend {
   /// sets both `blendMode` and `shader`. Peeled / shape / effect draws build
   /// their own paints (different field sets) and never touch this one.
   final ui.Paint _batchPaint = ui.Paint();
+  final ui.Paint _peeledPaint = ui.Paint();
+  final ui.Paint _shapePaint = ui.Paint();
+  final ui.Paint _effectPaint = ui.Paint();
+  final ui.Paint _maskWritePaint = ui.Paint();
+  final ui.Paint _groupTintPaint = ui.Paint();
+
+  // --- Per-frame scratch -----------------------------------------------------
+  //
+  // Reused across draws: a Canvas op copies its `Paint` and `Path` into the
+  // display list at record time, so mutating either afterwards cannot disturb an
+  // already-recorded draw (`test/scratch_reuse_test.dart` pins that down).
+  //
+  // ONE backend serves a whole instance tree (children draw through their
+  // parent's — see `SpriteStudioInternalPlayer._paintTree`), so all of this is
+  // shared across the recursion. That is sound only because instance recursion
+  // happens BETWEEN batches — `_emitInstanceBatch` is its own `DrawBatchKind` —
+  // so no `emit*` is ever re-entered while its run is live. [_noEmitInFlight]
+  // asserts it, and the run lists are split per emit kind so the kinds are not
+  // coupled at all.
+  //
+  // A reused `Paint` must have EVERY field it varies written on every use: a
+  // field left unset silently inherits the previous draw's value.
+  final List<int> _normalRunScratch = <int>[];
+  final List<int> _shapeRunScratch = <int>[];
+  final List<int> _meshRunScratch = <int>[];
+  final List<efbs.EffectDrawCommand> _effectGroupScratch =
+      <efbs.EffectDrawCommand>[];
+  final ui.Path _quadPathScratch = ui.Path();
+  final ui.Path _trianglesPathScratch = ui.Path();
+
+  /// Debug-only re-entrancy guard, asserted at the top of every `emit*`.
+  ///
+  /// Every `emit*` flushes its run before returning, so an empty run list is
+  /// exactly "no other `emit*` is part-way through". A future change that made
+  /// one nest inside another (drawing an instance child from inside a batch
+  /// rather than as its own batch) would trip here instead of silently
+  /// interleaving two parts' geometry into one draw.
+  bool get _noEmitInFlight {
+    assert(
+        _normalRunScratch.isEmpty &&
+            _shapeRunScratch.isEmpty &&
+            _meshRunScratch.isEmpty,
+        'emit* re-entered — the per-frame scratch is not re-entrant');
+    return true;
+  }
 
   /// Reused `FragmentShader` instances (one per peeled part in a frame).
   /// Each draw in a Picture reads its shader's uniforms at raster time, so parts
@@ -153,6 +198,10 @@ class CanvasBackend implements RenderBackend {
   void finish() {
     _frameCanvas?.restore();
     _frameCanvas = null;
+    // Drop the frame's effect commands rather than pinning them until the next
+    // frame overwrites the scratch. Nothing reads them stale (every user clears
+    // first); this just stops the scratch from being a hidden retainer.
+    _effectGroupScratch.clear();
   }
 
   @override
@@ -169,7 +218,47 @@ class CanvasBackend implements RenderBackend {
       // Bounds-less: the subtree's extent isn't known before it is drawn, so the
       // layer is sized by what lands in it (the same trade the flagship's
       // group-modulate makes).
-      canvas.saveLayer(null, ui.Paint()..colorFilter = ui.ColorFilter.matrix(matrix));
+      //
+      // The paint is reused across nested tints — `saveLayer` copies it at
+      // record time.
+      canvas.saveLayer(null, _groupTintPaint..colorFilter = _tintFilter(matrix));
+
+  /// The last whole-part tint, memoised — shared by [pushGroupTint] (§8) and the
+  /// peeled Mesh path (§1-2-3), which build the same kind of 4×5 matrix.
+  ///
+  /// A `ColorFilter` is immutable, so a tinted part would otherwise build a fresh
+  /// one every frame. Such a tint is usually *static* (it only changes when the
+  /// part's PartColor is animated), so comparing the 20 doubles is far cheaper
+  /// than the object it saves — and a miss simply rebuilds.
+  ///
+  /// One entry, not a map: alternating tints thrash it, but a miss costs exactly
+  /// what the un-memoised code paid every time, so this is never the worse trade.
+  ///
+  /// The key is a fixed 4×5 scratch overwritten in place, so a miss allocates
+  /// only the `ColorFilter` itself — never worse than not memoising.
+  final List<double> _lastTintMatrix = List<double>.filled(20, double.nan);
+  ui.ColorFilter? _lastTintFilter;
+
+  ui.ColorFilter _tintFilter(List<double> matrix) {
+    if (matrix.length != _lastTintMatrix.length) {
+      return ui.ColorFilter.matrix(matrix); // not the 4×5 shape — do not memoise
+    }
+    final cached = _lastTintFilter;
+    if (cached != null) {
+      var same = true;
+      for (var i = 0; i < matrix.length; i++) {
+        if (_lastTintMatrix[i] != matrix[i]) {
+          same = false;
+          break;
+        }
+      }
+      if (same) return cached;
+    }
+    // `matrix` is the caller's list and may be recycled, so the key is a copy.
+    // `ColorFilter.matrix` copies too, so the filter is safe to keep.
+    _lastTintMatrix.setAll(0, matrix);
+    return _lastTintFilter = ui.ColorFilter.matrix(matrix);
+  }
 
   @override
   void popGroupTint(ui.Canvas canvas) => canvas.restore();
@@ -249,14 +338,16 @@ class CanvasBackend implements RenderBackend {
       // to threshold: its polygon *is* the mask. That needs no shader at all —
       // the bit colour over the geometry, additively, is the whole operation.
       if (host.flagsFor(writer.partIndex).shapeGeometry) {
-        final geometry =
-            host.geometry.buildShapeParts(<int>[writer.partIndex], frame);
+        final geometry = host.geometry
+            .buildShapeParts(host.geometry.singlePart(writer.partIndex), frame);
         if (geometry == null) continue;
         canvas.drawPath(
           _trianglesPath(geometry),
-          ui.Paint()
+          _maskWritePaint
             ..blendMode = ui.BlendMode.plus
             ..color = _bitColor(writer.bit)
+            ..shader = null
+            ..colorFilter = null
             // A coverage bit is a number, not a picture: a half-covered edge
             // pixel would decode as a *different* writer's bits, so the fill
             // must stay binary. (It also keeps the shared edges between the
@@ -271,15 +362,17 @@ class CanvasBackend implements RenderBackend {
       // as a shape — geometry-as-mask, no texel cutout (a Flutter shader can't
       // sample the per-vertex mesh UV) — so it rasterises with a plain bit fill.
       if (host.flagsFor(writer.partIndex).meshGeometry) {
-        final geometry =
-            host.geometry.buildMeshGeometry(<int>[writer.partIndex], frame);
+        final geometry = host.geometry
+            .buildMeshGeometry(host.geometry.singlePart(writer.partIndex), frame);
         if (geometry == null) continue;
         canvas.drawPath(
           _trianglesPath(geometry),
-          ui.Paint()
+          _maskWritePaint
             ..blendMode = ui.BlendMode.plus
             ..color = _bitColor(writer.bit)
-            ..isAntiAlias = false,
+            ..shader = null
+            ..colorFilter = null
+            ..isAntiAlias = false, // binary fill — see the shape writer above
         );
         wrote = true;
         continue;
@@ -303,8 +396,13 @@ class CanvasBackend implements RenderBackend {
       // some other writer's.
       canvas.drawPath(
           _quadPath(quad),
-          ui.Paint()
+          _maskWritePaint
             ..blendMode = ui.BlendMode.plus
+            // Opaque white, NOT the bit colour a previous writer left here: with
+            // a shader bound the paint's RGB is unused but its ALPHA still
+            // modulates the shader's output, and the bit must land undimmed.
+            ..color = const ui.Color(0xFFFFFFFF)
+            ..colorFilter = null
             ..isAntiAlias = false
             ..shader = shader);
       wrote = true;
@@ -323,6 +421,7 @@ class CanvasBackend implements RenderBackend {
   @override
   void emitNormal(ui.Canvas canvas, fbs.DrawBatch batch, DrawFrame frame,
       RenderHost host, MaskContext? maskCtx, InheritedMask? inheritedMask) {
+    assert(_noEmitInFlight);
     final start = batch.startRank;
     final count = batch.count;
     if (count == 0) return;
@@ -333,7 +432,7 @@ class CanvasBackend implements RenderBackend {
     final partsColor = frame.partsColor;
     final shaders = frame.shaders;
 
-    final run = <int>[];
+    final run = _normalRunScratch..clear();
     void flushRun() {
       if (run.isEmpty) return;
       // 2nd arg modulates the vertex color (white × alpha) with the texture
@@ -393,10 +492,11 @@ class CanvasBackend implements RenderBackend {
   @override
   void emitShape(ui.Canvas canvas, fbs.DrawBatch batch, DrawFrame frame,
       RenderHost host, MaskContext? maskCtx, InheritedMask? inheritedMask) {
+    assert(_noEmitInFlight);
     if (batch.count == 0 || frame.shape == null) return;
     final passes = blendPassesFor(batch.blendType);
 
-    final run = <int>[];
+    final run = _shapeRunScratch..clear();
     void flushRun() {
       if (run.isEmpty) return;
       final v = host.geometry.buildShapeParts(run, frame);
@@ -406,9 +506,10 @@ class CanvasBackend implements RenderBackend {
           canvas.drawVertices(
               vertices,
               ui.BlendMode.modulate,
-              ui.Paint()
+              _shapePaint
                 ..blendMode = pass.mode
                 ..colorFilter = pass.filter
+                ..shader = null
                 ..color = const ui.Color(0xFFFFFFFF));
         }
       }
@@ -451,7 +552,8 @@ class CanvasBackend implements RenderBackend {
   void _drawMaskedShape(ui.Canvas canvas, int part, DrawFrame frame,
       RenderHost host, List<BlendPass> passes, MaskDraw mask) {
     final program = _partColorProgram.get();
-    final geometry = host.geometry.buildShapeParts(<int>[part], frame);
+    final geometry =
+        host.geometry.buildShapeParts(host.geometry.singlePart(part), frame);
     if (geometry == null) return;
     if (program == null) {
       // Still compiling — draw unmasked rather than dropping the shape.
@@ -460,9 +562,10 @@ class CanvasBackend implements RenderBackend {
         canvas.drawVertices(
             vertices,
             ui.BlendMode.modulate,
-            ui.Paint()
+            _shapePaint
               ..blendMode = pass.mode
               ..colorFilter = pass.filter
+              ..shader = null
               ..color = const ui.Color(0xFFFFFFFF));
       }
       return;
@@ -491,9 +594,12 @@ class CanvasBackend implements RenderBackend {
       canvas.drawVertices(
           vertices,
           ui.BlendMode.modulate,
-          ui.Paint()
+          _shapePaint
             ..blendMode = pass.mode
             ..colorFilter = pass.filter
+            // Opaque white: with a shader bound the RGB is unused, but the alpha
+            // modulates it — and the unmasked branch above leaves a colour here.
+            ..color = const ui.Color(0xFFFFFFFF)
             ..shader = shader);
     }
   }
@@ -512,6 +618,7 @@ class CanvasBackend implements RenderBackend {
   @override
   void emitMesh(ui.Canvas canvas, fbs.DrawBatch batch, DrawFrame frame,
       RenderHost host, MaskContext? maskCtx, InheritedMask? inheritedMask) {
+    assert(_noEmitInFlight);
     final count = batch.count;
     if (count == 0) return;
     final drawOrder = frame.drawOrder;
@@ -520,7 +627,7 @@ class CanvasBackend implements RenderBackend {
 
     // Same run/peel shape as [emitNormal]: plain parts batch into one
     // `drawVertices`, tinted/masked ones are drawn individually in z-order.
-    final run = <int>[];
+    final run = _meshRunScratch..clear();
     void flushRun() {
       if (run.isEmpty) return;
       final vertices = host.geometry.buildMeshParts(run, frame);
@@ -585,10 +692,15 @@ class CanvasBackend implements RenderBackend {
     // (§1-3); only the instance chain's scale is still owed. Without one the
     // part's own alpha applies as usual.
     final tinted = pc?.scaleAlpha(frame.alphaScale);
-    final geometry = host.geometry.buildMeshGeometry(<int>[part], frame,
+    final geometry = host.geometry.buildMeshGeometry(
+        host.geometry.singlePart(part), frame,
         alphaOverride: tinted?.lt.a);
     if (geometry == null) return;
     final matrix = tinted?.wholeTintMatrix();
+    // Built once for the whole part: a `ColorFilter` is immutable, so building
+    // it inside the pass loop allocated one per pass for the same tint. Through
+    // the memo, so a run of parts sharing a tint also shares its filter.
+    final tint = matrix == null ? null : _tintFilter(matrix);
     final vertices = geometry.toVertices();
 
     final program = mask == null ? null : _partColorProgram.get();
@@ -599,9 +711,7 @@ class CanvasBackend implements RenderBackend {
         canvas.drawVertices(
           vertices,
           ui.BlendMode.modulate,
-          _paintForBatch(batch, host, pass,
-              colorFilter:
-                  matrix == null ? null : ui.ColorFilter.matrix(matrix)),
+          _paintForBatch(batch, host, pass, colorFilter: tint),
         );
       }
       return;
@@ -629,24 +739,33 @@ class CanvasBackend implements RenderBackend {
     // A masked part composites as one layer, so a multi-pass blend records the
     // layer once per pass — with the pass's filter on the *layer's* paint, which
     // is where it belongs: the layer result is the part's final colour.
+    // `_peeledPaint` is shared with [_drawPeeledPart] / [_drawShaderPart], which
+    // set `isAntiAlias` from [_antiAliasFor] — so all three draws below state it
+    // rather than inheriting whatever the previous part (or the previous pass's
+    // gate rect) happened to leave.
     for (final pass in passes) {
       canvas.saveLayer(
           bounds,
-          ui.Paint()
+          _peeledPaint
             ..blendMode = pass.mode
-            ..colorFilter = pass.filter);
+            ..colorFilter = pass.filter
+            ..isAntiAlias = true
+            ..shader = null);
       canvas.drawVertices(
         vertices,
         ui.BlendMode.modulate,
-        ui.Paint()
+        _peeledPaint
+          ..blendMode = ui.BlendMode.srcOver
+          ..isAntiAlias = true
           ..shader = host.textures.shaderFor(batch.textureHash)
-          ..colorFilter = matrix == null ? null : ui.ColorFilter.matrix(matrix),
+          ..colorFilter = tint,
       );
       canvas.drawRect(
           bounds,
-          ui.Paint()
+          _peeledPaint
             ..blendMode = ui.BlendMode.dstIn
             ..isAntiAlias = false
+            ..colorFilter = null
             ..shader = shader);
       canvas.restore();
     }
@@ -685,7 +804,9 @@ class CanvasBackend implements RenderBackend {
 
         // Gather the maximal run of drawable same-(cellmap,blend) commands,
         // keeping the group's vertex count inside the 16-bit index limit.
-        final group = <efbs.EffectDrawCommand>[first];
+        final group = _effectGroupScratch
+          ..clear()
+          ..add(first);
         var groupVerts = first.quadCount * 4;
         var j = i + 1;
         while (j < commands.length) {
@@ -715,10 +836,12 @@ class CanvasBackend implements RenderBackend {
         canvas.drawVertices(
           geometry.toVertices(),
           ui.BlendMode.modulate,
-          ui.Paint()
+          _effectPaint
             // An emitter's blend is the raw 0=Mix / 1=Add byte, NOT a BlendType.
             ..blendMode = effectBlendModeFor(blend)
-            ..shader = host.textures.shaderFor(cellmap),
+            ..shader = host.textures.shaderFor(cellmap)
+            ..colorFilter = null
+            ..color = const ui.Color(0xFFFFFFFF),
         );
       }
     }
@@ -750,7 +873,8 @@ class CanvasBackend implements RenderBackend {
     final quad = host.geometry.buildPartColorQuad(part, frame);
     if (program == null || image == null || quad == null) {
       // Fallback: plain textured draw so the part stays visible.
-      final v = host.geometry.buildNormalParts(<int>[part], frame);
+      final v = host.geometry
+          .buildNormalParts(host.geometry.singlePart(part), frame);
       if (v != null) {
         for (final pass in passes) {
           canvas.drawVertices(
@@ -797,7 +921,7 @@ class CanvasBackend implements RenderBackend {
     for (final pass in passes) {
       canvas.drawPath(
           path,
-          ui.Paint()
+          _peeledPaint
             ..blendMode = pass.mode
             ..colorFilter = pass.filter
             ..isAntiAlias = antiAlias
@@ -857,8 +981,9 @@ class CanvasBackend implements RenderBackend {
 
     final shader =
         _ssShaders.putIfAbsent(sh.id, _ShaderPool.new).next(program);
+    final cell = host.geometry.cellRectScratch(quad, texWidth, texHeight);
     _setSsShaderUniforms(shader, effective, quad, sh,
-        texWidth: texWidth, texHeight: texHeight);
+        texWidth: texWidth, texHeight: texHeight, cellRect: cell);
     // Bilinear, like the batched ImageShader path — the peeled sampler defaults
     // to nearest, which the multi-tap effects (blur / outline / move) would
     // turn into visible stair-stepping.
@@ -869,7 +994,7 @@ class CanvasBackend implements RenderBackend {
     for (final pass in passes) {
       canvas.drawPath(
           path,
-          ui.Paint()
+          _peeledPaint
             ..blendMode = pass.mode
             ..colorFilter = pass.filter
             ..isAntiAlias = antiAlias
@@ -882,8 +1007,8 @@ class CanvasBackend implements RenderBackend {
   /// Built from the very triangles the colour pass draws rather than from a
   /// re-derived outline, so the coverage a shape writes can never disagree with
   /// the shape it draws.
-  static ui.Path _trianglesPath(MeshGeometry g) {
-    final path = ui.Path();
+  ui.Path _trianglesPath(MeshGeometry g) {
+    final path = _trianglesPathScratch..reset();
     final p = g.positions;
     final idx = g.indices;
     for (var t = 0; t + 2 < idx.length; t += 3) {
@@ -909,9 +1034,10 @@ class CanvasBackend implements RenderBackend {
   }
 
   /// The world quad's fill path, wound `lt → rt → rb → lb`.
-  static ui.Path _quadPath(PartColorQuad quad) {
+  ui.Path _quadPath(PartColorQuad quad) {
     final c = quad.corners;
-    return ui.Path()
+    return _quadPathScratch
+      ..reset()
       ..moveTo(c[0], c[1]) // lt
       ..lineTo(c[2], c[3]) // rt
       ..lineTo(c[6], c[7]) // rb
@@ -975,8 +1101,8 @@ class CanvasBackend implements RenderBackend {
     // target's polarity (§2-4) and the enable flag.
     f(maskBits?.increment.toDouble() ?? 0.0);
     f(maskBits?.invert.toDouble() ?? 0.0);
-    f((maskBits?.visibleInside ?? false) ? 1.0 : 0.0);
-    f(maskBits == null ? 0.0 : 1.0);
+    f(maskBits != null && maskBits.visibleInside ? 1.0 : 0.0);
+    f(maskBits != null ? 1.0 : 0.0);
     // uMaskUv / uMaskOff — local → coverage UV (§3-2-2). For an own mask this is
     // `plan.uvBasis/uvOffset` (player-local → UV); for a mask inherited by an
     // instance child it is that affine pre-composed with the slot matrix
@@ -999,6 +1125,10 @@ class CanvasBackend implements RenderBackend {
   /// rect. An effect that reads neither still has them in its layout — impellerc
   /// keeps a declared-but-unused uniform in its slot — so the indices below hold
   /// for all 13.
+  ///
+  /// [cellRect] is passed in rather than derived here because the caller already
+  /// has it (and owns the scratch it lives in — see
+  /// [GeometryBuilder.cellRectScratch]).
   static void _setSsShaderUniforms(
     ui.FragmentShader shader,
     PartColor pc,
@@ -1006,6 +1136,7 @@ class CanvasBackend implements RenderBackend {
     PartShader sh, {
     required double texWidth,
     required double texHeight,
+    required Float32List cellRect,
   }) {
     var i = 0;
     void f(double v) => shader.setFloat(i++, v);
@@ -1044,15 +1175,14 @@ class CanvasBackend implements RenderBackend {
     f(quad.uvB[1]);
     f(quad.uvB[2]);
     f(quad.uvB[3]);
-    f(sh.params[0]); // uParams (param0..param3)
-    f(sh.params[1]);
-    f(sh.params[2]);
-    f(sh.params[3]);
-    final cell = quad.cellRect(texWidth, texHeight); // uCellRect
-    f(cell[0]);
-    f(cell[1]);
-    f(cell[2]);
-    f(cell[3]);
+    f(sh.param0); // uParams (param0..param3)
+    f(sh.param1);
+    f(sh.param2);
+    f(sh.param3);
+    f(cellRect[0]); // uCellRect
+    f(cellRect[1]);
+    f(cellRect[2]);
+    f(cellRect[3]);
   }
 
   /// Writes the coverage-writer uniforms in the declaration order of
