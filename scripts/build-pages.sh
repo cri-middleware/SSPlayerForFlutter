@@ -9,6 +9,7 @@
 #   scripts/build-pages.sh sdk=build           # ... compiling the Brain from source
 #   scripts/build-pages.sh demo=skip           # documentation only
 #   scripts/build-pages.sh docs=no sdk=skip    # re-export the demo, nothing else
+#   scripts/build-pages.sh base=/ zip=yes      # a zip to upload to Cloudflare Pages
 #
 # Two demos, because the repository ships two players: examples/overall drives
 # the ssplayer_flutter widget and examples/flame the ssplayer_flame component, so
@@ -54,6 +55,13 @@
 # that path rather than serving site/ directly -- otherwise every asset URL in
 # the demo 404s.
 #
+# GitHub Pages is where this site is published from, and pages.yml does that. A
+# second copy goes up by hand to Cloudflare Pages, whose dashboard takes an
+# upload rather than a git push -- that is what zip=yes is for, and why it wants
+# base=/: Cloudflare serves a project at its own root, GitHub Pages serves it
+# under /<repo>/, and --base-href cannot be both. The canonical URLs in the
+# READMEs stay the GitHub Pages ones.
+#
 # What this does NOT reproduce is the deploy job (actions/deploy-pages) -- there
 # is no local equivalent of publishing.
 set -euo pipefail
@@ -78,6 +86,10 @@ SDK_WEB_ZIP="spritestudio-sdk-web-libs.zip"
 # nobody notices until a draw call misbehaves.
 SDK_VERSION_SOURCE="packages/ssruntime_dart/hook/build.dart"
 
+# zip=yes writes this, for a host that takes an upload rather than a git push --
+# Cloudflare Pages' drag-and-drop, today. Git-ignored; rebuilt, never edited.
+SITE_ZIP="SSPlayerForFlutter-site.zip"
+
 # --- options --------------------------------------------------------------
 
 # A project site is served under /<repo>/. The workflow passes
@@ -98,6 +110,7 @@ SDK="download"
 BASE="$(default_base)"
 PREPARE="auto"
 VENV=".venv"
+ZIP="no"
 SERVE="no"
 PORT="8000"
 
@@ -136,6 +149,11 @@ usage () {
   echo "  venv=<dir>              Virtualenv for the docs toolchain, relative to the"
   echo "                          repo root (default: $VENV). Passed to prepare-docs.sh"
   echo "                          and build-docs.sh."
+  echo "  zip=<yes|no>            Pack the finished tree into $SITE_ZIP (default: $ZIP),"
+  echo "                          contents at the archive root -- what Cloudflare Pages'"
+  echo "                          drag-and-drop upload expects. That host serves a project"
+  echo "                          at its own root, so pair it with base=/ or every asset"
+  echo "                          URL in the demos is wrong; this says so if you do not."
   echo "  serve=<yes|no>          Serve the tree over HTTP when the build is done"
   echo "                          (default: $SERVE), under base= so the demo resolves."
   echo "                          Foreground; Ctrl-C to stop."
@@ -172,6 +190,7 @@ while [ $# -gt 0 ]; do
         base)    BASE="$value" ;;
         prepare) PREPARE="$(printf '%s' "$value" | tr '[:upper:]' '[:lower:]')" ;;
         venv)    VENV="$value" ;;
+        zip)     ZIP="$(printf '%s' "$value" | tr '[:upper:]' '[:lower:]')" ;;
         serve)   SERVE="$(printf '%s' "$value" | tr '[:upper:]' '[:lower:]')" ;;
         port)    PORT="$value" ;;
         *)
@@ -191,6 +210,7 @@ case "$DOCS" in yes|no) ;; *) echo "$APP: docs must be yes or no (got '$DOCS')" 
 case "$DEMO" in build|skip) ;; *) echo "$APP: demo must be build or skip (got '$DEMO')" >&2; exit 2 ;; esac
 case "$SDK" in download|build|skip) ;; *) echo "$APP: sdk must be download, build or skip (got '$SDK')" >&2; exit 2 ;; esac
 case "$PREPARE" in auto|yes|no) ;; *) echo "$APP: prepare must be auto, yes or no (got '$PREPARE')" >&2; exit 2 ;; esac
+case "$ZIP" in yes|no) ;; *) echo "$APP: zip must be yes or no (got '$ZIP')" >&2; exit 2 ;; esac
 case "$SERVE" in yes|no) ;; *) echo "$APP: serve must be yes or no (got '$SERVE')" >&2; exit 2 ;; esac
 case "$PORT" in ''|*[!0-9]*) echo "$APP: port must be a number (got '$PORT')" >&2; exit 2 ;; esac
 
@@ -203,8 +223,8 @@ esac
 
 # Nothing to build at all is a typo, not a request -- unless serve=yes, where
 # "build nothing, show me what is already in site/" is exactly the ask.
-if [ "$DOCS" = "no" ] && [ "$DEMO" = "skip" ] && [ "$SERVE" = "no" ]; then
-  echo "$APP: docs=no demo=skip builds nothing (add serve=yes to serve what site/ holds)" >&2
+if [ "$DOCS" = "no" ] && [ "$DEMO" = "skip" ] && [ "$SERVE" = "no" ] && [ "$ZIP" = "no" ]; then
+  echo "$APP: docs=no demo=skip builds nothing (add serve=yes or zip=yes to use what site/ holds)" >&2
   exit 2
 fi
 
@@ -220,6 +240,7 @@ echo "  sdk     => $SDK$SDK_NOTE"
 echo "  base    => $BASE"
 echo "  prepare => $PREPARE"
 echo "  venv    => $VENV"
+echo "  zip     => $ZIP"
 echo "  serve   => $SERVE$SERVE_NOTE"
 echo ""
 
@@ -532,6 +553,36 @@ if [ "$DEMO" = "build" ]; then
   report "site/demo/index.html" "demo"
   report "site/demo/flutter/index.html" "  fl"
   report "site/demo/flame/index.html" "  fm"
+fi
+
+# --- pack -----------------------------------------------------------------
+# For a host that takes an upload instead of a git push. The archive holds the
+# tree itself, not a directory containing it: Cloudflare Pages' drag-and-drop
+# publishes what is at the root of the zip, so a wrapping folder becomes a
+# wrapping path segment and every page 404s.
+if [ "$ZIP" = "yes" ]; then
+  command -v zip > /dev/null 2>&1 || {
+    echo "$APP: zip not on PATH -- pack site/ with any archiver instead" >&2
+    exit 1
+  }
+  if [ ! -d "$SITE_DIR" ]; then
+    echo "$APP: no site/ to pack" >&2
+    exit 1
+  fi
+  # Said, not enforced: an upload host may well serve under a subpath, and only
+  # the person uploading knows. What is worth refusing is silence -- a zip built
+  # for /SSPlayerForFlutter/ looks fine until every demo asset 404s on it.
+  if [ "$BASE" != "/" ]; then
+    echo ""
+    echo "$APP: WARNING: packing a tree built for base=$BASE." >&2
+    echo "$APP: Cloudflare Pages serves a project at its own root, so rebuild with" >&2
+    echo "$APP: 'base=/' unless the destination really does serve from $BASE." >&2
+  fi
+  rm -f "$ROOT_DIR/$SITE_ZIP"
+  echo ""
+  echo ">> packing site/ into $SITE_ZIP"
+  ( cd "$SITE_DIR" && zip -qr "$ROOT_DIR/$SITE_ZIP" . )
+  echo "   $SITE_ZIP: $(du -h "$ROOT_DIR/$SITE_ZIP" | awk '{print $1}'), $(find "$SITE_DIR" -type f | wc -l | tr -d ' ') files"
 fi
 
 # --- serve ----------------------------------------------------------------

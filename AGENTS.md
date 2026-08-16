@@ -150,6 +150,14 @@ Four things about the demo half, none of them guessable from the tree:
 *   **The examples' `web/` runners are git-ignored** ("generated per-clone", like `android/` and `ios/`), so the script runs `flutter create --platforms=web .` when one is missing — and puts `.metadata` back, because `flutter create` *replaces* its platform list rather than appending to it.
 *   **`deploy-examples.sh` runs every time.** The `.ssab` both demos play are generated and git-ignored; a stale pack is exactly the kind of thing nobody notices in a published demo.
 
+A second copy of the site goes up **by hand to Cloudflare Pages**, whose dashboard takes an upload rather than a git push. That host serves a project at its own root, so it needs a different build from the GitHub Pages one — `--base-href` cannot be both:
+
+```bash
+scripts/build-pages.sh base=/ zip=yes    # -> SSPlayerForFlutter-site.zip, drag that in
+```
+
+`zip=yes` packs `site/` with its contents at the archive root (a wrapping folder would become a wrapping path segment and 404 every page), and says so loudly if you pack a tree built for a subpath. **GitHub Pages stays canonical**: the absolute URLs in `README.md` / `README.ja.md` point there, and they are absolute only because GitHub and pub.dev render those files outside the site. **Every demo link inside `docs/` is relative** (`demo/`, `../demo/`, `../../demo/flame/`), which is what lets the same documentation build serve correctly from both hosts.
+
 Building only English is the easy mistake: it leaves a stale `site/ja` behind, so a Japanese page you just broke still looks fine.
 
 No page here uses `> [!NOTE]` callouts, but `pymdownx.quotes` keeps them working. If you start: a list inside one needs a blank `>` line before it, and `[!IMPORTANT]` renders unstyled until you copy the `docs/*/stylesheets/extra.css` the sibling player repos carry. Also **avoid `src="…"` / `href="…"` inside an inline code span** — Zensical rewrites paths there as if they were real links, corrupting the example. Use a fenced block, which it leaves alone.
