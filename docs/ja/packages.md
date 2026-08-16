@@ -4,6 +4,9 @@
 参照）。多くのアプリが依存するのは `ssplayer_flutter` で、残りは推移的に取り込まれるか、特定の用途で
 使います。
 
+どちらのプレイヤーもブラウザで動くデモがあります —— ウィジェット版は
+[demo/flutter/](../demo/flutter/)、Flame 版は [demo/flame/](../demo/flame/) です。
+
 | 目的 | パッケージ | 種別 |
 |---|---|---|
 | アニメ再生（ランタイム描画） | [`ssplayer_flutter`](https://github.com/cri-middleware/SSPlayerForFlutter/tree/main/packages/ssplayer_flutter) | Flutter パッケージ（全プラットフォーム・`ssruntime_dart` に依存） |

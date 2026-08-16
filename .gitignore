@@ -70,7 +70,8 @@ doc/api/
 __MACOSX/
 .AppleDouble
 .LSOverride
-Icon[]
+Icon[
+]
 
 # Resource forks
 ._*
@@ -91,7 +92,8 @@ Icon[]
 .file
 .disk_label*
 lost+found
-.HFS+ Private Directory Data[]
+.HFS+ Private Directory Data[
+]
 
 # Directories potentially created on remote AFP share
 .AppleDB
@@ -822,6 +824,15 @@ app.*.symbols
 # The sources under docs/ are tracked; only the generated site is ignored.
 /site
 .venv/
+
+# scripts/build-pages.sh serve=yes hangs site/ off this scratch root, under the
+# base path the demo was built for -- serving site/ itself 404s on every asset
+# the demo loads.
+/.pages-preview/
+
+# scripts/build-pages.sh zip=yes packs site/ into this, for the by-hand upload to
+# Cloudflare Pages. A build artefact like /site itself.
+/SSPlayerForFlutter-site.zip
 
 # Exceptions to above rules.
 !**/ios/**/default.mode1v3

@@ -6,6 +6,9 @@
 のゲームループが時間を駆動します（`update(dt)` → `advance`、`render` → paint）。コアが `flame` を
 巻き込まないよう別パッケージになっており、`ssplayer_flutter` の API 全体を re-export します。
 
+[Flame デモ](../../demo/flame/) は `examples/flame` を Web 向けにビルドしたものです —— このページの
+コードがそのまま動いています。
+
 ## 依存を追加する
 
 [インストール](install.md) と同じ GitHub Releases バンドルから `ssplayer_flame` を追加します。

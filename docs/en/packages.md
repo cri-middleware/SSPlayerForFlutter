@@ -4,6 +4,9 @@ This monorepo will publish the following packages 🚧 (not yet on pub.dev — s
 [Installation](guide/install.md)). `ssplayer_flutter` is the one most apps depend on; the rest are
 pulled in transitively or used for specific needs.
 
+Both players have a live demo you can open in a browser: the widget one at
+[demo/flutter/](demo/flutter/) and the Flame one at [demo/flame/](demo/flame/).
+
 | Purpose | Package | Kind |
 |---|---|---|
 | Animation playback (runtime rendering) | [`ssplayer_flutter`](https://github.com/cri-middleware/SSPlayerForFlutter/tree/main/packages/ssplayer_flutter) | Flutter package (all platforms; depends on `ssruntime_dart`) |

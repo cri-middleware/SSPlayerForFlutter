@@ -12,6 +12,12 @@
     モーションを視覚的に作れます。アーティストが動きを作り、このプレイヤーが完成ファイルを再生
     します。ベクター系のツールとは用途が異なり、`.gif` や `.mp4` を同梱するより軽量です。
 
+!!! example "ブラウザで試す"
+    [**Web デモ**](../demo/) はこのドキュメントの隣に 2 つ公開しています。`ssplayer_flutter`
+    のウィジェットを動かす `examples/overall` と、`ssplayer_flame` を動かす `examples/flame`
+    です。いずれも Flutter の Web ビルドが読み込むのと同じ `libssruntime` の wasm 上で動きます。
+    Web ターゲットは developer preview です（[制限事項](limitations.md) を参照）。
+
 ## 目次
 
 - **セットアップ**
