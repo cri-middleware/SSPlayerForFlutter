@@ -3,7 +3,16 @@ import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 import 'package:ssplayer_flame/ssplayer_flame.dart';
 
-void main() => runApp(const FlameExampleApp());
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  // On the web the Brain is a wasm module fetched at runtime; await it before the
+  // game is created. A no-op on native (the native asset resolves eagerly).
+  //
+  // Without this the web build is not an error, it is a blank screen: the .ssab
+  // still loads, the component still mounts, and nothing ever draws.
+  await loadSsRuntime();
+  runApp(const FlameExampleApp());
+}
 
 class FlameExampleApp extends StatefulWidget {
   const FlameExampleApp({super.key});

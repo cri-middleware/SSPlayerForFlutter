@@ -135,11 +135,20 @@ scripts/build-docs.sh            # the gate: English then Japanese, both --stric
 
 `scripts/*.ps1` are the PowerShell twins, and both take `key=value` options and `--help` like the other scripts here (`build-docs.sh locale=ja`, `prepare-docs.sh force=yes`). They wrap nothing more than `pip install -r docs/requirements.txt` and the two `zensical build` runs, in the order that works — `zensical` straight out of `.venv` still does the same thing. Every repository in the family spells this pair the same way, and the `-docs` suffix keeps it apart from the scripts that build the code.
 
-`scripts/build-pages.sh` is the published site: the pair above, run for you, plus a static server over the result. The site here carries nothing but the docs, so it adds no build step of its own — what it adds is `serve=yes`, the only way to see both locales at once and the language selector resolving between them (`zensical serve` builds one locale at a time). `pages.yml`'s build job **is** this script (`prepare=no serve=no`, every option spelled out so a publish cannot change because a default did), so CI and the local gate cannot drift, and `build-pages.sh` means the same thing in every repository in the family — including the ones whose site carries a demo or an API reference as well.
+`scripts/build-pages.sh` is the whole published site: the pair above, then **both Web demos** — `examples/overall` at `site/demo/flutter/` and `examples/flame` at `site/demo/flame/`, with a chooser page at `site/demo/` — then, with `serve=yes`, the tree over HTTP. `pages.yml`'s build job **is** this script (`prepare=no docs=yes demo=build sdk=download base=/<repo>/ serve=no`, every option spelled out so a publish cannot change because a default did), so CI and the local build cannot drift. Only the deploy job has no local equivalent.
 
 ```bash
-scripts/build-pages.sh serve=yes    # both locales -> http://localhost:8000/
+scripts/build-pages.sh serve=yes            # docs + both demos -> http://localhost:8000/SSPlayerForFlutter/
+scripts/build-pages.sh sdk=build            # ... with the Brain compiled from the submodule
+scripts/build-pages.sh demo=skip            # documentation only
 ```
+
+Four things about the demo half, none of them guessable from the tree:
+
+*   **The demos are built here, not downloaded.** `release.yml` versions packages and publishes to pub.dev; it creates no GitHub Release, so there is no asset for a `demo=download` to fetch (the sibling players' pattern does not apply). `sdk=` is the separate question of where the *Brain* comes from: `download` (the default, and what CI uses) takes the web wasm from the SpriteStudio-SDK release `packages/*/hook/build.dart` pin, and lets those hooks fetch the host libraries from the same release — **no Rust toolchain anywhere**. `sdk=build` compiles both with `build-runtime.sh` and is the way out while that release does not exist yet.
+*   **`base=` is baked in.** `flutter build web --base-href` is fixed at build time, so a demo built for one path 404s on another. It defaults to `/<repo>/`; `serve=yes` therefore hangs `site/` off `.pages-preview/<repo>` and serves *that*, which is the only way to open the demo at the address it was built for.
+*   **The examples' `web/` runners are git-ignored** ("generated per-clone", like `android/` and `ios/`), so the script runs `flutter create --platforms=web .` when one is missing — and puts `.metadata` back, because `flutter create` *replaces* its platform list rather than appending to it.
+*   **`deploy-examples.sh` runs every time.** The `.ssab` both demos play are generated and git-ignored; a stale pack is exactly the kind of thing nobody notices in a published demo.
 
 Building only English is the easy mistake: it leaves a stale `site/ja` behind, so a Japanese page you just broke still looks fine.
 

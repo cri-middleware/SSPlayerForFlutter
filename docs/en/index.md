@@ -11,6 +11,13 @@ hand-write. Playback runs through `libssruntime` provided by
     art. Your artist authors the motion visually; this player plays the finished file. It is a
     different fit from vector animation tools, and lighter than shipping a `.gif` or `.mp4`.
 
+!!! example "Try it in a browser"
+    Two [**live Web demos**](demo/) are published beside these pages: the `examples/overall`
+    app driving the `ssplayer_flutter` widget, and the `examples/flame` one driving
+    `ssplayer_flame` — both built for the web, both on the same `libssruntime` wasm a Flutter
+    web build loads. The Web target is a developer preview; see
+    [Limitations & Scope](limitations.md).
+
 ## Table of Contents
 
 - **Setup**
