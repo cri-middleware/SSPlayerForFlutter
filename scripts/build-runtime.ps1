@@ -109,13 +109,13 @@ $CargoFlags = if ($BUILD_MODE -eq "release") { @("--release") } else { @() }
 function Build-Ss {
     param([string[]]$Extra = @())
     Push-Location $SdkDir
-    try { & cargo build @CargoFlags @Extra -p ssruntime --features libc_alloc,panic-handler; if ($LASTEXITCODE) { throw "cargo build ssruntime failed" } }
+    try { & cargo build @CargoFlags @Extra -p ssruntime-ffi --features libc_alloc,panic-handler; if ($LASTEXITCODE) { throw "cargo build ssruntime failed" } }
     finally { Pop-Location }
 }
 function Build-Converter {
     param([string[]]$Extra = @())
     Push-Location $SdkDir
-    try { & cargo build @CargoFlags @Extra -p ssconverter; if ($LASTEXITCODE) { throw "cargo build ssconverter failed" } }
+    try { & cargo build @CargoFlags @Extra -p ssconverter-ffi; if ($LASTEXITCODE) { throw "cargo build ssconverter failed" } }
     finally { Pop-Location }
 }
 function Place($sub, $src, $name) {
