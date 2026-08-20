@@ -79,6 +79,8 @@ build loudly, and the parts draw individually anyway).
 | `generate-ffigen-code` | `dart run ffigen` → each pkg's `lib/src/*_bindings.g.dart`. Standalone; commit result. | After a C-API change |
 | `generate-fbs-code` | `flatc --dart` → `lib/src/ssab/*.g.dart`, then `strip_fbs_builders.dart` splits the write side out of `lib/`. Standalone. | After a `.fbs` change |
 | `deploy-examples` | Convert `tests/overall/overall.sspj` → example assets. | Refresh example assets |
+| `download-web-runtime` | Put the SDK release's wasm-bindgen `libssruntime` into `ssplayer_flutter/assets/runtime-web/`, flattened to the layout the loader's SIMD probe expects. | Web demo, web release |
+| `build-release` | Per package: run the publish pub.dev will run, minus the upload, and lay the file set it would send out in `release-dist/`. Bumps nothing, tags nothing. | Before cutting versions |
 
 Generated code (ffigen bindings + flatc accessors) is **committed** and never
 hand-edited; each pkg's `native/` is gitignored. No `download-sdk` — `hook/build.dart`
@@ -161,6 +163,25 @@ scripts/build-pages.sh base=/ zip=yes    # -> SSPlayerForFlutter-site.zip, drag 
 Building only English is the easy mistake: it leaves a stale `site/ja` behind, so a Japanese page you just broke still looks fine.
 
 No page here uses `> [!NOTE]` callouts, but `pymdownx.quotes` keeps them working. If you start: a list inside one needs a blank `>` line before it, and `[!IMPORTANT]` renders unstyled until you copy the `docs/*/stylesheets/extra.css` the sibling player repos carry. Also **avoid `src="…"` / `href="…"` inside an inline code span** — Zensical rewrites paths there as if they were real links, corrupting the example. Use a fenced block, which it leaves alone.
+
+## Releasing
+
+There is **no GitHub Release and no asset** — the sibling players' `build-release` builds one archive and attaches it; here the release *is* six pub.dev publishes. `release.yml` (manual dispatch) runs `melos version --no-private`, which computes an **independent** SemVer bump per package from Conventional Commits, writes the CHANGELOGs, commits and pushes `<package>-v<version>` tags; each tag triggers `publish.yml`, which hands that package to dart-lang's reusable publish workflow (pub.dev OIDC, no stored secret). `publish_to: none` in a package's pubspec is the on/off switch for the whole chain — Melos skips it and `dart pub publish` refuses it.
+
+The order is what makes a preflight necessary: **the tags are pushed before pub.dev ever sees a package**, and a version there is permanent. A package pub rejects at publish time has already cost a version number and a CHANGELOG commit. `scripts/build-release.sh` is that preflight and it is `release.yml`'s first job (`checks=analyze codegen=skip sdk=download`, every option spelled out), so CI and a working tree run the same thing.
+
+```bash
+scripts/build-release.sh                     # every package, analyze + tests + dry-run publish
+scripts/build-release.sh checks=skip sdk=skip   # just the archives, offline
+scripts/build-release.sh packages=ssruntime_dart
+```
+
+Four things about it that the tree does not show:
+
+*   **A private package is previewed, not skipped.** With `publish_to: none` still on all six, skipping them would leave the script nothing to do, so it lifts the line for the length of the dry run (restoring it however the script exits, from a backup kept *outside* the package — pub publishes untracked files too, so a `pubspec.yaml.bak` beside the original would land in the archive). Everything that would block the publish is printed; none of it fails the run. Delete the line and that package is checked for real.
+*   **`dart pub publish` treats warnings as fatal** — only `--ignore-warnings` changes that, and neither `-f` nor the reusable workflow passes it. `LICENSE.md` instead of `LICENSE`, or a missing `CHANGELOG.md`, is enough to abort a publish.
+*   **The pinned SDK release has to exist.** `packages/*/hook/build.dart` download `libssruntime` / `libssconverter` from `_sdkVersion`'s release for every consumer without a Rust toolchain, which is all of them; the two hooks must also name the *same* release. `sdk=check` is what fails while the SDK has not been tagged, and that failure is correct — there is nothing to publish against.
+*   **The web Brain is git-ignored build output that has to ship**, and getting it published takes two things that are easy to break separately. `assets/runtime-web/{ssruntime.js,ssruntime_bg.wasm,ssruntime_bg.nosimd.wasm}` are what `ssruntime_dart`'s `web_runtime.dart` loads by name, and pub publishes nothing git ignores — hence `assets/runtime-web/.pubignore`, which pub reads *instead of* the `.gitignore` in that directory (the lone `!ssruntime.js` is for the repo-root `*.js` rule, which a `.pubignore` there does not replace). But pub can only pack what is on disk, and dart-lang's reusable publish workflow takes `environment` and `working-directory` and nothing else — **there is no step between its checkout and its `dart pub publish`**. So `publish.yml`'s **`ssplayer_flutter` job is hand-rolled**: that workflow's steps, verbatim, with `scripts/download-web-runtime.sh` inserted before the dry run. The other five stay on the reusable workflow. `build-release sdk=download` runs the same script, so the archive it checks is the one that job uploads — and if the fetch step ever disappears from `publish.yml`, `verify` says so rather than letting a complete-looking archive hide an empty `assets/runtime-web/` on pub.dev.
 
 ## Verification
 

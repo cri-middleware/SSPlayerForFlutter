@@ -26,8 +26,10 @@ dependencies:
   flame: ^1.37.0
   # The player being adapted: L3 SpriteStudioPlayer (external-clock mode, driven
   # by the Flame loop) + L2 paint. Brings the Rust Brain via native assets.
-  ssplayer_flutter:
-    path: ../ssplayer_flutter
+  # Hosted, not a path: pub refuses to publish a package with a path dependency,
+  # and the repo-root pub workspace resolves it to the local member anyway during
+  # dev (prerelease-inclusive caret, so 7.0.0-beta.1 satisfies it).
+  ssplayer_flutter: ^7.0.0-beta.1
 
 dev_dependencies:
   flutter_test:

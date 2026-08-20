@@ -47,6 +47,11 @@ dependencies:
   # resolve for consumers too — same reason ssruntime_dart lists hooks/code_assets
   # under dependencies. Pinned tight because flutter_gpu is an early-preview API.
   flutter_gpu_shaders: ^0.5.1
+  # hook/build.dart's own `package:hooks/hooks.dart` import. Declared here rather
+  # than left to arrive transitively through flutter_gpu_shaders: pub validates
+  # that every import in a build hook resolves from `dependencies`, and refuses
+  # to publish otherwise.
+  hooks: ^2.0.2
 
 dev_dependencies:
   flutter_test:

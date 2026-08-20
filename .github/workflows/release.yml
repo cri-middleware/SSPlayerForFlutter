@@ -18,7 +18,62 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Everything that has to be true BEFORE a version is burnt.
+  #
+  # The order downstream is unforgiving: the version job below writes the
+  # CHANGELOGs, commits them and pushes the tags, and only then does publish.yml
+  # run `dart pub publish`. A package pub rejects at that point has already cost
+  # a version number, and a version on pub.dev is permanent -- so the rejection
+  # has to happen here instead.
+  #
+  # scripts/build-release.sh is that check, and it is the same script a
+  # contributor runs in a working tree, so CI and a local run cannot drift. Every
+  # option is spelled out rather than left to the script's defaults: the defaults
+  # are chosen for a working tree, and a release should not change because one of
+  # them did.
+  #
+  #   checks=analyze  the test suites need the Brain, which the build hooks
+  #                   download from the pinned SDK release -- the same download
+  #                   sdk=check is already asking about, one line down.
+  #   codegen=skip    regenerating needs flatc and the C headers build-runtime.sh
+  #                   copies out of the SDK submodule, neither of which is on
+  #                   this runner. That one stays a local gate; the script says
+  #                   so when it self-skips.
+  #   sdk=download    fetches the web Brain into assets/runtime-web the same way
+  #                   publish.yml's ssplayer_flutter job does, so the archive this
+  #                   checks is the one that job would upload -- and checks that
+  #                   the release packages/*/hook/build.dart pin carries the host
+  #                   libraries too, or every consumer's `flutter pub get` 404s.
+  #                   This is the step that fails while the SDK has not been
+  #                   tagged yet, and that is the correct failure: there is
+  #                   nothing to publish against.
+  preflight:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # The same pin release.yml versions with and pages.yml builds the demos
+      # with: a release should be checked by the toolchain that ships it.
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          flutter-version: 3.44.6
+          channel: stable
+
+      - name: Build & check the release
+        run: ./scripts/build-release.sh out=release-dist packages=all checks=analyze codegen=skip sdk=download verify=yes clean=yes
+
+      # Kept whether the step above passed or not: on a failure the per-package
+      # dry-run reports are the whole diagnosis, and they are only in here.
+      - name: Upload the release build
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: release-dist
+          path: release-dist
+          if-no-files-found: warn
+
   version:
+    needs: preflight
     runs-on: ubuntu-latest
     permissions:
       contents: write

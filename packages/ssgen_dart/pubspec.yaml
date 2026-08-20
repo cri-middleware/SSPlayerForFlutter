@@ -19,9 +19,11 @@ environment:
   sdk: ">=3.10.0 <4.0.0"
 
 dependencies:
-  # The single-shot .sspj -> .ssab converter this orchestrates.
-  ssconverter_dart:
-    path: ../ssconverter_dart
+  # The single-shot .sspj -> .ssab converter this orchestrates. Hosted, not a
+  # path: pub refuses to publish a package with a path dependency, and the
+  # repo-root pub workspace resolves this to the local member anyway during dev
+  # (prerelease-inclusive caret, so 7.0.0-beta.1 satisfies it).
+  ssconverter_dart: ^7.0.0-beta.1
   # Parses the optional <projectRoot>/spritestudio.yaml override.
   yaml: ^3.1.2
 
