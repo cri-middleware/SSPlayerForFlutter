@@ -93,8 +93,8 @@ echo "Building for $PLATFORM ($ARCH) in $BUILD_MODE mode (host build: $IS_HOST_B
 CARGO_FLAGS=""; [ "$BUILD_MODE" = "release" ] && CARGO_FLAGS="--release"
 
 # The runtime is no_std: a host cdylib needs an allocator + panic handler.
-build_ss()        { ( cd "$SDK_DIR" && cargo build $CARGO_FLAGS "$@" -p ssruntime --features libc_alloc,panic-handler ); }
-build_converter() { ( cd "$SDK_DIR" && cargo build $CARGO_FLAGS "$@" -p ssconverter ); }
+build_ss()        { ( cd "$SDK_DIR" && cargo build $CARGO_FLAGS "$@" -p ssruntime-ffi --features libc_alloc,panic-handler ); }
+build_converter() { ( cd "$SDK_DIR" && cargo build $CARGO_FLAGS "$@" -p ssconverter-ffi ); }
 place() { mkdir -p "$LIBS_DIR/$1"; cp "$2" "$LIBS_DIR/$1/${3:-$(basename "$2")}"; echo "   -> native/libs/$1/${3:-$(basename "$2")}"; }
 # Same, but into the ssconverter_dart package (the host converter's home).
 place_conv() { mkdir -p "$CONV_LIBS_DIR/$1"; cp "$2" "$CONV_LIBS_DIR/$1/${3:-$(basename "$2")}"; echo "   -> ssconverter_dart native/libs/$1/${3:-$(basename "$2")}"; }
