@@ -74,17 +74,10 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 # exercises rather than the directory it lives in.
 DEMO_APPS="examples/overall:flutter examples/flame:flame"
 
-# Where the web runtime lands, and where sdk=download takes it from. The zip is
-# what SpriteStudio-SDK's release.yml attaches: runtime-web/, runtime-web-nosimd/
-# and converter-web/ in one archive.
+# Where the web runtime lands. Which release it comes from, and how, belongs to
+# scripts/download-web-runtime.sh -- this only needs to know where to look for
+# the result.
 RUNTIME_WEB_DIR="packages/ssplayer_flutter/assets/runtime-web"
-SDK_RELEASE_BASE="https://github.com/cri-middleware/SpriteStudio-SDK/releases/download"
-SDK_WEB_ZIP="spritestudio-sdk-web-libs.zip"
-# The SDK release everything here is pinned to. Read rather than repeated: the
-# native-asset hooks download the host libraries from this same tag, and a demo
-# whose wasm and dylib came from different releases is the kind of mismatch
-# nobody notices until a draw call misbehaves.
-SDK_VERSION_SOURCE="packages/ssruntime_dart/hook/build.dart"
 
 # zip=yes writes this, for a host that takes an upload rather than a git push --
 # Cloudflare Pages' drag-and-drop, today. Git-ignored; rebuilt, never edited.
@@ -272,12 +265,6 @@ cd "$ROOT_DIR"
 SITE_DIR="$ROOT_DIR/site"
 DEMO_DIR="$SITE_DIR/demo"
 
-TMP_DIR=""
-cleanup () {
-  if [ -n "$TMP_DIR" ]; then rm -rf "$TMP_DIR"; fi
-}
-trap cleanup EXIT
-
 step () {
   echo ""
   echo ">> $*"
@@ -317,86 +304,14 @@ else
 fi
 
 # --- demo -----------------------------------------------------------------
-# The tag the native-asset hooks are pinned to, e.g. v7.0.0-beta.1.
-sdk_version () {
-  sed -n "s/^const _sdkVersion = '\(.*\)';.*$/\1/p" "$ROOT_DIR/$SDK_VERSION_SOURCE" | head -1
-}
-
-# Reached from pages.yml as well as from a working tree, so it says what is wrong
-# rather than assuming the reader can just build the runtime instead -- on the
-# Pages runner there is no Rust toolchain to build it with.
-sdk_download_failed () { # <version> <what>
-  echo "" >&2
-  echo "$APP: could not download $2 from SpriteStudio-SDK $1." >&2
-  echo "$APP: that release is the one packages/*/hook/build.dart pin, and its" >&2
-  echo "$APP: assets are attached by the SDK's own release.yml -- check the release" >&2
-  echo "$APP: exists and carries $SDK_WEB_ZIP." >&2
-  echo "$APP: In a working tree with cargo + wasm-pack, '$APP sdk=build' compiles the" >&2
-  echo "$APP: Brain from the submodule instead." >&2
-  exit 1
-}
-
-# The web half of sdk=download: the wasm-bindgen packages the SDK release ships,
-# laid out the way build-runtime.sh platform=web lays them out -- one JS glue
-# (the SIMD build's; the two are interface-identical) plus both binaries, which
-# is what loadSsRuntime()'s runtime SIMD probe expects to find.
-download_web_runtime () {
-  local version dest url
-  version="$(sdk_version)"
-  [ -n "$version" ] || {
-    echo "$APP: no _sdkVersion found in $SDK_VERSION_SOURCE" >&2
-    exit 1
-  }
-
-  command -v curl > /dev/null 2>&1 || { echo "$APP: curl not on PATH" >&2; exit 1; }
-  command -v unzip > /dev/null 2>&1 || { echo "$APP: unzip not on PATH" >&2; exit 1; }
-
-  TMP_DIR="$(mktemp -d)"
-  url="$SDK_RELEASE_BASE/$version/$SDK_WEB_ZIP"
-  echo ""
-  echo ">> downloading $SDK_WEB_ZIP ($version)"
-  curl -fsSL -o "$TMP_DIR/$SDK_WEB_ZIP" "$url" || sdk_download_failed "$version" "$SDK_WEB_ZIP"
-
-  # The same integrity check hook/build.dart runs on the dynamic-libs archive.
-  # A release without SHA256SUMS is reported rather than treated as verified.
-  local sha_tool=""
-  if command -v shasum > /dev/null 2>&1; then sha_tool="shasum -a 256"
-  elif command -v sha256sum > /dev/null 2>&1; then sha_tool="sha256sum"
-  fi
-  if [ -n "$sha_tool" ] && curl -fsSL -o "$TMP_DIR/SHA256SUMS" "$SDK_RELEASE_BASE/$version/SHA256SUMS" 2>/dev/null; then
-    local want got
-    want="$(awk -v f="$SDK_WEB_ZIP" '$2 ~ f {print $1}' "$TMP_DIR/SHA256SUMS" | head -1)"
-    got="$($sha_tool "$TMP_DIR/$SDK_WEB_ZIP" | awk '{print $1}')"
-    if [ -z "$want" ]; then
-      echo "$APP: SHA256SUMS carries no line for $SDK_WEB_ZIP -- not verified" >&2
-    elif [ "$want" != "$got" ]; then
-      echo "$APP: $SDK_WEB_ZIP does not match SHA256SUMS ($got != $want)" >&2
-      exit 1
-    else
-      echo "   sha256 ok"
-    fi
-  else
-    echo "$APP: no SHA256SUMS for $version -- the archive was not verified" >&2
-  fi
-
-  unzip -q -o "$TMP_DIR/$SDK_WEB_ZIP" -d "$TMP_DIR/unpacked"
-  for f in runtime-web/ssruntime.js runtime-web/ssruntime_bg.wasm runtime-web-nosimd/ssruntime_bg.wasm; do
-    [ -f "$TMP_DIR/unpacked/$f" ] || {
-      echo "$APP: $SDK_WEB_ZIP has no $f -- the release layout may have changed" >&2
-      exit 1
-    }
-  done
-
-  dest="$ROOT_DIR/$RUNTIME_WEB_DIR"
-  mkdir -p "$dest"
-  cp "$TMP_DIR/unpacked/runtime-web/ssruntime.js" "$dest/ssruntime.js"
-  cp "$TMP_DIR/unpacked/runtime-web/ssruntime_bg.wasm" "$dest/ssruntime_bg.wasm"
-  cp "$TMP_DIR/unpacked/runtime-web-nosimd/ssruntime_bg.wasm" "$dest/ssruntime_bg.nosimd.wasm"
-  echo "   -> $RUNTIME_WEB_DIR/ (ssruntime.js + ssruntime_bg.wasm + ssruntime_bg.nosimd.wasm)"
-
-  rm -rf "$TMP_DIR"
-  TMP_DIR=""
-}
+# The web Brain now comes from scripts/download-web-runtime.sh, which owns the
+# whole of it: the tag packages/ssruntime_dart/hook/build.dart pins, the
+# download, the SHA256SUMS check, and the flattening of the release's two
+# wasm-bindgen packages into the one-directory layout the loader's SIMD probe
+# expects. It is a script rather than a function here because build-release.sh
+# and publish.yml need exactly the same thing, for the same reason: that
+# directory is git-ignored build output, so whatever packs or serves it has to
+# put a runtime there first.
 
 build_demo () {
   case "$SDK" in
@@ -404,7 +319,7 @@ build_demo () {
       # Only the web half is fetched here. The host libraries deploy-examples.sh
       # needs are downloaded by each package's own build hook, from this same
       # release -- so a failure there reads as the hook's message, not this one.
-      download_web_runtime
+      ./scripts/download-web-runtime.sh
       ;;
     build)
       # Two builds, because the demo needs two different things: the host libs

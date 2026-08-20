@@ -49,13 +49,63 @@ jobs:
     with:
       working-directory: packages/ssgen_flutter
 
+  # The one package that does NOT go through the reusable workflow, and the
+  # reason is assets/runtime-web/: the web Brain (the SDK's wasm-bindgen build of
+  # libssruntime) is git-ignored build output that nevertheless has to be IN the
+  # published archive -- assets/runtime-web/.pubignore is what re-includes it for
+  # pub, but pub can only pack what is on disk. The reusable workflow takes
+  # `environment` and `working-directory` and nothing else: there is no step
+  # between its checkout and its `dart pub publish`. Publishing through it would
+  # upload a package whose web loader (ssruntime_dart's web_runtime.dart) points
+  # at three files that are not there -- and nothing would fail. The app builds;
+  # the animation simply never starts.
+  #
+  # So this job is that workflow, step for step, with the download inserted. Keep
+  # the two in sync when dart-lang change theirs.
   ssplayer_flutter:
     if: startsWith(github.ref_name, 'ssplayer_flutter-v')
+    runs-on: ubuntu-latest
     permissions:
-      id-token: write
-    uses: dart-lang/setup-dart/.github/workflows/publish.yml@7654d458321ee25acccccfdb86cd48bd95768ff1 # v1.8.0
-    with:
-      working-directory: packages/ssplayer_flutter
+      id-token: write # OIDC: mint a short-lived pub.dev credential (no stored secret)
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # This is the step that provisions the OIDC credential pub.dev publishes
+      # on. Its `dart` is then shadowed by the Flutter SDK's below, which is
+      # fine and is what the reusable workflow does too -- the credential is in
+      # the shared pub config, not in the binary.
+      - uses: dart-lang/setup-dart@7654d458321ee25acccccfdb86cd48bd95768ff1 # v1.8.0
+
+      # The reusable workflow installs an unpinned Flutter; this repository pins
+      # one, and the package should be published by the toolchain release.yml
+      # versioned it with and pages.yml built the demos with.
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          flutter-version: 3.44.6
+          channel: stable
+
+      # The workspace, not just this package: `resolution: workspace` means the
+      # root pubspec is what resolves.
+      - name: Install dependencies
+        run: flutter pub get
+
+      # The step the reusable workflow has no room for. Fetches the SDK release
+      # that packages/ssruntime_dart/hook/build.dart pins -- the same one the
+      # host libraries come from -- into packages/ssplayer_flutter/assets/runtime-web.
+      # Also the same script scripts/build-pages.sh and scripts/build-release.sh
+      # call, so what ships here is what a local build produced.
+      - name: Fetch the web Brain
+        run: ./scripts/download-web-runtime.sh
+
+      # Same pair as the reusable workflow: validate, then upload. The dry run is
+      # what turns a bad package into a failed job rather than a burnt version.
+      - name: Publish - dry run
+        run: dart pub publish --dry-run
+        working-directory: packages/ssplayer_flutter
+
+      - name: Publish to pub.dev
+        run: dart pub publish -f
+        working-directory: packages/ssplayer_flutter
 
   ssplayer_flame:
     if: startsWith(github.ref_name, 'ssplayer_flame-v')

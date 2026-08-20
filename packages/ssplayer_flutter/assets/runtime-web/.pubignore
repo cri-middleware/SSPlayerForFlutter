@@ -1,0 +1,19 @@
+# Read by `dart pub publish` INSTEAD of the .gitignore in this directory, and
+# that substitution is the whole reason the file exists.
+#
+# Everything here is build output the repository deliberately does not track
+# (scripts/build-runtime.sh platform=web writes it), and pub publishes nothing
+# git ignores -- so without this file the published ssplayer_flutter carries an
+# EMPTY assets/runtime-web/, and every web consumer's loader (ssruntime_dart's
+# web_runtime.dart, which asks for these three files by name) finds nothing.
+# Nothing fails at build time; the animation simply never starts.
+#
+# Having no rules is most of the point: replacing this directory's .gitignore is
+# what re-includes the two .wasm. The one negation below is for the
+# repository-root .gitignore's `*.js`, which a .pubignore HERE does not replace
+# and which would otherwise still hide the wasm-bindgen glue.
+#
+# The flip side is that pub packs what is on DISK: the web runtime has to be
+# built before publishing. scripts/build-release.sh fails the release when the
+# archive comes out without it.
+!ssruntime.js
