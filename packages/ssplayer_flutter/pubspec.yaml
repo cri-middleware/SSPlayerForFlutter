@@ -19,38 +19,13 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  # dart:ffi helpers (Utf8, malloc/calloc, NativeFinalizer helpers).
-  ffi: ^2.1.0
-  # Matrix4 for the part-follow read API (SpriteStudioPartAnchor / part
-  # transforms). Flutter already resolves it transitively; declared so L2/L3 —
-  # which are Widget-free and cannot reach it via flutter/widgets — may import it.
-  vector_math: ^2.1.4
-  # Dart FlatBuffers runtime used by the flatc-generated lib/src/ssab/*.g.dart.
-  # Match the flatc used by scripts/generate-fbs-code.sh.
+  ffi: ^2.2.0
+  vector_math: ^2.2.0
   flat_buffers: ^25.9.23
-  # Layer 1: libssruntime dart:ffi `@Native` bindings via native assets (pure
-  # Dart). Provides the runtime code asset (hook/build.dart) + FrameData FlatBuffers.
-  # Hosted for publish; the repo-root pub workspace resolves it to the local
-  # member during dev (prerelease-inclusive caret so 7.0.0-beta.1 satisfies it).
-  # Publish ssruntime_dart to pub.dev before publishing this package.
   ssruntime_dart: ^7.0.0-beta.1
-  # Optional flutter_gpu render backend (mobile/desktop; NOT web). SDK-bundled
-  # low-level GPU API over Impeller. Imported ONLY behind a conditional import
-  # (render/backend/) so web / non-Impeller builds tree-shake it out — it pulls
-  # dart:ffi, which does not exist on web. Runtime selection falls back to the
-  # Canvas backend when Impeller is unavailable (see backend capability probe).
   flutter_gpu:
     sdk: flutter
-  # Build-time: hook/build.dart compiles the flutter_gpu vertex/fragment shaders
-  # into a .shaderbundle via impellerc (buildShaderBundleJson). A REGULAR dep
-  # (not dev): the build hook runs at *consumer* build time, so its imports must
-  # resolve for consumers too — same reason ssruntime_dart lists hooks/code_assets
-  # under dependencies. Pinned tight because flutter_gpu is an early-preview API.
-  flutter_gpu_shaders: ^0.5.1
-  # hook/build.dart's own `package:hooks/hooks.dart` import. Declared here rather
-  # than left to arrive transitively through flutter_gpu_shaders: pub validates
-  # that every import in a build hook resolves from `dependencies`, and refuses
-  # to publish otherwise.
+  flutter_gpu_shaders: ^0.5.2
   hooks: ^2.0.2
 
 dev_dependencies:

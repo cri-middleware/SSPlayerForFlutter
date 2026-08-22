@@ -13,11 +13,9 @@ environment:
   flutter: ">=3.38.0"
 
 dependencies:
-  flame: ^1.37.0
+  flame: ^1.38.0
   flutter:
     sdk: flutter
-  # The Flame adapter under test. Re-exports the whole ssplayer_flutter API, so
-  # SpriteStudioPlayer / SpriteStudioComponent both come from this one import.
   ssplayer_flame:
     path: ../../packages/ssplayer_flame
 
