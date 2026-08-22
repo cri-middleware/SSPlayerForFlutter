@@ -20,15 +20,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  # The 2D game engine this adapter targets. Kept OUT of ssplayer_flutter so the
-  # core Widget/headless player never pays for Flame — an app opts in by adding
-  # this package. Pinned to the resolved latest (matches the repo's dep policy).
-  flame: ^1.37.0
-  # The player being adapted: L3 SpriteStudioPlayer (external-clock mode, driven
-  # by the Flame loop) + L2 paint. Brings the Rust Brain via native assets.
-  # Hosted, not a path: pub refuses to publish a package with a path dependency,
-  # and the repo-root pub workspace resolves it to the local member anyway during
-  # dev (prerelease-inclusive caret, so 7.0.0-beta.1 satisfies it).
+  flame: ^1.38.0
   ssplayer_flutter: ^7.0.0-beta.1
 
 dev_dependencies:

@@ -22,19 +22,14 @@ environment:
   sdk: ">=3.10.0 <4.0.0"
 
 dependencies:
-  # dart:ffi helpers (Utf8, malloc/calloc).
-  ffi: ^2.1.0
-  # CLI arg parsing for bin/ssconvert.dart.
-  args: ^2.4.0
+  ffi: ^2.2.0
+  args: ^2.7.0
   hooks: ^2.0.2
   code_assets: ^1.2.1
-  archive: ^4.0.9
+  archive: ^4.1.0
   crypto: ^3.0.7
 
 dev_dependencies:
-  test: ^1.24.0
+  test: ^1.31.0
   lints: ^6.1.0
-  # Regenerates lib/src/ssconverter_bindings.g.dart (committed) from
-  # native/include/ssconverter.h. Run via scripts/generate-ffigen-code.sh
-  # (standalone; after a C-API change, then commit).
   ffigen: ^21.0.0

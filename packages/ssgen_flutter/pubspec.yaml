@@ -21,21 +21,10 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  # The player whose resource this hot-swaps (SpriteStudioPlayer.reload).
-  # Hosted, not a path: pub refuses to publish a package with a path dependency,
-  # and the repo-root pub workspace resolves both of these to the local members
-  # anyway during dev (prerelease-inclusive caret, so 7.0.0-beta.1 satisfies it).
   ssplayer_flutter: ^7.0.0-beta.1
-  # The host reconvert-stale orchestration (SsProjectSync). Desktop only; on
-  # iOS/Android its ssconverter_dart dependency is mobile-inert (no code asset).
   ssgen_dart: ^7.0.0-beta.1
-  # Filesystem watcher for the `sswatch` runner (watch SpriteStudio_Source →
-  # reconvert + push). Host dev-tool only.
-  watcher: ^1.1.0
-  # VM Service client for the `sswatch` runner: connect to a running app's Dart
-  # VM Service and call its `ext.ssgen.reload` extension to push a fresh pack —
-  # no `flutter run` ownership, so it coexists with an IDE debug session.
-  vm_service: ^15.2.0
+  watcher: ^1.2.1
+  vm_service: ^15.3.0
 
 dev_dependencies:
   flutter_test:
