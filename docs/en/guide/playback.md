@@ -145,6 +145,10 @@ Prefer the decoded `onUserData` / `onSignal` / `onAudio` callbacks — `onEvents
 the current animation's event table and leaves the decoding to you. The decode is skipped entirely
 when none of the three decoded callbacks is set, so registering only `onEvents` costs nothing extra.
 
+All three decoded events carry `partIndex`, `partName` and `frameNo`. `frameNo` is the frame the key is
+**authored** on, which is not necessarily the frame it was noticed on — one `advance` can step across
+several frames and fires every key in between, so `frameNo` is not the player's current frame.
+
 ### Example: react to a user-data marker
 
 ```dart

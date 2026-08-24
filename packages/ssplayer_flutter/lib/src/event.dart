@@ -20,6 +20,8 @@ import 'package:flutter/foundation.dart';
 class SsUserData {
   const SsUserData({
     required this.partIndex,
+    this.partName,
+    this.frameNo = 0,
     this.integer,
     this.rect,
     this.point,
@@ -28,6 +30,14 @@ class SsUserData {
 
   /// Index of the part carrying the marker (into the pack's `parts`).
   final int partIndex;
+
+  /// Name of that part, or null when the pack has no name for it.
+  final String? partName;
+
+  /// The frame the key is **authored** on — not necessarily the frame it was
+  /// noticed on, since one [SpriteStudioPlayer.advance] can step across several
+  /// and fires every key in between.
+  final int frameNo;
 
   /// The integer payload, or null if none was authored.
   final int? integer;
@@ -53,12 +63,22 @@ class SsUserData {
 class SsSignal {
   const SsSignal({
     required this.partIndex,
+    this.partName,
+    this.frameNo = 0,
     required this.commandId,
     required this.params,
   });
 
   /// Index of the part carrying the signal.
   final int partIndex;
+
+  /// Name of that part, or null when the pack has no name for it.
+  final String? partName;
+
+  /// The frame the key is **authored** on — not necessarily the frame it was
+  /// noticed on, since one [SpriteStudioPlayer.advance] can step across several
+  /// and fires every key in between.
+  final int frameNo;
 
   /// The command identifier (empty string if the pack omitted it).
   final String commandId;
@@ -95,6 +115,8 @@ class SsSignalParam {
 class SsAudioEvent {
   const SsAudioEvent({
     required this.partIndex,
+    this.partName,
+    this.frameNo = 0,
     required this.soundName,
     required this.soundNameHash,
     required this.soundListNameHash,
@@ -103,6 +125,14 @@ class SsAudioEvent {
 
   /// Index of the part carrying the audio trigger.
   final int partIndex;
+
+  /// Name of that part, or null when the pack has no name for it.
+  final String? partName;
+
+  /// The frame the key is **authored** on — not necessarily the frame it was
+  /// noticed on, since one [SpriteStudioPlayer.advance] can step across several
+  /// and fires every key in between.
+  final int frameNo;
 
   /// The sound's name, or null if the pack referenced it only by hash.
   final String? soundName;

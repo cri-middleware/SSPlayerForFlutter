@@ -733,7 +733,8 @@ class SpriteStudioPlayer extends ChangeNotifier {
     final info = _animeInfo;
     if (anim == null || info == null) return;
 
-    final decoded = info.decodePassedEvents(anim, passed);
+    final decoded =
+        info.decodePassedEvents(anim, passed, partNames: partNames);
     if (onUserData != null) {
       for (final u in decoded.userData) {
         onUserData!(u);
