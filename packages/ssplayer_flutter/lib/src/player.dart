@@ -69,8 +69,6 @@ class SpriteStudioPlayer extends ChangeNotifier {
   String? _currentAnimation;
   int? _loop;
   double? _speed;
-  SsPlaybackDirection? _direction;
-  SsPlaybackStyle? _style;
   bool? _skipFrames;
 
   /// Sub-frame interpolation (default ON): smooth playback beyond the source
@@ -319,8 +317,8 @@ class SpriteStudioPlayer extends ChangeNotifier {
     if (animationName != null) {
       internal.setupAnimation(animationName);
     }
-    // Re-apply cached loop/speed AFTER setupAnimation: the Brain resets them to
-    // the pack default there, so setting them any earlier would be clobbered.
+    // Push the cached settings AFTER setupAnimation: the loop count is reset
+    // there, so setting it any earlier would be clobbered.
     _applyTransportSettings(internal);
     notifyListeners();
 
@@ -445,9 +443,9 @@ class SpriteStudioPlayer extends ChangeNotifier {
     final ok = internal.setupAnimation(name);
     if (ok) {
       _currentAnimation = name;
-      // The Brain reset loop/speed to the pack default; restore the cached values
-      // so a mid-session animation switch (or [reload]) keeps the caller's loop
-      // count and speed instead of silently reverting to infinite looping.
+      // The Brain reset the loop count; restore the cached settings so a
+      // mid-session animation switch (or [reload]) keeps the caller's loop count
+      // instead of silently reverting to infinite looping.
       _applyTransportSettings(internal);
     }
     notifyListeners();
@@ -532,28 +530,27 @@ class SpriteStudioPlayer extends ChangeNotifier {
 
   /// Which way the playhead walks, and what it does at the far end. Both reset
   /// to [SsPlaybackDirection.forward] / [SsPlaybackStyle.normal] when an
-  /// animation is set up, but — unlike [frameRate] and [setAnimationSection] —
-  /// the player re-applies whatever you last chose, because "play this
-  /// backwards" is a decision about the playback, not about the animation.
+  /// animation is set up, and are **not** re-applied — call this again after
+  /// [setupAnimation] if the new animation should also run backwards. The other
+  /// Players behave the same way; carrying it across was this one's own
+  /// extension, and one caller's "play backwards" surviving into an unrelated
+  /// animation is the surprise it bought.
   ///
   /// With [SsPlaybackStyle.pingPong] one loop is a full round trip, so a
   /// [loop] of 1 plays there and back once.
   SsPlaybackDirection get playbackDirection =>
-      _internal?.playbackDirection ??
-      _direction ??
-      SsPlaybackDirection.forward;
+      _internal?.playbackDirection ?? SsPlaybackDirection.forward;
 
   /// See [playbackDirection].
   SsPlaybackStyle get playbackStyle =>
-      _internal?.playbackStyle ?? _style ?? SsPlaybackStyle.normal;
+      _internal?.playbackStyle ?? SsPlaybackStyle.normal;
 
   /// See [playbackDirection]. Both are set together because the Brain takes
   /// them as one call — pass the current value for whichever you are not
-  /// changing.
+  /// changing. Nothing is cached: this reaches the animation that is set up
+  /// now, and the next [setupAnimation] resets it.
   void setPlaybackDirection(
       SsPlaybackDirection direction, SsPlaybackStyle style) {
-    _direction = direction;
-    _style = style;
     _internal?.setPlaybackDirection(direction, style);
   }
 
@@ -587,13 +584,13 @@ class SpriteStudioPlayer extends ChangeNotifier {
   /// pack unless overridden. 0 before [load].
   int get frameRate => _internal?.fps ?? 0;
 
-  /// Overrides the advance rate for the *current* animation.
+  /// Overrides the advance rate, in absolute frames per second.
   ///
-  /// Unlike [loop] and [speed] this is deliberately **not** cached across a
-  /// [setupAnimation]: the Brain re-reads the pack's authored fps there, and
-  /// re-applying a host override on top of it would silently outrank what the
-  /// animation was authored at. Set it again after each setup if you want it to
-  /// persist. To scale playback without touching the authored rate, use [speed].
+  /// The override is the host's rather than the clip's, so it **survives**
+  /// [setupAnimation] the way [speed] and [skipFrames] do (SDK #370). Hand it
+  /// `0` (or any negative value) to clear it and go back to whatever each
+  /// animation was authored at. To scale playback without replacing the
+  /// authored rate, use [speed] instead.
   set frameRate(int fps) {
     _internal?.frameRate = fps;
   }
@@ -602,19 +599,20 @@ class SpriteStudioPlayer extends ChangeNotifier {
   // direction, style, skip-frames and the section) to the new animation's
   // defaults, so anything the host chose has to be re-applied afterwards.
   //
-  // Only *host policy* is re-applied — settings that mean the same thing
-  // whichever animation is playing. The two that describe the animation itself
-  // are deliberately left to reset: `frameRate` is authored in the pack, and a
+  // The caller's own settings, pushed at a point where they are guaranteed to
+  // reach a freshly set-up player. `loop` is the one that has to be here: the
+  // Brain resets it on every transition. `speed` and `skipFrames` survive setup
+  // on their own since SDK #369/#370, so these two only matter for the first
+  // setup after a value was set.
+  //
+  // What is left to reset, deliberately: `frameRate` is authored in the pack; a
   // section is a range of frame numbers that means nothing in a different
-  // animation. Re-applying either would silently outrank the new animation.
+  // animation; and the playback direction and style reset with the rest of the
+  // per-transition state, which is what every other Player does too.
   void _applyTransportSettings(SpriteStudioInternalPlayer internal) {
     if (_loop != null) internal.loop = _loop!;
     if (_speed != null) internal.speed = _speed!;
     if (_skipFrames != null) internal.skipFrames = _skipFrames!;
-    if (_direction != null || _style != null) {
-      internal.setPlaybackDirection(_direction ?? SsPlaybackDirection.forward,
-          _style ?? SsPlaybackStyle.normal);
-    }
   }
 
   double get frameNo => _internal?.frameNo ?? 0;
