@@ -465,12 +465,12 @@ class SpriteStudioPlayer extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Pauses playback in place (idempotent). The Brain's `pause` merely *toggles*
-  /// its hold flag, so we gate on [isPaused] to avoid accidentally resuming.
+  /// Pauses playback in place. The Brain's `pause` is one-way and idempotent,
+  /// and ignores a request made while nothing is playing, so no gate is needed.
   void pause() {
     final internal = _internal;
     if (internal == null) return;
-    if (!internal.isPausing) internal.pause();
+    internal.pause();
     if (_ticker?.isActive ?? false) _ticker!.stop();
     notifyListeners();
   }
@@ -484,7 +484,7 @@ class SpriteStudioPlayer extends ChangeNotifier {
       play();
       return;
     }
-    if (internal.isPausing) internal.pause(); // toggle the hold off
+    internal.resume();
     _prevFinished = false;
     _startTicker();
     notifyListeners();

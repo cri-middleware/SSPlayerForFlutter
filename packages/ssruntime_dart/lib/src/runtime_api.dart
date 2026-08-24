@@ -78,7 +78,13 @@ abstract interface class SsRuntime {
   int hashString(String name);
 
   void play(SsContext context);
+
+  /// Holds playback in place. Idempotent, and ignored while nothing is playing.
   void pause(SsContext context);
+
+  /// Lifts a [pause], carrying on from the same frame. Idempotent, and a no-op
+  /// on a stopped animation — `play` heads out, so it cannot serve as a resume.
+  void resume(SsContext context);
   void stop(SsContext context);
 
   bool isPlaying(SsContext context);

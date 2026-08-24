@@ -143,6 +143,7 @@ extension type _JsCtx(JSObject _) implements JSObject {
   external void setup_animation(String name); // Result → throws on error
   external void play();
   external void pause();
+  external void resume();
   external void stop();
   external bool is_playing();
   external bool is_pausing();
@@ -361,6 +362,9 @@ class _WebRuntime implements SsRuntime {
 
   @override
   void pause(SsContext context) => _ctx(context).pause();
+
+  @override
+  void resume(SsContext context) => _ctx(context).resume();
 
   @override
   void stop(SsContext context) => _ctx(context).stop();

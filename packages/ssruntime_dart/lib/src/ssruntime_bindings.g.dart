@@ -906,6 +906,12 @@ external bool ss_runtime_load_ssab_copy(
 @ffi.Native<ffi.Void Function(ffi.Pointer<ffi.Void>)>()
 external void ss_runtime_next_frame(ffi.Pointer<ffi.Void> context);
 
+/// Holds playback where it stands, keeping the current frame.
+///
+/// Idempotent: pausing an already-paused animation leaves it paused.
+/// `ss_runtime_is_playing` stays true while held — a pause is a hold, not a
+/// stop — so tell the two apart with `ss_runtime_is_pausing`. Lift the hold
+/// with [`ss_runtime_resume`]; `ss_runtime_play` rewinds and cannot resume.
 @ffi.Native<ffi.Void Function(ffi.Pointer<ffi.Void>)>()
 external void ss_runtime_pause(ffi.Pointer<ffi.Void> context);
 
@@ -923,6 +929,13 @@ external void ss_runtime_prev_frame(ffi.Pointer<ffi.Void> context);
 
 @ffi.Native<ffi.Void Function(ffi.Pointer<ffi.Void>)>()
 external void ss_runtime_reset(ffi.Pointer<ffi.Void> context);
+
+/// Lifts a [`ss_runtime_pause`], carrying on from the frame it stopped at.
+///
+/// Idempotent, and a no-op on an animation that was never paused. It does not
+/// start a stopped animation; use `ss_runtime_play` for that.
+@ffi.Native<ffi.Void Function(ffi.Pointer<ffi.Void>)>()
+external void ss_runtime_resume(ffi.Pointer<ffi.Void> context);
 
 @ffi.Native<ffi.Void Function(ffi.Pointer<ffi.Void>, ffi.Int, ffi.Int)>()
 external void ss_runtime_set_animation_section(

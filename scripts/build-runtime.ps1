@@ -320,9 +320,14 @@ switch ($PLATFORM) {
 $RtIncludeDir = Join-Path $RtPkgDir "native/include"
 $ConvIncludeDir = Join-Path $ConvPkgDir "native/include"
 New-Item -ItemType Directory -Force -Path $RtIncludeDir, $ConvIncludeDir | Out-Null
-$rh = Join-Path $SdkDir "libs/ssruntime/target/ssruntime.h"
+# The generating build scripts live in the *-ffi crates and write beside
+# themselves, so these are `libs/<crate>-ffi/target/`. They moved there with the
+# SDK's "split the binary faces into *-ffi crates" refactor; the old
+# `libs/<crate>/target/` paths are written by nothing now, and because these
+# copies are guarded a stale path fails silently.
+$rh = Join-Path $SdkDir "libs/ssruntime-ffi/target/ssruntime.h"
 if (Test-Path $rh) { Copy-Item $rh (Join-Path $RtIncludeDir "ssruntime.h") -Force; Write-Host "   -> ssruntime_dart native/include/ssruntime.h" }
-$ch = Join-Path $SdkDir "libs/ssconverter/target/ssconverter.h"
+$ch = Join-Path $SdkDir "libs/ssconverter-ffi/target/ssconverter.h"
 if (Test-Path $ch) { Copy-Item $ch (Join-Path $ConvIncludeDir "ssconverter.h") -Force; Write-Host "   -> ssconverter_dart native/include/ssconverter.h" }
 
 # The ffigen bindings (lib/src/*_bindings.g.dart) are committed, not regenerated
