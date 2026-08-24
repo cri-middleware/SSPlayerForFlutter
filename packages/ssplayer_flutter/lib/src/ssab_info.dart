@@ -2,6 +2,7 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'event.dart';
+import 'render/part_override.dart' show PartNameTable;
 import 'ssab/ssab.g.dart' as ssab;
 
 /// The UserData / Signal / Audio events crossed on one `advance`, decoded from
@@ -113,7 +114,8 @@ class SsAnimeInfo {
   /// flat, per-event lists (design §6C). Unknown animations, out-of-range
   /// indices, and inactive signals are dropped. Returns empty lists when there
   /// is nothing to decode.
-  SsPassedEvents decodePassedEvents(String animationName, List<int> indices) {
+  SsPassedEvents decodePassedEvents(String animationName, List<int> indices,
+      {PartNameTable partNames = PartNameTable.empty}) {
     if (indices.isEmpty) return _emptyEvents;
     final events = _animationByName(animationName)?.events;
     if (events == null) return _emptyEvents;
@@ -127,20 +129,20 @@ class SsAnimeInfo {
       final us = frame.users;
       if (us != null) {
         for (final u in us) {
-          userData.add(_decodeUser(u));
+          userData.add(_decodeUser(u, partNames, frame.frameIndex));
         }
       }
       final sigs = frame.signals;
       if (sigs != null) {
         for (final s in sigs) {
-          final decoded = _decodeSignal(s);
+          final decoded = _decodeSignal(s, partNames, frame.frameIndex);
           if (decoded != null) signals.add(decoded);
         }
       }
       final auds = frame.audios;
       if (auds != null) {
         for (final a in auds) {
-          final decoded = _decodeAudio(a);
+          final decoded = _decodeAudio(a, partNames, frame.frameIndex);
           if (decoded != null) audios.add(decoded);
         }
       }
@@ -154,12 +156,15 @@ class SsAnimeInfo {
     audios: <SsAudioEvent>[],
   );
 
-  static SsUserData _decodeUser(ssab.EventUserData e) {
+  static SsUserData _decodeUser(
+      ssab.EventUserData e, PartNameTable partNames, int frameNo) {
     final v = e.value;
     final r = v?.rect;
     final p = v?.point;
     return SsUserData(
       partIndex: e.partIndex,
+      partName: partNames.nameAt(e.partIndex),
+      frameNo: frameNo,
       integer: v?.integer?.value,
       rect: r == null ? null : ui.Rect.fromLTRB(r.x1, r.y1, r.x2, r.y2),
       point: p == null ? null : ui.Offset(p.v1, p.v2),
@@ -167,7 +172,8 @@ class SsAnimeInfo {
     );
   }
 
-  static SsSignal? _decodeSignal(ssab.EventSignal e) {
+  static SsSignal? _decodeSignal(
+      ssab.EventSignal e, PartNameTable partNames, int frameNo) {
     final v = e.value;
     // Match the sibling players: an inactive signal is not surfaced.
     if (v == null || !v.active) return null;
@@ -182,6 +188,8 @@ class SsAnimeInfo {
     }
     return SsSignal(
       partIndex: e.partIndex,
+      partName: partNames.nameAt(e.partIndex),
+      frameNo: frameNo,
       commandId: v.commandId ?? '',
       params: params,
     );
@@ -197,11 +205,14 @@ class SsAnimeInfo {
     return null; // None / unset
   }
 
-  static SsAudioEvent? _decodeAudio(ssab.EventAudio e) {
+  static SsAudioEvent? _decodeAudio(
+      ssab.EventAudio e, PartNameTable partNames, int frameNo) {
     final v = e.value;
     if (v == null) return null;
     return SsAudioEvent(
       partIndex: e.partIndex,
+      partName: partNames.nameAt(e.partIndex),
+      frameNo: frameNo,
       soundName: v.soundName,
       soundNameHash: v.soundNameHash,
       soundListNameHash: v.soundListNameHash,
