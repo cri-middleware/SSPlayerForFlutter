@@ -81,7 +81,7 @@ void main() {
         reason: 'setup should restore the full range');
   });
 
-  test('direction and style apply, and reset on setupAnimation', () async {
+  test('direction and style apply, and survive setupAnimation', () async {
     final player = await loadedPlayer();
     if (player == null) {
       markTestSkipped('Basic.ssab missing — run deploy-examples.sh');
@@ -93,12 +93,12 @@ void main() {
     expect(player.playbackDirection, SsPlaybackDirection.backward);
     expect(player.playbackStyle, SsPlaybackStyle.pingPong);
 
-    // Per-transition, like the loop count and the section: the Brain resets
-    // them and nothing puts them back, which is what every other Player does.
-    // Call setPlaybackDirection again if the new animation runs backwards too.
+    // Host policy, like the speed and the frame skip: "play this backwards" is
+    // a decision about the playback, so the Brain keeps it across a transition
+    // (SDK #375). Nothing on this side re-applies it.
     player.setupAnimation(player.getAnimations().first);
-    expect(player.playbackDirection, SsPlaybackDirection.forward);
-    expect(player.playbackStyle, SsPlaybackStyle.normal);
+    expect(player.playbackDirection, SsPlaybackDirection.backward);
+    expect(player.playbackStyle, SsPlaybackStyle.pingPong);
   });
 
   test('backward playback actually walks backwards', () async {

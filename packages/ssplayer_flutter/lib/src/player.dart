@@ -528,13 +528,12 @@ class SpriteStudioPlayer extends ChangeNotifier {
     _internal?.speed = rate;
   }
 
-  /// Which way the playhead walks, and what it does at the far end. Both reset
-  /// to [SsPlaybackDirection.forward] / [SsPlaybackStyle.normal] when an
-  /// animation is set up, and are **not** re-applied — call this again after
-  /// [setupAnimation] if the new animation should also run backwards. The other
-  /// Players behave the same way; carrying it across was this one's own
-  /// extension, and one caller's "play backwards" surviving into an unrelated
-  /// animation is the surprise it bought.
+  /// Which way the playhead walks, and what it does at the far end. Both
+  /// **survive** [setupAnimation] — "play this backwards" describes the
+  /// playback, not the clip that happens to be loaded (SDK #375), which is the
+  /// same reason [speed] and [skipFrames] carry across. What does not carry is
+  /// the heading within a round trip: a new animation always starts on the
+  /// outward leg, so a transition never begins mid-bounce.
   ///
   /// With [SsPlaybackStyle.pingPong] one loop is a full round trip, so a
   /// [loop] of 1 plays there and back once.
@@ -547,8 +546,8 @@ class SpriteStudioPlayer extends ChangeNotifier {
 
   /// See [playbackDirection]. Both are set together because the Brain takes
   /// them as one call — pass the current value for whichever you are not
-  /// changing. Nothing is cached: this reaches the animation that is set up
-  /// now, and the next [setupAnimation] resets it.
+  /// changing. Nothing is cached here because nothing needs to be: the Brain
+  /// keeps the choice across a transition on its own.
   void setPlaybackDirection(
       SsPlaybackDirection direction, SsPlaybackStyle style) {
     _internal?.setPlaybackDirection(direction, style);
@@ -605,10 +604,10 @@ class SpriteStudioPlayer extends ChangeNotifier {
   // on their own since SDK #369/#370, so these two only matter for the first
   // setup after a value was set.
   //
-  // What is left to reset, deliberately: `frameRate` is authored in the pack; a
-  // section is a range of frame numbers that means nothing in a different
-  // animation; and the playback direction and style reset with the rest of the
-  // per-transition state, which is what every other Player does too.
+  // Nothing else needs pushing: `speed`, `skipFrames`, the `frameRate` override
+  // and the playback direction / style all survive setup in the Brain. The
+  // section is the one thing left to reset, and deliberately -- a range of frame
+  // numbers means nothing against a different animation.
   void _applyTransportSettings(SpriteStudioInternalPlayer internal) {
     if (_loop != null) internal.loop = _loop!;
     if (_speed != null) internal.speed = _speed!;
