@@ -37,13 +37,16 @@ _player.play();                    // 先頭から再生
 
 | 自動で再適用される | リセットされる |
 |---|---|
-| `loop` / `speed` / `skipFrames` / `playbackDirection`・`playbackStyle` / `subFrame` | `frameRate`、再生区間 |
+| `loop` / `speed` / `skipFrames` / `frameRate` / `playbackDirection`・`playbackStyle` / `subFrame` | 再生区間 |
 
-`frameRate` はパックに設定された値であり、再生区間は別のアニメでは意味を持たないフレーム番号の
-範囲です。どちらも再適用すると、いま選んだアニメの設定を黙って上書きしてしまいます。必要なら
-セットアップのたびに設定し直してください。特に区間を `setupAnimation` の**前**に設定しても
-消えてしまう点に注意してください。設定値に触れずに再生を伸縮させたいだけなら `frameRate` ではなく
-`speed` を使います。
+再生区間は別のアニメでは意味を持たないフレーム番号の範囲です。持ち越すと、いま選んだアニメの
+設定を黙って上書きしてしまいます。必要ならセットアップのたびに設定し直してください。特に区間を
+`setupAnimation` の**前**に設定しても
+消えてしまう点に注意してください。
+
+Player 側が戻すのは `loop` だけで、残りは Brain 自身が保持します。`frameRate` の上書きも遷移を
+跨いで残るので、各アニメの authored 値に戻したいときは `0` を渡してクリアしてください。authored 値
+そのものを置き換えずに再生を伸縮させたいだけなら、`frameRate` ではなく `speed` を使います。
 
 ### 逆再生と往復再生
 
@@ -52,7 +55,8 @@ _player.setPlaybackDirection(SsPlaybackDirection.backward, SsPlaybackStyle.pingP
 ```
 
 `pingPong` では 1 ループが**往復 1 回**なので、`loop = 1` で行って戻って終わりです。`speed` に負の値を
-渡しても逆再生できますが、セットアップをまたいで残るのは `playbackDirection` の方です。
+渡しても逆再生にはならず（再生ヘッドが停止します）、向きを変えるのは `playbackDirection` です。
+こちらはセットアップをまたいで残ります。
 
 ### アニメの一部だけ再生する
 

@@ -37,12 +37,15 @@ Setting up an animation resets the Brain's whole transport. The player puts back
 
 | Re-applied for you | Left to reset |
 |---|---|
-| `loop`, `speed`, `skipFrames`, `playbackDirection` / `playbackStyle`, `subFrame` | `frameRate`, the animation section |
+| `loop`, `speed`, `skipFrames`, `frameRate`, `playbackDirection` / `playbackStyle`, `subFrame` | the animation section |
 
-`frameRate` is authored in the pack, and a section is a range of frame numbers that means nothing in a
-different animation — re-applying either would silently outrank the animation you just selected. Set them
-again after each setup if you need them, and note that a section set *before* `setupAnimation` is wiped by
-it. To scale playback without touching the authored rate, use `speed` rather than `frameRate`.
+A section is a range of frame numbers, and means nothing against a different animation — carrying one over
+would silently outrank the animation you just selected. Set it again after each setup if you need it, and
+note that a section set *before* `setupAnimation` is wiped by it.
+
+Only `loop` is put back by the player; the rest the Brain keeps on its own. A `frameRate` override outlives
+a transition too — hand it `0` to clear it and go back to whatever each animation was authored at. To scale
+playback without replacing the authored rate, use `speed` rather than `frameRate`.
 
 ### Playing backwards, and round trips
 
@@ -51,7 +54,8 @@ _player.setPlaybackDirection(SsPlaybackDirection.backward, SsPlaybackStyle.pingP
 ```
 
 With `pingPong` one loop is a **full round trip**, so `loop = 1` plays there and back once. `speed` also
-accepts a negative multiplier, but `playbackDirection` is the one that survives a setup.
+accepts a negative multiplier, but that stops the playhead rather than turning it around —
+`playbackDirection` is the one that reverses, and it survives a setup.
 
 ### Playing part of an animation
 
