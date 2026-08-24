@@ -15,7 +15,7 @@ _player.play();                    // start from the beginning
 | `play()` | method | Start the set-up animation from the beginning |
 | `pause()` / `resume()` | method | Pause (holds the current frame) / resume |
 | `togglePlayPause()` | method | Pause if playing, resume if paused |
-| `stop()` | method | Stop playback |
+| `stop()` | method | Stop playback. The playhead **stays where it stands** — nothing rewinds, so the frame it stopped on keeps drawing. `play()` is what returns to the head |
 | `seek(double frame)` | method | Jump to a frame (fractional allowed). Independent instances / effects do not follow |
 | `loop` | `set int` | Loop count — `-1` (or `0`) forever, `n` plays *n* times |
 | `speed` | `set double` | Playback speed multiplier (negative reverses) |

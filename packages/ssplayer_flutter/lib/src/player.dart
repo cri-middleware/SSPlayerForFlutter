@@ -494,6 +494,9 @@ class SpriteStudioPlayer extends ChangeNotifier {
   /// [resume] (which itself head-outs when stopped/finished).
   void togglePlayPause() => isPlaying && !isPaused ? pause() : resume();
 
+  /// Ends playback. The playhead **stays where it stands** — nothing rewinds,
+  /// so the widget keeps painting the frame it stopped on. [play] is what
+  /// returns to the head; [frameNo] seeks anywhere else.
   void stop() {
     _requireInternal().stop();
     if (_ticker?.isActive ?? false) _ticker!.stop();
