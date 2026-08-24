@@ -159,6 +159,9 @@ class _NativeRuntime implements SsRuntime {
   void pause(SsContext context) => ss_runtime_pause(_ctx(context));
 
   @override
+  void resume(SsContext context) => ss_runtime_resume(_ctx(context));
+
+  @override
   void stop(SsContext context) => ss_runtime_stop(_ctx(context));
 
   @override

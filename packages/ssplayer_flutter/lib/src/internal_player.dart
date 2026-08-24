@@ -377,6 +377,11 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
     ssRuntime.pause(_context);
   }
 
+  void resume() {
+    _ensureAlive();
+    ssRuntime.resume(_context);
+  }
+
   void stop() {
     _ensureAlive();
     ssRuntime.stop(_context);
@@ -385,8 +390,9 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   bool get isPlaying => ssRuntime.isPlaying(_context);
 
   /// Whether playback is paused. Note the Brain keeps [isPlaying] `true` while
-  /// paused (pause is a *hold*, not a stop), and `ss_runtime_pause` *toggles*
-  /// this — so callers must gate on it rather than blind-calling `pause()`.
+  /// paused (pause is a *hold*, not a stop). `false` before the first `play`
+  /// and after `stop` — the Brain keeps "paused" implying "playing" — so this
+  /// can be read on its own.
   bool get isPausing => ssRuntime.isPausing(_context);
 
   /// Every configured loop has played. Sticky until the next play/setup, so

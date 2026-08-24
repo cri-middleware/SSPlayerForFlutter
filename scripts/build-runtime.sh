@@ -253,9 +253,15 @@ esac
 # goes to its OWN binding package: ssruntime → ssruntime_dart, ssconverter →
 # ssconverter_dart (copied only when that crate was part of this build).
 mkdir -p "$RT_PKG_DIR/native/include" "$CONV_PKG_DIR/native/include"
-rh="$SDK_DIR/libs/ssruntime/target/ssruntime.h"
+# The generating build scripts live in the *-ffi crates and write beside
+# themselves, so these are `libs/<crate>-ffi/target/`. They moved there with the
+# SDK's "split the binary faces into *-ffi crates" refactor; the old
+# `libs/<crate>/target/` paths are written by nothing now, and because these
+# copies are guarded a stale path fails silently — the header simply never
+# updates and ffigen keeps regenerating yesterday's C-API.
+rh="$SDK_DIR/libs/ssruntime-ffi/target/ssruntime.h"
 [ -f "$rh" ] && { cp "$rh" "$RT_PKG_DIR/native/include/ssruntime.h"; echo "   -> ssruntime_dart native/include/ssruntime.h"; }
-ch="$SDK_DIR/libs/ssconverter/target/ssconverter.h"
+ch="$SDK_DIR/libs/ssconverter-ffi/target/ssconverter.h"
 [ -f "$ch" ] && { cp "$ch" "$CONV_PKG_DIR/native/include/ssconverter.h"; echo "   -> ssconverter_dart native/include/ssconverter.h"; }
 
 # The ffigen bindings (lib/src/*_bindings.g.dart) are committed, not regenerated
