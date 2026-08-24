@@ -60,8 +60,7 @@ void main() {
     expect(player.totalFrames, greaterThan(1));
   });
 
-  test('a frameRate override applies, but setupAnimation re-reads the pack',
-      () async {
+  test('a frameRate override applies, and survives setupAnimation', () async {
     final player = await loadedPlayer();
     if (player == null) {
       markTestSkipped('Basic.ssab missing — run deploy-examples.sh');
@@ -72,11 +71,16 @@ void main() {
     player.frameRate = authored * 2;
     expect(player.frameRate, authored * 2, reason: 'the override takes');
 
-    // Deliberately NOT cached the way loop/speed are: the Brain re-reads the
-    // authored fps on setup, and re-applying a host override there would
-    // silently outrank what the animation was authored at.
+    // The override is the host's, not the clip's, so the Brain keeps it across
+    // a transition (SDK #370) — the same rule that keeps speed and frame skip.
+    // Clear it by setting 0 (or any negative), which hands playback back to the
+    // authored rate.
     player.setupAnimation(player.getAnimations().first);
-    expect(player.frameRate, authored, reason: 'setup restores the pack rate');
+    expect(player.frameRate, authored * 2,
+        reason: 'a host override outlives the transition');
+
+    player.frameRate = 0;
+    expect(player.frameRate, authored, reason: 'clearing restores the pack rate');
   });
 
   test('isFinished latches on completion; isLooped marks the crossing tick',
