@@ -1,4 +1,4 @@
-// Verifies SpriteStudioPlayer.getAnimations() enumerates the loaded pack's
+// Verifies SpriteStudioPlayer.animationNames enumerates the loaded pack's
 // animation names (the list the example's animation dropdown is built from).
 // The native Brain is bundled by ssruntime_dart's native-assets hook.
 import 'dart:io';
@@ -26,12 +26,12 @@ void main() {
     addTearDown(player.dispose);
 
     // Empty before the first load.
-    expect(player.getAnimations(), isEmpty);
+    expect(player.animationNames, isEmpty);
 
     // loadTextures: false — no AssetBundle in a unit test.
     await player.load(bytes, loadTextures: false);
 
-    final anims = player.getAnimations();
+    final anims = player.animationNames;
     expect(anims, isNotEmpty);
     // Matches the metadata parsed straight from the bytes…
     expect(anims, SsAnimeInfo(bytes).animationNames);

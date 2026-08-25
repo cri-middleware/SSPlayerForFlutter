@@ -43,7 +43,7 @@ void main() {
     // Flame would call these from its game loop; drive them directly here.
     await component.onLoad();
     expect(component.player, isNotNull, reason: 'onLoad builds the player');
-    expect(component.player!.getAnimations(), isNotEmpty);
+    expect(component.player!.animationNames, isNotEmpty);
 
     // External clock: `update(dt)` (seconds) is exactly what FlameGame forwards.
     for (var i = 0; i < 5; i++) {
@@ -148,14 +148,14 @@ void main() {
     await component.onLoad();
 
     final player = component.player!;
-    final apple = player.partIndexOf('apple');
+    final apple = player.findPartIndex('apple');
     expect(apple, greaterThanOrEqualTo(0));
     expect(
-        player.setPartColorOverride(apple, SsBlendOp.mul,
-            const ui.Color(0xBF0033FF),
+        player.setPartColorOverrideByIndex(apple, const ui.Color(0xBF0033FF),
+            blendOp: SsBlendOp.mul,
             priority: SsOverridePriority.permanent),
         isTrue);
-    expect(player.setPartVisibilityOverrideByName('heta', true), isTrue);
+    expect(player.setPartVisibilityOverride('heta', true), isTrue);
     expect(player.clearAllPartOverrides(), isTrue);
   });
 

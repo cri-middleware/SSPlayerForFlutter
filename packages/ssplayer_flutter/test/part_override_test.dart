@@ -105,16 +105,16 @@ void main() {
       // The name table is read from the pack, so it resolves either way — which
       // is precisely how a caller ends up holding a valid index and a failing
       // set, and why this is asserted rather than left to §65.
-      final apple = p.partIndexOf('apple');
+      final apple = p.findPartIndex('apple');
       expect(apple, greaterThanOrEqualTo(0),
           reason: 'the name table does not depend on setup');
-      expect(p.setPartColorOverride(apple, SsBlendOp.mix, _blue), isFalse);
-      expect(p.setPartVisibilityOverride(apple, true), isFalse);
-      expect(p.setPartCellOverride(apple, 'Ringo', 'effect3'), isFalse);
+      expect(p.setPartColorOverrideByIndex(apple, _blue, blendOp: SsBlendOp.mix), isFalse);
+      expect(p.setPartVisibilityOverrideByIndex(apple, true), isFalse);
+      expect(p.setPartCellOverrideByIndex(apple, 'Ringo', 'effect3'), isFalse);
 
       // ...and start working the moment an animation is selected.
       expect(p.setupAnimation(_animations().first), isTrue);
-      expect(p.setPartColorOverride(apple, SsBlendOp.mix, _blue), isTrue);
+      expect(p.setPartColorOverrideByIndex(apple, _blue, blendOp: SsBlendOp.mix), isTrue);
     });
 
     test('rejects a negative part index without touching the Brain', () {
@@ -124,12 +124,12 @@ void main() {
 
       // -1 is what an unknown name resolves to, so every entry point has to
       // absorb it rather than pass it to the Brain as a huge uint32.
-      expect(p.setPartVisibilityOverride(-1, true), isFalse);
-      expect(p.clearPartVisibilityOverride(-1), isFalse);
-      expect(p.setPartColorOverride(-1, SsBlendOp.mix, _blue), isFalse);
-      expect(p.clearPartColorOverride(-1), isFalse);
-      expect(p.setPartCellOverride(-1, 'Ringo', 'effect3'), isFalse);
-      expect(p.clearPartCellOverride(-1), isFalse);
+      expect(p.setPartVisibilityOverrideByIndex(-1, true), isFalse);
+      expect(p.clearPartVisibilityOverrideByIndex(-1), isFalse);
+      expect(p.setPartColorOverrideByIndex(-1, _blue, blendOp: SsBlendOp.mix), isFalse);
+      expect(p.clearPartColorOverrideByIndex(-1), isFalse);
+      expect(p.setPartCellOverrideByIndex(-1, 'Ringo', 'effect3'), isFalse);
+      expect(p.clearPartCellOverrideByIndex(-1), isFalse);
     });
 
     test('by-name calls on an unknown part are a no-op returning false', () {
@@ -137,32 +137,32 @@ void main() {
       if (p == null) return;
       addTearDown(p.dispose);
 
-      expect(p.partIndexOf('no-such-part'), -1);
-      expect(p.setPartVisibilityOverrideByName('no-such-part', true), isFalse);
-      expect(p.setPartColorOverrideByName('no-such-part', SsBlendOp.mix, _blue),
+      expect(p.findPartIndex('no-such-part'), -1);
+      expect(p.setPartVisibilityOverride('no-such-part', true), isFalse);
+      expect(p.setPartColorOverride('no-such-part', _blue, blendOp: SsBlendOp.mix),
           isFalse);
-      expect(p.setPartCellOverrideByName('no-such-part', 'Ringo', 'effect3'),
+      expect(p.setPartCellOverride('no-such-part', 'Ringo', 'effect3'),
           isFalse);
-      expect(p.clearPartColorOverrideByName('no-such-part'), isFalse);
+      expect(p.clearPartColorOverride('no-such-part'), isFalse);
     });
 
     test('colour override is accepted for every priority mode', () {
       final p = _load();
       if (p == null) return;
       addTearDown(p.dispose);
-      final apple = p.partIndexOf('apple');
+      final apple = p.findPartIndex('apple');
 
       for (final priority in SsOverridePriority.values) {
-        expect(p.setPartColorOverride(apple, SsBlendOp.mul, _blue,
+        expect(p.setPartColorOverrideByIndex(apple, _blue, blendOp: SsBlendOp.mul,
                 priority: priority),
             isTrue,
             reason: 'priority $priority should be accepted');
       }
       for (final op in SsBlendOp.values) {
-        expect(p.setPartColorOverride(apple, op, _blue), isTrue,
+        expect(p.setPartColorOverrideByIndex(apple, _blue, blendOp: op), isTrue,
             reason: 'blend op $op should be accepted');
       }
-      expect(p.clearPartColorOverride(apple), isTrue);
+      expect(p.clearPartColorOverrideByIndex(apple), isTrue);
     });
 
     test('a colour override on a non-Normal part still succeeds (ignored at '
@@ -174,25 +174,24 @@ void main() {
       // §65-1-2: the part-type guard runs when the override is APPLIED, so the
       // set call itself returns true. Callers must not read the return value as
       // "this will be visible". `root` is a Null part.
-      final root = p.partIndexOf('root');
+      final root = p.findPartIndex('root');
       expect(root, greaterThanOrEqualTo(0));
-      expect(p.setPartColorOverride(root, SsBlendOp.mix, _blue), isTrue);
+      expect(p.setPartColorOverrideByIndex(root, _blue, blendOp: SsBlendOp.mix), isTrue);
     });
 
     test('four-corner colour override takes exactly four corners', () {
       final p = _load();
       if (p == null) return;
       addTearDown(p.dispose);
-      final apple = p.partIndexOf('apple');
+      final apple = p.findPartIndex('apple');
 
       expect(
-          p.setPartColorOverrideCorners(apple, SsBlendOp.mix,
-              leftTop: _blue,
-              rightTop: _red,
-              leftBottom: _red,
-              rightBottom: _blue),
+          p.setPartColorOverrideCornersByIndex(
+              apple,
+              (leftTop: _blue, rightTop: _red, leftBottom: _red, rightBottom: _blue),
+              blendOp: SsBlendOp.mix),
           isTrue);
-      expect(p.clearPartColorOverride(apple), isTrue);
+      expect(p.clearPartColorOverrideByIndex(apple), isTrue);
     });
 
     test('cell override resolves at set time — an unknown cell fails then and '
@@ -200,22 +199,22 @@ void main() {
       final p = _load();
       if (p == null) return;
       addTearDown(p.dispose);
-      final apple = p.partIndexOf('apple');
+      final apple = p.findPartIndex('apple');
 
       // §65-3-2: resolution happens once, in `set`, so a bad name is caught
       // immediately rather than costing a lookup every frame.
-      expect(p.setPartCellOverride(apple, 'Ringo', 'effect3'), isTrue);
-      expect(p.setPartCellOverride(apple, 'Ringo', 'no-such-cell'), isFalse);
-      expect(p.setPartCellOverride(apple, 'no-such-cellmap', 'effect3'), isFalse);
+      expect(p.setPartCellOverrideByIndex(apple, 'Ringo', 'effect3'), isTrue);
+      expect(p.setPartCellOverrideByIndex(apple, 'Ringo', 'no-such-cell'), isFalse);
+      expect(p.setPartCellOverrideByIndex(apple, 'no-such-cellmap', 'effect3'), isFalse);
       // The `.ssce` extension is NOT part of the cellmap name.
-      expect(p.setPartCellOverride(apple, 'Ringo.ssce', 'effect3'), isFalse);
+      expect(p.setPartCellOverrideByIndex(apple, 'Ringo.ssce', 'effect3'), isFalse);
     });
 
     test('cell override changes the UVs the Body reads', () {
       final p = _load();
       if (p == null) return;
       addTearDown(p.dispose);
-      final apple = p.partIndexOf('apple');
+      final apple = p.findPartIndex('apple');
 
       // Direct render mode does not put `cells` in FrameData (§65-5-2), so the
       // observable proof of a cell swap is the UV SoA — read it before and
@@ -224,7 +223,7 @@ void main() {
       p.update(const Duration(milliseconds: 16));
       final before = _uvsOf(p, apple);
 
-      expect(p.setPartCellOverride(apple, 'Ringo', 'effect3'), isTrue);
+      expect(p.setPartCellOverrideByIndex(apple, 'Ringo', 'effect3'), isTrue);
       p.update(const Duration(milliseconds: 16));
       final after = _uvsOf(p, apple);
 
@@ -232,7 +231,7 @@ void main() {
           reason: 'swapping to another cell must move the UVs');
 
       // (0, 0) — two empty names — is the documented revert sentinel.
-      expect(p.setPartCellOverride(apple, '', ''), isTrue);
+      expect(p.setPartCellOverrideByIndex(apple, '', ''), isTrue);
       p.update(const Duration(milliseconds: 16));
       expect(_uvsOf(p, apple), equals(before),
           reason: 'reverting must restore the animation\'s own cell');
@@ -243,18 +242,18 @@ void main() {
       final p = _load();
       if (p == null) return;
       addTearDown(p.dispose);
-      final apple = p.partIndexOf('apple');
+      final apple = p.findPartIndex('apple');
 
       p.setupAnimation(_animations().first);
       p.update(const Duration(milliseconds: 16));
       expect(_drawnParts(p), contains(apple),
           reason: 'the body should draw before anything is overridden');
 
-      expect(p.setPartVisibilityOverride(apple, true), isTrue);
+      expect(p.setPartVisibilityOverrideByIndex(apple, true), isTrue);
       p.update(const Duration(milliseconds: 16));
       expect(_drawnParts(p), isNot(contains(apple)));
 
-      expect(p.clearPartVisibilityOverride(apple), isTrue);
+      expect(p.clearPartVisibilityOverrideByIndex(apple), isTrue);
       p.update(const Duration(milliseconds: 16));
       expect(_drawnParts(p), contains(apple));
     });
@@ -272,8 +271,8 @@ void main() {
       // `head` has a subtree; `nose` sits under it. A cascading force-hide takes
       // the descendants with it — this propagation is the OVERRIDE's, not the
       // keyframe `hide`'s, which stays strictly per-part (§65-3-3).
-      final head = p.partIndexOf('head');
-      final nose = p.partIndexOf('nose');
+      final head = p.findPartIndex('head');
+      final nose = p.findPartIndex('nose');
       expect(head, greaterThanOrEqualTo(0));
       expect(nose, greaterThanOrEqualTo(0));
 
@@ -281,7 +280,7 @@ void main() {
       p.update(const Duration(milliseconds: 16));
       expect(_drawnParts(p), containsAll(<int>[head, nose]));
 
-      expect(p.setPartVisibilityOverride(head, true, cascade: true), isTrue);
+      expect(p.setPartVisibilityOverrideByIndex(head, true, cascade: true), isTrue);
       p.update(const Duration(milliseconds: 16));
       final drawn = _drawnParts(p);
       expect(drawn, isNot(contains(head)));
@@ -293,11 +292,11 @@ void main() {
       final p = _load();
       if (p == null) return;
       addTearDown(p.dispose);
-      final head = p.partIndexOf('head');
-      final nose = p.partIndexOf('nose');
+      final head = p.findPartIndex('head');
+      final nose = p.findPartIndex('nose');
 
       p.setupAnimation(_animations().first);
-      expect(p.setPartVisibilityOverride(head, true), isTrue);
+      expect(p.setPartVisibilityOverrideByIndex(head, true), isTrue);
       p.update(const Duration(milliseconds: 16));
       final drawn = _drawnParts(p);
       expect(drawn, isNot(contains(head)));
@@ -309,14 +308,14 @@ void main() {
       final p = _load();
       if (p == null) return;
       addTearDown(p.dispose);
-      final apple = p.partIndexOf('apple');
-      final heta = p.partIndexOf('heta');
+      final apple = p.findPartIndex('apple');
+      final heta = p.findPartIndex('heta');
 
       p.setupAnimation(_animations().first);
-      p.setPartVisibilityOverride(apple, true);
-      p.setPartVisibilityOverride(heta, true);
-      p.setPartColorOverride(apple, SsBlendOp.mix, _blue);
-      p.setPartCellOverride(apple, 'Ringo', 'effect3');
+      p.setPartVisibilityOverrideByIndex(apple, true);
+      p.setPartVisibilityOverrideByIndex(heta, true);
+      p.setPartColorOverrideByIndex(apple, _blue, blendOp: SsBlendOp.mix);
+      p.setPartCellOverrideByIndex(apple, 'Ringo', 'effect3');
       p.update(const Duration(milliseconds: 16));
       expect(_drawnParts(p), isNot(contains(apple)));
 
@@ -332,7 +331,7 @@ void main() {
       final p = _load();
       if (p == null) return;
       addTearDown(p.dispose);
-      final apple = p.partIndexOf('apple');
+      final apple = p.findPartIndex('apple');
       final anims = _animations();
       if (anims.length < 2) {
         markTestSkipped('Ringo should ship more than one animation');
@@ -345,7 +344,7 @@ void main() {
       p.update(const Duration(milliseconds: 16));
       final animCell = _uvsOf(p, apple);
 
-      p.setPartCellOverride(apple, 'Ringo', 'effect3',
+      p.setPartCellOverrideByIndex(apple, 'Ringo', 'effect3',
           priority: SsOverridePriority.holdUntilNextAnimation);
       p.update(const Duration(milliseconds: 16));
       final overridden = _uvsOf(p, apple);
@@ -358,7 +357,7 @@ void main() {
 
       // Permanent survives the same transition.
       p.setupAnimation(anims[0]);
-      p.setPartCellOverride(apple, 'Ringo', 'effect3',
+      p.setPartCellOverrideByIndex(apple, 'Ringo', 'effect3',
           priority: SsOverridePriority.permanent);
       p.update(const Duration(milliseconds: 16));
       final permanent = _uvsOf(p, apple);
@@ -377,8 +376,8 @@ void main() {
       // Transport throws before load; overrides must not — a UI that fires one
       // while the pack is still loading is not a bug.
       expect(player.partNames.length, 0);
-      expect(player.partIndexOf('apple'), -1);
-      expect(player.setPartVisibilityOverrideByName('apple', true), isFalse);
+      expect(player.findPartIndex('apple'), -1);
+      expect(player.setPartVisibilityOverride('apple', true), isFalse);
       expect(player.clearAllPartOverrides(), isFalse);
     });
 
@@ -396,7 +395,7 @@ void main() {
       var notifications = 0;
       player.addListener(() => notifications++);
 
-      expect(player.setPartVisibilityOverrideByName('apple', true), isTrue);
+      expect(player.setPartVisibilityOverride('apple', true), isTrue);
       expect(notifications, 1);
 
       expect(player.clearAllPartOverrides(), isTrue);
@@ -414,9 +413,9 @@ void main() {
       var notifications = 0;
       player.addListener(() => notifications++);
 
-      expect(player.setPartVisibilityOverrideByName('no-such-part', true),
+      expect(player.setPartVisibilityOverride('no-such-part', true),
           isFalse);
-      expect(player.setPartCellOverrideByName('apple', 'Ringo', 'no-such-cell'),
+      expect(player.setPartCellOverride('apple', 'Ringo', 'no-such-cell'),
           isFalse);
       expect(notifications, 0,
           reason: 'nothing changed, so nothing should repaint');
@@ -430,13 +429,13 @@ void main() {
       await player.load(bytes,
           animationName: _animations().first, loadTextures: false);
 
-      final apple = player.partIndexOf('apple');
+      final apple = player.findPartIndex('apple');
       expect(apple, greaterThanOrEqualTo(0));
       expect(player.partNames.nameAt(apple), 'apple');
-      expect(player.setPartColorOverride(apple, SsBlendOp.mul, _blue), isTrue);
-      expect(player.setPartColorOverrideByName('apple', SsBlendOp.mul, _blue),
+      expect(player.setPartColorOverrideByIndex(apple, _blue, blendOp: SsBlendOp.mul), isTrue);
+      expect(player.setPartColorOverride('apple', _blue, blendOp: SsBlendOp.mul),
           isTrue);
-      expect(player.clearPartColorOverrideByName('apple'), isTrue);
+      expect(player.clearPartColorOverride('apple'), isTrue);
     });
   });
 }

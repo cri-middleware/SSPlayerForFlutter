@@ -33,40 +33,40 @@ void main() {
     }
 
     await player.load(bytes, loadTextures: false);
-    player.setAnimation(player.getAnimations().first);
-    player.loop = -1;
+    player.setAnimation(player.animationNames.first);
+    player.loopCount = -1;
     player.play();
 
     await pumpFrames();
     final playing = player.frameNo;
     expect(playing, greaterThan(0), reason: 'advances while playing');
     expect(player.isPlaying, isTrue);
-    expect(player.isPaused, isFalse);
+    expect(player.isPausing, isFalse);
 
     // Pause holds the playhead.
     player.pause();
     expect(player.isPlaying, isTrue, reason: 'paused is still "playing" (a hold)');
-    expect(player.isPaused, isTrue);
+    expect(player.isPausing, isTrue);
     await pumpFrames();
     expect(player.frameNo, closeTo(playing, 1e-6), reason: 'frozen while paused');
 
     // The regression: a SECOND pause() must not silently un-pause.
     player.pause();
-    expect(player.isPaused, isTrue);
+    expect(player.isPausing, isTrue);
     await pumpFrames();
     expect(player.frameNo, closeTo(playing, 1e-6));
 
     // Resume continues in place (no head-out rewind).
     player.resume();
-    expect(player.isPaused, isFalse);
+    expect(player.isPausing, isFalse);
     await pumpFrames();
     expect(player.frameNo, greaterThan(playing), reason: 'resumes forward');
 
     // togglePlayPause flips advancing <-> paused each call.
     player.togglePlayPause();
-    expect(player.isPaused, isTrue);
+    expect(player.isPausing, isTrue);
     player.togglePlayPause();
-    expect(player.isPaused, isFalse);
+    expect(player.isPausing, isFalse);
 
     player.stop(); // quiesce the ticker before teardown
   });

@@ -104,7 +104,7 @@ class _PlayerPageState extends State<PlayerPage>
   String _pack = _bundledSources[_defaultSource]!.first;
 
   // Animations inside the currently-loaded pack, enumerated from the .ssab via
-  // SpriteStudioPlayer.getAnimations(); the second dropdown switches between
+  // SpriteStudioPlayer.animationNames; the second dropdown switches between
   // them without reloading the resource/textures.
   List<String> _animations = const <String>[];
   String? _anim;
@@ -248,11 +248,11 @@ class _PlayerPageState extends State<PlayerPage>
       // Guard against a newer selection winning the race while we awaited.
       if (!mounted || _pack != pack) return;
       // Enumerate the pack's animations and start on the first one.
-      final anims = _player.getAnimations();
+      final anims = _player.animationNames;
       final animName = anims.isNotEmpty ? anims.first : null;
       if (animName != null) _player.setAnimation(animName);
       _player
-        ..loop = -1
+        ..loopCount = -1
         ..play();
       final missing = _player.lastTextureReport?.unresolved ?? const [];
       final label = animName ?? '(no animations)';
@@ -294,7 +294,7 @@ class _PlayerPageState extends State<PlayerPage>
     if (name == _anim) return;
     _player
       ..setAnimation(name)
-      ..loop = -1
+      ..loopCount = -1
       ..play();
     setState(() {
       _anim = name;
@@ -378,7 +378,7 @@ class _PlayerPageState extends State<PlayerPage>
   @override
   void ssOnLiveReloaded() {
     setState(() {
-      _animations = _player.getAnimations();
+      _animations = _player.animationNames;
       _anim = _player.currentAnimation;
       _status = 'live-reloaded "$_pack" (anims=${_animations.join(", ")})';
     });
@@ -459,7 +459,7 @@ class _PlayerPageState extends State<PlayerPage>
               ],
             ),
           ),
-          // anime = an animation within the current pack (player.getAnimations()).
+          // anime = an animation within the current pack (player.animationNames).
           if (_animations.isNotEmpty)
             _labeledMenu(
               'anime',
@@ -589,7 +589,7 @@ class _PlayerPageState extends State<PlayerPage>
         // One-tap transport: pause when advancing, else resume (head-out when
         // stopped/finished). setState refreshes the icon to match.
         onPressed: () => setState(_player.togglePlayPause),
-        child: Icon((_player.isPlaying && !_player.isPaused)
+        child: Icon((_player.isPlaying && !_player.isPausing)
             ? Icons.pause
             : Icons.play_arrow),
       ),

@@ -79,6 +79,10 @@ abstract interface class SsRuntime {
 
   void play(SsContext context);
 
+  /// [play] from `frameNo` rather than the head of the section. Re-arms the
+  /// loop count exactly as [play] does — it is a head-out, not a resume.
+  void playWithStartFrame(SsContext context, double frameNo);
+
   /// Holds playback in place. Idempotent, and ignored while nothing is playing.
   void pause(SsContext context);
 

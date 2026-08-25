@@ -11,7 +11,7 @@ import 'package:ssplayer_flutter/ssplayer_flutter.dart';
 ///
 /// A [PositionComponent] that plays a SpriteStudio 7 `.ssab` inside a
 /// `FlameGame`. It owns an **externally-clocked** [SpriteStudioPlayer] (L3, no
-/// `Ticker`): Flame's game loop drives time — `update(dt)` forwards to
+/// `Ticker`): Flame's game loopCount drives time — `update(dt)` forwards to
 /// [SpriteStudioPlayer.advance] and `render` delegates to the player's single
 /// L2 paint path. Because the whole rich L3 surface (transport, events, instance
 /// packs, texture loading, live reload) is reused as-is, a Flame game gets the
@@ -54,7 +54,7 @@ class SpriteStudioComponent extends PositionComponent {
     String? animation,
     String? baseAssetDir,
     AssetBundle? bundle,
-    int loop = -1,
+    int loopCount = -1,
     double speed = 1.0,
     bool subFrame = true,
     bool autoStart = true,
@@ -74,9 +74,9 @@ class SpriteStudioComponent extends PositionComponent {
           animation: animation,
           baseAssetDir: baseAssetDir,
           bundle: bundle,
-          loop: loop,
-          speed: speed,
-          subFrame: subFrame,
+          loopCount: loopCount,
+          speedScale: speed,
+          subFrameEnabled: subFrame,
           autoStart: autoStart,
           onEvents: onEvents,
           onComplete: onComplete,
@@ -99,7 +99,7 @@ class SpriteStudioComponent extends PositionComponent {
     String assetPath, {
     String? animation,
     AssetBundle? bundle,
-    int loop = -1,
+    int loopCount = -1,
     double speed = 1.0,
     bool subFrame = true,
     bool autoStart = true,
@@ -118,9 +118,9 @@ class SpriteStudioComponent extends PositionComponent {
           assetPath: assetPath,
           animation: animation,
           bundle: bundle,
-          loop: loop,
-          speed: speed,
-          subFrame: subFrame,
+          loopCount: loopCount,
+          speedScale: speed,
+          subFrameEnabled: subFrame,
           autoStart: autoStart,
           onEvents: onEvents,
           onComplete: onComplete,
@@ -141,9 +141,9 @@ class SpriteStudioComponent extends PositionComponent {
     this.animation,
     this.baseAssetDir,
     this.bundle,
-    this.loop = -1,
-    this.speed = 1.0,
-    this.subFrame = true,
+    this.loopCount = -1,
+    this.speedScale = 1.0,
+    this.subFrameEnabled = true,
     this.autoStart = true,
     this.onEvents,
     this.onComplete,
@@ -176,13 +176,13 @@ class SpriteStudioComponent extends PositionComponent {
   final AssetBundle? bundle;
 
   /// Loop count applied on load: `n > 0` plays n times, `-1` (default) forever.
-  final int loop;
+  final int loopCount;
 
   /// Playback speed applied on load.
-  final double speed;
+  final double speedScale;
 
   /// Sub-frame interpolation applied on load (default on).
-  final bool subFrame;
+  final bool subFrameEnabled;
 
   /// Whether to [SpriteStudioPlayer.play] as soon as the resource is loaded.
   /// When false, drive playback yourself via [player].
@@ -200,7 +200,7 @@ class SpriteStudioComponent extends PositionComponent {
   SpriteStudioPlayer? _player;
 
   /// The underlying player — null until [onLoad] completes, then the full L3
-  /// transport surface (`pause`, `seek`, `setAnimation`, `getAnimations`, …).
+  /// transport surface (`pause`, `seek`, `setAnimation`, `animationNames`, …).
   /// The clock is Flame's, so do NOT expect a Ticker; state still lives here.
   ///
   /// Part overrides (§65) are reached the same way — `player!.setPartColorOverride`
@@ -263,17 +263,17 @@ class SpriteStudioComponent extends PositionComponent {
       // load() only selects an animation when one is named; default to the first
       // so something plays out of the box (mirrors the Widget example).
       if (animation == null) {
-        final names = player.getAnimations();
+        final names = player.animationNames;
         if (names.isNotEmpty) player.setAnimation(names.first);
       }
       // Apply transport AFTER the animation is set up: `setAnimation` rewinds
-      // and resets the Brain's loop/speed, so setting these earlier (or via
-      // `load`) would be clobbered and `loop` would silently fall back to
+      // and resets the Brain's loopCount/speed, so setting these earlier (or via
+      // `load`) would be clobbered and `loopCount` would silently fall back to
       // infinite. subFrame is Body-side (safe either way; set here for symmetry).
       player
-        ..loop = loop
-        ..speed = speed
-        ..subFrame = subFrame;
+        ..loopCount = loopCount
+        ..speedScale = speedScale
+        ..subFrameEnabled = subFrameEnabled;
       if (autoStart) player.play();
       _player = player;
     } catch (e) {

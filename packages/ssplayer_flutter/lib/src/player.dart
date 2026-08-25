@@ -73,10 +73,10 @@ class SpriteStudioPlayer extends ChangeNotifier {
 
   /// Sub-frame interpolation (default ON): smooth playback beyond the source
   /// FPS. Applies to the current and future loaded animations.
-  bool get subFrame => _internal?.subFrame ?? _subFrame;
-  set subFrame(bool value) {
+  bool get subFrameEnabled => _internal?.subFrameEnabled ?? _subFrame;
+  set subFrameEnabled(bool value) {
     _subFrame = value;
-    _internal?.subFrame = value;
+    _internal?.subFrameEnabled = value;
   }
 
   /// Mirror the drawn animation horizontally — the same idea as Flutter's own
@@ -166,17 +166,17 @@ class SpriteStudioPlayer extends ChangeNotifier {
   /// Names of the animations contained in the currently-loaded `.ssab`, in pack
   /// order (empty before [load]). Feed any of these to [setAnimation] to
   /// switch animation without reloading the resource or its textures.
-  List<String> getAnimations() =>
+  List<String> get animationNames =>
       _animeInfo?.animationNames ?? const <String>[];
 
   /// Names of the cellmaps in the loaded `.ssab`, without the `.ssce`
   /// extension (empty before [load]) — the first half of what
   /// [setPartCellOverride] needs.
-  List<String> getCellmaps() => _animeInfo?.cellmapNames ?? const <String>[];
+  List<String> get cellmapNames => _animeInfo?.cellmapNames ?? const <String>[];
 
   /// Names of the cells inside [cellmapName] (empty before [load] / unknown
   /// cellmap) — the other half. Both names go to [setPartCellOverride] as-is.
-  List<String> getCells(String cellmapName) =>
+  List<String> cellNames(String cellmapName) =>
       _animeInfo?.cellNames(cellmapName) ?? const <String>[];
 
   /// Resolves an [SsAudioEvent.soundNameHash] (from an [onAudio] trigger) to its
@@ -311,7 +311,7 @@ class SpriteStudioPlayer extends ChangeNotifier {
     internal.onNeedsRepaint = () {
       if (!_disposed && identical(_internal, internal)) notifyListeners();
     };
-    internal.subFrame = _subFrame;
+    internal.subFrameEnabled = _subFrame;
     internal.rootTransform = _root;
     _currentAnimation = animationName;
     if (animationName != null) {
@@ -405,7 +405,7 @@ class SpriteStudioPlayer extends ChangeNotifier {
     final wasPlaying = isPlaying;
     // [isPlaying] is "active", which stays true across a pause — a paused
     // preview must come back paused, not force-resumed.
-    final wasPaused = isPaused;
+    final wasPaused = isPausing;
     final frame = frameNo;
     final anim = _currentAnimation;
 
@@ -422,7 +422,7 @@ class SpriteStudioPlayer extends ChangeNotifier {
     );
     if (_disposed || _internal == null) return;
 
-    final names = getAnimations();
+    final names = animationNames;
     final target = (anim != null && names.contains(anim))
         ? anim
         : (names.isEmpty ? null : names.first);
@@ -474,9 +474,14 @@ class SpriteStudioPlayer extends ChangeNotifier {
   /// Starts (or restarts) playback from the head — the Brain's `play` is a
   /// head-out, so this rewinds to the start frame. Use [resume] to continue a
   /// paused animation in place.
-  void play() {
+  ///
+  /// Pass [startFrame] to head out from a given frame instead. That frame then
+  /// becomes the reference the loop count counts from, which is why it is an
+  /// argument here rather than a [seek] before the call — a seek would be
+  /// undone by the rewind.
+  void play([double? startFrame]) {
     final internal = _requireInternal();
-    internal.play();
+    internal.play(startFrame);
     _prevFinished = false;
     _startTicker();
     notifyListeners();
@@ -509,7 +514,7 @@ class SpriteStudioPlayer extends ChangeNotifier {
 
   /// One-tap transport for a play/pause button: pause when advancing, otherwise
   /// [resume] (which itself head-outs when stopped/finished).
-  void togglePlayPause() => isPlaying && !isPaused ? pause() : resume();
+  void togglePlayPause() => isPlaying && !isPausing ? pause() : resume();
 
   /// Ends playback. The playhead **stays where it stands** — nothing rewinds,
   /// so the widget keeps painting the frame it stopped on. [play] is what
@@ -537,14 +542,23 @@ class SpriteStudioPlayer extends ChangeNotifier {
 
   /// Number of cycles to play: `n > 0` plays `n` times then fires [onComplete];
   /// `-1` loops forever. `0` is a synonym for `-1`, not "play once".
-  set loop(int count) {
+  ///
+  /// Reads back what was last set, not the Brain's normalized value: the Dart
+  /// runtime API does not surface `get_loops`, so `0` reads back as the `0` you
+  /// asked for rather than the `-1` it becomes.
+  int get loopCount => _loop ?? -1;
+  set loopCount(int count) {
     _loop = count;
-    _internal?.loop = count;
+    _internal?.loopCount = count;
   }
 
-  set speed(double rate) {
+  /// Playback rate as a multiple of the clip's authored rate: `1.0` is as
+  /// authored, `0.0` and below are a stop rather than reverse playback — that
+  /// is [setPlaybackDirection]. Survives [setAnimation].
+  double get speedScale => _speed ?? 1.0;
+  set speedScale(double rate) {
     _speed = rate;
-    _internal?.speed = rate;
+    _internal?.speedScale = rate;
   }
 
   /// Which way the playhead walks, and what it does at the far end. Both
@@ -579,10 +593,10 @@ class SpriteStudioPlayer extends ChangeNotifier {
   ///
   /// Turn it OFF when every frame matters — an animation whose events must all
   /// fire, or a deterministic recording. Re-applied across [setAnimation].
-  bool get skipFrames => _internal?.skipFrames ?? _skipFrames ?? true;
-  set skipFrames(bool value) {
+  bool get frameSkipEnabled => _internal?.frameSkipEnabled ?? _skipFrames ?? true;
+  set frameSkipEnabled(bool value) {
     _skipFrames = value;
-    _internal?.skipFrames = value;
+    _internal?.frameSkipEnabled = value;
   }
 
   /// Restricts playback to `[startFrame, endFrame]` of the **current**
@@ -628,9 +642,9 @@ class SpriteStudioPlayer extends ChangeNotifier {
   // section is the one thing left to reset, and deliberately -- a range of frame
   // numbers means nothing against a different animation.
   void _applyTransportSettings(SpriteStudioInternalPlayer internal) {
-    if (_loop != null) internal.loop = _loop!;
-    if (_speed != null) internal.speed = _speed!;
-    if (_skipFrames != null) internal.skipFrames = _skipFrames!;
+    if (_loop != null) internal.loopCount = _loop!;
+    if (_speed != null) internal.speedScale = _speed!;
+    if (_skipFrames != null) internal.frameSkipEnabled = _skipFrames!;
   }
 
   double get frameNo => _internal?.frameNo ?? 0;
@@ -654,12 +668,12 @@ class SpriteStudioPlayer extends ChangeNotifier {
   }
 
   /// Whether the animation is active (playing or *paused*), i.e. not stopped and
-  /// not finished. Pair with [isPaused] to distinguish a live pause; a UI toggle
-  /// wanting "currently advancing" should check `isPlaying && !isPaused`.
+  /// not finished. Pair with [isPausing] to distinguish a live pause; a UI toggle
+  /// wanting "currently advancing" should check `isPlaying && !isPausing`.
   bool get isPlaying => _internal?.isPlaying ?? false;
 
   /// Whether playback is paused in place (still [isPlaying], just held).
-  bool get isPaused => _internal?.isPausing ?? false;
+  bool get isPausing => _internal?.isPausing ?? false;
 
   /// Whether every configured loop has played. **Sticky** until the next [play]
   /// or [setAnimation], so polling it tells you the run is over but not when
@@ -670,7 +684,7 @@ class SpriteStudioPlayer extends ChangeNotifier {
   /// Whether the most recent advance crossed a loop boundary. This is the loop
   /// *edge*, cleared at the top of every update, so it only reads true inside
   /// the tick that crossed — poll it from a per-frame callback or use [onLoop].
-  bool get isLooped => _internal?.isLooped ?? false;
+  bool get justLooped => _internal?.justLooped ?? false;
 
   /// Draws the current frame — delegates to Layer 2's single paint path.
   ///
@@ -727,10 +741,10 @@ class SpriteStudioPlayer extends ChangeNotifier {
       _dispatchDecodedEvents(passed);
     }
 
-    // `isLooped` is a pulse the runtime clears on entry to every update, so it
+    // `justLooped` is a pulse the runtime clears on entry to every update, so it
     // is read verbatim. `isFinished` is a sticky state, so it goes through a
     // rising edge that `play` re-arms.
-    if (internal.isLooped) onLoop?.call();
+    if (internal.justLooped) onLoop?.call();
 
     final finished = internal.isFinished;
     if (finished && !_prevFinished) {
@@ -802,7 +816,7 @@ class SpriteStudioPlayer extends ChangeNotifier {
   PartNameTable get partNames => _internal?.partNames ?? PartNameTable.empty;
 
   /// Resolves [name] to its part index, or -1 when unknown / before [load].
-  int partIndexOf(String name) => _internal?.partIndexOf(name) ?? -1;
+  int findPartIndex(String name) => _internal?.findPartIndex(name) ?? -1;
 
   // --- Part following (read a part's live pose) ----------------------------
   //
@@ -821,7 +835,7 @@ class SpriteStudioPlayer extends ChangeNotifier {
   Matrix4? partTransform(String partName) {
     final internal = _internal;
     if (internal == null) return null;
-    return internal.partWorldMatrix(internal.partIndexOf(partName));
+    return internal.partWorldMatrix(internal.findPartIndex(partName));
   }
 
   /// Index form of [partTransform] (skips the name lookup when the caller
@@ -835,7 +849,7 @@ class SpriteStudioPlayer extends ChangeNotifier {
   bool isPartHidden(String partName) {
     final internal = _internal;
     if (internal == null) return false;
-    return internal.partHidden(internal.partIndexOf(partName));
+    return internal.partHidden(internal.findPartIndex(partName));
   }
 
   /// Index form of [isPartHidden].
@@ -844,110 +858,101 @@ class SpriteStudioPlayer extends ChangeNotifier {
   /// Force-hides a part, or reverts it to the animation. See
   /// [SpriteStudioInternalPlayer.setPartVisibilityOverride] for the cascade and
   /// instance-child caveats.
-  bool setPartVisibilityOverride(int partIndex, bool hide,
+  bool setPartVisibilityOverrideByIndex(int partIndex, bool hide,
           {bool cascade = false}) =>
       _override((i) =>
-          i.setPartVisibilityOverride(partIndex, hide, cascade: cascade));
+          i.setPartVisibilityOverrideByIndex(partIndex, hide, cascade: cascade));
 
-  /// By-name form of [setPartVisibilityOverride].
-  bool setPartVisibilityOverrideByName(String partName, bool hide,
+  /// Index form of [setPartVisibilityOverride].
+  bool setPartVisibilityOverride(String partName, bool hide,
           {bool cascade = false}) =>
-      _override((i) => i.setPartVisibilityOverrideByName(partName, hide,
+      _override((i) => i.setPartVisibilityOverride(partName, hide,
           cascade: cascade));
 
   /// Clears a part's visibility override (revert to the animation).
-  bool clearPartVisibilityOverride(int partIndex) =>
-      _override((i) => i.clearPartVisibilityOverride(partIndex));
+  bool clearPartVisibilityOverrideByIndex(int partIndex) =>
+      _override((i) => i.clearPartVisibilityOverrideByIndex(partIndex));
 
-  /// By-name form of [clearPartVisibilityOverride].
-  bool clearPartVisibilityOverrideByName(String partName) =>
-      _override((i) => i.clearPartVisibilityOverrideByName(partName));
+  /// Index form of [clearPartVisibilityOverride].
+  bool clearPartVisibilityOverride(String partName) =>
+      _override((i) => i.clearPartVisibilityOverride(partName));
 
   /// Overrides a part's colour (one value to all four corners). Normal parts
   /// only; [color] is plain 8-bit sRGB and its alpha must not be pre-folded —
   /// see [SpriteStudioInternalPlayer.setPartColorOverride].
-  bool setPartColorOverride(int partIndex, SsBlendOp blendOp, ui.Color color,
-          {SsOverridePriority priority =
+  ///
+  /// The colour comes first and [blendOp] trails with a default, which is the
+  /// family's order (SDK: `20_design/40_api_conventions`) and lets the common
+  /// case read `setPartColorOverride('hat', Colors.red)`. The C ABI puts the
+  /// blend first; this face deliberately does not.
+  bool setPartColorOverride(String partName, ui.Color color,
+          {SsBlendOp blendOp = SsBlendOp.mix,
+          SsOverridePriority priority =
               SsOverridePriority.holdUntilNextAnimation}) =>
-      _override((i) => i.setPartColorOverride(partIndex, blendOp, color,
-          priority: priority));
+      _override((i) => i.setPartColorOverride(partName, color,
+          blendOp: blendOp, priority: priority));
 
-  /// By-name form of [setPartColorOverride].
-  bool setPartColorOverrideByName(
-          String partName, SsBlendOp blendOp, ui.Color color,
-          {SsOverridePriority priority =
+  /// Index form of [setPartColorOverride].
+  bool setPartColorOverrideByIndex(int partIndex, ui.Color color,
+          {SsBlendOp blendOp = SsBlendOp.mix,
+          SsOverridePriority priority =
               SsOverridePriority.holdUntilNextAnimation}) =>
-      _override((i) => i.setPartColorOverrideByName(partName, blendOp, color,
-          priority: priority));
+      _override((i) => i.setPartColorOverrideByIndex(partIndex, color,
+          blendOp: blendOp, priority: priority));
 
-  /// Four-corner (gradient) form of [setPartColorOverride]; corner order is the
-  /// Brain's `lt, rt, lb, rb`.
-  bool setPartColorOverrideCorners(
-    int partIndex,
-    SsBlendOp blendOp, {
-    required ui.Color leftTop,
-    required ui.Color rightTop,
-    required ui.Color leftBottom,
-    required ui.Color rightBottom,
-    SsOverridePriority priority = SsOverridePriority.holdUntilNextAnimation,
-  }) =>
-      _override((i) => i.setPartColorOverrideCorners(partIndex, blendOp,
-          leftTop: leftTop,
-          rightTop: rightTop,
-          leftBottom: leftBottom,
-          rightBottom: rightBottom,
-          priority: priority));
+  /// Four-corner (gradient) form of [setPartColorOverride].
+  ///
+  /// [corners] is one argument rather than four, so the two colour methods read
+  /// the same shape. Its fields are named, so the Brain's `lt, rt, lb, rb` order
+  /// cannot be got wrong by position.
+  bool setPartColorOverrideCorners(String partName, SsCornerColors corners,
+          {SsBlendOp blendOp = SsBlendOp.mix,
+          SsOverridePriority priority =
+              SsOverridePriority.holdUntilNextAnimation}) =>
+      _override((i) => i.setPartColorOverrideCorners(partName, corners,
+          blendOp: blendOp, priority: priority));
 
-  /// By-name form of [setPartColorOverrideCorners].
-  bool setPartColorOverrideCornersByName(
-    String partName,
-    SsBlendOp blendOp, {
-    required ui.Color leftTop,
-    required ui.Color rightTop,
-    required ui.Color leftBottom,
-    required ui.Color rightBottom,
-    SsOverridePriority priority = SsOverridePriority.holdUntilNextAnimation,
-  }) =>
-      _override((i) => i.setPartColorOverrideCornersByName(partName, blendOp,
-          leftTop: leftTop,
-          rightTop: rightTop,
-          leftBottom: leftBottom,
-          rightBottom: rightBottom,
-          priority: priority));
+  /// Index form of [setPartColorOverrideCorners].
+  bool setPartColorOverrideCornersByIndex(int partIndex, SsCornerColors corners,
+          {SsBlendOp blendOp = SsBlendOp.mix,
+          SsOverridePriority priority =
+              SsOverridePriority.holdUntilNextAnimation}) =>
+      _override((i) => i.setPartColorOverrideCornersByIndex(partIndex, corners,
+          blendOp: blendOp, priority: priority));
 
   /// Clears a part's colour override (revert to the animation).
-  bool clearPartColorOverride(int partIndex) =>
-      _override((i) => i.clearPartColorOverride(partIndex));
+  bool clearPartColorOverrideByIndex(int partIndex) =>
+      _override((i) => i.clearPartColorOverrideByIndex(partIndex));
 
-  /// By-name form of [clearPartColorOverride].
-  bool clearPartColorOverrideByName(String partName) =>
-      _override((i) => i.clearPartColorOverrideByName(partName));
+  /// Index form of [clearPartColorOverride].
+  bool clearPartColorOverride(String partName) =>
+      _override((i) => i.clearPartColorOverride(partName));
 
   /// Makes a part draw a different cell ([cellmapName] without `.ssce`).
   /// Resolved immediately — an unknown cell returns false. Two empty names
   /// revert the part to the animation.
-  bool setPartCellOverride(int partIndex, String cellmapName, String cellName,
+  bool setPartCellOverrideByIndex(int partIndex, String cellmapName, String cellName,
           {SsOverridePriority priority =
               SsOverridePriority.holdUntilNextAnimation}) =>
-      _override((i) => i.setPartCellOverride(partIndex, cellmapName, cellName,
+      _override((i) => i.setPartCellOverrideByIndex(partIndex, cellmapName, cellName,
           priority: priority));
 
-  /// By-name form of [setPartCellOverride].
-  bool setPartCellOverrideByName(
+  /// Index form of [setPartCellOverride].
+  bool setPartCellOverride(
           String partName, String cellmapName, String cellName,
           {SsOverridePriority priority =
               SsOverridePriority.holdUntilNextAnimation}) =>
-      _override((i) => i.setPartCellOverrideByName(
+      _override((i) => i.setPartCellOverride(
           partName, cellmapName, cellName,
           priority: priority));
 
   /// Clears a part's cell override (revert to the animation).
-  bool clearPartCellOverride(int partIndex) =>
-      _override((i) => i.clearPartCellOverride(partIndex));
+  bool clearPartCellOverrideByIndex(int partIndex) =>
+      _override((i) => i.clearPartCellOverrideByIndex(partIndex));
 
-  /// By-name form of [clearPartCellOverride].
-  bool clearPartCellOverrideByName(String partName) =>
-      _override((i) => i.clearPartCellOverrideByName(partName));
+  /// Index form of [clearPartCellOverride].
+  bool clearPartCellOverride(String partName) =>
+      _override((i) => i.clearPartCellOverride(partName));
 
   /// Clears every per-part override on this player.
   bool clearAllPartOverrides() => _override((i) => i.clearAllPartOverrides());

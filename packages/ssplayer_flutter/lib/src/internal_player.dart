@@ -140,13 +140,13 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   /// Propagates to instance children (§8): the SDK requires it, and a child left
   /// on the other setting visibly stutters at integer frames while its parent
   /// runs smooth.
-  bool get subFrame => _subFrame;
-  set subFrame(bool value) {
+  bool get subFrameEnabled => _subFrame;
+  set subFrameEnabled(bool value) {
     _subFrame = value;
     for (final part in _instances.parts) {
-      _instances.slotFor(part.partIndex)?.child.subFrame = value;
+      _instances.slotFor(part.partIndex)?.child.subFrameEnabled = value;
     }
-    // Effects sample `subFrame ? frame : floor(frame)`, so on a frozen frame the
+    // Effects sample `subFrameEnabled ? frame : floor(frame)`, so on a frozen frame the
     // toggle would otherwise not show until something advances the clock. The
     // flagship's `setSubFrameEnabled` re-resolves for the same reason.
     _stepSlots(frameNo, 0.0, false);
@@ -316,7 +316,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
         // The SDK requires this to propagate, and recursively: a child left on
         // the other setting stutters at integer frames while its parent is
         // smooth.
-        child.subFrame = player.subFrame;
+        child.subFrameEnabled = player.subFrameEnabled;
         // Stopped until an EventInstance starts it (the flagship does the same
         // at setup). A child left playing would advance its own clock from frame
         // 0 and be out of position the moment its key finally fires.
@@ -356,9 +356,13 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   /// Canonical name→id hash (never re-implement FNV-1a on the Dart side).
   int hashString(String name) => ssRuntime.hashString(name);
 
-  void play() {
+  void play([double? startFrame]) {
     _ensureAlive();
-    ssRuntime.play(_context);
+    if (startFrame == null) {
+      ssRuntime.play(_context);
+    } else {
+      ssRuntime.playWithStartFrame(_context, startFrame);
+    }
     // An explicit head-out: without this the slot debounces the first key as
     // "the one I already started" and a replayed animation never re-fires.
     _resetSlots();
@@ -399,14 +403,14 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   /// callers wanting a one-shot notification must take the rising edge.
   bool get isFinished => ssRuntime.isFinished(_context);
 
-  bool get isLooped => ssRuntime.isLooped(_context);
+  bool get justLooped => ssRuntime.isLooped(_context);
   double get frameNo => ssRuntime.frameNo(_context);
   int get startFrame => ssRuntime.startFrame(_context);
   int get endFrame => ssRuntime.endFrame(_context);
   int get fps => ssRuntime.fps(_context);
 
-  set loop(int count) => ssRuntime.setLoop(_context, count);
-  set speed(double rate) => ssRuntime.setSpeed(_context, rate);
+  set loopCount(int count) => ssRuntime.setLoop(_context, count);
+  set speedScale(double rate) => ssRuntime.setSpeed(_context, rate);
   set frameRate(int fps) => ssRuntime.setFrameRate(_context, fps);
   /// Moves the playhead, then re-resolves the slot-based kinds (§8) *at the new
   /// frame*. Without that second half an instance child keeps whatever
@@ -444,8 +448,8 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   SsPlaybackStyle get playbackStyle =>
       SsPlaybackStyle.fromValue(ssRuntime.playbackStyle(_context));
 
-  set skipFrames(bool skip) => ssRuntime.setSkipFrames(_context, skip);
-  bool get skipFrames => ssRuntime.skipFrames(_context);
+  set frameSkipEnabled(bool skip) => ssRuntime.setSkipFrames(_context, skip);
+  bool get frameSkipEnabled => ssRuntime.skipFrames(_context);
 
   // --- Per-frame update ----------------------------------------------------
 
@@ -461,7 +465,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
     final frame = ssRuntime.update(_context, deltaMs);
     // `is_looped` is per-update (cleared at the top of each update), so it is
     // the loop *edge* the slots want, not "looping is enabled".
-    _stepSlots(frame, deltaMs, isLooped);
+    _stepSlots(frame, deltaMs, justLooped);
     return frame;
   }
 
@@ -488,7 +492,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
         _context,
         // Sample the same frame `paint` will draw, or the effect and the rest
         // of the animation disagree by up to a frame with sub-frame off.
-        parentFrame: subFrame ? frame : frame.floorToDouble(),
+        parentFrame: subFrameEnabled ? frame : frame.floorToDouble(),
         deltaSeconds: deltaMs / 1000.0,
         // The animation's authored fps (converts the delta to frames for
         // independent slots), NOT the display's.
@@ -656,7 +660,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   PartNameTable get partNames => _partNames;
 
   /// Resolves [name] to its part index, or -1 when this pack has no such part.
-  int partIndexOf(String name) => _partNames.indexOf(name);
+  int findPartIndex(String name) => _partNames.indexOf(name);
 
   /// Force-hides [partIndex] ([hide] true) or reverts it to the animation.
   /// With [cascade] the force-hide propagates to the part's descendants.
@@ -668,7 +672,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   ///
   /// An instance part's own force-hide does NOT reach into its child animation
   /// (a separate context); skipping the child's drawing is the Body's job.
-  bool setPartVisibilityOverride(int partIndex, bool hide,
+  bool setPartVisibilityOverrideByIndex(int partIndex, bool hide,
       {bool cascade = false}) {
     _ensureAlive();
     if (partIndex < 0) return false;
@@ -678,21 +682,21 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
         cascade: cascade);
   }
 
-  /// By-name form of [setPartVisibilityOverride].
-  bool setPartVisibilityOverrideByName(String partName, bool hide,
+  /// Index form of [setPartVisibilityOverride].
+  bool setPartVisibilityOverride(String partName, bool hide,
           {bool cascade = false}) =>
-      setPartVisibilityOverride(partIndexOf(partName), hide, cascade: cascade);
+      setPartVisibilityOverrideByIndex(findPartIndex(partName), hide, cascade: cascade);
 
   /// Clears [partIndex]'s visibility override (revert to the animation).
-  bool clearPartVisibilityOverride(int partIndex) {
+  bool clearPartVisibilityOverrideByIndex(int partIndex) {
     _ensureAlive();
     if (partIndex < 0) return false;
     return ssRuntime.clearPartVisibilityOverride(_context, partIndex);
   }
 
-  /// By-name form of [clearPartVisibilityOverride].
-  bool clearPartVisibilityOverrideByName(String partName) =>
-      clearPartVisibilityOverride(partIndexOf(partName));
+  /// Index form of [clearPartVisibilityOverride].
+  bool clearPartVisibilityOverride(String partName) =>
+      clearPartVisibilityOverrideByIndex(findPartIndex(partName));
 
   /// Overrides [partIndex]'s colour with one value flowed to all four corners.
   /// Normal parts only — other types return true and are ignored at the seam.
@@ -702,72 +706,63 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   /// gamma-convert it or fold `PartState.alpha` in. Overriding a part the
   /// animation gave no PartColor makes the Brain emit it as a 5-vertex fan
   /// instead of a quad; the bake path handles both, so nothing else changes.
-  bool setPartColorOverride(int partIndex, SsBlendOp blendOp, ui.Color color,
-      {SsOverridePriority priority = SsOverridePriority.holdUntilNextAnimation}) {
+  bool setPartColorOverrideByIndex(int partIndex, ui.Color color,
+      {SsBlendOp blendOp = SsBlendOp.mix,
+      SsOverridePriority priority = SsOverridePriority.holdUntilNextAnimation}) {
     _ensureAlive();
     if (partIndex < 0) return false;
     return ssRuntime.setPartColorOverride(
         _context, partIndex, blendOp.value, packRgba(color), priority.value);
   }
 
-  /// By-name form of [setPartColorOverride].
-  bool setPartColorOverrideByName(
-          String partName, SsBlendOp blendOp, ui.Color color,
-          {SsOverridePriority priority =
+  /// Index form of [setPartColorOverride].
+  bool setPartColorOverride(String partName, ui.Color color,
+          {SsBlendOp blendOp = SsBlendOp.mix,
+          SsOverridePriority priority =
               SsOverridePriority.holdUntilNextAnimation}) =>
-      setPartColorOverride(partIndexOf(partName), blendOp, color,
-          priority: priority);
+      setPartColorOverrideByIndex(findPartIndex(partName), color,
+          blendOp: blendOp, priority: priority);
 
   /// Four-corner form of [setPartColorOverride] (a gradient). The corner order
   /// is the Brain's: left-top, right-top, left-bottom, right-bottom — swapping
-  /// [leftBottom] and [rightTop] silently mirrors the gradient.
-  bool setPartColorOverrideCorners(
+  /// `leftBottom` and `rightTop` silently mirrors the gradient.
+  bool setPartColorOverrideCornersByIndex(
     int partIndex,
-    SsBlendOp blendOp, {
-    required ui.Color leftTop,
-    required ui.Color rightTop,
-    required ui.Color leftBottom,
-    required ui.Color rightBottom,
+    SsCornerColors corners, {
+    SsBlendOp blendOp = SsBlendOp.mix,
     SsOverridePriority priority = SsOverridePriority.holdUntilNextAnimation,
   }) {
     _ensureAlive();
     if (partIndex < 0) return false;
-    final corners = Uint32List(4)
-      ..[0] = packRgba(leftTop)
-      ..[1] = packRgba(rightTop)
-      ..[2] = packRgba(leftBottom)
-      ..[3] = packRgba(rightBottom);
+    final packed = Uint32List(4)
+      ..[0] = packRgba(corners.leftTop)
+      ..[1] = packRgba(corners.rightTop)
+      ..[2] = packRgba(corners.leftBottom)
+      ..[3] = packRgba(corners.rightBottom);
     return ssRuntime.setPartColorOverrideCorners(
-        _context, partIndex, blendOp.value, corners, priority.value);
+        _context, partIndex, blendOp.value, packed, priority.value);
   }
 
-  /// By-name form of [setPartColorOverrideCorners].
-  bool setPartColorOverrideCornersByName(
+  /// Index form of [setPartColorOverrideCorners].
+  bool setPartColorOverrideCorners(
     String partName,
-    SsBlendOp blendOp, {
-    required ui.Color leftTop,
-    required ui.Color rightTop,
-    required ui.Color leftBottom,
-    required ui.Color rightBottom,
+    SsCornerColors corners, {
+    SsBlendOp blendOp = SsBlendOp.mix,
     SsOverridePriority priority = SsOverridePriority.holdUntilNextAnimation,
   }) =>
-      setPartColorOverrideCorners(partIndexOf(partName), blendOp,
-          leftTop: leftTop,
-          rightTop: rightTop,
-          leftBottom: leftBottom,
-          rightBottom: rightBottom,
-          priority: priority);
+      setPartColorOverrideCornersByIndex(findPartIndex(partName), corners,
+          blendOp: blendOp, priority: priority);
 
   /// Clears [partIndex]'s colour override (revert to the animation).
-  bool clearPartColorOverride(int partIndex) {
+  bool clearPartColorOverrideByIndex(int partIndex) {
     _ensureAlive();
     if (partIndex < 0) return false;
     return ssRuntime.clearPartColorOverride(_context, partIndex);
   }
 
-  /// By-name form of [clearPartColorOverride].
-  bool clearPartColorOverrideByName(String partName) =>
-      clearPartColorOverride(partIndexOf(partName));
+  /// Index form of [clearPartColorOverride].
+  bool clearPartColorOverride(String partName) =>
+      clearPartColorOverrideByIndex(findPartIndex(partName));
 
   /// Makes [partIndex] draw a different cell. [cellmapName] carries NO `.ssce`
   /// extension. Normal + Mask parts only.
@@ -777,7 +772,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   /// two empty names reverts the part to the animation. If the new cell lives on
   /// another texture the batch split changes; [paint] just re-reads
   /// `draw_batches`, so only a caller that assumed a fixed batch count breaks.
-  bool setPartCellOverride(int partIndex, String cellmapName, String cellName,
+  bool setPartCellOverrideByIndex(int partIndex, String cellmapName, String cellName,
       {SsOverridePriority priority = SsOverridePriority.holdUntilNextAnimation}) {
     _ensureAlive();
     if (partIndex < 0) return false;
@@ -791,24 +786,24 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
         priority.value);
   }
 
-  /// By-name form of [setPartCellOverride].
-  bool setPartCellOverrideByName(
+  /// Index form of [setPartCellOverride].
+  bool setPartCellOverride(
           String partName, String cellmapName, String cellName,
           {SsOverridePriority priority =
               SsOverridePriority.holdUntilNextAnimation}) =>
-      setPartCellOverride(partIndexOf(partName), cellmapName, cellName,
+      setPartCellOverrideByIndex(findPartIndex(partName), cellmapName, cellName,
           priority: priority);
 
   /// Clears [partIndex]'s cell override (revert to the animation).
-  bool clearPartCellOverride(int partIndex) {
+  bool clearPartCellOverrideByIndex(int partIndex) {
     _ensureAlive();
     if (partIndex < 0) return false;
     return ssRuntime.clearPartCellOverride(_context, partIndex);
   }
 
-  /// By-name form of [clearPartCellOverride].
-  bool clearPartCellOverrideByName(String partName) =>
-      clearPartCellOverride(partIndexOf(partName));
+  /// Index form of [clearPartCellOverride].
+  bool clearPartCellOverride(String partName) =>
+      clearPartCellOverrideByIndex(findPartIndex(partName));
 
   /// Clears every per-part override on this player (all parts, all attributes).
   /// Does not recurse into instance children — each child owns its own context
@@ -857,11 +852,11 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   /// Re-reads `getFrameData` for the current (sub-)frame first: the SoA world
   /// buffer reflects whichever frame was last parsed (call `get_frame_data`
   /// before any SoA getter), and this samples the same frame [paint] draws
-  /// (fractional when [subFrame], else floored) so the pose matches on screen.
+  /// (fractional when [subFrameEnabled], else floored) so the pose matches on screen.
   Matrix4? partWorldMatrix(int partIndex) {
     _ensureAlive();
     if (partIndex < 0) return null;
-    final sampled = subFrame ? frameNo : frameNo.floorToDouble();
+    final sampled = subFrameEnabled ? frameNo : frameNo.floorToDouble();
     if (getFrameData(sampled) == null) return null;
     final w = worldMatrices();
     final m = partIndex * DrawFrame.worldStride;
@@ -888,7 +883,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   bool partHidden(int partIndex) {
     _ensureAlive();
     if (partIndex < 0) return false;
-    final sampled = subFrame ? frameNo : frameNo.floorToDouble();
+    final sampled = subFrameEnabled ? frameNo : frameNo.floorToDouble();
     final parts = getFrameData(sampled)?.parts;
     if (parts == null) return false;
     for (final p in parts) {
@@ -956,7 +951,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
     // OFF: snap to the integer frame. This is the ONLY place a frame gets
     // rounded — the playback state that feeds `ss_instance_slot_step` stays raw.
     final sampled = frameOverride ?? frameNo;
-    final frameData = getFrameData(subFrame ? sampled : sampled.floorToDouble());
+    final frameData = getFrameData(subFrameEnabled ? sampled : sampled.floorToDouble());
     final batches = frameData?.drawBatches;
     if (frameData == null || batches == null) return;
 

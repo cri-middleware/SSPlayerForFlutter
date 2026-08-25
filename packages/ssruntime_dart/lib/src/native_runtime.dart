@@ -156,6 +156,10 @@ class _NativeRuntime implements SsRuntime {
   void play(SsContext context) => ss_runtime_play(_ctx(context));
 
   @override
+  void playWithStartFrame(SsContext context, double frameNo) =>
+      ss_runtime_play_with_start_frame(_ctx(context), frameNo);
+
+  @override
   void pause(SsContext context) => ss_runtime_pause(_ctx(context));
 
   @override
