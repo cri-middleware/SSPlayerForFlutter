@@ -282,6 +282,9 @@ void main() {
                 child: SpriteStudioPartAnchor(
                   player: player,
                   partName: 'apple',
+                  // Mirroring is a sign on the scale, so this is only a question
+                  // once the scale is followed — which is not the default.
+                  scale: true,
                   onMirrored: mirror,
                   child: const SizedBox(key: childKey, width: 8, height: 8),
                 ),

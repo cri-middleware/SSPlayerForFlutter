@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/widgets.dart';
 
 import '../player.dart';
@@ -89,6 +91,9 @@ class SpriteStudioPartAnchor extends StatelessWidget {
     required this.player,
     required this.partName,
     required this.child,
+    this.position = true,
+    this.rotation = true,
+    this.scale = false,
     this.onHidden = SpriteStudioAnchorHidden.followAlways,
     this.onMirrored = SpriteStudioAnchorMirror.follow,
     this.filterQuality,
@@ -104,12 +109,34 @@ class SpriteStudioPartAnchor extends StatelessWidget {
   /// The widget stuck to the part.
   final Widget child;
 
+  /// Drive the child's position from the part. On by default — a follower that
+  /// does not follow the position is not following.
+  final bool position;
+
+  /// Drive the child's rotation from the part. On by default.
+  final bool rotation;
+
+  /// Drive the child's scale from the part.
+  ///
+  /// **Off by default**, matching the sibling players: a follower is placed *at*
+  /// the part, not *sized by* it, and a health bar or a name plate stretching
+  /// with a breathing animation is rarely what was wanted. Turn it on for
+  /// something that is part of the artwork — a weapon in a hand.
+  ///
+  /// With all three on the part's affine is applied as it is, so skew and
+  /// mirroring are reproduced exactly. With any of them off the affine is
+  /// decomposed and only the enabled axes are rebuilt; a disabled axis takes
+  /// the identity, since a wrapped widget has no transform of its own to keep.
+  final bool scale;
+
   /// What to do when the part is hidden this frame. Defaults to
   /// [SpriteStudioAnchorHidden.followAlways], matching the sibling players;
   /// pass [SpriteStudioAnchorHidden.hideChild] to drop the child with the part.
   final SpriteStudioAnchorHidden onHidden;
 
-  /// Whether a flipped player mirrors this child too. Defaults to
+  /// Whether a flipped player mirrors this child too. **Only bites when
+  /// [scale] is on**: a mirror is a sign on the scale, so with [scale] off the
+  /// child is never mirrored in the first place. Defaults to
   /// [SpriteStudioAnchorMirror.follow]; use
   /// [SpriteStudioAnchorMirror.cancel] for a child that must stay readable
   /// (text, icons, a health bar).
@@ -118,6 +145,39 @@ class SpriteStudioPartAnchor extends StatelessWidget {
   /// Optional [Transform.filterQuality] — e.g. [FilterQuality.low] to smooth a
   /// rotated or scaled child. Null keeps Flutter's nearest-neighbour default.
   final FilterQuality? filterQuality;
+
+  /// [world] with only the enabled axes kept.
+  ///
+  /// All three on is the passthrough — and the only path that reproduces skew,
+  /// which a TRS rebuild cannot represent. Otherwise the affine is decomposed
+  /// and recomposed, with `scaleY` carrying the determinant's sign so a mirrored
+  /// part reads as a negative scale rather than as a 180-degree rotation.
+  Matrix4 _axes(Matrix4 world) {
+    if (position && rotation && scale) return world;
+
+    final m = world.storage;
+    final a = m[0], b = m[1], c = m[4], d = m[5];
+    final tx = position ? m[12] : 0.0;
+    final ty = position ? m[13] : 0.0;
+
+    var sx = 1.0, sy = 1.0;
+    if (scale) {
+      final determinant = a * d - b * c;
+      sx = math.sqrt(a * a + b * b);
+      sy = math.sqrt(c * c + d * d) * (determinant < 0 ? -1.0 : 1.0);
+    }
+    final theta = rotation ? math.atan2(b, a) : 0.0;
+    final cos = math.cos(theta), sin = math.sin(theta);
+
+    // Column-major, as Matrix4 stores it: scale*rotation for x and y, then z,
+    // then the translation.
+    return Matrix4(
+      sx * cos, sx * sin, 0.0, 0.0,
+      -sy * sin, sy * cos, 0.0, 0.0,
+      0.0, 0.0, 1.0, 0.0,
+      tx, ty, 0.0, 1.0,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -146,9 +206,13 @@ class SpriteStudioPartAnchor extends StatelessWidget {
             // as drawn), so the child lands on the part across a flip with no
             // help. Cancelling only takes the mirror back out of the child's own
             // frame, on the right so the position it just followed is untouched.
-            final pose = onMirrored == SpriteStudioAnchorMirror.cancel
-                ? world.multiplied(player.rootTransform.mirrorCancel)
-                : world;
+            final followed = _axes(world);
+            // Only when the scale came along: a mirror IS a sign on the scale,
+            // so dropping the scale has already removed it, and cancelling again
+            // would put one back.
+            final pose = scale && onMirrored == SpriteStudioAnchorMirror.cancel
+                ? followed.multiplied(player.rootTransform.mirrorCancel)
+                : followed;
             // A Stack keyed to the view's box (Clip.none so a part near the edge
             // is not clipped); the single positioned child is nudged to the part
             // by `centre · world`.
