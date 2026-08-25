@@ -20,14 +20,14 @@ _player.clearAllPartOverrides();
 
 !!! warning "Select an animation first"
     The runtime holds overrides in a table sized to the part count, and that table is only allocated
-    when you call **`setupAnimation()`** (or `load(animationName: ...)`). Before that, every call is
+    when you call **`setAnimation()`** (or `load(animationName: ...)`). Before that, every call is
     rejected and returns `false`.
 
     What makes this easy to miss: **part-name resolution already works** beforehand, because names are
     read from the `.ssab`. If `partIndexOf()` returns a valid index but `set` keeps failing, this is
     almost certainly why.
 
-    Note also that `setupAnimation()` **clears** every override that is not `Permanent` — so always
+    Note also that `setAnimation()` **clears** every override that is not `Permanent` — so always
     apply overrides *after* selecting the animation, never before.
 
 ## Methods

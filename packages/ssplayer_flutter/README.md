@@ -45,7 +45,7 @@ class _MyState extends State<MyWidget> with SingleTickerProviderStateMixin {
     // textures from the key's own folder (embedded packs too).
     await _player.loadAsset('assets/overall/Basic.ssab');
     _player
-      ..setupAnimation(_player.getAnimations().first)
+      ..setAnimation(_player.getAnimations().first)
       ..loop = -1
       ..play();
   }

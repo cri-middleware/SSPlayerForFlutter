@@ -33,7 +33,7 @@ typedef SsEventCallback = void Function(List<int> passedEventIndices);
 /// events — is identical in both modes.
 ///
 /// Cross-fade / blend transitions between animations are not currently
-/// supported: [setupAnimation] switches instantly.
+/// supported: [setAnimation] switches instantly.
 class SpriteStudioPlayer extends ChangeNotifier {
   SpriteStudioPlayer({
     TickerProvider? vsync,
@@ -164,7 +164,7 @@ class SpriteStudioPlayer extends ChangeNotifier {
   SsAnimeInfo? _animeInfo;
 
   /// Names of the animations contained in the currently-loaded `.ssab`, in pack
-  /// order (empty before [load]). Feed any of these to [setupAnimation] to
+  /// order (empty before [load]). Feed any of these to [setAnimation] to
   /// switch animation without reloading the resource or its textures.
   List<String> getAnimations() =>
       _animeInfo?.animationNames ?? const <String>[];
@@ -187,7 +187,7 @@ class SpriteStudioPlayer extends ChangeNotifier {
   String? soundFilePath(int soundNameHash) =>
       _animeInfo?.soundFilePath(soundNameHash);
 
-  /// The animation currently selected via [load] or [setupAnimation] (null
+  /// The animation currently selected via [load] or [setAnimation] (null
   /// before any is chosen). [reload] uses it to restore selection across a
   /// resource swap.
   String? get currentAnimation => _currentAnimation;
@@ -426,7 +426,7 @@ class SpriteStudioPlayer extends ChangeNotifier {
     final target = (anim != null && names.contains(anim))
         ? anim
         : (names.isEmpty ? null : names.first);
-    if (target != null) setupAnimation(target);
+    if (target != null) setAnimation(target);
     // Transport first, playhead second. [play] is a head-out that rewinds to the
     // start frame, so seeking before it would simply be undone — the whole point
     // of [reload] is that the playhead survives. The head-out itself is right
@@ -437,9 +437,28 @@ class SpriteStudioPlayer extends ChangeNotifier {
     if (wasPaused) pause();
   }
 
-  /// Switches the current animation (keeps the loaded resource).
-  bool setupAnimation(String name) {
+  /// Switches the current animation (keeps the loaded resource), posing it on
+  /// its first frame. Does not start playback — [play] does.
+  ///
+  /// **Selecting the animation already selected does nothing at all.** It is a
+  /// switch, so with nothing to switch to it costs nothing and disturbs nothing:
+  /// the playhead stays, the instance children are not rebuilt, and the override
+  /// layer survives. That is what makes it safe for a state machine to assert
+  /// its current clip every frame — and returning early is not just an
+  /// optimisation, because [_applyTransportSettings] writes the loop count and
+  /// the Brain RE-ARMS the remaining-loop counter on every write. Re-asserting
+  /// each frame would reset the loop budget each frame, and a finite [loop]
+  /// would never run out.
+  ///
+  /// To restart, call [play], which heads out. To drop the overrides, call
+  /// [clearAllPartOverrides]. To drop a playback section, set one covering the
+  /// whole animation.
+  bool setAnimation(String name) {
     final internal = _requireInternal();
+    // Against what is actually selected, which [load] resets — so a second pack
+    // that happens to name an animation the same way as the first still gets
+    // set up rather than being taken for one already selected.
+    if (_currentAnimation == name) return true;
     final ok = internal.setupAnimation(name);
     if (ok) {
       _currentAnimation = name;
@@ -529,7 +548,7 @@ class SpriteStudioPlayer extends ChangeNotifier {
   }
 
   /// Which way the playhead walks, and what it does at the far end. Both
-  /// **survive** [setupAnimation] — "play this backwards" describes the
+  /// **survive** [setAnimation] — "play this backwards" describes the
   /// playback, not the clip that happens to be loaded (SDK #375), which is the
   /// same reason [speed] and [skipFrames] carry across. What does not carry is
   /// the heading within a round trip: a new animation always starts on the
@@ -559,7 +578,7 @@ class SpriteStudioPlayer extends ChangeNotifier {
   /// stalled app plays in slow motion.
   ///
   /// Turn it OFF when every frame matters — an animation whose events must all
-  /// fire, or a deterministic recording. Re-applied across [setupAnimation].
+  /// fire, or a deterministic recording. Re-applied across [setAnimation].
   bool get skipFrames => _internal?.skipFrames ?? _skipFrames ?? true;
   set skipFrames(bool value) {
     _skipFrames = value;
@@ -570,11 +589,11 @@ class SpriteStudioPlayer extends ChangeNotifier {
   /// animation, so [play] / looping / ping-pong all work within that range.
   /// [startFrame] and [endFrame] report the result.
   ///
-  /// Not restored across [setupAnimation]: frame numbers only mean something
+  /// Not restored across [setAnimation]: frame numbers only mean something
   /// inside the animation they were measured in, so carrying a section into a
   /// different one would clamp it to an arbitrary range. Call this again after
   /// each setup, and only once the animation is selected — a section set before
-  /// [setupAnimation] is wiped by it.
+  /// [setAnimation] is wiped by it.
   void setAnimationSection(int startFrame, int endFrame) {
     _internal?.setAnimationSection(startFrame, endFrame);
   }
@@ -586,7 +605,7 @@ class SpriteStudioPlayer extends ChangeNotifier {
   /// Overrides the advance rate, in absolute frames per second.
   ///
   /// The override is the host's rather than the clip's, so it **survives**
-  /// [setupAnimation] the way [speed] and [skipFrames] do (SDK #370). Hand it
+  /// [setAnimation] the way [speed] and [skipFrames] do (SDK #370). Hand it
   /// `0` (or any negative value) to clear it and go back to whatever each
   /// animation was authored at. To scale playback without replacing the
   /// authored rate, use [speed] instead.
@@ -643,7 +662,7 @@ class SpriteStudioPlayer extends ChangeNotifier {
   bool get isPaused => _internal?.isPausing ?? false;
 
   /// Whether every configured loop has played. **Sticky** until the next [play]
-  /// or [setupAnimation], so polling it tells you the run is over but not when
+  /// or [setAnimation], so polling it tells you the run is over but not when
   /// it ended — take the rising edge, or just use [onComplete]. Always false
   /// while [loop] is infinite.
   bool get isFinished => _internal?.isFinished ?? false;
@@ -770,10 +789,10 @@ class SpriteStudioPlayer extends ChangeNotifier {
   // and a UI that fires one while the pack is still loading is not a bug.
   //
   // They also no-op until an animation is selected — [load] with an
-  // `animationName`, or a [setupAnimation] call. The Brain only sizes its
+  // `animationName`, or a [setAnimation] call. The Brain only sizes its
   // override table there, so a load with no animation leaves every index out of
   // range even though [partNames] already resolves. Note the ordering trap that
-  // follows: [setupAnimation] CLEARS every override that is not
+  // follows: [setAnimation] CLEARS every override that is not
   // [SsOverridePriority.permanent], so overrides are applied *after* choosing
   // the animation, never before.
 

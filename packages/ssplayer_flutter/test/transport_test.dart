@@ -33,7 +33,7 @@ void main() {
     }
 
     await player.load(bytes, loadTextures: false);
-    player.setupAnimation(player.getAnimations().first);
+    player.setAnimation(player.getAnimations().first);
     player.loop = -1;
     player.play();
 

@@ -34,7 +34,7 @@ class _MyState extends State<MyWidget> with SingleTickerProviderStateMixin {
     // reference textures from the key's own folder (embedded packs too).
     await _player.loadAsset('assets/overall/Basic.ssab');
     _player
-      ..setupAnimation(_player.getAnimations().first)
+      ..setAnimation(_player.getAnimations().first)
       ..loop = -1
       ..play();
   }
@@ -54,7 +54,7 @@ class _MyState extends State<MyWidget> with SingleTickerProviderStateMixin {
 |---|---|
 | `SpriteStudioPlayer(vsync: this)` | Creates the player with its own `Ticker`. Omit `vsync` to drive the clock yourself (see [Playback & Events](playback.md)). |
 | `loadAsset('assets/overall/Basic.ssab')` | Reads the bytes from the asset bundle, hands them to the native runtime, and resolves sibling reference textures from the key's own folder. |
-| `getAnimations()` / `setupAnimation` | Lists the animations inside the loaded `.ssab` and selects one. |
+| `getAnimations()` / `setAnimation` | Lists the animations inside the loaded `.ssab` and selects one. |
 | `loop = -1` | Loops forever (`n > 0` plays *n* times; see [Playback & Events](playback.md)). |
 | `play()` | Starts the transport. |
 | `SpriteStudioView(player:, width:, height:)` | A plain `RenderBox` widget — position, transform, and clip it like any widget. |

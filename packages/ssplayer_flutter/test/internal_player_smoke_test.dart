@@ -46,7 +46,7 @@ void main() {
     addTearDown(player.dispose);
 
     expect(player.setupAnimation(animName), isTrue,
-        reason: 'setupAnimation("$animName") should succeed');
+        reason: 'setAnimation("$animName") should succeed');
     player.play();
 
     // Advance ~one frame at 60fps and pull the results.

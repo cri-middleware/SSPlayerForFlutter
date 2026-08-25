@@ -1,8 +1,9 @@
 // The transport controls that shape *how* the range is walked — the playback
 // section, direction / ping-pong, and frame skipping.
 //
-// `setupAnimation` resets every one of them in the Brain, so the interesting
-// behaviour is which ones the player puts back. Direction, style and
+// A real `setAnimation` resets every one of them in the Brain, so the
+// interesting behaviour is which ones the player puts back. (Selecting the
+// animation already selected resets nothing at all — it is a no-op.) Direction, style and
 // skip-frames are host policy and are re-applied; a section is a range of frame
 // numbers that means nothing in a different animation, so it is deliberately
 // left to reset. These tests pin that split.
@@ -30,7 +31,7 @@ void main() {
     final player = SpriteStudioPlayer();
     addTearDown(player.dispose);
     await player.load(bytes, loadTextures: false);
-    player.setupAnimation(player.getAnimations().first);
+    player.setAnimation(player.getAnimations().first);
     return player;
   }
 
@@ -63,10 +64,32 @@ void main() {
     expect(player.totalFrames, lessThan(fullLength));
   });
 
-  test('a section does NOT survive setupAnimation', () async {
+  test('selecting the animation already selected changes nothing', () async {
     final player = await loadedPlayer();
     if (player == null) {
       markTestSkipped('Basic.ssab missing — run deploy-examples.sh');
+      return;
+    }
+
+    player.setAnimationSection(player.startFrame, player.startFrame + 3);
+    expect(player.totalFrames, 4);
+
+    // A switch with nothing to switch to. Nothing is reset — not the section,
+    // not the playhead, not the loop budget. Restarting is `play`'s job.
+    expect(player.setAnimation(player.getAnimations().first), isTrue);
+    expect(player.totalFrames, 4,
+        reason: 'a no-op must not drop the section');
+  });
+
+  test('a section does NOT survive a real switch', () async {
+    final player = await loadedPlayer();
+    if (player == null) {
+      markTestSkipped('Basic.ssab missing — run deploy-examples.sh');
+      return;
+    }
+    final anims = player.getAnimations();
+    if (anims.length < 2) {
+      markTestSkipped('Basic.ssab has one animation — nothing to switch to');
       return;
     }
 
@@ -76,12 +99,14 @@ void main() {
 
     // Frame numbers are only meaningful inside the animation they came from, so
     // the section is left to reset rather than carried across.
-    player.setupAnimation(player.getAnimations().first);
-    expect(player.totalFrames, fullLength,
+    player.setAnimation(anims[1]);
+    expect(player.totalFrames, isNot(4),
         reason: 'setup should restore the full range');
+    expect(player.totalFrames, greaterThan(4));
+    expect(fullLength, greaterThan(4));
   });
 
-  test('direction and style apply, and survive setupAnimation', () async {
+  test('direction and style apply, and survive setAnimation', () async {
     final player = await loadedPlayer();
     if (player == null) {
       markTestSkipped('Basic.ssab missing — run deploy-examples.sh');
@@ -96,7 +121,7 @@ void main() {
     // Host policy, like the speed and the frame skip: "play this backwards" is
     // a decision about the playback, so the Brain keeps it across a transition
     // (SDK #375). Nothing on this side re-applies it.
-    player.setupAnimation(player.getAnimations().first);
+    player.setAnimation(player.getAnimations().first);
     expect(player.playbackDirection, SsPlaybackDirection.backward);
     expect(player.playbackStyle, SsPlaybackStyle.pingPong);
   });
@@ -120,7 +145,7 @@ void main() {
         reason: 'the playhead should retreat');
   });
 
-  test('skipFrames applies and DOES survive setupAnimation', () async {
+  test('skipFrames applies and DOES survive setAnimation', () async {
     final player = await loadedPlayer();
     if (player == null) {
       markTestSkipped('Basic.ssab missing — run deploy-examples.sh');
@@ -132,7 +157,7 @@ void main() {
     player.skipFrames = false;
     expect(player.skipFrames, isFalse);
 
-    player.setupAnimation(player.getAnimations().first);
+    player.setAnimation(player.getAnimations().first);
     expect(player.skipFrames, isFalse, reason: 'host policy is re-applied');
   });
 }

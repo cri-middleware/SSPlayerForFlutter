@@ -2,7 +2,7 @@
 // it: the frame range (startFrame / endFrame / totalFrames), the advance rate
 // (frameRate) and the two Brain state flags (isFinished / isLooped). These
 // forward to Layer 2, which is why the interesting cases are the edges — before
-// a load there is no Brain to ask, and `setupAnimation` re-reads the pack.
+// a load there is no Brain to ask, and `setAnimation` re-reads the pack.
 //
 // Externally clocked (no `vsync`) so the frame stepping is deterministic.
 //
@@ -27,7 +27,7 @@ void main() {
     final player = SpriteStudioPlayer();
     addTearDown(player.dispose);
     await player.load(bytes, loadTextures: false);
-    player.setupAnimation(player.getAnimations().first);
+    player.setAnimation(player.getAnimations().first);
     return player;
   }
 
@@ -60,7 +60,7 @@ void main() {
     expect(player.totalFrames, greaterThan(1));
   });
 
-  test('a frameRate override applies, and survives setupAnimation', () async {
+  test('a frameRate override applies, and survives setAnimation', () async {
     final player = await loadedPlayer();
     if (player == null) {
       markTestSkipped('Basic.ssab missing — run deploy-examples.sh');
@@ -75,7 +75,7 @@ void main() {
     // a transition (SDK #370) — the same rule that keeps speed and frame skip.
     // Clear it by setting 0 (or any negative), which hands playback back to the
     // authored rate.
-    player.setupAnimation(player.getAnimations().first);
+    player.setAnimation(player.getAnimations().first);
     expect(player.frameRate, authored * 2,
         reason: 'a host override outlives the transition');
 
@@ -91,7 +91,7 @@ void main() {
       return;
     }
 
-    // loop AFTER setup — setupAnimation resets the Brain's loop counter.
+    // loop AFTER setup — setAnimation resets the Brain's loop counter.
     player.loop = 1;
     player.play();
     expect(player.isFinished, isFalse, reason: 'a fresh play is not finished');
@@ -108,7 +108,7 @@ void main() {
 
     // isLooped is the opposite shape — an edge cleared at the top of every
     // update — so it only reads true inside the tick that crossed.
-    player.setupAnimation(player.getAnimations().first);
+    player.setAnimation(player.getAnimations().first);
     player.loop = -1;
     player.play();
     var sawLoopEdge = false;

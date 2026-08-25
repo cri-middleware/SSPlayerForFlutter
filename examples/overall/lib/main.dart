@@ -250,7 +250,7 @@ class _PlayerPageState extends State<PlayerPage>
       // Enumerate the pack's animations and start on the first one.
       final anims = _player.getAnimations();
       final animName = anims.isNotEmpty ? anims.first : null;
-      if (animName != null) _player.setupAnimation(animName);
+      if (animName != null) _player.setAnimation(animName);
       _player
         ..loop = -1
         ..play();
@@ -293,7 +293,7 @@ class _PlayerPageState extends State<PlayerPage>
   void _selectAnimation(String name) {
     if (name == _anim) return;
     _player
-      ..setupAnimation(name)
+      ..setAnimation(name)
       ..loop = -1
       ..play();
     setState(() {

@@ -157,7 +157,7 @@ Future<ui.Image> _renderReloaded(
 /// compared at the same playhead.
 void _home(SpriteStudioPlayer player) {
   final anims = player.getAnimations();
-  if (anims.isNotEmpty) player.setupAnimation(anims.first);
+  if (anims.isNotEmpty) player.setAnimation(anims.first);
   player.play();
 }
 

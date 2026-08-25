@@ -35,8 +35,8 @@ void main() {
     expect(anims, isNotEmpty);
     // Matches the metadata parsed straight from the bytes…
     expect(anims, SsAnimeInfo(bytes).animationNames);
-    // …and every enumerated name is accepted by setupAnimation.
-    expect(player.setupAnimation(anims.first), isTrue);
+    // …and every enumerated name is accepted by setAnimation.
+    expect(player.setAnimation(anims.first), isTrue);
   });
 }
 

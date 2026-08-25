@@ -27,7 +27,7 @@ void main() {
 
     await player.load(bytes, loadTextures: false);
     final anim = player.getAnimations().first;
-    player.setupAnimation(anim);
+    player.setAnimation(anim);
     expect(player.currentAnimation, anim);
 
     // Move off frame 0 so the "preserve playhead" behaviour is observable.
@@ -63,7 +63,7 @@ void main() {
 
     await player.load(bytes, loadTextures: false);
     final anim = player.getAnimations().first;
-    player.setupAnimation(anim);
+    player.setAnimation(anim);
     player.play();
     player.seek(3); // after play(), which head-outs to the start frame
     expect(player.isPlaying, isTrue);
@@ -95,7 +95,7 @@ void main() {
     addTearDown(player.dispose);
 
     await player.load(bytes, loadTextures: false);
-    player.setupAnimation(player.getAnimations().first);
+    player.setAnimation(player.getAnimations().first);
     player.play();
     player.seek(3);
     player.pause();

@@ -6,7 +6,7 @@
 ## 再生制御
 
 ```dart
-_player.setupAnimation('attack'); // アニメを選択（先頭フレームで待機）
+_player.setAnimation('attack'); // アニメを選択（先頭フレームで待機）
 _player.play();                    // 先頭から再生
 ```
 
@@ -30,7 +30,7 @@ _player.play();                    // 先頭から再生
 | `frameNo` / `currentAnimation` | 読取 | 現在フレーム / 再生中のアニメ名 |
 | `startFrame` / `endFrame` / `totalFrames` | `int`（読取） | 再生対象のフレーム区間とその長さ。`totalFrames` はスクラバに渡す用 |
 
-### `setupAnimation` をまたいで残るもの
+### `setAnimation` をまたいで残るもの
 
 アニメをセットアップすると Brain のトランスポートは全部リセットされます。プレイヤーは
 **あなたが決めた設定**を復元し、**アニメ自身を表す設定**はリセットされるに任せます。
@@ -41,7 +41,7 @@ _player.play();                    // 先頭から再生
 
 再生区間は別のアニメでは意味を持たないフレーム番号の範囲です。持ち越すと、いま選んだアニメの
 設定を黙って上書きしてしまいます。必要ならセットアップのたびに設定し直してください。特に区間を
-`setupAnimation` の**前**に設定しても
+`setAnimation` の**前**に設定しても
 消えてしまう点に注意してください。
 
 Player 側が戻すのは `loop` だけで、残りは Brain 自身が保持します。`frameRate` の上書きも遷移を
@@ -61,7 +61,7 @@ _player.setPlaybackDirection(SsPlaybackDirection.backward, SsPlaybackStyle.pingP
 ### アニメの一部だけ再生する
 
 ```dart
-_player.setupAnimation('attack');
+_player.setAnimation('attack');
 _player.setAnimationSection(10, 24);   // setup の後で。前だと消える
 _player..loop = -1..play();            // 10〜24 の範囲でループ
 ```
@@ -109,14 +109,14 @@ _player.flipX = velocity.dx < 0;
 
 ## アニメを切り替える
 
-`setupAnimation(name)` はアニメを選択して**先頭フレームで待機**します —— 再生は開始しません。
+`setAnimation(name)` はアニメを選択して**先頭フレームで待機**します —— 再生は開始しません。
 
 Brain 側のトランスポートはリセットされますが、`SpriteStudioPlayer` は**あなたが設定した
 `loop` / `speed` を覚えていて再適用**するので、アニメを切り替えるたびに設定し直す必要は
-ありません（「`setupAnimation` をまたいで残るもの」の表のとおり）。
+ありません（「`setAnimation` をまたいで残るもの」の表のとおり）。
 
 ```dart
-_player.setupAnimation('walk');
+_player.setAnimation('walk');
 _player..loop = 3..speed = 1.5..play();
 ```
 
@@ -178,7 +178,7 @@ _player.onAudio = (audio) {
 ```dart
 _player.onComplete = () {
   if (_player.currentAnimation == 'attack') {
-    _player.setupAnimation('idle');
+    _player.setAnimation('idle');
     _player..loop = -1..play();
   }
 };

@@ -341,7 +341,7 @@ void main() {
       expect(advanced, isNotEmpty, reason: 'no child clock ever advanced');
     });
 
-    test('setupAnimation poses the children for the idle frame', () {
+    test('setAnimation poses the children for the idle frame', () {
       final a = assets;
       if (a == null) {
         markTestSkipped('Instance.ssab missing');

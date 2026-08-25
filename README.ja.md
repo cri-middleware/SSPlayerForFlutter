@@ -82,7 +82,7 @@ class _MyState extends State<MyWidget> with SingleTickerProviderStateMixin {
     // キー自身のフォルダから解決します。baseAssetDir は不要（embedded も同じ）。
     await _player.loadAsset('assets/spritestudio/overall/Basic.ssab');
     _player
-      ..setupAnimation(_player.getAnimations().first)
+      ..setAnimation(_player.getAnimations().first)
       ..loop = -1
       ..play();
   }

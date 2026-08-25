@@ -285,7 +285,7 @@ class InstanceSlots<T extends InstanceChild> {
 
   /// Rewinds every slot's "last started key" memory and its child's clock.
   ///
-  /// Must run on an explicit head-out — `play()` or a new `setupAnimation` — or
+  /// Must run on an explicit head-out — `play()` or a new `setAnimation` — or
   /// the debounce swallows the first key and a replayed animation never
   /// re-fires its instance. Recurses into children, like the flagship's
   /// `_reset_slots_playback_state`.

@@ -103,7 +103,7 @@ Future<void> _playOnce(SpriteStudioPlayer player, Uint8List bytes) async {
   // loadTextures:false keeps the test hermetic (no asset bundle needed) — event
   // dispatch is independent of the render pass.
   await player.load(bytes, animationName: animName, loadTextures: false);
-  player.loop = 1; // set AFTER setup: setupAnimation resets the loop counter.
+  player.loop = 1; // set AFTER setup: setAnimation resets the loop counter.
   player.play();
 
   var completed = false;

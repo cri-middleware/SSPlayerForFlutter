@@ -110,7 +110,7 @@ class EffectSlots {
 
   /// Rewinds every slot's "last started key" memory (`ss_effect_slot_reset`).
   ///
-  /// Must run on an explicit head-out — `play()` or a new `setupAnimation` —
+  /// Must run on an explicit head-out — `play()` or a new `setAnimation` —
   /// or the debounce swallows the first key and a replayed animation never
   /// re-fires its effect. Emitter caches and the resource binding survive.
   void reset() {

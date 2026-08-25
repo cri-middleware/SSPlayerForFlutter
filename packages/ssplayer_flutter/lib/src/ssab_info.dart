@@ -18,7 +18,7 @@ typedef SsPassedEvents = ({
 /// bytes via the Dart FlatBuffers accessors.
 ///
 /// Useful before/after loading: enumerate the animation names to feed
-/// [SpriteStudioPlayer.setupAnimation], or list cellmaps to prepare textures.
+/// [SpriteStudioPlayer.setAnimation], or list cellmaps to prepare textures.
 /// (The Brain returns only computed local attributes; structural metadata like
 /// names lives in the `.ssab`, per the porting guide.)
 class SsAnimeInfo {
@@ -29,7 +29,7 @@ class SsAnimeInfo {
   /// The animation-pack name.
   String? get packName => _root.name;
 
-  /// Names of the animations in this pack (feed to `setupAnimation`).
+  /// Names of the animations in this pack (feed to `setAnimation`).
   List<String> get animationNames =>
       _root.animations
           ?.map((a) => a.name)
