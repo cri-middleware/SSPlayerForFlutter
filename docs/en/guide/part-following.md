@@ -37,6 +37,9 @@ Stack(
 | **`player`** | The player whose part poses this anchor follows (required) |
 | **`partName`** | The name of the part to follow (the `PartData` name in the `.ssab`). An unknown name — or one absent from the current animation — simply draws nothing until it resolves |
 | **`child`** | The widget stuck to the part. Its **top-left origin** is pinned to the part's origin |
+| **`position`** | Drive the child's position from the part. Default `true` |
+| **`rotation`** | Drive the child's rotation from the part. Default `true` |
+| **`scale`** | Drive the child's scale from the part. **Default `false`** — a follower is placed *at* the part, not sized by it. Only with all three on is the affine applied as-is, so skew and mirroring are reproduced exactly |
 | **`onHidden`** | Behaviour on frames where the part is hidden. `followAlways` (default) / `hideChild` |
 | **`onMirrored`** | What a flipped player does to the child. `follow` (default) / `cancel` |
 | **`filterQuality`** | Optional `Transform.filterQuality` — e.g. `FilterQuality.low` to smooth a rotated or scaled child. Null keeps Flutter's nearest-neighbour default |

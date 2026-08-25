@@ -9,6 +9,7 @@
 // raw SoA world matrix, with an identity Z/W row so no stray scale or
 // perspective leaks into a `Transform` widget.
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter/widgets.dart';
@@ -151,6 +152,63 @@ void main() {
       await tester.pumpWidget(host('no-such-part'));
       expect(find.byKey(childKey), findsNothing,
           reason: 'an unknown part draws nothing');
+    });
+
+    testWidgets('scale is off by default, and asking for all three passes the affine through',
+        (tester) async {
+      final bytes = _ringo();
+      if (bytes == null) return;
+      final player = SpriteStudioPlayer();
+      addTearDown(player.dispose);
+      await player.load(bytes,
+          animationName: _animations().first, loadTextures: false);
+      player.advance(const Duration(milliseconds: 16));
+
+      const childKey = Key('anchored-child');
+      Widget host({bool? scale}) => Directionality(
+            textDirection: TextDirection.ltr,
+            child: Center(
+              child: SizedBox(
+                width: 200,
+                height: 200,
+                child: SpriteStudioPartAnchor(
+                  player: player,
+                  partName: 'apple',
+                  scale: scale ?? false,
+                  child: const SizedBox(key: childKey, width: 8, height: 8),
+                ),
+              ),
+            ),
+          );
+
+      Matrix4 appliedTransform() => tester
+          .widgetList<Transform>(find.ancestor(
+              of: find.byKey(childKey), matching: find.byType(Transform)))
+          .first
+          .transform;
+
+      // The part's own pose, for comparison. `apple` carries a scale in Ringo,
+      // so the two paths are distinguishable rather than incidentally equal.
+      final world = player.partTransform('apple')!;
+
+      await tester.pumpWidget(host(scale: true));
+      final withScale = appliedTransform();
+
+      await tester.pumpWidget(host());
+      final withoutScale = appliedTransform();
+
+      // Translation is followed either way — that is what `position` means.
+      expect(withoutScale.storage[12], closeTo(withScale.storage[12], 1e-6));
+      expect(withoutScale.storage[13], closeTo(withScale.storage[13], 1e-6));
+
+      // ...but the basis is the identity's magnitude when scale is off, and the
+      // part's when it is on.
+      double basisLength(Matrix4 m) =>
+          math.sqrt(m.storage[0] * m.storage[0] + m.storage[1] * m.storage[1]);
+      expect(basisLength(withoutScale), closeTo(1.0, 1e-6),
+          reason: 'the child keeps its own size by default');
+      expect(basisLength(withScale), closeTo(basisLength(world), 1e-6),
+          reason: 'asking for scale reproduces the part exactly');
     });
 
     testWidgets('a hidden part keeps its child by default; hideChild drops it',
