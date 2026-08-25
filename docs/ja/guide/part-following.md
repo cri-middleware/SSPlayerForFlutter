@@ -37,7 +37,7 @@ Stack(
 | **`player`** | 追従元となるプレイヤー（必須） |
 | **`partName`** | 追従対象のパーツ名（`.ssab` の `PartData` 名）。存在しない名前や現在のアニメーションに無いパーツを指定した場合は、解決できるようになるまで何も描画しません |
 | **`child`** | パーツに貼り付けるウィジェット。その**左上**がパーツの原点に固定されます |
-| **`onHidden`** | パーツが hide のフレームでの挙動。`hideChild`（既定）/ `followAlways` |
+| **`onHidden`** | パーツが hide のフレームでの挙動。`followAlways`（既定）/ `hideChild` |
 | **`onMirrored`** | プレイヤーを反転したときの子ウィジェットの扱い。`follow`（既定）/ `cancel` |
 | **`filterQuality`** | 任意の `Transform.filterQuality`。回転・拡縮した子を滑らかにしたい場合は `FilterQuality.low` など。null なら Flutter 既定（最近傍）のまま |
 
@@ -45,8 +45,8 @@ Stack(
 
 | 値 | 挙動 |
 |---|---|
-| `hideChild`（既定） | パーツが hide の間は子ウィジェットを描画しない（ForUnity の `Deactivate`、ForGodot の `HIDE_TARGET` に相当） |
-| `followAlways` | hide フラグに関係なく追従を継続し、子ウィジェットを表示し続ける（ForUnity の `FollowAlways`、ForGodot の `FOLLOW_ALWAYS` に相当） |
+| `followAlways`（既定） | hide フラグに関係なく追従を継続し、子ウィジェットを表示し続ける（ForUnity の `FollowAlways`、ForGodot の `FOLLOW_ALWAYS`、ForWeb の `onHide: 'follow'` に相当） |
+| `hideChild` | パーツが hide の間は子ウィジェットを描画しない（ForUnity の `Deactivate`、ForGodot の `HIDE_TARGET`、ForWeb の `onHide: 'hide'` に相当） |
 
 ここでいう hide は、キーフレームの `hide` と表示指定オーバーライドを合成した結果です
 （[パーツオーバーライド](part-overrides.md) が書き込むのと同じ値）。
@@ -173,8 +173,8 @@ Y-Down の反転は**ランタイム側で適用済み**です。呼び出し側
 
 ## 注意点
 
-- **存在しないパーツ名では、`onHidden` の設定に関係なく何も描画されません。** `hideChild` /
-  `followAlways` が決めるのは、実在してそのフレームで hide になっているパーツの扱いだけです。
+- **存在しないパーツ名では、`onHidden` の設定に関係なく何も描画されません。** `followAlways` /
+  `hideChild` が決めるのは、実在してそのフレームで hide になっているパーツの扱いだけです。
 - **そのフレームに存在しないパーツ**は hide では*ない*と読まれます（ワールド変換自体は有効なため）。
   これは他プレイヤーの追従実装と揃えた挙動です。
 - パーツ名は、そのプレイヤー自身が再生しているアニメーションのパーツから解決されます。

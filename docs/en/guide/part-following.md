@@ -37,7 +37,7 @@ Stack(
 | **`player`** | The player whose part poses this anchor follows (required) |
 | **`partName`** | The name of the part to follow (the `PartData` name in the `.ssab`). An unknown name — or one absent from the current animation — simply draws nothing until it resolves |
 | **`child`** | The widget stuck to the part. Its **top-left origin** is pinned to the part's origin |
-| **`onHidden`** | Behaviour on frames where the part is hidden. `hideChild` (default) / `followAlways` |
+| **`onHidden`** | Behaviour on frames where the part is hidden. `followAlways` (default) / `hideChild` |
 | **`onMirrored`** | What a flipped player does to the child. `follow` (default) / `cancel` |
 | **`filterQuality`** | Optional `Transform.filterQuality` — e.g. `FilterQuality.low` to smooth a rotated or scaled child. Null keeps Flutter's nearest-neighbour default |
 
@@ -45,8 +45,8 @@ Stack(
 
 | Value | Behaviour |
 |---|---|
-| `hideChild` (default) | Stop drawing the child while the part is hidden (ForUnity's `Deactivate`, ForGodot's `HIDE_TARGET`) |
-| `followAlways` | Keep following the part's pose regardless of its hide flag, so the child stays visible (ForUnity's `FollowAlways`, ForGodot's `FOLLOW_ALWAYS`) |
+| `followAlways` (default) | Keep following the part's pose regardless of its hide flag, so the child stays visible (ForUnity's `FollowAlways`, ForGodot's `FOLLOW_ALWAYS`, ForWeb's `onHide: 'follow'`) |
+| `hideChild` | Stop drawing the child while the part is hidden (ForUnity's `Deactivate`, ForGodot's `HIDE_TARGET`, ForWeb's `onHide: 'hide'`) |
 
 "Hidden" here is the keyframe `hide` composed with any visibility override — the same value
 [Part Overrides](part-overrides.md) writes.
@@ -174,7 +174,7 @@ guard.
 
 ## Notes
 
-- **An unknown part name draws nothing, whatever `onHidden` says.** `hideChild` / `followAlways`
+- **An unknown part name draws nothing, whatever `onHidden` says.** `followAlways` / `hideChild`
   only decide what happens to a part that exists and is hidden this frame.
 - A part that is **absent from the current frame** reads as *not* hidden — its world transform is
   still valid — matching the sibling players' followers.
