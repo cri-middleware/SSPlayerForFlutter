@@ -58,7 +58,7 @@ Control playback through the underlying player once it has loaded:
 
 ```dart
 component.player?.pause();
-component.player?.setupAnimation('run');
+component.player?.setAnimation('run');
 component.player?.seek(0);
 ```
 

@@ -61,7 +61,7 @@ reference テクスチャをキー自身のフォルダから解決します。�
 `onLoad` 後は `component.player` から L3 トランスポート一式にアクセスできます。
 
 ```dart
-component.player?..setupAnimation('attack')..play();
+component.player?..setAnimation('attack')..play();
 ```
 
 クロックは Flame 側なので `Ticker` はありません —— トランスポート状態はプレイヤーが保持します。

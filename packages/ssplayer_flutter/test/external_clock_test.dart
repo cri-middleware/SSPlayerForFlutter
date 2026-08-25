@@ -38,7 +38,7 @@ void main() {
 
     // loadTextures:false keeps the test hermetic (no asset bundle needed).
     await player.load(bytes, animationName: animName, loadTextures: false);
-    // loop set AFTER setup: setupAnimation resets the Brain's loop counter, so
+    // loop set AFTER setup: setAnimation resets the Brain's loop counter, so
     // an earlier `loop=1` would fall back to infinite and never complete.
     player.loop = 1; // play once so onComplete can fire
     player.play();

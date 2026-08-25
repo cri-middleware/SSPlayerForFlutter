@@ -200,7 +200,7 @@ class SpriteStudioComponent extends PositionComponent {
   SpriteStudioPlayer? _player;
 
   /// The underlying player — null until [onLoad] completes, then the full L3
-  /// transport surface (`pause`, `seek`, `setupAnimation`, `getAnimations`, …).
+  /// transport surface (`pause`, `seek`, `setAnimation`, `getAnimations`, …).
   /// The clock is Flame's, so do NOT expect a Ticker; state still lives here.
   ///
   /// Part overrides (§65) are reached the same way — `player!.setPartColorOverride`
@@ -264,9 +264,9 @@ class SpriteStudioComponent extends PositionComponent {
       // so something plays out of the box (mirrors the Widget example).
       if (animation == null) {
         final names = player.getAnimations();
-        if (names.isNotEmpty) player.setupAnimation(names.first);
+        if (names.isNotEmpty) player.setAnimation(names.first);
       }
-      // Apply transport AFTER the animation is set up: `setupAnimation` rewinds
+      // Apply transport AFTER the animation is set up: `setAnimation` rewinds
       // and resets the Brain's loop/speed, so setting these earlier (or via
       // `load`) would be clobbered and `loop` would silently fall back to
       // infinite. subFrame is Body-side (safe either way; set here for symmetry).

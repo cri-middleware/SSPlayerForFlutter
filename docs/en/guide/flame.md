@@ -62,7 +62,7 @@ as usual.
 After `onLoad`, reach the full L3 transport through `component.player`:
 
 ```dart
-component.player?..setupAnimation('attack')..play();
+component.player?..setAnimation('attack')..play();
 ```
 
 The clock is Flame's, so there is no `Ticker` — transport state still lives on the player.

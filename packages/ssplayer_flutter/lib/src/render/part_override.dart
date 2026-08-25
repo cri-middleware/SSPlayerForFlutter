@@ -24,15 +24,15 @@ enum SsBlendOp {
 /// with the animation — colour and cell (§65-1-3).
 ///
 /// Visibility has no priority mode: a force-hide always wins and is always
-/// cleared by `setupAnimation` (i.e. it behaves like [holdUntilNextAnimation]).
+/// cleared by `setAnimation` (i.e. it behaves like [holdUntilNextAnimation]).
 enum SsOverridePriority {
   /// SS6 `NON`: the keyframe takes the attribute back on any frame the
   /// animation drives it, so the override only shows on frames the animation
-  /// leaves that attribute alone. Cleared by `setupAnimation`.
+  /// leaves that attribute alone. Cleared by `setAnimation`.
   overwriteOnNextKeyframe(0),
 
   /// SS6 `NOW_ANIMATION` (the usual choice): the override wins for the whole of
-  /// the current animation, and `setupAnimation` clears it.
+  /// the current animation, and `setAnimation` clears it.
   holdUntilNextAnimation(1),
 
   /// SS6 `PERMANENT`: the override wins and survives animation changes. Only
@@ -63,7 +63,7 @@ int packRgba(ui.Color color) {
 /// `.ssab` (§65-4), so a name is resolved once here and the index reused. This
 /// mirrors the flagship players, which keep the same map (Godot's
 /// `_part_name_to_index`, Unity's `_partNameToIndex`); the Brain's own
-/// `find_part_index` covers the same space but only after `setupAnimation`.
+/// `find_part_index` covers the same space but only after `setAnimation`.
 ///
 /// Duplicate names keep the FIRST index, matching the flagships' insert-if-absent
 /// map build — SS7 does not guarantee unique part names.

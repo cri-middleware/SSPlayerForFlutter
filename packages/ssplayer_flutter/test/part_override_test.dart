@@ -95,7 +95,7 @@ void main() {
   });
 
   group('SpriteStudioInternalPlayer overrides (real Brain)', () {
-    test('every override fails until setupAnimation has run', () {
+    test('every override fails until setAnimation has run', () {
       final p = _load(setup: false);
       if (p == null) return;
       addTearDown(p.dispose);
@@ -327,7 +327,7 @@ void main() {
       expect(drawn, contains(heta));
     });
 
-    test('setupAnimation clears a hold-until-next override but keeps a '
+    test('setAnimation clears a hold-until-next override but keeps a '
         'permanent one', () {
       final p = _load();
       if (p == null) return;
@@ -354,7 +354,7 @@ void main() {
       p.setupAnimation(anims[1]);
       p.update(const Duration(milliseconds: 16));
       expect(_uvsOf(p, apple), isNot(equals(overridden)),
-          reason: 'holdUntilNextAnimation must not survive setupAnimation');
+          reason: 'holdUntilNextAnimation must not survive setAnimation');
 
       // Permanent survives the same transition.
       p.setupAnimation(anims[0]);
@@ -365,7 +365,7 @@ void main() {
       p.setupAnimation(anims[1]);
       p.update(const Duration(milliseconds: 16));
       expect(_uvsOf(p, apple), equals(permanent),
-          reason: 'permanent must survive setupAnimation');
+          reason: 'permanent must survive setAnimation');
     });
   });
 

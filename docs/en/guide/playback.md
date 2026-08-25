@@ -6,7 +6,7 @@ your app logic. This page covers controlling playback, switching animations, and
 ## Playback control
 
 ```dart
-_player.setupAnimation('attack'); // select an animation (waits on the first frame)
+_player.setAnimation('attack'); // select an animation (waits on the first frame)
 _player.play();                    // start from the beginning
 ```
 
@@ -30,7 +30,7 @@ _player.play();                    // start from the beginning
 | `frameNo` / `currentAnimation` | read | Current frame / active animation name |
 | `startFrame` / `endFrame` / `totalFrames` | `int` (read) | The frame range being played, and its length — feed `totalFrames` to a scrubber |
 
-### What survives `setupAnimation`
+### What survives `setAnimation`
 
 Setting up an animation resets the Brain's whole transport. The player puts back the settings that are
 **your** decision, and lets the ones that describe **the animation** reset:
@@ -41,7 +41,7 @@ Setting up an animation resets the Brain's whole transport. The player puts back
 
 A section is a range of frame numbers, and means nothing against a different animation — carrying one over
 would silently outrank the animation you just selected. Set it again after each setup if you need it, and
-note that a section set *before* `setupAnimation` is wiped by it.
+note that a section set *before* `setAnimation` is wiped by it.
 
 Only `loop` is put back by the player; the rest the Brain keeps on its own. A `frameRate` override outlives
 a transition too — hand it `0` to clear it and go back to whatever each animation was authored at. To scale
@@ -60,7 +60,7 @@ accepts a negative multiplier, but that stops the playhead rather than turning i
 ### Playing part of an animation
 
 ```dart
-_player.setupAnimation('attack');
+_player.setAnimation('attack');
 _player.setAnimationSection(10, 24);   // after setup — setup would wipe it
 _player..loop = -1..play();            // loops within 10..24
 ```
@@ -107,15 +107,15 @@ the view repaints on its own.
 
 ## Switching animations
 
-`setupAnimation(name)` selects an animation and **waits on its first frame** — it does not start
+`setAnimation(name)` selects an animation and **waits on its first frame** — it does not start
 playback.
 
 It resets the Brain's transport, but `SpriteStudioPlayer` remembers the `loop` / `speed` you set and
 **re-applies them for you**, so you do not have to set them again on every switch (see
-"What survives `setupAnimation`" above).
+"What survives `setAnimation`" above).
 
 ```dart
-_player.setupAnimation('walk');
+_player.setAnimation('walk');
 _player..loop = 3..speed = 1.5..play();
 ```
 
@@ -175,7 +175,7 @@ _player.onAudio = (audio) {
 ```dart
 _player.onComplete = () {
   if (_player.currentAnimation == 'attack') {
-    _player.setupAnimation('idle');
+    _player.setAnimation('idle');
     _player..loop = -1..play();
   }
 };
