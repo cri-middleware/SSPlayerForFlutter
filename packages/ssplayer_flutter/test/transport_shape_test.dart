@@ -31,7 +31,7 @@ void main() {
     final player = SpriteStudioPlayer();
     addTearDown(player.dispose);
     await player.load(bytes, loadTextures: false);
-    player.setAnimation(player.getAnimations().first);
+    player.setAnimation(player.animationNames.first);
     return player;
   }
 
@@ -41,7 +41,7 @@ void main() {
 
     expect(player.playbackDirection, SsPlaybackDirection.forward);
     expect(player.playbackStyle, SsPlaybackStyle.normal);
-    expect(player.skipFrames, isTrue);
+    expect(player.frameSkipEnabled, isTrue);
     // No Brain to section; must not throw.
     player.setAnimationSection(0, 10);
   });
@@ -76,7 +76,7 @@ void main() {
 
     // A switch with nothing to switch to. Nothing is reset — not the section,
     // not the playhead, not the loop budget. Restarting is `play`'s job.
-    expect(player.setAnimation(player.getAnimations().first), isTrue);
+    expect(player.setAnimation(player.animationNames.first), isTrue);
     expect(player.totalFrames, 4,
         reason: 'a no-op must not drop the section');
   });
@@ -87,7 +87,7 @@ void main() {
       markTestSkipped('Basic.ssab missing — run deploy-examples.sh');
       return;
     }
-    final anims = player.getAnimations();
+    final anims = player.animationNames;
     if (anims.length < 2) {
       markTestSkipped('Basic.ssab has one animation — nothing to switch to');
       return;
@@ -121,7 +121,7 @@ void main() {
     // Host policy, like the speed and the frame skip: "play this backwards" is
     // a decision about the playback, so the Brain keeps it across a transition
     // (SDK #375). Nothing on this side re-applies it.
-    player.setAnimation(player.getAnimations().first);
+    player.setAnimation(player.animationNames.first);
     expect(player.playbackDirection, SsPlaybackDirection.backward);
     expect(player.playbackStyle, SsPlaybackStyle.pingPong);
   });
@@ -133,7 +133,7 @@ void main() {
       return;
     }
 
-    player.loop = -1;
+    player.loopCount = -1;
     player.setPlaybackDirection(
         SsPlaybackDirection.backward, SsPlaybackStyle.normal);
     player.play();
@@ -152,13 +152,13 @@ void main() {
       return;
     }
 
-    expect(player.skipFrames, isTrue, reason: 'the Brain default is ON');
+    expect(player.frameSkipEnabled, isTrue, reason: 'the Brain default is ON');
 
-    player.skipFrames = false;
-    expect(player.skipFrames, isFalse);
+    player.frameSkipEnabled = false;
+    expect(player.frameSkipEnabled, isFalse);
 
-    player.setAnimation(player.getAnimations().first);
-    expect(player.skipFrames, isFalse, reason: 'host policy is re-applied');
+    player.setAnimation(player.animationNames.first);
+    expect(player.frameSkipEnabled, isFalse, reason: 'host policy is re-applied');
   });
 }
 

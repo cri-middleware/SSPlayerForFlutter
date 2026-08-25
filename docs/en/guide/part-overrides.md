@@ -5,16 +5,16 @@ An override wins over both the keyframes and any animation blending, so it never
 
 ```dart
 // Tint a part with multiply (Normal parts only)
-_player.setPartColorOverrideByName('body', SsBlendOp.mul, Colors.red);
+_player.setPartColorOverride('body', SsBlendOp.mul, Colors.red);
 
 // Draw a different cell (the cellmap name carries no ".ssce" extension)
-_player.setPartCellOverrideByName('body', 'Ringo', 'effect3');
+_player.setPartCellOverride('body', 'Ringo', 'effect3');
 
 // Force-hide a part, cascading to its descendants
-_player.setPartVisibilityOverrideByName('body', true, cascade: true);
+_player.setPartVisibilityOverride('body', true, cascade: true);
 
 // Clear
-_player.clearPartColorOverrideByName('body');
+_player.clearPartColorOverride('body');
 _player.clearAllPartOverrides();
 ```
 
@@ -24,7 +24,7 @@ _player.clearAllPartOverrides();
     rejected and returns `false`.
 
     What makes this easy to miss: **part-name resolution already works** beforehand, because names are
-    read from the `.ssab`. If `partIndexOf()` returns a valid index but `set` keeps failing, this is
+    read from the `.ssab`. If `findPartIndex()` returns a valid index but `set` keeps failing, this is
     almost certainly why.
 
     Note also that `setAnimation()` **clears** every override that is not `Permanent` — so always
@@ -36,7 +36,7 @@ These are methods on `SpriteStudioPlayer`.
 
 | Method | Description |
 |---|---|
-| `partIndexOf(name)` | Part index, or `-1` if the pack has no such part |
+| `findPartIndex(name)` | Part index, or `-1` if the pack has no such part |
 | `partNames` | Part-name list and name↔index lookup (`PartNameTable`) |
 | `setPartColorOverride(part, blendOp, color, priority:)` | Colour override (single value) |
 | `setPartColorOverrideCorners(part, blendOp, leftTop:, rightTop:, leftBottom:, rightBottom:, priority:)` | Four distinct corners (a gradient) |
@@ -44,14 +44,14 @@ These are methods on `SpriteStudioPlayer`.
 | `setPartVisibilityOverride(part, hide, cascade:)` | Force-hide (`hide: false` reverts to the animation) |
 | `clearPartColorOverride` / `clearPartCellOverride` / `clearPartVisibilityOverride` | Clear one override on one part |
 | `clearAllPartOverrides()` | Clear every override on this player |
-| `...ByName(...)` | The by-name form of each method above (suffixed `ByName`) |
+| `...ByIndex(...)` | The by-**index** form of each method above (suffixed `ByIndex`) |
 
-Each method takes a **part index**; the `ByName`-suffixed form takes a **part name**. Both return
+Each method takes a **part name**; the `ByIndex`-suffixed form takes a **part index**, which is the optimisation for a caller that cached one from `findPartIndex`, not the default. Both return
 `false` when the part is unknown or the runtime rejected the call.
 
 !!! tip "Working with part indices"
     Part indices are stable within one pack (the same `.ssab`), so if you override frequently, resolve
-    the name once with `partIndexOf()` and reuse the index.
+    the name once with `findPartIndex()` and reuse the index.
 
 !!! note "The same calls exist on the low-level API"
     Every method listed here is available not only on `SpriteStudioPlayer` (L3) but also — under the
@@ -66,8 +66,8 @@ Each method takes a **part index**; the `ByName`-suffixed form takes a **part na
 The cellmap / cell names a cell override accepts can be enumerated from the player:
 
 ```dart
-final cellmap = _player.getCellmaps().first;   // → "Ringo"
-final cells   = _player.getCells(cellmap);     // → ["eye2", "tail", "apple", "effect3", ...]
+final cellmap = _player.cellmapNames.first;   // → "Ringo"
+final cells   = _player.cellNames(cellmap);     // → ["eye2", "tail", "apple", "effect3", ...]
 ```
 
 ## Blend operations (`SsBlendOp`)
@@ -100,7 +100,7 @@ animation's own loops.
 
 ```dart
 // ✅ set it once
-_player.setPartColorOverrideByName('body', SsBlendOp.mul, Colors.red);
+_player.setPartColorOverride('body', SsBlendOp.mul, Colors.red);
 
 // ❌ no per-frame re-application is required
 ```
@@ -136,7 +136,7 @@ exposes.
 
 ```dart
 final player = component.player!;
-player.setPartColorOverrideByName('body', SsBlendOp.mul, Colors.red);
+player.setPartColorOverride('body', SsBlendOp.mul, Colors.red);
 ```
 
 ## See also

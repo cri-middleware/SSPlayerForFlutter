@@ -26,7 +26,7 @@ void main() {
     addTearDown(player.dispose);
 
     await player.load(bytes, loadTextures: false);
-    final anim = player.getAnimations().first;
+    final anim = player.animationNames.first;
     player.setAnimation(anim);
     expect(player.currentAnimation, anim);
 
@@ -62,12 +62,12 @@ void main() {
     addTearDown(player.dispose);
 
     await player.load(bytes, loadTextures: false);
-    final anim = player.getAnimations().first;
+    final anim = player.animationNames.first;
     player.setAnimation(anim);
     player.play();
     player.seek(3); // after play(), which head-outs to the start frame
     expect(player.isPlaying, isTrue);
-    expect(player.isPaused, isFalse);
+    expect(player.isPausing, isFalse);
     expect(player.frameNo, closeTo(3, 1e-6));
 
     await player.reload(bytes, loadTextures: false);
@@ -75,7 +75,7 @@ void main() {
     expect(player.currentAnimation, anim);
     expect(player.frameNo, closeTo(3, 1e-6), reason: 'reload head-out rewound');
     expect(player.isPlaying, isTrue);
-    expect(player.isPaused, isFalse);
+    expect(player.isPausing, isFalse);
 
     // Still ticking — which is the point of the assertions above, but the
     // binding fails the test on a live Ticker before tearDown gets to dispose.
@@ -95,15 +95,15 @@ void main() {
     addTearDown(player.dispose);
 
     await player.load(bytes, loadTextures: false);
-    player.setAnimation(player.getAnimations().first);
+    player.setAnimation(player.animationNames.first);
     player.play();
     player.seek(3);
     player.pause();
-    expect(player.isPaused, isTrue);
+    expect(player.isPausing, isTrue);
 
     await player.reload(bytes, loadTextures: false);
 
-    expect(player.isPaused, isTrue, reason: 'a paused preview was resumed');
+    expect(player.isPausing, isTrue, reason: 'a paused preview was resumed');
     expect(player.frameNo, closeTo(3, 1e-6));
   });
 }

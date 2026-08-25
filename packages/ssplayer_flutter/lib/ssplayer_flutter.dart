@@ -72,7 +72,7 @@ export 'src/render/part_shader.dart' show PartShader, SsShaderId;
 // Part overrides (§65) — the enums and the part-name table the by-name
 // overrides resolve through. The calls themselves live on the L2/L3 players.
 export 'src/render/part_override.dart'
-    show SsBlendOp, SsOverridePriority, PartNameTable, packRgba;
+    show SsBlendOp, SsCornerColors, SsOverridePriority, PartNameTable, packRgba;
 export 'src/render/mask.dart'
     show
         MaskBits,

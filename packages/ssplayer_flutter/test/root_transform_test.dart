@@ -101,9 +101,9 @@ void main() {
 
       expect(p.rootTransform, SsRootTransform.identity);
 
-      final apple = p.partIndexOf('apple');
+      final apple = p.findPartIndex('apple');
       final m = p.partWorldMatrix(apple)!;
-      final sampled = p.subFrame ? p.frameNo : p.frameNo.floorToDouble();
+      final sampled = p.subFrameEnabled ? p.frameNo : p.frameNo.floorToDouble();
       p.getFrameData(sampled);
       final w = p.worldMatrices();
       final base = apple * 16;
@@ -117,7 +117,7 @@ void main() {
       addTearDown(p.dispose);
       p.update(const Duration(milliseconds: 16));
 
-      final apple = p.partIndexOf('apple');
+      final apple = p.findPartIndex('apple');
       final plain = p.partWorldMatrix(apple)!.storage.toList();
 
       p.rootTransform = const SsRootTransform(flipX: true);
@@ -143,7 +143,7 @@ void main() {
       addTearDown(p.dispose);
       p.update(const Duration(milliseconds: 16));
 
-      final apple = p.partIndexOf('apple');
+      final apple = p.findPartIndex('apple');
       final plain = p.partWorldMatrix(apple)!.storage.toList();
 
       p.rootTransform = const SsRootTransform(offset: ui.Offset(12, -34));
@@ -168,7 +168,7 @@ void main() {
       const root = SsRootTransform(flipX: true, offset: ui.Offset(5, 9));
       p.rootTransform = root;
 
-      final apple = p.partIndexOf('apple');
+      final apple = p.findPartIndex('apple');
       final pose = p.partWorldMatrix(apple)!;
 
       final recorder = ui.PictureRecorder();
@@ -181,7 +181,7 @@ void main() {
 
       // And the pose really is the drawn one: re-folding the raw world matrix
       // with what the backend got reproduces it term for term.
-      final sampled = p.subFrame ? p.frameNo : p.frameNo.floorToDouble();
+      final sampled = p.subFrameEnabled ? p.frameNo : p.frameNo.floorToDouble();
       p.getFrameData(sampled);
       final w = p.worldMatrices();
       final base = apple * 16;
@@ -249,7 +249,7 @@ void main() {
       expect(notifications, before);
 
       player.advance(const Duration(milliseconds: 16));
-      final apple = player.partIndexOf('apple');
+      final apple = player.findPartIndex('apple');
       player.flipY = true;
       final both = player.partTransformOf(apple)!;
       player.rootTransform = SsRootTransform.identity;

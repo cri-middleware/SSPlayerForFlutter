@@ -128,7 +128,7 @@ void main() {
 Future<ByteData> _render(SpriteStudioInternalPlayer player,
     {required String? only}) async {
   for (final name in _testParts.keys) {
-    player.setPartVisibilityOverrideByName(name, name != only);
+    player.setPartVisibilityOverride(name, name != only);
   }
   // Re-evaluate the frame under the new overrides, then draw it. Frame 5 is
   // mid-animation, where the pack has all its parts on screen.

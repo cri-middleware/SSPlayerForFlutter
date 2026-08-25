@@ -95,7 +95,7 @@ hand — from a Flame component, a `CustomPainter`, or your own layout code.
 
 ```dart
 // Resolve the name once; part indices are stable within one .ssab.
-final hand = _player.partIndexOf('FrontHand');
+final hand = _player.findPartIndex('FrontHand');
 
 // The part's current-frame pose, in player-local (animation) space.
 final Matrix4? pose = _player.partTransformOf(hand);
@@ -108,7 +108,7 @@ if (pose != null && !_player.isPartHiddenOf(hand)) {
 
 | Method | Description |
 |---|---|
-| `partIndexOf(name)` | Part index, or `-1` if the pack has no such part |
+| `findPartIndex(name)` | Part index, or `-1` if the pack has no such part |
 | `partNames` | Part-name list and name↔index lookup (`PartNameTable`) |
 | `partTransform(name)` | The part's transform for the current frame as a `Matrix4?` (player-local). Null before `load()` or for an unknown part |
 | `partTransformOf(index)` | Index form of `partTransform` (skips the name lookup) |

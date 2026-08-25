@@ -50,7 +50,7 @@ default constructor `SpriteStudioComponent(ssab: myBytes)`.
 | `animation` | first in pack | Animation to select on load |
 | `loop` | `-1` | Loop count (`-1` forever, `n` plays *n* times) |
 | `speed` | `1.0` | Playback speed multiplier |
-| `subFrame` | `true` | Sub-frame interpolation |
+| `subFrameEnabled` | `true` | Sub-frame interpolation |
 | `autoStart` | `true` | Play as soon as the resource loads (set `false` to drive it yourself) |
 | `onEvents` / `onComplete` / `onLoop` | `null` | Forwarded to the player's callbacks (see [Playback & Events](playback.md)) |
 

@@ -156,7 +156,7 @@ Future<ui.Image> _renderReloaded(
 /// Selects the first animation and head-outs to its start, so two renders are
 /// compared at the same playhead.
 void _home(SpriteStudioPlayer player) {
-  final anims = player.getAnimations();
+  final anims = player.animationNames;
   if (anims.isNotEmpty) player.setAnimation(anims.first);
   player.play();
 }

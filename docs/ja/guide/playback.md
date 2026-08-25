@@ -23,10 +23,10 @@ _player.play();                    // 先頭から再生
 | `setPlaybackDirection(dir, style)` | メソッド | 再生方向（`SsPlaybackDirection.forward` / `.backward`）と終端での挙動（`SsPlaybackStyle.normal` / `.pingPong`） |
 | `playbackDirection` / `playbackStyle` | 読取 | 上記 2 つの現在値 |
 | `setAnimationSection(start, end)` | メソッド | **現在の**アニメの再生範囲をフレーム区間で限定する |
-| `skipFrames` | `bool` | ON（既定）はフレームを落として実時間に追従、OFF は 1 ティックにつき厳密に 1 フレーム進む |
-| `subFrame` | `bool` | サブフレーム補間（既定オン） |
-| `isPlaying` / `isPaused` | `bool`（読取） | 現在のトランスポート状態 |
-| `isFinished` / `isLooped` | `bool`（読取） | 全ループを再生し終えた（sticky）/ 直前の進行でループ境界を跨いだ（エッジ） |
+| `frameSkipEnabled` | `bool` | ON（既定）はフレームを落として実時間に追従、OFF は 1 ティックにつき厳密に 1 フレーム進む |
+| `subFrameEnabled` | `bool` | サブフレーム補間（既定オン） |
+| `isPlaying` / `isPausing` | `bool`（読取） | 現在のトランスポート状態 |
+| `isFinished` / `justLooped` | `bool`（読取） | 全ループを再生し終えた（sticky）/ 直前の進行でループ境界を跨いだ（エッジ） |
 | `frameNo` / `currentAnimation` | 読取 | 現在フレーム / 再生中のアニメ名 |
 | `startFrame` / `endFrame` / `totalFrames` | `int`（読取） | 再生対象のフレーム区間とその長さ。`totalFrames` はスクラバに渡す用 |
 
@@ -37,7 +37,7 @@ _player.play();                    // 先頭から再生
 
 | 自動で再適用される | リセットされる |
 |---|---|
-| `loop` / `speed` / `skipFrames` / `frameRate` / `playbackDirection`・`playbackStyle` / `subFrame` | 再生区間 |
+| `loop` / `speed` / `frameSkipEnabled` / `frameRate` / `playbackDirection`・`playbackStyle` / `subFrameEnabled` | 再生区間 |
 
 再生区間は別のアニメでは意味を持たないフレーム番号の範囲です。持ち越すと、いま選んだアニメの
 設定を黙って上書きしてしまいます。必要ならセットアップのたびに設定し直してください。特に区間を
@@ -63,7 +63,7 @@ _player.setPlaybackDirection(SsPlaybackDirection.backward, SsPlaybackStyle.pingP
 ```dart
 _player.setAnimation('attack');
 _player.setAnimationSection(10, 24);   // setup の後で。前だと消える
-_player..loop = -1..play();            // 10〜24 の範囲でループ
+_player..loopCount = -1..play();            // 10〜24 の範囲でループ
 ```
 
 `startFrame` / `endFrame` / `totalFrames` は区間を反映するので、それらに紐づけたスクラバもそのまま
@@ -117,10 +117,10 @@ Brain 側のトランスポートはリセットされますが、`SpriteStudioP
 
 ```dart
 _player.setAnimation('walk');
-_player..loop = 3..speed = 1.5..play();
+_player..loopCount = 3..speedScale = 1.5..play();
 ```
 
-利用可能なアニメ名は `getAnimations()`（または `SsAnimeInfo(bytes).animationNames`）で取得します。
+利用可能なアニメ名は `animationNames`（または `SsAnimeInfo(bytes).animationNames`）で取得します。
 
 ## クロックの駆動
 
@@ -179,7 +179,7 @@ _player.onAudio = (audio) {
 _player.onComplete = () {
   if (_player.currentAnimation == 'attack') {
     _player.setAnimation('idle');
-    _player..loop = -1..play();
+    _player..loopCount = -1..play();
   }
 };
 ```

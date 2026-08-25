@@ -49,7 +49,7 @@ reference テクスチャをキー自身のフォルダから解決します。�
 | `animation` | パック先頭 | 読み込み時に選択するアニメ |
 | `loop` | `-1` | ループ回数（`-1` 無限、`n` は n 回） |
 | `speed` | `1.0` | 再生速度倍率 |
-| `subFrame` | `true` | サブフレーム補間 |
+| `subFrameEnabled` | `true` | サブフレーム補間 |
 | `autoStart` | `true` | 読み込み完了と同時に再生（`false` で自分で駆動） |
 | `onEvents` / `onComplete` / `onLoop` | `null` | プレイヤーのコールバックへ転送（[再生とイベント](playback.md)） |
 

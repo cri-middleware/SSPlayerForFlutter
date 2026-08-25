@@ -95,7 +95,7 @@ SpriteStudioPartAnchor(
 
 ```dart
 // パーツ名の解決は 1 度だけ。パーツインデックスは同じ .ssab 内では安定しています。
-final hand = _player.partIndexOf('FrontHand');
+final hand = _player.findPartIndex('FrontHand');
 
 // そのパーツの現在フレームの姿勢（プレイヤーローカル＝アニメーション空間）。
 final Matrix4? pose = _player.partTransformOf(hand);
@@ -108,7 +108,7 @@ if (pose != null && !_player.isPartHiddenOf(hand)) {
 
 | メソッド | 説明 |
 |---|---|
-| `partIndexOf(name)` | パーツインデックス。パックに無ければ `-1` |
+| `findPartIndex(name)` | パーツインデックス。パックに無ければ `-1` |
 | `partNames` | パーツ名一覧 / 名前⇔インデックスの相互解決（`PartNameTable`） |
 | `partTransform(name)` | そのパーツの現在フレームの変換行列を `Matrix4?` で返す（プレイヤーローカル）。`load()` 前や不明なパーツでは null |
 | `partTransformOf(index)` | `partTransform` のインデックス指定版（名前解決を省略） |

@@ -328,7 +328,7 @@ void main() {
 
     player.pause();
     // The whole point: nothing advances the clock from here on.
-    player.subFrame = false;
+    player.subFrameEnabled = false;
 
     final after = snapshot();
     final moved = before.keys.where((i) {

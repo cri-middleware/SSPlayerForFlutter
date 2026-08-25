@@ -142,6 +142,7 @@ extension type _JsCtx(JSObject _) implements JSObject {
   external void set_coordinate_system(int system);
   external void setup_animation(String name); // Result → throws on error
   external void play();
+  external void play_with_start_frame(double frameNo);
   external void pause();
   external void resume();
   external void stop();
@@ -359,6 +360,10 @@ class _WebRuntime implements SsRuntime {
 
   @override
   void play(SsContext context) => _ctx(context).play();
+
+  @override
+  void playWithStartFrame(SsContext context, double frameNo) =>
+      _ctx(context).play_with_start_frame(frameNo);
 
   @override
   void pause(SsContext context) => _ctx(context).pause();

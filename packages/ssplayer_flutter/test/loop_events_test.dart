@@ -15,14 +15,14 @@ import 'package:ssplayer_flutter/ssplayer_flutter.dart';
 import 'package:ssplayer_flutter/src/ssab/ssab.g.dart' as ssab;
 
 /// Drives the Brain a frame at a time, recording the events a Player would
-/// observe by polling after each update — `isLooped` verbatim, `isFinished`
+/// observe by polling after each update — `justLooped` verbatim, `isFinished`
 /// through a rising edge.
 List<String> _collectEvents(SpriteStudioInternalPlayer player, int steps) {
   final events = <String>[];
   var prevFinished = false;
   for (var i = 0; i < steps; i++) {
     player.update(const Duration(milliseconds: 16));
-    if (player.isLooped) events.add('looped');
+    if (player.justLooped) events.add('looped');
     final finished = player.isFinished;
     if (finished && !prevFinished) events.add('finished');
     prevFinished = finished;
@@ -43,7 +43,7 @@ void main() {
     final animName = anime.animations!.first.name!;
     final player = SpriteStudioInternalPlayer.load(Uint8List.fromList(bytes));
     player.setupAnimation(animName);
-    player.loop = loop;
+    player.loopCount = loop;
     player.play();
     return player;
   }

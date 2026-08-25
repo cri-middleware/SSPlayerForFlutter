@@ -25,12 +25,12 @@ void main() {
       addTearDown(p.dispose);
       p.update(const Duration(milliseconds: 16));
 
-      final apple = p.partIndexOf('apple');
+      final apple = p.findPartIndex('apple');
       final m = p.partWorldMatrix(apple);
       expect(m, isNotNull);
 
       // Re-sample the same frame the getter used and read the raw SoA slice.
-      final sampled = p.subFrame ? p.frameNo : p.frameNo.floorToDouble();
+      final sampled = p.subFrameEnabled ? p.frameNo : p.frameNo.floorToDouble();
       p.getFrameData(sampled);
       final w = p.worldMatrices();
       final base = apple * 16;
@@ -75,7 +75,7 @@ void main() {
       addTearDown(p.dispose);
       p.update(const Duration(milliseconds: 16));
 
-      final apple = p.partIndexOf('apple');
+      final apple = p.findPartIndex('apple');
       // `apple` is drawn in Ringo's first animation, so it is present and shown.
       expect(p.partHidden(apple), isFalse);
       expect(p.partHidden(-1), isFalse);
@@ -105,7 +105,7 @@ void main() {
           animationName: _animations().first, loadTextures: false);
       player.advance(const Duration(milliseconds: 16));
 
-      final apple = player.partIndexOf('apple');
+      final apple = player.findPartIndex('apple');
       final byName = player.partTransform('apple');
       final byIndex = player.partTransformOf(apple);
       expect(byName, isNotNull);
@@ -164,7 +164,7 @@ void main() {
       player.advance(const Duration(milliseconds: 16));
       // Force-hidden rather than hunting for a frame Ringo hides 'apple' on:
       // this is an assertion about onHidden, not about the asset's keyframes.
-      expect(player.setPartVisibilityOverrideByName('apple', true), isTrue);
+      expect(player.setPartVisibilityOverride('apple', true), isTrue);
       player.advance(const Duration(milliseconds: 16));
       expect(player.isPartHidden('apple'), isTrue,
           reason: 'the override must actually take, or the test proves nothing');

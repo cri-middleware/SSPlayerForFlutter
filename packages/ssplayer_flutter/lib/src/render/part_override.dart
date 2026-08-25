@@ -25,6 +25,19 @@ enum SsBlendOp {
 ///
 /// Visibility has no priority mode: a force-hide always wins and is always
 /// cleared by `setAnimation` (i.e. it behaves like [holdUntilNextAnimation]).
+/// The four corner colours of a gradient override, in one value.
+///
+/// A record rather than four positional parameters: the colour methods then read
+/// the same shape as their single-colour siblings, and the Brain's
+/// `left-top, right-top, left-bottom, right-bottom` order is carried by the
+/// field names instead of by position, where it could be got silently wrong.
+typedef SsCornerColors = ({
+  ui.Color leftTop,
+  ui.Color rightTop,
+  ui.Color leftBottom,
+  ui.Color rightBottom,
+});
+
 enum SsOverridePriority {
   /// SS6 `NON`: the keyframe takes the attribute back on any frame the
   /// animation drives it, so the override only shows on frames the animation

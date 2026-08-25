@@ -1,6 +1,6 @@
 // The L3 read-outs that describe *where* the transport is, rather than driving
 // it: the frame range (startFrame / endFrame / totalFrames), the advance rate
-// (frameRate) and the two Brain state flags (isFinished / isLooped). These
+// (frameRate) and the two Brain state flags (isFinished / justLooped). These
 // forward to Layer 2, which is why the interesting cases are the edges — before
 // a load there is no Brain to ask, and `setAnimation` re-reads the pack.
 //
@@ -27,7 +27,7 @@ void main() {
     final player = SpriteStudioPlayer();
     addTearDown(player.dispose);
     await player.load(bytes, loadTextures: false);
-    player.setAnimation(player.getAnimations().first);
+    player.setAnimation(player.animationNames.first);
     return player;
   }
 
@@ -42,7 +42,7 @@ void main() {
     expect(player.totalFrames, 0);
     expect(player.frameRate, 0);
     expect(player.isFinished, isFalse);
-    expect(player.isLooped, isFalse);
+    expect(player.justLooped, isFalse);
   });
 
   test('the frame range and rate describe the loaded animation', () async {
@@ -75,7 +75,7 @@ void main() {
     // a transition (SDK #370) — the same rule that keeps speed and frame skip.
     // Clear it by setting 0 (or any negative), which hands playback back to the
     // authored rate.
-    player.setAnimation(player.getAnimations().first);
+    player.setAnimation(player.animationNames.first);
     expect(player.frameRate, authored * 2,
         reason: 'a host override outlives the transition');
 
@@ -83,7 +83,7 @@ void main() {
     expect(player.frameRate, authored, reason: 'clearing restores the pack rate');
   });
 
-  test('isFinished latches on completion; isLooped marks the crossing tick',
+  test('isFinished latches on completion; justLooped marks the crossing tick',
       () async {
     final player = await loadedPlayer();
     if (player == null) {
@@ -92,7 +92,7 @@ void main() {
     }
 
     // loop AFTER setup — setAnimation resets the Brain's loop counter.
-    player.loop = 1;
+    player.loopCount = 1;
     player.play();
     expect(player.isFinished, isFalse, reason: 'a fresh play is not finished');
 
@@ -106,15 +106,15 @@ void main() {
     player.advance(const Duration(milliseconds: 16));
     expect(player.isFinished, isTrue);
 
-    // isLooped is the opposite shape — an edge cleared at the top of every
+    // justLooped is the opposite shape — an edge cleared at the top of every
     // update — so it only reads true inside the tick that crossed.
-    player.setAnimation(player.getAnimations().first);
-    player.loop = -1;
+    player.setAnimation(player.animationNames.first);
+    player.loopCount = -1;
     player.play();
     var sawLoopEdge = false;
     for (var i = 0; i < 2000 && !sawLoopEdge; i++) {
       player.advance(const Duration(milliseconds: 16));
-      sawLoopEdge = player.isLooped;
+      sawLoopEdge = player.justLooped;
     }
     expect(sawLoopEdge, isTrue, reason: 'an infinite loop must cross a boundary');
     expect(player.isFinished, isFalse, reason: 'an infinite loop never finishes');

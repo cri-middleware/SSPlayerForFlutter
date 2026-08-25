@@ -178,7 +178,7 @@ class SsDevChannel {
         try {
           await target.ssPlayer
               .reload(bytes, bundle: bundle, baseAssetDir: baseDir);
-          animations = target.ssPlayer.getAnimations().length;
+          animations = target.ssPlayer.animationNames.length;
           target.ssOnLiveReloaded();
           reloaded++;
         } catch (e) {

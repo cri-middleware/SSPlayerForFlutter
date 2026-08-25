@@ -6,16 +6,16 @@
 
 ```dart
 // パーツを乗算で着色（通常パーツに適用されます）
-_player.setPartColorOverrideByName('body', SsBlendOp.mul, Colors.red);
+_player.setPartColorOverride('body', SsBlendOp.mul, Colors.red);
 
 // 別のセルを描画させる（セルマップ名は ".ssce" を付けずに指定）
-_player.setPartCellOverrideByName('body', 'Ringo', 'effect3');
+_player.setPartCellOverride('body', 'Ringo', 'effect3');
 
 // パーツを強制非表示にする（子孫にもカスケード）
-_player.setPartVisibilityOverrideByName('body', true, cascade: true);
+_player.setPartVisibilityOverride('body', true, cascade: true);
 
 // 解除
-_player.clearPartColorOverrideByName('body');
+_player.clearPartColorOverride('body');
 _player.clearAllPartOverrides();
 ```
 
@@ -25,7 +25,7 @@ _player.clearAllPartOverrides();
     それ以前はすべての呼び出しが `false` で拒否されます。
 
     ややこしいのは、**パーツ名の解決だけは先に成功する**ことです（パーツ名は `.ssab` から読むため）。
-    「`partIndexOf()` は有効な値を返すのに `set` が失敗する」場合は、まずこれを疑ってください。
+    「`findPartIndex()` は有効な値を返すのに `set` が失敗する」場合は、まずこれを疑ってください。
 
     さらに `setAnimation()` は `Permanent` 以外のオーバーライドを**解除**します。したがって
     オーバーライドは常に**アニメーション選択の後**に設定してください。
@@ -36,7 +36,7 @@ _player.clearAllPartOverrides();
 
 | メソッド | 説明 |
 |---|---|
-| `partIndexOf(name)` | パーツインデックス。パックに無ければ `-1` |
+| `findPartIndex(name)` | パーツインデックス。パックに無ければ `-1` |
 | `partNames` | パーツ名一覧 / 名前⇔インデックスの相互解決（`PartNameTable`） |
 | `setPartColorOverride(part, blendOp, color, priority:)` | パーツカラーオーバーライド（単色） |
 | `setPartColorOverrideCorners(part, blendOp, leftTop:, rightTop:, leftBottom:, rightBottom:, priority:)` | 4 隅個別指定（グラデーション） |
@@ -44,14 +44,14 @@ _player.clearAllPartOverrides();
 | `setPartVisibilityOverride(part, hide, cascade:)` | 強制非表示（`hide: false` でアニメーションに戻す） |
 | `clearPartColorOverride` / `clearPartCellOverride` / `clearPartVisibilityOverride` | 1 パーツの 1 オーバーライドを解除 |
 | `clearAllPartOverrides()` | そのプレイヤーの全オーバーライドを解除 |
-| `...ByName(...)` | 上記各メソッドのパーツ名指定版（末尾に `ByName` が付きます） |
+| `...ByIndex(...)` | 上記各メソッドのパーツ**インデックス**指定版（末尾に `ByIndex` が付きます） |
 
-各メソッドは**パーツインデックス**を取り、末尾に `ByName` が付いた版が**パーツ名**を取ります。
+各メソッドは**パーツ名**を取り、末尾に `ByIndex` が付いた版が**パーツインデックス**を取ります。インデックスは `findPartIndex` で引いて得る最適化であって、既定ではありません。
 パーツが不明な場合やランタイムが受け付けなかった場合は `false` を返します。
 
 !!! tip "パーツインデックスの使い方について"
     パーツインデックスは同一パック（同じ `.ssab`）内では安定しているので、頻繁にオーバーライドするなら
-    `partIndexOf()` で一度パーツ名を解決し、そのインデックスを使い回すことを推奨します。
+    `findPartIndex()` で一度パーツ名を解決し、そのインデックスを使い回すことを推奨します。
 
 !!! note "低レベル API からも同じように使えます"
     ここに挙げたメソッドは、`SpriteStudioPlayer`（L3）だけでなく、その下位にある描画エンジン
@@ -65,8 +65,8 @@ _player.clearAllPartOverrides();
 セルオーバーライドに指定できるセルマップ名 / セル名は、プレイヤーから列挙できます。
 
 ```dart
-final cellmap = _player.getCellmaps().first;   // → "Ringo"
-final cells   = _player.getCells(cellmap);     // → ["eye2", "tail", "apple", "effect3", ...]
+final cellmap = _player.cellmapNames.first;   // → "Ringo"
+final cells   = _player.cellNames(cellmap);     // → ["eye2", "tail", "apple", "effect3", ...]
 ```
 
 ## 合成モード（`SsBlendOp`）
@@ -99,7 +99,7 @@ final cells   = _player.getCells(cellmap);     // → ["eye2", "tail", "apple", 
 
 ```dart
 // ✅ 1 度だけ設定する
-_player.setPartColorOverrideByName('body', SsBlendOp.mul, Colors.red);
+_player.setPartColorOverride('body', SsBlendOp.mul, Colors.red);
 
 // ❌ 毎フレーム設定し直す必要はありません
 ```
@@ -134,7 +134,7 @@ _player.setPartColorOverrideByName('body', SsBlendOp.mul, Colors.red);
 
 ```dart
 final player = component.player!;
-player.setPartColorOverrideByName('body', SsBlendOp.mul, Colors.red);
+player.setPartColorOverride('body', SsBlendOp.mul, Colors.red);
 ```
 
 ## 関連

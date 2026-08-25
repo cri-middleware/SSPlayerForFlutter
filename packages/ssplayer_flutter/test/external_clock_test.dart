@@ -40,7 +40,7 @@ void main() {
     await player.load(bytes, animationName: animName, loadTextures: false);
     // loop set AFTER setup: setAnimation resets the Brain's loop counter, so
     // an earlier `loop=1` would fall back to infinite and never complete.
-    player.loop = 1; // play once so onComplete can fire
+    player.loopCount = 1; // play once so onComplete can fire
     player.play();
     expect(player.frameNo, 0, reason: 'play() head-outs to frame 0');
     expect(player.isPlaying, isTrue);

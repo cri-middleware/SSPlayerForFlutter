@@ -42,7 +42,7 @@ void main() {
 
     final bytes = Uint8List.fromList(File(path).readAsBytesSync());
     await player.load(bytes, animationName: 'anime_1', loadTextures: false);
-    player.loop = 1;
+    player.loopCount = 1;
     player.play();
 
     // A SINGLE update with a delta large enough to cross frames 10 and 20 at
@@ -70,8 +70,8 @@ void main() {
 
     final bytes = Uint8List.fromList(File(path).readAsBytesSync());
     await player.load(bytes, animationName: 'anime_1', loadTextures: false);
-    expect(player.subFrame, isTrue, reason: 'sub-frame is on by default');
-    player.loop = 1;
+    expect(player.subFrameEnabled, isTrue, reason: 'sub-frame is on by default');
+    player.loopCount = 1;
     player.play();
 
     // Fine 4ms steps → several sub-frame samples per integer frame. If events

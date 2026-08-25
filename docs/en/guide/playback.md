@@ -23,10 +23,10 @@ _player.play();                    // start from the beginning
 | `setPlaybackDirection(dir, style)` | method | Direction (`SsPlaybackDirection.forward` / `.backward`) and end-of-range behaviour (`SsPlaybackStyle.normal` / `.pingPong`) |
 | `playbackDirection` / `playbackStyle` | read | What the two above are currently set to |
 | `setAnimationSection(start, end)` | method | Restrict playback to a frame range of the **current** animation |
-| `skipFrames` | `bool` | ON (default) keeps playback on the wall clock by dropping frames; OFF advances exactly one frame per tick |
-| `subFrame` | `bool` | Sub-frame interpolation (on by default) |
-| `isPlaying` / `isPaused` | `bool` (read) | Current transport state |
-| `isFinished` / `isLooped` | `bool` (read) | Every loop has played (sticky) / the last advance crossed a loop boundary (edge) |
+| `frameSkipEnabled` | `bool` | ON (default) keeps playback on the wall clock by dropping frames; OFF advances exactly one frame per tick |
+| `subFrameEnabled` | `bool` | Sub-frame interpolation (on by default) |
+| `isPlaying` / `isPausing` | `bool` (read) | Current transport state |
+| `isFinished` / `justLooped` | `bool` (read) | Every loop has played (sticky) / the last advance crossed a loop boundary (edge) |
 | `frameNo` / `currentAnimation` | read | Current frame / active animation name |
 | `startFrame` / `endFrame` / `totalFrames` | `int` (read) | The frame range being played, and its length — feed `totalFrames` to a scrubber |
 
@@ -37,7 +37,7 @@ Setting up an animation resets the Brain's whole transport. The player puts back
 
 | Re-applied for you | Left to reset |
 |---|---|
-| `loop`, `speed`, `skipFrames`, `frameRate`, `playbackDirection` / `playbackStyle`, `subFrame` | the animation section |
+| `loop`, `speed`, `frameSkipEnabled`, `frameRate`, `playbackDirection` / `playbackStyle`, `subFrameEnabled` | the animation section |
 
 A section is a range of frame numbers, and means nothing against a different animation — carrying one over
 would silently outrank the animation you just selected. Set it again after each setup if you need it, and
@@ -62,7 +62,7 @@ accepts a negative multiplier, but that stops the playhead rather than turning i
 ```dart
 _player.setAnimation('attack');
 _player.setAnimationSection(10, 24);   // after setup — setup would wipe it
-_player..loop = -1..play();            // loops within 10..24
+_player..loopCount = -1..play();            // loops within 10..24
 ```
 
 `startFrame` / `endFrame` / `totalFrames` report the sectioned range, so a scrubber bound to them follows
@@ -116,10 +116,10 @@ It resets the Brain's transport, but `SpriteStudioPlayer` remembers the `loop` /
 
 ```dart
 _player.setAnimation('walk');
-_player..loop = 3..speed = 1.5..play();
+_player..loopCount = 3..speedScale = 1.5..play();
 ```
 
-Use `getAnimations()` (or `SsAnimeInfo(bytes).animationNames`) to discover the available names.
+Use `animationNames` (or `SsAnimeInfo(bytes).animationNames`) to discover the available names.
 
 ## Driving the clock
 
@@ -176,7 +176,7 @@ _player.onAudio = (audio) {
 _player.onComplete = () {
   if (_player.currentAnimation == 'attack') {
     _player.setAnimation('idle');
-    _player..loop = -1..play();
+    _player..loopCount = -1..play();
   }
 };
 ```
