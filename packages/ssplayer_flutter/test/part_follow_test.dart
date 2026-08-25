@@ -152,6 +152,63 @@ void main() {
       expect(find.byKey(childKey), findsNothing,
           reason: 'an unknown part draws nothing');
     });
+
+    testWidgets('a hidden part keeps its child by default; hideChild drops it',
+        (tester) async {
+      final bytes = _ringo();
+      if (bytes == null) return;
+      final player = SpriteStudioPlayer();
+      addTearDown(player.dispose);
+      await player.load(bytes,
+          animationName: _animations().first, loadTextures: false);
+      player.advance(const Duration(milliseconds: 16));
+      // Force-hidden rather than hunting for a frame Ringo hides 'apple' on:
+      // this is an assertion about onHidden, not about the asset's keyframes.
+      expect(player.setPartVisibilityOverrideByName('apple', true), isTrue);
+      player.advance(const Duration(milliseconds: 16));
+      expect(player.isPartHidden('apple'), isTrue,
+          reason: 'the override must actually take, or the test proves nothing');
+
+      const childKey = Key('anchored-child');
+      Widget host({SpriteStudioAnchorHidden? onHidden}) => Directionality(
+            textDirection: TextDirection.ltr,
+            child: Center(
+              child: SizedBox(
+                width: 200,
+                height: 200,
+                child: SpriteStudioPartAnchor(
+                  player: player,
+                  partName: 'apple',
+                  onHidden: onHidden ?? SpriteStudioAnchorHidden.followAlways,
+                  child: const SizedBox(key: childKey, width: 8, height: 8),
+                ),
+              ),
+            ),
+          );
+
+      // The default, spelled by omission: it must match the sibling players'
+      // follow-always, not the hide-the-child this player used to ship.
+      await tester.pumpWidget(Directionality(
+        textDirection: TextDirection.ltr,
+        child: Center(
+          child: SizedBox(
+            width: 200,
+            height: 200,
+            child: SpriteStudioPartAnchor(
+              player: player,
+              partName: 'apple',
+              child: const SizedBox(key: childKey, width: 8, height: 8),
+            ),
+          ),
+        ),
+      ));
+      expect(find.byKey(childKey), findsOneWidget,
+          reason: 'the default keeps following a hidden part');
+
+      await tester.pumpWidget(host(onHidden: SpriteStudioAnchorHidden.hideChild));
+      expect(find.byKey(childKey), findsNothing,
+          reason: 'hideChild drops the child while the part is hidden');
+    });
   });
 }
 

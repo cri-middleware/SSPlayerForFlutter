@@ -6,11 +6,13 @@ import '../player.dart';
 /// hidden on the current frame (its keyframe `hide`, or a visibility override).
 enum SpriteStudioAnchorHidden {
   /// Keep following the part's last pose regardless of its hide flag — the child
-  /// stays visible (ForUnity's `FollowAlways`, ForGodot's `FOLLOW_ALWAYS`).
+  /// stays visible. This is the default, and it is what the sibling players do
+  /// (ForUnity's `FollowAlways`, ForGodot's `FOLLOW_ALWAYS`, ForWeb's
+  /// `onHide: 'follow'`).
   followAlways,
 
   /// Stop drawing the child while the part is hidden (ForUnity's `Deactivate`,
-  /// ForGodot's `HIDE_TARGET`). This is the default.
+  /// ForGodot's `HIDE_TARGET`, ForWeb's `onHide: 'hide'`).
   hideChild,
 }
 
@@ -87,7 +89,7 @@ class SpriteStudioPartAnchor extends StatelessWidget {
     required this.player,
     required this.partName,
     required this.child,
-    this.onHidden = SpriteStudioAnchorHidden.hideChild,
+    this.onHidden = SpriteStudioAnchorHidden.followAlways,
     this.onMirrored = SpriteStudioAnchorMirror.follow,
     this.filterQuality,
   });
@@ -103,7 +105,8 @@ class SpriteStudioPartAnchor extends StatelessWidget {
   final Widget child;
 
   /// What to do when the part is hidden this frame. Defaults to
-  /// [SpriteStudioAnchorHidden.hideChild].
+  /// [SpriteStudioAnchorHidden.followAlways], matching the sibling players;
+  /// pass [SpriteStudioAnchorHidden.hideChild] to drop the child with the part.
   final SpriteStudioAnchorHidden onHidden;
 
   /// Whether a flipped player mirrors this child too. Defaults to
