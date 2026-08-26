@@ -9,7 +9,7 @@ need this** — the native libraries are auto-downloaded (see
 | Tool | When |
 |---|---|
 | Rust (`rustup`) | Building the native libs from source |
-| Flutter 3.38+ / Dart 3.10+ | Always (native assets is stable and default-on) |
+| Flutter 3.47+ / Dart 3.13+ | Always (native assets is default-on from 3.38; the flutter_gpu backend sets the 3.47 floor) |
 | `wasm-pack` + `wasm32-unknown-unknown` target | Only for the **web** target (`cargo install wasm-pack`; `rustup target add wasm32-unknown-unknown`) |
 | `flatc` | Only when regenerating a `.fbs` schema |
 | cbindgen | Never install manually — it is a build-dependency of the SDK's `build.rs` |

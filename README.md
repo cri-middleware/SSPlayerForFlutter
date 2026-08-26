@@ -148,8 +148,8 @@ point `hooks.user_defines.<pkg>.lib<name>` in the app's `pubspec.yaml` at it.
 ## ⚙️ 2. Full Build Environment (For SDK / Player Developers)
 
 To develop the core (Rust runtime / Player) from source. **Prerequisites**: Rust (`rustup`),
-Flutter 3.38+ / Dart 3.10+ (native assets is standard — no CocoaPods / vendored framework to embed
-the Brain). `flatc` only when regenerating `.fbs`; cbindgen is pulled in as a build-dependency by the
+Flutter 3.47+ / Dart 3.13+ (native assets is standard — no CocoaPods / vendored framework to embed
+the Brain; the flutter_gpu backend is what puts the floor at 3.47). `flatc` only when regenerating `.fbs`; cbindgen is pulled in as a build-dependency by the
 SDK's `build.rs`, so no separate install.
 
 **macOS / Linux:**

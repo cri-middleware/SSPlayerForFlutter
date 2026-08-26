@@ -146,8 +146,8 @@ dart run ssconverter_dart:ssconvert -e -o assets/spritestudio/MyChar/ SpriteStud
 ## ⚙️ 2. フル開発環境（SDK / Player 開発者）
 
 コア（Rust ランタイム / Player）をソースから開発する場合。**前提**: Rust（`rustup`）、
-Flutter 3.38+ / Dart 3.10+（Native Assets が標準。ネイティブ Brain 同梱に CocoaPods／vendored
-framework は不要）。`flatc` は `.fbs` を再生成するときだけ。cbindgen は SDK の `build.rs` が
+Flutter 3.47+ / Dart 3.13+（Native Assets が標準。ネイティブ Brain 同梱に CocoaPods／vendored
+framework は不要。下限を 3.47 にしているのは flutter_gpu バックエンド）。`flatc` は `.fbs` を再生成するときだけ。cbindgen は SDK の `build.rs` が
 build-dependency として使うため個別導入不要。
 
 **macOS / Linux:**
