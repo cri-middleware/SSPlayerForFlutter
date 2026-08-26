@@ -55,7 +55,7 @@ class _MyState extends State<MyWidget> with SingleTickerProviderStateMixin {
 | `SpriteStudioPlayer(vsync: this)` | 自前の `Ticker` を持つプレイヤーを生成。`vsync` を省くとクロックを自分で駆動できます（[再生とイベント](playback.md)）。 |
 | `loadAsset('assets/overall/Basic.ssab')` | アセットバンドルからバイト列を読み、ネイティブランタイムへ渡し、reference テクスチャをキー自身のフォルダから解決します。 |
 | `animationNames` / `setAnimation` | 読み込んだ `.ssab` 内のアニメ名を列挙して選択します。 |
-| `loop = -1` | 無限ループ（`n > 0` は n 回。[再生とイベント](playback.md)）。 |
+| `loopCount = -1` | 無限ループ（`n > 0` は n 回。[再生とイベント](playback.md)）。 |
 | `play()` | トランスポートを開始します。 |
 | `SpriteStudioView(player:, width:, height:)` | 普通の `RenderBox` ウィジェット。他のウィジェットと同じく配置・変形・クリップできます。 |
 

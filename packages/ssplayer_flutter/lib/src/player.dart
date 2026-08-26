@@ -497,24 +497,41 @@ class SpriteStudioPlayer extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Resumes a paused animation in place (no head-out). If playback is stopped
-  /// or finished rather than paused, falls back to [play] (a fresh head-out).
+  /// Lifts a [pause], carrying on from the same frame (no head-out). Idempotent,
+  /// and a **no-op on a stopped or finished animation** — starting one is
+  /// [play]'s job, and it rewinds.
+  ///
+  /// It used to fall back to [play] when nothing was playing, which made a
+  /// `resume()` that hit a stopped player silently lose the playhead here and
+  /// nowhere else in the family. The Brain publishes four distinct verbs and
+  /// asks Players not to fold them into three (`30_core/20_playback_control.md`);
+  /// mapping one button onto the four is [togglePlayPause]'s job, and it is the
+  /// only place that knows a button exists.
   void resume() {
     final internal = _internal;
     if (internal == null) return;
-    if (!internal.isPlaying) {
-      play();
-      return;
-    }
     internal.resume();
-    _prevFinished = false;
+    // The Brain ignores a resume while nothing is playing, so read the state
+    // back rather than starting a ticker that would have nothing to advance.
+    if (!internal.isPlaying) return;
     _startTicker();
     notifyListeners();
   }
 
-  /// One-tap transport for a play/pause button: pause when advancing, otherwise
-  /// [resume] (which itself head-outs when stopped/finished).
-  void togglePlayPause() => isPlaying && !isPausing ? pause() : resume();
+  /// One-tap transport for a play/pause button: [pause] while advancing,
+  /// [resume] while held, and [play] from the head when stopped or finished.
+  ///
+  /// The head-out lives here rather than in [resume] so that the verb stays the
+  /// Brain's — see [resume].
+  void togglePlayPause() {
+    if (!isPlaying) {
+      play();
+    } else if (isPausing) {
+      resume();
+    } else {
+      pause();
+    }
+  }
 
   /// Ends playback. The playhead **stays where it stands** — nothing rewinds,
   /// so the widget keeps painting the frame it stopped on. [play] is what

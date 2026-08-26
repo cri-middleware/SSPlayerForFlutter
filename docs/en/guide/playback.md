@@ -13,12 +13,12 @@ _player.play();                    // start from the beginning
 | Member | Kind | Description |
 |---|---|---|
 | `play()` | method | Start the set-up animation from the beginning |
-| `pause()` / `resume()` | method | Pause (holds the current frame) / resume |
-| `togglePlayPause()` | method | Pause if playing, resume if paused |
+| `pause()` / `resume()` | method | Pause (holds the current frame) / lift the hold and carry on in place. Both are idempotent, and `resume()` is a **no-op on a stopped or finished animation** — starting one is `play()`'s job, and it rewinds |
+| `togglePlayPause()` | method | One tap for a play/pause button: pause while advancing, resume while held, and `play()` from the head when stopped or finished |
 | `stop()` | method | Stop playback. The playhead **stays where it stands** — nothing rewinds, so the frame it stopped on keeps drawing. `play()` is what returns to the head |
 | `seek(double frame)` | method | Jump to a frame (fractional allowed). Independent instances / effects do not follow |
-| `loop` | `set int` | Loop count — `-1` (or `0`) forever, `n` plays *n* times |
-| `speed` | `set double` | Playback speed multiplier (negative reverses) |
+| `loopCount` | `int` | Loop count — `-1` (or `0`) forever, `n` plays *n* times |
+| `speedScale` | `double` | Playback speed multiplier. `0` and negatives **stop** the playhead rather than reversing it — reversing is `setPlaybackDirection`'s business |
 | `frameRate` | `int` | Advance rate in fps — the pack's authored rate unless you override it |
 | `setPlaybackDirection(dir, style)` | method | Direction (`SsPlaybackDirection.forward` / `.backward`) and end-of-range behaviour (`SsPlaybackStyle.normal` / `.pingPong`) |
 | `playbackDirection` / `playbackStyle` | read | What the two above are currently set to |
@@ -37,15 +37,15 @@ Setting up an animation resets the Brain's whole transport. The player puts back
 
 | Re-applied for you | Left to reset |
 |---|---|
-| `loop`, `speed`, `frameSkipEnabled`, `frameRate`, `playbackDirection` / `playbackStyle`, `subFrameEnabled` | the animation section |
+| `loopCount`, `speedScale`, `frameSkipEnabled`, `frameRate`, `playbackDirection` / `playbackStyle`, `subFrameEnabled` | the animation section |
 
 A section is a range of frame numbers, and means nothing against a different animation — carrying one over
 would silently outrank the animation you just selected. Set it again after each setup if you need it, and
 note that a section set *before* `setAnimation` is wiped by it.
 
-Only `loop` is put back by the player; the rest the Brain keeps on its own. A `frameRate` override outlives
-a transition too — hand it `0` to clear it and go back to whatever each animation was authored at. To scale
-playback without replacing the authored rate, use `speed` rather than `frameRate`.
+Only `loopCount` is put back by the player; the rest the Brain keeps on its own. A `frameRate` override
+outlives a transition too — hand it `0` to clear it and go back to whatever each animation was authored at.
+To scale playback without replacing the authored rate, use `speedScale` rather than `frameRate`.
 
 ### Playing backwards, and round trips
 
@@ -53,9 +53,9 @@ playback without replacing the authored rate, use `speed` rather than `frameRate
 _player.setPlaybackDirection(SsPlaybackDirection.backward, SsPlaybackStyle.pingPong);
 ```
 
-With `pingPong` one loop is a **full round trip**, so `loop = 1` plays there and back once. `speed` also
-accepts a negative multiplier, but that stops the playhead rather than turning it around —
-`playbackDirection` is the one that reverses, and it survives a setup.
+With `pingPong` one loop is a **full round trip**, so `loopCount = 1` plays there and back once.
+`speedScale` also accepts a negative multiplier, but that stops the playhead rather than turning it
+around — `playbackDirection` is the one that reverses, and it survives a setup.
 
 ### Playing part of an animation
 
@@ -110,7 +110,7 @@ the view repaints on its own.
 `setAnimation(name)` selects an animation and **waits on its first frame** — it does not start
 playback.
 
-It resets the Brain's transport, but `SpriteStudioPlayer` remembers the `loop` / `speed` you set and
+It resets the Brain's transport, but `SpriteStudioPlayer` remembers the `loopCount` / `speedScale` you set and
 **re-applies them for you**, so you do not have to set them again on every switch (see
 "What survives `setAnimation`" above).
 
@@ -137,7 +137,7 @@ Assign callbacks on the player. They fire as playback progresses:
 | `onUserData` | `void Function(SsUserData)` | A **User Data** marker authored on the timeline is crossed. Once per marker |
 | `onSignal` | `void Function(SsSignal)` | An active **Signal** keyframe is crossed. Inactive signals are not surfaced |
 | `onAudio` | `void Function(SsAudioEvent)` | An **Audio** trigger is crossed. The player never produces sound itself — see below |
-| `onComplete` | `VoidCallback` | Every configured loop has played. **Never** fires while `loop` is infinite, and not on `stop()` |
+| `onComplete` | `VoidCallback` | Every configured loop has played. **Never** fires while `loopCount` is infinite, and not on `stop()` |
 | `onLoop` | `VoidCallback` | Playback crosses a loop boundary (the final cycle fires `onComplete` instead) |
 | `onEvents` | `void Function(List<int> passedEventIndices)` | Low-level escape hatch: the raw event indices passed this frame, before decoding |
 

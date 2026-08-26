@@ -84,8 +84,8 @@ class _MyState extends State<MyWidget> with SingleTickerProviderStateMixin {
     // key's own folder — no baseAssetDir needed (embedded packs work too).
     await _player.loadAsset('assets/spritestudio/overall/Basic.ssab');
     _player
-      ..setAnimation(_player.getAnimations().first)
-      ..loop = -1
+      ..setAnimation(_player.animationNames.first)
+      ..loopCount = -1
       ..play();
   }
 

@@ -13,12 +13,12 @@ _player.play();                    // 先頭から再生
 | メンバー | 種別 | 説明 |
 |---|---|---|
 | `play()` | メソッド | 設定済みアニメを先頭から再生 |
-| `pause()` / `resume()` | メソッド | 一時停止（現在フレームを保持）/ 再開 |
-| `togglePlayPause()` | メソッド | 再生中なら一時停止、停止中なら再開 |
+| `pause()` / `resume()` | メソッド | 一時停止（現在フレームを保持）/ 保持を解除してその場から続行。どちらも冪等で、`resume()` は**停止中・完了後には何もしません** —— 開始するのは `play()` の役目で、そちらは先頭へ巻き戻します |
+| `togglePlayPause()` | メソッド | 再生/一時停止ボタン 1 つ分。進行中なら一時停止、保持中なら再開、停止中・完了後なら `play()` で先頭から |
 | `stop()` | メソッド | 再生を停止。再生ヘッドは **その場に留まり**、巻き戻りません（停止したフレームを描画し続けます）。先頭に戻すのは `play()` です |
 | `seek(double frame)` | メソッド | 任意フレームへジャンプ（小数可）。独立再生のインスタンス / エフェクトは追従しません |
-| `loop` | `set int` | ループ回数 —— `-1`（または `0`）で無限、`n` で n 回 |
-| `speed` | `set double` | 再生速度倍率（負で逆再生） |
+| `loopCount` | `int` | ループ回数 —— `-1`（または `0`）で無限、`n` で n 回 |
+| `speedScale` | `double` | 再生速度倍率。`0` と負値は逆再生ではなく**再生ヘッドの停止**です —— 向きを変えるのは `setPlaybackDirection` の役目 |
 | `frameRate` | `int` | 進行レート（fps）。上書きしなければパックに設定された値 |
 | `setPlaybackDirection(dir, style)` | メソッド | 再生方向（`SsPlaybackDirection.forward` / `.backward`）と終端での挙動（`SsPlaybackStyle.normal` / `.pingPong`） |
 | `playbackDirection` / `playbackStyle` | 読取 | 上記 2 つの現在値 |
@@ -37,16 +37,16 @@ _player.play();                    // 先頭から再生
 
 | 自動で再適用される | リセットされる |
 |---|---|
-| `loop` / `speed` / `frameSkipEnabled` / `frameRate` / `playbackDirection`・`playbackStyle` / `subFrameEnabled` | 再生区間 |
+| `loopCount` / `speedScale` / `frameSkipEnabled` / `frameRate` / `playbackDirection`・`playbackStyle` / `subFrameEnabled` | 再生区間 |
 
 再生区間は別のアニメでは意味を持たないフレーム番号の範囲です。持ち越すと、いま選んだアニメの
 設定を黙って上書きしてしまいます。必要ならセットアップのたびに設定し直してください。特に区間を
 `setAnimation` の**前**に設定しても
 消えてしまう点に注意してください。
 
-Player 側が戻すのは `loop` だけで、残りは Brain 自身が保持します。`frameRate` の上書きも遷移を
+Player 側が戻すのは `loopCount` だけで、残りは Brain 自身が保持します。`frameRate` の上書きも遷移を
 跨いで残るので、各アニメの authored 値に戻したいときは `0` を渡してクリアしてください。authored 値
-そのものを置き換えずに再生を伸縮させたいだけなら、`frameRate` ではなく `speed` を使います。
+そのものを置き換えずに再生を伸縮させたいだけなら、`frameRate` ではなく `speedScale` を使います。
 
 ### 逆再生と往復再生
 
@@ -54,8 +54,8 @@ Player 側が戻すのは `loop` だけで、残りは Brain 自身が保持し�
 _player.setPlaybackDirection(SsPlaybackDirection.backward, SsPlaybackStyle.pingPong);
 ```
 
-`pingPong` では 1 ループが**往復 1 回**なので、`loop = 1` で行って戻って終わりです。`speed` に負の値を
-渡しても逆再生にはならず（再生ヘッドが停止します）、向きを変えるのは `playbackDirection` です。
+`pingPong` では 1 ループが**往復 1 回**なので、`loopCount = 1` で行って戻って終わりです。`speedScale` に
+負の値を渡しても逆再生にはならず（再生ヘッドが停止します）、向きを変えるのは `playbackDirection` です。
 こちらはセットアップをまたいで残ります。
 
 ### アニメの一部だけ再生する
@@ -112,7 +112,7 @@ _player.flipX = velocity.dx < 0;
 `setAnimation(name)` はアニメを選択して**先頭フレームで待機**します —— 再生は開始しません。
 
 Brain 側のトランスポートはリセットされますが、`SpriteStudioPlayer` は**あなたが設定した
-`loop` / `speed` を覚えていて再適用**するので、アニメを切り替えるたびに設定し直す必要は
+`loopCount` / `speedScale` を覚えていて再適用**するので、アニメを切り替えるたびに設定し直す必要は
 ありません（「`setAnimation` をまたいで残るもの」の表のとおり）。
 
 ```dart
@@ -138,7 +138,7 @@ _player..loopCount = 3..speedScale = 1.5..play();
 | `onUserData` | `void Function(SsUserData)` | タイムラインの**ユーザーデータ**を通過したとき。1 件につき 1 回 |
 | `onSignal` | `void Function(SsSignal)` | 有効な**シグナル**キーフレームを通過したとき。無効なシグナルは通知されない |
 | `onAudio` | `void Function(SsAudioEvent)` | **オーディオ**トリガを通過したとき。プレイヤー自身は音を鳴らさない（下記参照） |
-| `onComplete` | `VoidCallback` | 設定したループを全て再生し終えたとき。`loop` が無限のときは**発火せず**、`stop()` でも発火しない |
+| `onComplete` | `VoidCallback` | 設定したループを全て再生し終えたとき。`loopCount` が無限のときは**発火せず**、`stop()` でも発火しない |
 | `onLoop` | `VoidCallback` | ループ境界を跨いだとき（最終周は代わりに `onComplete` が発火） |
 | `onEvents` | `void Function(List<int> passedEventIndices)` | 低レベルの逃げ道。デコード前の生の index がそのフレーム分だけ渡される |
 
