@@ -404,6 +404,10 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   bool get isFinished => ssRuntime.isFinished(_context);
 
   bool get justLooped => ssRuntime.isLooped(_context);
+
+  /// Which way the playhead is actually travelling — see
+  /// [SpriteStudioPlayer.isPlayingForward].
+  bool get isPlayingForward => ssRuntime.isPlayingForward(_context);
   double get frameNo => ssRuntime.frameNo(_context);
   int get startFrame => ssRuntime.startFrame(_context);
   int get endFrame => ssRuntime.endFrame(_context);

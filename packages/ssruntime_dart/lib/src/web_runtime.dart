@@ -150,6 +150,7 @@ extension type _JsCtx(JSObject _) implements JSObject {
   external bool is_pausing();
   external bool is_finished();
   external bool is_looped();
+  external bool is_playing_forward();
   external double get_frame_no();
   external int get_start_frame();
   external int get_end_frame();
@@ -385,6 +386,10 @@ class _WebRuntime implements SsRuntime {
 
   @override
   bool isLooped(SsContext context) => _ctx(context).is_looped();
+
+  @override
+  bool isPlayingForward(SsContext context) =>
+      _ctx(context).is_playing_forward();
 
   @override
   double frameNo(SsContext context) => _ctx(context).get_frame_no();

@@ -96,6 +96,16 @@ abstract interface class SsRuntime {
   bool isFinished(SsContext context);
   bool isLooped(SsContext context);
 
+  /// Which way the playhead is **actually** travelling this frame, which is not
+  /// the heading [setPlaybackDirection] configured: under ping-pong the return
+  /// leg runs backward while the configured heading still reads forward. A
+  /// speed of `0` or below is a stop rather than a reversal, and does not flip
+  /// it either.
+  ///
+  /// `true` before anything has played — forward is the resting state, so a
+  /// host gating audio on it is not silenced on its first frame.
+  bool isPlayingForward(SsContext context);
+
   double frameNo(SsContext context);
   int startFrame(SsContext context);
   int endFrame(SsContext context);

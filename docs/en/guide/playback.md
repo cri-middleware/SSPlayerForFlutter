@@ -27,6 +27,7 @@ _player.play();                    // start from the beginning
 | `subFrameEnabled` | `bool` | Sub-frame interpolation (on by default) |
 | `isPlaying` / `isPausing` | `bool` (read) | Current transport state |
 | `isFinished` / `justLooped` | `bool` (read) | Every loop has played (sticky) / the last advance crossed a loop boundary (edge) |
+| `isPlayingForward` | `bool` (read) | Which way the playhead is **actually** travelling — not `playbackDirection`, which is only the configured heading. A ping-pong return leg reads `false` while that still reads `forward`. **Gate audio on it** |
 | `frameNo` / `currentAnimation` | read | Current frame / active animation name |
 | `startFrame` / `endFrame` / `totalFrames` | `int` (read) | The frame range being played, and its length — feed `totalFrames` to a scrubber |
 
@@ -163,12 +164,22 @@ _player.onUserData = (userData) {
 SpriteStudio audio is trigger-only: the player hands you the sound to play and stays out of your
 audio stack. Resolve the hash to a pack-relative path and feed it to whatever you use.
 
+**Gate it on `isPlayingForward`.** SpriteStudio has no reverse audio, so a key crossed on a backward
+leg is not meant to sound. The players that own an audio backend apply that test themselves; this one
+reports rather than plays, so `onAudio` fires either way and the test is yours.
+
 ```dart
 _player.onAudio = (audio) {
+  if (!_player.isPlayingForward) return; // no reverse audio
   final path = _player.soundFilePath(audio.soundNameHash); // e.g. "sound/foo.mp3"
   if (path != null) _audio.play(path, times: audio.loopNum);
 };
 ```
+
+`isPlayingForward` is the *instantaneous* heading, which is why it and not `playbackDirection` is the
+right test: under `SsPlaybackStyle.pingPong` the return leg runs backward while `playbackDirection`
+still reads `forward`. It is `true` before anything has played, so the gate does not silence the first
+frame.
 
 ### Example: chain animations
 

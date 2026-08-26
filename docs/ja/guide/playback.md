@@ -27,6 +27,7 @@ _player.play();                    // 先頭から再生
 | `subFrameEnabled` | `bool` | サブフレーム補間（既定オン） |
 | `isPlaying` / `isPausing` | `bool`（読取） | 現在のトランスポート状態 |
 | `isFinished` / `justLooped` | `bool`（読取） | 全ループを再生し終えた（sticky）/ 直前の進行でループ境界を跨いだ（エッジ） |
+| `isPlayingForward` | `bool`（読取） | 再生ヘッドが**実際に**どちら向きに進んでいるか。設定値である `playbackDirection` とは別物で、ピンポンの戻りでは `playbackDirection` が `forward` のままこちらは `false` になります。**音声はこれで抑止してください** |
 | `frameNo` / `currentAnimation` | 読取 | 現在フレーム / 再生中のアニメ名 |
 | `startFrame` / `endFrame` / `totalFrames` | `int`（読取） | 再生対象のフレーム区間とその長さ。`totalFrames` はスクラバに渡す用 |
 
@@ -166,12 +167,22 @@ _player.onUserData = (userData) {
 SpriteStudio のオーディオはトリガのみです。プレイヤーは「鳴らすべき音」を渡すだけで、
 オーディオスタックには関与しません。ハッシュをパック相対パスに解決して、お使いの再生手段に渡してください。
 
+**`isPlayingForward` で抑止してください。** SpriteStudio に逆再生の音声は無いので、逆向きに進んで
+いる最中に通過したキーは鳴らすべきものではありません。自前のオーディオバックエンドを持つプレイヤーは
+この判定を自分で行いますが、こちらは再生せず通知するだけなので `onAudio` はどちらでも発火します。
+判定はあなたの側の仕事です。
+
 ```dart
 _player.onAudio = (audio) {
+  if (!_player.isPlayingForward) return; // 逆再生の音声は無い
   final path = _player.soundFilePath(audio.soundNameHash); // 例: "sound/foo.mp3"
   if (path != null) _audio.play(path, times: audio.loopNum);
 };
 ```
+
+`isPlayingForward` は*瞬間の*向きです。`playbackDirection` ではなくこちらで判定するのはそのためで、
+`SsPlaybackStyle.pingPong` の戻りでは `playbackDirection` が `forward` のまま実際には逆向きに進んで
+います。再生前は `true` なので、このゲートが初回フレームを取りこぼすことはありません。
 
 ### 例: アニメを連結する
 

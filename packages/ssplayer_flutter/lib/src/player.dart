@@ -703,6 +703,30 @@ class SpriteStudioPlayer extends ChangeNotifier {
   /// the tick that crossed — poll it from a per-frame callback or use [onLoop].
   bool get justLooped => _internal?.justLooped ?? false;
 
+  /// Which way the playhead is **actually** travelling this frame — not
+  /// [playbackDirection], which is only the heading that was configured. Under
+  /// [SsPlaybackStyle.pingPong] the return leg runs backward while
+  /// [playbackDirection] still reads [SsPlaybackDirection.forward]. A
+  /// [speedScale] of `0` or below is a stop rather than a reversal, so it does
+  /// not flip this either.
+  ///
+  /// **Gate audio on it.** SpriteStudio has no reverse audio, so a key crossed
+  /// on a backward leg is not meant to sound. This player reports audio rather
+  /// than playing it (§6C), so it cannot apply that test for you — the players
+  /// that own an audio backend apply it themselves, and here it is yours:
+  ///
+  /// ```dart
+  /// _player.onAudio = (audio) {
+  ///   if (!_player.isPlayingForward) return;
+  ///   final path = _player.soundFilePath(audio.soundNameHash);
+  ///   if (path != null) _audio.play(path, times: audio.loopNum);
+  /// };
+  /// ```
+  ///
+  /// `true` before anything has played: forward is the resting state, so the
+  /// gate above does not silence a host on its first frame.
+  bool get isPlayingForward => _internal?.isPlayingForward ?? true;
+
   /// Draws the current frame — delegates to Layer 2's single paint path.
   ///
   /// At most once per frame per player: the render backend recycles per-frame

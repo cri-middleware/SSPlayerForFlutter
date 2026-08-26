@@ -181,6 +181,10 @@ class _NativeRuntime implements SsRuntime {
   bool isLooped(SsContext context) => ss_runtime_is_looped(_ctx(context));
 
   @override
+  bool isPlayingForward(SsContext context) =>
+      ss_runtime_is_playing_forward(_ctx(context));
+
+  @override
   double frameNo(SsContext context) => ss_runtime_get_frame_no(_ctx(context));
 
   @override
