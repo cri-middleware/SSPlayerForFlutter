@@ -45,7 +45,9 @@ constraint bump.
   the published archive — nothing to do at release time.
 - **Melos is a pinned workspace dev-dependency** (`>=7.0.0 <7.8.2`; 7.8.2 pulls a `cli_util` that
   conflicts with ffigen's pin). Invoke via `dart run melos …`.
-- **CI toolchain is pinned** in `release.yml` (Flutter 3.44.6 / Dart 3.12.2). The package
-  `environment:` declares only the support *floor* (`sdk: >=3.10.0`, Flutter `>=3.38.0`) — deliberately
-  lower, so consumers aren't forced onto the exact CI version. Bump the `release.yml` pin as your local
-  toolchain moves.
+- **CI toolchain is pinned** in `release.yml` (Flutter 3.47.1 / Dart 3.13.1). Most packages declare a
+  support *floor* well below it (`sdk: >=3.10.0`, Flutter `>=3.38.0`) so consumers aren't forced onto
+  the exact CI version. `ssplayer_flutter` is the exception, at Flutter `>=3.47.0`: flutter_gpu ships
+  inside the SDK and is unversioned, and its 3.47 API is source-breaking, so the GPU backend cannot
+  compile below it. Bump the `release.yml` pin as your local toolchain moves, and never below a
+  declared floor.

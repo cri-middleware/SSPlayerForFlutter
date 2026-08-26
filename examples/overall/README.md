@@ -5,7 +5,7 @@
 
 ## 前提
 
-- **Flutter 3.38+ / Dart 3.10+**（Native Assets 標準対応）。CI は 3.44.6 / 3.12.2 で検証。
+- **Flutter 3.47+ / Dart 3.13+**（Native Assets 標準対応。下限 3.47 は flutter_gpu バックエンドの要件）。CI は 3.47.1 / 3.13.1 で検証。
 - ネイティブ Brain（`libssruntime`）。`hook/build.dart` がピン留めした SDK リリースから
   プリビルドを自動DL・同梱するので、通常は事前配置不要（Rust 不要）。
   - ソースからビルドする場合: `bash scripts/build-runtime.sh`（Rust 必要）

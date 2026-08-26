@@ -200,11 +200,63 @@ class FlutterGpuBackend implements RenderBackend {
   static gpu.RenderPipeline? _partColorPipeline;
   static bool _partColorPipelineFailed = false;
 
-  static gpu.RenderPipeline? _buildPipeline(String vert, String frag) {
+  /// The compiled shader bundle every pipeline below is built from, read once
+  /// per isolate.
+  ///
+  /// `ShaderLibrary.fromAsset` returns a `Future` (Flutter 3.47+): some
+  /// platforms can only read assets asynchronously, so the API is async
+  /// everywhere. Pipelines are still built from inside the *synchronous*
+  /// `paint`, hence the split — [_ensureLibrary] kicks the read off from
+  /// [beginFrame] and parks the result here, and [_buildPipeline] only ever
+  /// reads what has already landed.
+  ///
+  /// The gap is one blank frame, handled the same way the async texture upload
+  /// handles its own: a build attempted before the bundle has landed is **not**
+  /// a failure (see [_libraryReady] — it must not latch one), and the read's
+  /// completion fires [onResourcesReady] so a paused, seeked or single-shot
+  /// player repaints instead of staying blank forever.
+  static gpu.ShaderLibrary? _library;
+  static bool _libraryFailed = false;
+  static Future<void>? _libraryRead;
+
+  /// Backends that began a frame before the bundle landed, to be repainted once
+  /// it does. Held only until the read completes; [dispose] deregisters.
+  static final Set<FlutterGpuBackend> _libraryWaiters = <FlutterGpuBackend>{};
+
+  /// Whether a pipeline can be built at all. False while the bundle is still
+  /// being read, which is why a null [_buildPipeline] must not be latched as a
+  /// failure until this is true.
+  static bool get _libraryReady => _library != null;
+
+  /// Starts the one-shot bundle read (idempotent) and registers this backend for
+  /// the repaint that follows it. No-op once the bundle has landed or failed.
+  void _ensureLibrary() {
+    if (_libraryReady || _libraryFailed) return;
+    _libraryWaiters.add(this);
+    _libraryRead ??= _readLibrary();
+  }
+
+  static Future<void> _readLibrary() async {
     try {
-      final lib = gpu.ShaderLibrary.fromAsset(_kShaderBundle);
-      final v = lib?[vert];
-      final f = lib?[frag];
+      _library = await gpu.ShaderLibrary.fromAsset(_kShaderBundle);
+    } catch (_) {
+      _library = null;
+    }
+    _libraryFailed = _library == null;
+    final waiters = _libraryWaiters.toList(growable: false);
+    _libraryWaiters.clear();
+    if (_libraryFailed) return;
+    for (final w in waiters) {
+      w._onResourcesReady?.call();
+    }
+  }
+
+  static gpu.RenderPipeline? _buildPipeline(String vert, String frag) {
+    final lib = _library;
+    if (lib == null) return null;
+    try {
+      final v = lib[vert];
+      final f = lib[frag];
       if (v == null || f == null) return null;
       return gpu.gpuContext.createRenderPipeline(v, f);
     } catch (_) {
@@ -215,6 +267,8 @@ class FlutterGpuBackend implements RenderBackend {
   static gpu.RenderPipeline? _ensureSpritePipeline() {
     if (_spritePipeline != null) return _spritePipeline;
     if (_spritePipelineFailed) return null;
+    // Still reading the bundle: not a failure, do not latch one.
+    if (!_libraryReady) return null;
     final p = _buildPipeline('SpriteVertex', 'SpriteFragment');
     if (p == null) {
       _spritePipelineFailed = true;
@@ -226,6 +280,8 @@ class FlutterGpuBackend implements RenderBackend {
   static gpu.RenderPipeline? _ensurePartColorPipeline() {
     if (_partColorPipeline != null) return _partColorPipeline;
     if (_partColorPipelineFailed) return null;
+    // Still reading the bundle: not a failure, do not latch one.
+    if (!_libraryReady) return null;
     final p = _buildPipeline('PartColorVertex', 'PartColorFragment');
     if (p == null) {
       _partColorPipelineFailed = true;
@@ -239,6 +295,8 @@ class FlutterGpuBackend implements RenderBackend {
   static gpu.RenderPipeline? _ensureMaskWritePipeline() {
     if (_maskWritePipeline != null) return _maskWritePipeline;
     if (_maskWritePipelineFailed) return null;
+    // Still reading the bundle: not a failure, do not latch one.
+    if (!_libraryReady) return null;
     final p = _buildPipeline('MaskWriteVertex', 'MaskWriteFragment');
     if (p == null) {
       _maskWritePipelineFailed = true;
@@ -252,6 +310,8 @@ class FlutterGpuBackend implements RenderBackend {
   static gpu.RenderPipeline? _ensureColorMatrixPipeline() {
     if (_colorMatrixPipeline != null) return _colorMatrixPipeline;
     if (_colorMatrixPipelineFailed) return null;
+    // Still reading the bundle: not a failure, do not latch one.
+    if (!_libraryReady) return null;
     final p = _buildPipeline('ColorMatrixVertex', 'ColorMatrixFragment');
     if (p == null) {
       _colorMatrixPipelineFailed = true;
@@ -273,6 +333,8 @@ class FlutterGpuBackend implements RenderBackend {
   static gpu.RenderPipeline? _ensureSsShaderPipeline() {
     if (_ssShaderPipeline != null) return _ssShaderPipeline;
     if (_ssShaderPipelineFailed) return null;
+    // Still reading the bundle: not a failure, do not latch one.
+    if (!_libraryReady) return null;
     final p = _buildPipeline('SsShaderVertex', 'SsShaderFragment');
     if (p == null) {
       _ssShaderPipelineFailed = true;
@@ -286,6 +348,8 @@ class FlutterGpuBackend implements RenderBackend {
   static gpu.RenderPipeline? _ensureShapeMaskPipeline() {
     if (_shapeMaskPipeline != null) return _shapeMaskPipeline;
     if (_shapeMaskPipelineFailed) return null;
+    // Still reading the bundle: not a failure, do not latch one.
+    if (!_libraryReady) return null;
     final p = _buildPipeline('ShapeMaskVertex', 'ShapeMaskFragment');
     if (p == null) {
       _shapeMaskPipelineFailed = true;
@@ -476,6 +540,11 @@ class FlutterGpuBackend implements RenderBackend {
     final w = (logical.width * scale).round();
     final h = (logical.height * scale).round();
     if (w <= 0 || h <= 0) return;
+
+    // Every pipeline is built from the shader bundle, and reading it is async;
+    // this is the one place that starts it (nothing else runs until beginFrame
+    // sets _active) and books the repaint for when it lands.
+    _ensureLibrary();
 
     // The sprite pipeline is the base path; if it fails to load there is no GPU
     // rendering (the PartColor pipeline is checked lazily where it is used).
@@ -734,12 +803,10 @@ class FlutterGpuBackend implements RenderBackend {
       final ib = gpu.gpuContext
           .createDeviceBufferWithCopy(ByteData.sublistView(geo.indices));
       pass.bindVertexBuffer(
-          gpu.BufferView(vb, offsetInBytes: 0, lengthInBytes: vb.sizeInBytes),
-          geo.vertexCount);
+          gpu.BufferView(vb, offsetInBytes: 0, lengthInBytes: vb.sizeInBytes));
       pass.bindIndexBuffer(
           gpu.BufferView(ib, offsetInBytes: 0, lengthInBytes: ib.sizeInBytes),
-          gpu.IndexType.int16,
-          geo.indexCount);
+          gpu.IndexType.int16);
       pass.bindTexture(
         pipeline.fragmentShader.getUniformSlot('u_texture'),
         tex,
@@ -751,7 +818,7 @@ class FlutterGpuBackend implements RenderBackend {
       // Coverage MUST stay nearest — its texels are bit fields.
       pass.bindTexture(
           pipeline.fragmentShader.getUniformSlot('u_coverage'), cov);
-      pass.draw();
+      pass.drawIndexed(geo.indexCount);
     } catch (_) {
       // Skip this draw; keep the rest of the frame.
     }
@@ -828,12 +895,10 @@ class FlutterGpuBackend implements RenderBackend {
       final ib = gpu.gpuContext
           .createDeviceBufferWithCopy(ByteData.sublistView(geo.indices));
       pass.bindVertexBuffer(
-          gpu.BufferView(vb, offsetInBytes: 0, lengthInBytes: vb.sizeInBytes),
-          geo.vertexCount);
+          gpu.BufferView(vb, offsetInBytes: 0, lengthInBytes: vb.sizeInBytes));
       pass.bindIndexBuffer(
           gpu.BufferView(ib, offsetInBytes: 0, lengthInBytes: ib.sizeInBytes),
-          gpu.IndexType.int16,
-          geo.indexCount);
+          gpu.IndexType.int16);
       pass.bindTexture(
         pipeline.fragmentShader.getUniformSlot('u_texture'),
         tex,
@@ -842,7 +907,7 @@ class FlutterGpuBackend implements RenderBackend {
           magFilter: gpu.MinMagFilter.linear,
         ),
       );
-      pass.draw();
+      pass.drawIndexed(geo.indexCount);
     } catch (_) {
       // Skip this draw; keep the rest of the frame.
     }
@@ -895,12 +960,10 @@ class FlutterGpuBackend implements RenderBackend {
       final ib = gpu.gpuContext.createDeviceBufferWithCopy(
           ByteData.sublistView(geo.indices));
       pass.bindVertexBuffer(
-          gpu.BufferView(vb, offsetInBytes: 0, lengthInBytes: vb.sizeInBytes),
-          geo.vertexCount);
+          gpu.BufferView(vb, offsetInBytes: 0, lengthInBytes: vb.sizeInBytes));
       pass.bindIndexBuffer(
           gpu.BufferView(ib, offsetInBytes: 0, lengthInBytes: ib.sizeInBytes),
-          gpu.IndexType.int16,
-          geo.indexCount);
+          gpu.IndexType.int16);
       pass.bindTexture(
         pipeline.fragmentShader.getUniformSlot('u_texture'),
         tex,
@@ -909,7 +972,7 @@ class FlutterGpuBackend implements RenderBackend {
           magFilter: gpu.MinMagFilter.linear,
         ),
       );
-      pass.draw();
+      pass.drawIndexed(geo.indexCount);
     } catch (_) {
       // Skip this draw; keep the rest of the frame.
     }
@@ -1188,12 +1251,10 @@ class FlutterGpuBackend implements RenderBackend {
       final ib = gpu.gpuContext
           .createDeviceBufferWithCopy(ByteData.sublistView(geo.indices));
       pass.bindVertexBuffer(
-          gpu.BufferView(vb, offsetInBytes: 0, lengthInBytes: vb.sizeInBytes),
-          geo.vertexCount);
+          gpu.BufferView(vb, offsetInBytes: 0, lengthInBytes: vb.sizeInBytes));
       pass.bindIndexBuffer(
           gpu.BufferView(ib, offsetInBytes: 0, lengthInBytes: ib.sizeInBytes),
-          gpu.IndexType.int16,
-          geo.indexCount);
+          gpu.IndexType.int16);
       pass.bindTexture(
         pipeline.fragmentShader.getUniformSlot('u_texture'),
         tex,
@@ -1205,7 +1266,7 @@ class FlutterGpuBackend implements RenderBackend {
       // Coverage MUST stay nearest — its texels are bit fields.
       pass.bindTexture(
           pipeline.fragmentShader.getUniformSlot('u_coverage'), cov);
-      pass.draw();
+      pass.drawIndexed(geo.indexCount);
     } catch (_) {
       // Skip this draw; keep the rest of the frame.
     }
@@ -1317,15 +1378,13 @@ class FlutterGpuBackend implements RenderBackend {
       final ib = gpu.gpuContext
           .createDeviceBufferWithCopy(ByteData.sublistView(geo.indices));
       pass.bindVertexBuffer(
-          gpu.BufferView(vb, offsetInBytes: 0, lengthInBytes: vb.sizeInBytes),
-          geo.vertexCount);
+          gpu.BufferView(vb, offsetInBytes: 0, lengthInBytes: vb.sizeInBytes));
       pass.bindIndexBuffer(
           gpu.BufferView(ib, offsetInBytes: 0, lengthInBytes: ib.sizeInBytes),
-          gpu.IndexType.int16,
-          geo.indexCount);
+          gpu.IndexType.int16);
       pass.bindTexture(
           pipeline.fragmentShader.getUniformSlot('u_coverage'), coverage);
-      pass.draw();
+      pass.drawIndexed(geo.indexCount);
     } catch (_) {
       // Skip this draw; keep the rest of the frame.
     }
@@ -1504,14 +1563,12 @@ class FlutterGpuBackend implements RenderBackend {
             _hostBuffer!.emplace(ByteData.sublistView(_bitColor(writer.bit, threshold))));
         pass.setColorBlendEquation(_additive); // bit accumulator: alpha adds too
         pass.bindVertexBuffer(
-            gpu.BufferView(vb, offsetInBytes: 0, lengthInBytes: vb.sizeInBytes),
-            verts.length ~/ 4);
+            gpu.BufferView(vb, offsetInBytes: 0, lengthInBytes: vb.sizeInBytes));
         pass.bindIndexBuffer(
             gpu.BufferView(ib, offsetInBytes: 0, lengthInBytes: ib.sizeInBytes),
-            gpu.IndexType.int16,
-            indices.length);
+            gpu.IndexType.int16);
         pass.bindTexture(texSlot, writerTex); // nearest (cutout threshold on raw texel)
-        pass.draw();
+        pass.drawIndexed(indices.length);
         wrote = true;
       }
       if (!wrote) return null;
@@ -1685,15 +1742,13 @@ class FlutterGpuBackend implements RenderBackend {
       final ib = gpu.gpuContext
           .createDeviceBufferWithCopy(ByteData.sublistView(_quadIndices));
       _pass!.bindVertexBuffer(
-          gpu.BufferView(vb, offsetInBytes: 0, lengthInBytes: vb.sizeInBytes),
-          4);
+          gpu.BufferView(vb, offsetInBytes: 0, lengthInBytes: vb.sizeInBytes));
       _pass!.bindIndexBuffer(
           gpu.BufferView(ib, offsetInBytes: 0, lengthInBytes: ib.sizeInBytes),
-          gpu.IndexType.int16,
-          _quadIndices.length);
+          gpu.IndexType.int16);
       _pass!.bindTexture(
           pipeline.fragmentShader.getUniformSlot('u_texture'), sub);
-      _pass!.draw();
+      _pass!.drawIndexed(_quadIndices.length);
     } catch (_) {
       // The subtree is lost for this frame; the rest of it still draws.
     }
@@ -1757,6 +1812,9 @@ class FlutterGpuBackend implements RenderBackend {
 
   @override
   void dispose() {
+    // A backend disposed while the shader bundle is still being read must not
+    // be called back afterwards (the pending read is shared and outlives it).
+    _libraryWaiters.remove(this);
     // gpu.Texture / DeviceBuffer are GC-managed (no explicit destroy in the
     // flutter_gpu API); drop references so they can be collected.
     _gpuTextures.clear();

@@ -85,7 +85,7 @@ graph LR
 
 ## 対応バージョン
 
-- **Flutter**: 3.38 以降 / **Dart**: 3.10 以降（この世代で native assets が安定・デフォルト有効になります）。
+- **Flutter**: 3.47 以降 / **Dart**: 3.13 以降。native assets が安定・デフォルト有効になるのは 3.38 ですが、下限を 3.47 にしているのは flutter_gpu の現行 GPU API がこの版で入り、GPU バックエンドがそれに対してビルドされるためです。
 - **プラットフォーム**: macOS・iOS（シミュレータ）・Android（エミュレータ）・Web（開発者プレビュー）で確認済み。実機 iOS と 32bit `armeabi-v7a` ABI は未確認です。
 
 ## サンプル

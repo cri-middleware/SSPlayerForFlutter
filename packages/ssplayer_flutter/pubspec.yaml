@@ -12,9 +12,18 @@ resolution: workspace
 
 environment:
   # Native assets (build hooks) are stable & default-on since Flutter 3.38 /
-  # Dart 3.10 — the floor this package targets for the widest consumer base.
+  # Dart 3.10, which is the floor the rest of this repo targets.
+  #
+  # This package alone sits a step higher, on flutter_gpu: 3.47 made
+  # `ShaderLibrary.fromAsset` async (engine #187716) and moved the vertex/index
+  # counts off the bind calls onto `draw`/`drawIndexed` (engine #187192). Both
+  # are source-breaking and neither has a compatible spelling, so the GPU
+  # backend cannot compile against 3.46 and earlier. flutter_gpu ships inside
+  # the SDK and is unversioned, so this constraint is the only thing that can
+  # express the requirement — keep the CI `flutter-version` pins on the same
+  # side of it.
   sdk: ">=3.10.0 <4.0.0"
-  flutter: ">=3.38.0"
+  flutter: ">=3.47.0"
 
 dependencies:
   flutter:

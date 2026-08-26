@@ -26,7 +26,8 @@ dependencies:
     path: vendor/SSPlayerForFlutter/packages/ssplayer_flutter
 ```
 
-Needs **Flutter 3.38+ / Dart 3.10+** (native assets stable and default-on).
+Needs **Flutter 3.47+ / Dart 3.13+** — native assets is stable and default-on, and the
+flutter_gpu backend needs the GPU API that landed in 3.47.
 
 ## Use
 
