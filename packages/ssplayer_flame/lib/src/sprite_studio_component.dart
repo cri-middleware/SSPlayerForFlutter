@@ -59,8 +59,9 @@ class SpriteStudioComponent extends PositionComponent {
     bool subFrame = true,
     bool autoStart = true,
     SsEventCallback? onEvents,
-    VoidCallback? onComplete,
-    VoidCallback? onLoop,
+    VoidCallback? onAnimationStarted,
+    VoidCallback? onAnimationFinished,
+    VoidCallback? onAnimationLooped,
     Vector2? position,
     Vector2? size,
     Vector2? scale,
@@ -79,8 +80,9 @@ class SpriteStudioComponent extends PositionComponent {
           subFrameEnabled: subFrame,
           autoStart: autoStart,
           onEvents: onEvents,
-          onComplete: onComplete,
-          onLoop: onLoop,
+          onAnimationStarted: onAnimationStarted,
+          onAnimationFinished: onAnimationFinished,
+          onAnimationLooped: onAnimationLooped,
           position: position,
           size: size,
           scale: scale,
@@ -104,8 +106,9 @@ class SpriteStudioComponent extends PositionComponent {
     bool subFrame = true,
     bool autoStart = true,
     SsEventCallback? onEvents,
-    VoidCallback? onComplete,
-    VoidCallback? onLoop,
+    VoidCallback? onAnimationStarted,
+    VoidCallback? onAnimationFinished,
+    VoidCallback? onAnimationLooped,
     Vector2? position,
     Vector2? size,
     Vector2? scale,
@@ -123,8 +126,9 @@ class SpriteStudioComponent extends PositionComponent {
           subFrameEnabled: subFrame,
           autoStart: autoStart,
           onEvents: onEvents,
-          onComplete: onComplete,
-          onLoop: onLoop,
+          onAnimationStarted: onAnimationStarted,
+          onAnimationFinished: onAnimationFinished,
+          onAnimationLooped: onAnimationLooped,
           position: position,
           size: size,
           scale: scale,
@@ -146,8 +150,9 @@ class SpriteStudioComponent extends PositionComponent {
     this.subFrameEnabled = true,
     this.autoStart = true,
     this.onEvents,
-    this.onComplete,
-    this.onLoop,
+    this.onAnimationStarted,
+    this.onAnimationFinished,
+    this.onAnimationLooped,
     super.position,
     super.size,
     super.scale,
@@ -191,11 +196,14 @@ class SpriteStudioComponent extends PositionComponent {
   /// Forwarded to [SpriteStudioPlayer.onEvents].
   final SsEventCallback? onEvents;
 
-  /// Forwarded to [SpriteStudioPlayer.onComplete].
-  final VoidCallback? onComplete;
+  /// Forwarded to [SpriteStudioPlayer.onAnimationStarted].
+  final VoidCallback? onAnimationStarted;
 
-  /// Forwarded to [SpriteStudioPlayer.onLoop].
-  final VoidCallback? onLoop;
+  /// Forwarded to [SpriteStudioPlayer.onAnimationFinished].
+  final VoidCallback? onAnimationFinished;
+
+  /// Forwarded to [SpriteStudioPlayer.onAnimationLooped].
+  final VoidCallback? onAnimationLooped;
 
   SpriteStudioPlayer? _player;
 
@@ -233,8 +241,9 @@ class SpriteStudioComponent extends PositionComponent {
   Future<void> onLoad() async {
     final player = SpriteStudioPlayer() // no vsync → Flame drives the clock
       ..onEvents = onEvents
-      ..onComplete = onComplete
-      ..onLoop = onLoop;
+      ..onAnimationStarted = onAnimationStarted
+      ..onAnimationFinished = onAnimationFinished
+      ..onAnimationLooped = onAnimationLooped;
 
     try {
       // Route by ctor: in-memory bytes keep the explicit baseAssetDir; an asset

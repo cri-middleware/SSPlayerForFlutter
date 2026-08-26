@@ -52,7 +52,7 @@ default constructor `SpriteStudioComponent(ssab: myBytes)`.
 | `speed` | `1.0` | Playback speed multiplier |
 | `subFrameEnabled` | `true` | Sub-frame interpolation |
 | `autoStart` | `true` | Play as soon as the resource loads (set `false` to drive it yourself) |
-| `onEvents` / `onComplete` / `onLoop` | `null` | Forwarded to the player's callbacks (see [Playback & Events](playback.md)) |
+| `onEvents` / `onAnimationStarted` / `onAnimationFinished` / `onAnimationLooped` | `null` | Forwarded to the player's callbacks (see [Playback & Events](playback.md)) |
 
 Standard `PositionComponent` fields (`position`, `size`, `scale`, `angle`, `anchor`, `priority`) work
 as usual.

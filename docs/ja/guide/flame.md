@@ -51,7 +51,7 @@ reference テクスチャをキー自身のフォルダから解決します。�
 | `speed` | `1.0` | 再生速度倍率 |
 | `subFrameEnabled` | `true` | サブフレーム補間 |
 | `autoStart` | `true` | 読み込み完了と同時に再生（`false` で自分で駆動） |
-| `onEvents` / `onComplete` / `onLoop` | `null` | プレイヤーのコールバックへ転送（[再生とイベント](playback.md)） |
+| `onEvents` / `onAnimationStarted` / `onAnimationFinished` / `onAnimationLooped` | `null` | プレイヤーのコールバックへ転送（[再生とイベント](playback.md)） |
 
 `PositionComponent` の標準フィールド（`position`・`size`・`scale`・`angle`・`anchor`・`priority`）も
 通常どおり使えます。

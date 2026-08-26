@@ -139,8 +139,9 @@ _player..loopCount = 3..speedScale = 1.5..play();
 | `onUserData` | `void Function(SsUserData)` | タイムラインの**ユーザーデータ**を通過したとき。1 件につき 1 回 |
 | `onSignal` | `void Function(SsSignal)` | 有効な**シグナル**キーフレームを通過したとき。無効なシグナルは通知されない |
 | `onAudio` | `void Function(SsAudioEvent)` | **オーディオ**トリガを通過したとき。プレイヤー自身は音を鳴らさない（下記参照） |
-| `onComplete` | `VoidCallback` | 設定したループを全て再生し終えたとき。`loopCount` が無限のときは**発火せず**、`stop()` でも発火しない |
-| `onLoop` | `VoidCallback` | ループ境界を跨いだとき（最終周は代わりに `onComplete` が発火） |
+| `onAnimationStarted` | `VoidCallback` | 再生が **head-out** したとき。自分のコードからの `play()` に限らず、autoplay ラッパーやホストのステートマシンが呼んだものも含みます。`resume()` では発火しません（一時停止の解除は続行であって開始ではないため） |
+| `onAnimationFinished` | `VoidCallback` | 設定したループを全て再生し終えたとき。`loopCount` が無限のときは**発火せず**、`stop()` でも発火しない |
+| `onAnimationLooped` | `VoidCallback` | ループ境界を跨いだとき（最終周は代わりに `onAnimationFinished` が発火） |
 | `onEvents` | `void Function(List<int> passedEventIndices)` | 低レベルの逃げ道。デコード前の生の index がそのフレーム分だけ渡される |
 
 通常はデコード済みの `onUserData` / `onSignal` / `onAudio` を使ってください。`onEvents` が渡すのは
@@ -187,7 +188,7 @@ _player.onAudio = (audio) {
 ### 例: アニメを連結する
 
 ```dart
-_player.onComplete = () {
+_player.onAnimationFinished = () {
   if (_player.currentAnimation == 'attack') {
     _player.setAnimation('idle');
     _player..loopCount = -1..play();

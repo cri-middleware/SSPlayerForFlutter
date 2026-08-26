@@ -107,7 +107,7 @@ Future<void> _playOnce(SpriteStudioPlayer player, Uint8List bytes) async {
   player.play();
 
   var completed = false;
-  player.onComplete = () => completed = true;
+  player.onAnimationFinished = () => completed = true;
   for (var i = 0; i < 2000 && !completed; i++) {
     player.advance(const Duration(milliseconds: 16));
   }
