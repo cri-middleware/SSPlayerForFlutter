@@ -1,6 +1,7 @@
 // The L3 read-outs that describe *where* the transport is, rather than driving
 // it: the frame range (startFrame / endFrame / totalFrames), the advance rate
-// (frameRate) and the two Brain state flags (isFinished / justLooped). These
+// (frameRate) and the Brain state flags (isFinished / justLooped /
+// isPlayingForward). These
 // forward to Layer 2, which is why the interesting cases are the edges — before
 // a load there is no Brain to ask, and `setAnimation` re-reads the pack.
 //
@@ -43,6 +44,9 @@ void main() {
     expect(player.frameRate, 0);
     expect(player.isFinished, isFalse);
     expect(player.justLooped, isFalse);
+    // Forward is the resting state: `false` here would gate a host's audio off
+    // on its very first frame.
+    expect(player.isPlayingForward, isTrue);
   });
 
   test('the frame range and rate describe the loaded animation', () async {
@@ -118,6 +122,56 @@ void main() {
     }
     expect(sawLoopEdge, isTrue, reason: 'an infinite loop must cross a boundary');
     expect(player.isFinished, isFalse, reason: 'an infinite loop never finishes');
+  });
+
+  test('isPlayingForward is the instantaneous heading, not the configured one',
+      () async {
+    final player = await loadedPlayer();
+    if (player == null) {
+      markTestSkipped('Basic.ssab missing — run deploy-examples.sh');
+      return;
+    }
+
+    player.loopCount = -1;
+    player.play();
+    player.advance(const Duration(milliseconds: 16));
+    expect(player.isPlayingForward, isTrue);
+
+    // A configured reverse flips it, and the two agree here.
+    player.setPlaybackDirection(
+        SsPlaybackDirection.backward, SsPlaybackStyle.normal);
+    player.advance(const Duration(milliseconds: 16));
+    expect(player.isPlayingForward, isFalse);
+    expect(player.playbackDirection, SsPlaybackDirection.backward);
+
+    // A negative speed is a *stop*, not a reversal, so it must not flip the
+    // heading — the trap the sibling players document.
+    player.setPlaybackDirection(
+        SsPlaybackDirection.forward, SsPlaybackStyle.normal);
+    player.advance(const Duration(milliseconds: 16));
+    player.speedScale = -2.0;
+    player.advance(const Duration(milliseconds: 16));
+    expect(player.isPlayingForward, isTrue,
+        reason: 'a negative speed stops the playhead rather than reversing it');
+    player.speedScale = 1.0;
+
+    // Ping-pong is where the two part company: the return leg runs backward
+    // while the *configured* heading still reads forward. This is the case a
+    // host gating audio has to be able to see, and the only way to see it.
+    player.setAnimation(player.animationNames.first);
+    player.loopCount = -1;
+    player.setPlaybackDirection(
+        SsPlaybackDirection.forward, SsPlaybackStyle.pingPong);
+    player.play();
+
+    var sawReturnLeg = false;
+    for (var i = 0; i < 2000 && !sawReturnLeg; i++) {
+      player.advance(const Duration(milliseconds: 16));
+      sawReturnLeg = !player.isPlayingForward;
+    }
+    expect(sawReturnLeg, isTrue, reason: 'a ping-pong must turn around');
+    expect(player.playbackDirection, SsPlaybackDirection.forward,
+        reason: 'the configured heading is unchanged by the turn');
   });
 }
 

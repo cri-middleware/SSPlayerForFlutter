@@ -200,7 +200,9 @@ class _PlayerPageState extends State<PlayerPage>
   // Spec note (SDK 90_audio): audio should only play on FORWARD playback — the
   // Brain also reports events when running in reverse, which audio backends
   // rarely support. This demo only ever plays forward, so it needs no guard;
-  // an app that reverses would gate on its own playback direction here.
+  // an app that reverses would open with `if (!_player.isPlayingForward) return;`
+  // here. That read, not `playbackDirection`, is the right test: a ping-pong
+  // return leg runs backward while the configured direction still says forward.
   Future<void> _playAudio(SsAudioEvent a) async {
     // Only bundled packs ship their sounds as app assets. A drag-dropped folder
     // would need filesystem playback, which this demo skips.
