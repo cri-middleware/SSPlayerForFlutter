@@ -138,8 +138,9 @@ Assign callbacks on the player. They fire as playback progresses:
 | `onUserData` | `void Function(SsUserData)` | A **User Data** marker authored on the timeline is crossed. Once per marker |
 | `onSignal` | `void Function(SsSignal)` | An active **Signal** keyframe is crossed. Inactive signals are not surfaced |
 | `onAudio` | `void Function(SsAudioEvent)` | An **Audio** trigger is crossed. The player never produces sound itself — see below |
-| `onComplete` | `VoidCallback` | Every configured loop has played. **Never** fires while `loopCount` is infinite, and not on `stop()` |
-| `onLoop` | `VoidCallback` | Playback crosses a loop boundary (the final cycle fires `onComplete` instead) |
+| `onAnimationStarted` | `VoidCallback` | Playback **heads out** — a `play()`, including one an autoplay wrapper or a host state machine issued. A `resume()` does not fire it: lifting a pause carries on, it does not start |
+| `onAnimationFinished` | `VoidCallback` | Every configured loop has played. **Never** fires while `loopCount` is infinite, and not on `stop()` |
+| `onAnimationLooped` | `VoidCallback` | Playback crosses a loop boundary (the final cycle fires `onAnimationFinished` instead) |
 | `onEvents` | `void Function(List<int> passedEventIndices)` | Low-level escape hatch: the raw event indices passed this frame, before decoding |
 
 Prefer the decoded `onUserData` / `onSignal` / `onAudio` callbacks — `onEvents` hands you indices into
@@ -184,7 +185,7 @@ frame.
 ### Example: chain animations
 
 ```dart
-_player.onComplete = () {
+_player.onAnimationFinished = () {
   if (_player.currentAnimation == 'attack') {
     _player.setAnimation('idle');
     _player..loopCount = -1..play();

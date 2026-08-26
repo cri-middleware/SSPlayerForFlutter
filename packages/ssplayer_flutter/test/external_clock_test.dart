@@ -34,13 +34,13 @@ void main() {
     addTearDown(player.dispose);
 
     var completed = 0;
-    player.onComplete = () => completed++;
+    player.onAnimationFinished = () => completed++;
 
     // loadTextures:false keeps the test hermetic (no asset bundle needed).
     await player.load(bytes, animationName: animName, loadTextures: false);
     // loop set AFTER setup: setAnimation resets the Brain's loop counter, so
     // an earlier `loop=1` would fall back to infinite and never complete.
-    player.loopCount = 1; // play once so onComplete can fire
+    player.loopCount = 1; // play once so onAnimationFinished can fire
     player.play();
     expect(player.frameNo, 0, reason: 'play() head-outs to frame 0');
     expect(player.isPlaying, isTrue);
@@ -50,13 +50,13 @@ void main() {
     final afterOne = player.frameNo;
     expect(afterOne, greaterThan(0), reason: 'advance() should drive the Brain');
 
-    // Run well past the end of a single loop; onComplete fires exactly once on
+    // Run well past the end of a single loop; onAnimationFinished fires exactly once on
     // the finished rising edge, with no Ticker involved. Budget matches
     // loop_events_test's proven-generous 2000×16ms (a single Basic loop is long).
     for (var i = 0; i < 2000 && completed == 0; i++) {
       player.advance(const Duration(milliseconds: 16));
     }
-    expect(completed, 1, reason: 'onComplete should fire once, host-clocked');
+    expect(completed, 1, reason: 'onAnimationFinished should fire once, host-clocked');
     expect(player.frameNo, greaterThan(afterOne));
   });
 

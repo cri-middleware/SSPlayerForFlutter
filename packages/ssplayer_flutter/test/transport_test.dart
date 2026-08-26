@@ -129,6 +129,45 @@ void main() {
 
     player.stop(); // quiesce the ticker before teardown
   });
+
+  testWidgets('onAnimationStarted fires on play, and not on resume',
+      (tester) async {
+    if (ssabPath == null) {
+      markTestSkipped('Basic.ssab missing -- run deploy-examples.sh');
+      return;
+    }
+    final bytes = Uint8List.fromList(File(ssabPath).readAsBytesSync());
+    final player = SpriteStudioPlayer(vsync: tester);
+    addTearDown(player.dispose);
+
+    var started = 0;
+    player.onAnimationStarted = () => started++;
+
+    await player.load(bytes, loadTextures: false);
+    player.setAnimation(player.animationNames.first);
+    player.loopCount = -1;
+    expect(started, 0, reason: 'setAnimation is not a start; nothing plays yet');
+
+    player.play();
+    expect(started, 1);
+
+    // A resume carries on rather than heading out. Firing here would make the
+    // two indistinguishable to a listener, which is the whole point of having a
+    // separate event for the head-out.
+    player.pause();
+    player.resume();
+    expect(started, 1, reason: 'resume is not a start');
+
+    // ...and a resume on a STOPPED player is a no-op, so still not a start.
+    player.stop();
+    player.resume();
+    expect(started, 1);
+
+    player.play();
+    expect(started, 2, reason: 'every head-out is a start');
+
+    player.stop(); // quiesce the ticker before teardown
+  });
 }
 
 String? _firstExisting(List<String> paths) {

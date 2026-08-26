@@ -105,7 +105,7 @@ void main() {
       player.advance(const Duration(milliseconds: 16));
     }
     expect(player.isFinished, isTrue, reason: 'one loop should complete');
-    // Sticky: it stays true once set, which is why onComplete exists for the
+    // Sticky: it stays true once set, which is why onAnimationFinished exists for the
     // one-shot edge.
     player.advance(const Duration(milliseconds: 16));
     expect(player.isFinished, isTrue);

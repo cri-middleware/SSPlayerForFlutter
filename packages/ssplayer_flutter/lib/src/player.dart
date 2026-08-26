@@ -147,13 +147,19 @@ class SpriteStudioPlayer extends ChangeNotifier {
   /// never produces sound itself — play it with your own audio stack.
   SsAudioCallback? onAudio;
 
-  /// Fired once every configured loop has played. Never fires while [loop] is
-  /// infinite, nor on a commanded [stop].
-  VoidCallback? onComplete;
+  /// Fired when playback **heads out** — a [play], including one an autoplay
+  /// wrapper or a host state machine issued rather than your own code. A
+  /// [resume] does not fire it: lifting a pause carries on, it does not start,
+  /// and firing here would make the two indistinguishable to a listener.
+  VoidCallback? onAnimationStarted;
+
+  /// Fired once every configured loop has played. Never fires while [loopCount]
+  /// is infinite, nor on a commanded [stop].
+  VoidCallback? onAnimationFinished;
 
   /// Fired each time playback crosses a loop boundary. The final cycle does not
-  /// loop, so it fires [onComplete] instead.
-  VoidCallback? onLoop;
+  /// loop, so it fires [onAnimationFinished] instead.
+  VoidCallback? onAnimationLooped;
 
   TextureRegistry get textures =>
       _internal?.textures ?? (throw StateError('load() first'));
@@ -447,7 +453,7 @@ class SpriteStudioPlayer extends ChangeNotifier {
   /// its current clip every frame — and returning early is not just an
   /// optimisation, because [_applyTransportSettings] writes the loop count and
   /// the Brain RE-ARMS the remaining-loop counter on every write. Re-asserting
-  /// each frame would reset the loop budget each frame, and a finite [loop]
+  /// each frame would reset the loop budget each frame, and a finite [loopCount]
   /// would never run out.
   ///
   /// To restart, call [play], which heads out. To drop the overrides, call
@@ -484,6 +490,7 @@ class SpriteStudioPlayer extends ChangeNotifier {
     internal.play(startFrame);
     _prevFinished = false;
     _startTicker();
+    onAnimationStarted?.call();
     notifyListeners();
   }
 
@@ -557,7 +564,7 @@ class SpriteStudioPlayer extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Number of cycles to play: `n > 0` plays `n` times then fires [onComplete];
+  /// Number of cycles to play: `n > 0` plays `n` times then fires [onAnimationFinished];
   /// `-1` loops forever. `0` is a synonym for `-1`, not "play once".
   ///
   /// Reads back what was last set, not the Brain's normalized value: the Dart
@@ -581,12 +588,12 @@ class SpriteStudioPlayer extends ChangeNotifier {
   /// Which way the playhead walks, and what it does at the far end. Both
   /// **survive** [setAnimation] — "play this backwards" describes the
   /// playback, not the clip that happens to be loaded (SDK #375), which is the
-  /// same reason [speed] and [skipFrames] carry across. What does not carry is
+  /// same reason [speedScale] and [frameSkipEnabled] carry across. What does not carry is
   /// the heading within a round trip: a new animation always starts on the
   /// outward leg, so a transition never begins mid-bounce.
   ///
   /// With [SsPlaybackStyle.pingPong] one loop is a full round trip, so a
-  /// [loop] of 1 plays there and back once.
+  /// [loopCount] of 1 plays there and back once.
   SsPlaybackDirection get playbackDirection =>
       _internal?.playbackDirection ?? SsPlaybackDirection.forward;
 
@@ -636,10 +643,10 @@ class SpriteStudioPlayer extends ChangeNotifier {
   /// Overrides the advance rate, in absolute frames per second.
   ///
   /// The override is the host's rather than the clip's, so it **survives**
-  /// [setAnimation] the way [speed] and [skipFrames] do (SDK #370). Hand it
+  /// [setAnimation] the way [speedScale] and [frameSkipEnabled] do (SDK #370). Hand it
   /// `0` (or any negative value) to clear it and go back to whatever each
   /// animation was authored at. To scale playback without replacing the
-  /// authored rate, use [speed] instead.
+  /// authored rate, use [speedScale] instead.
   set frameRate(int fps) {
     _internal?.frameRate = fps;
   }
@@ -694,13 +701,13 @@ class SpriteStudioPlayer extends ChangeNotifier {
 
   /// Whether every configured loop has played. **Sticky** until the next [play]
   /// or [setAnimation], so polling it tells you the run is over but not when
-  /// it ended — take the rising edge, or just use [onComplete]. Always false
-  /// while [loop] is infinite.
+  /// it ended — take the rising edge, or just use [onAnimationFinished]. Always false
+  /// while [loopCount] is infinite.
   bool get isFinished => _internal?.isFinished ?? false;
 
   /// Whether the most recent advance crossed a loop boundary. This is the loop
   /// *edge*, cleared at the top of every update, so it only reads true inside
-  /// the tick that crossed — poll it from a per-frame callback or use [onLoop].
+  /// the tick that crossed — poll it from a per-frame callback or use [onAnimationLooped].
   bool get justLooped => _internal?.justLooped ?? false;
 
   /// Which way the playhead is **actually** travelling this frame — not
@@ -785,11 +792,11 @@ class SpriteStudioPlayer extends ChangeNotifier {
     // `justLooped` is a pulse the runtime clears on entry to every update, so it
     // is read verbatim. `isFinished` is a sticky state, so it goes through a
     // rising edge that `play` re-arms.
-    if (internal.justLooped) onLoop?.call();
+    if (internal.justLooped) onAnimationLooped?.call();
 
     final finished = internal.isFinished;
     if (finished && !_prevFinished) {
-      onComplete?.call();
+      onAnimationFinished?.call();
       if (_ticker?.isActive ?? false) _ticker!.stop();
     }
     _prevFinished = finished;

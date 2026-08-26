@@ -77,7 +77,7 @@ void main() {
     // Fine 4ms steps → several sub-frame samples per integer frame. If events
     // re-fired per sub-step, the frame-10/20 sounds would each fire many times.
     var completed = false;
-    player.onComplete = () => completed = true;
+    player.onAnimationFinished = () => completed = true;
     for (var i = 0; i < 4000 && !completed; i++) {
       player.advance(const Duration(milliseconds: 4));
     }
