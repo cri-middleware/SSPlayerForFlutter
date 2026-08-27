@@ -1,4 +1,4 @@
-これは BSD 3-Clause License の参考訳です。正文は英語版の [LICENSE.md](./LICENSE.md) であり、
+これは BSD 3-Clause License の参考訳です。正文は英語版の [LICENSE](./LICENSE) であり、
 解釈に相違が生じた場合は英語版が優先します。
 
 Copyright (c) CRI Middleware Co., Ltd.
