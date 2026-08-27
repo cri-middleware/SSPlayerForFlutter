@@ -79,7 +79,7 @@ int packRgba(ui.Color color) {
 /// `find_part_index` covers the same space but only after `setAnimation`.
 ///
 /// Duplicate names keep the FIRST index, matching the flagships' insert-if-absent
-/// map build — SS7 does not guarantee unique part names.
+/// map build — SpriteStudio does not guarantee unique part names.
 class PartNameTable {
   const PartNameTable._(this._names, this._byName);
 
