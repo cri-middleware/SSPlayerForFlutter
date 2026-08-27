@@ -6,15 +6,15 @@
 
 ▶️ **[Try the example app](./examples/overall/)** — the bundled SpriteStudio animations rendered straight onto the Flutter canvas. 🚧 Prebuilt binaries download automatically once the first SDK release is published.
 
-A player that renders **[OPTPiX SpriteStudio 7](https://www.webtech.co.jp/spritestudio/)** animations (`.ssab`) directly in [Flutter](https://flutter.dev/). SpriteStudio 7 is a professional 2D **raster** (sprite) animation editor — bone rigs, mesh deformation, and particle effects over hand-drawn sprite art. Your artist builds the motion visually; this player just plays the finished file, drawing it natively to the Flutter `Canvas` — no `AnimationController` to hand-write, no spritesheet to slice, no video to decode.
+A player that renders **[SpriteStudio](https://www.webtech.co.jp/spritestudio/)** animations (`.ssab`) directly in [Flutter](https://flutter.dev/). SpriteStudio is a professional 2D **raster** (sprite) animation editor — bone rigs, mesh deformation, and particle effects over hand-drawn sprite art. Your artist builds the motion visually; this player just plays the finished file, drawing it natively to the Flutter `Canvas` — no `AnimationController` to hand-write, no spritesheet to slice, no video to decode.
 
 ## ✨ Why SpriteStudio Player?
 
-- **Bring sprites — and whole scenes — to life, with zero animation code.** Breathing and blinking, swaying hair and clothes, flashy slash and magic effects. Instead of hand-wiring `AnimationController` / `Tween` / `AnimatedBuilder` or hand-slicing a spritesheet, the motion is authored visually in a dedicated editor (SpriteStudio 7) and the player just plays it — bone rigs, mesh deform, and particles included. And it is not limited to a single mascot: compose entire animated **UIs, HUDs, and full scenes** in the editor and render them as one — a scope narrower vector-icon tools don't reach.
+- **Bring sprites — and whole scenes — to life, with zero animation code.** Breathing and blinking, swaying hair and clothes, flashy slash and magic effects. Instead of hand-wiring `AnimationController` / `Tween` / `AnimatedBuilder` or hand-slicing a spritesheet, the motion is authored visually in a dedicated editor (SpriteStudio) and the player just plays it — bone rigs, mesh deform, and particles included. And it is not limited to a single mascot: compose entire animated **UIs, HUDs, and full scenes** in the editor and render them as one — a scope narrower vector-icon tools don't reach.
 - **Raster sprite animation, drawn natively — not vector, not video.** It rigs and deforms **raster sprite art**, so hand-painted characters and game sprites animate exactly as authored — a different fit from vector animation tools, and lighter than shipping a `.gif` or `.mp4`. Playback runs on `dart:ffi` into a Rust runtime and draws through Flutter's own renderer — GPU-batched via **flutter_gpu** on Impeller, or `Canvas.drawVertices` elsewhere — not a WebView, not a video decode — scaling freely at runtime, looping seamlessly, and reacting to your app instead of merely playing back.
 - **Composes with the widget tree — and with Flame.** `SpriteStudioView` is a plain `RenderBox` widget, so you position, transform, and clip it exactly like any other widget. Building a game? The separate [`ssplayer_flame`](./packages/ssplayer_flame) adapter drops the same animation into a `FlameGame` as a `PositionComponent`.
 - **Smooth motion, not locked to a frame rate.** **Sub-frame interpolation** renders each frame at its exact display time, so motion follows your display's refresh rate and playback speed — smoother than a fixed-fps flipbook or a baked video.
-- **A seamless edit-to-runtime loop.** Live reload watches your `SpriteStudio_Source/` during `flutter run`: save in SpriteStudio 7, hot-reload, and only the changed project is re-converted and appears live in your app — no manual export step.
+- **A seamless edit-to-runtime loop.** Live reload watches your `SpriteStudio_Source/` during `flutter run`: save in SpriteStudio, hot-reload, and only the changed project is re-converted and appears live in your app — no manual export step.
 
 ## 📚 Documentation
 
@@ -141,7 +141,7 @@ dart run ssconverter_dart:ssconvert -e -o assets/spritestudio/MyChar/ SpriteStud
 ```
 
 The same `SpriteStudio_Source/` layout drives **live reload**: run `sswatch` next to `flutter run`
-and a save in SpriteStudio 7 re-converts only the changed project and pushes it into the running app
+and a save in SpriteStudio re-converts only the changed project and pushes it into the running app
 (see [Live Reload](docs/en/guide/live-reload.md)). To supply your own locally-built native library,
 point `hooks.user_defines.<pkg>.lib<name>` in the app's `pubspec.yaml` at it.
 

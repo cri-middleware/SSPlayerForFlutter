@@ -1,7 +1,7 @@
 /// Flame adapter for `ssplayer_flutter`.
 ///
 /// Adds a single Layer-4 drawing adapter, [SpriteStudioComponent], that plays a
-/// SpriteStudio 7 `.ssab` inside a `FlameGame`. It reuses the whole
+/// SpriteStudio `.ssab` inside a `FlameGame`. It reuses the whole
 /// `ssplayer_flutter` player (L3 transport + L2 draw engine) in
 /// externally-clocked mode, so Flame's game loop supplies the time.
 ///

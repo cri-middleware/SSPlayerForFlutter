@@ -1,4 +1,4 @@
-/// Host-side SpriteStudio 7 converter for the Flutter ecosystem.
+/// Host-side SpriteStudio converter for the Flutter ecosystem.
 ///
 /// A pure-Dart `dart:ffi` wrapper (+ `ssconvert` CLI) over the SpriteStudio-SDK
 /// `libssconverter`, turning `.sspj` projects into optimized `.ssab` binaries.

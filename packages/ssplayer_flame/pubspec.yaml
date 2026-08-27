@@ -1,7 +1,7 @@
 name: ssplayer_flame
 description: >-
   Flame adapter for ssplayer_flutter — a SpriteStudioComponent that plays a
-  SpriteStudio 7 .ssab inside a FlameGame. An L4 drawing adapter (sibling to the
+  SpriteStudio .ssab inside a FlameGame. An L4 drawing adapter (sibling to the
   Widget-based SpriteStudioView) that forwards Flame's game-loop `update(dt)` to
   the player and draws the same L2 DrawBatch plans in `render`. The heavy
   SpriteStudio dependency (dart:ffi Brain, textures) comes transitively via

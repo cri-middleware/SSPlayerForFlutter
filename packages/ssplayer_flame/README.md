@@ -1,7 +1,7 @@
 # ssplayer_flame
 
 [Flame](https://flame-engine.org/) adapter for
-[`ssplayer_flutter`](../ssplayer_flutter) — play a **SpriteStudio 7 `.ssab`**
+[`ssplayer_flutter`](../ssplayer_flutter) — play a **SpriteStudio `.ssab`**
 animation inside a `FlameGame` with a single component.
 
 `SpriteStudioComponent` is a Layer‑4 drawing adapter (a sibling to the

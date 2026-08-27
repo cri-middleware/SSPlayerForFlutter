@@ -1,6 +1,6 @@
 name: ssplayer_flutter
 description: >-
-  SpriteStudio 7 animation player for Flutter. A dart:ffi "Body" over the
+  SpriteStudio animation player for Flutter. A dart:ffi "Body" over the
   SpriteStudio-SDK Rust "Brain" (libssruntime): loads .ssab, drives playback,
   and renders DrawBatch plans with Canvas.drawVertices.
 version: 7.0.0-beta.1

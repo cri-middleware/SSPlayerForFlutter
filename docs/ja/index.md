@@ -1,13 +1,13 @@
 # 📱 SpriteStudioPlayer for Flutter
 
-**OPTPiX SpriteStudio 7** のラスター（スプライト）アニメーション（`.ssab`）を Flutter でそのまま再生
+**SpriteStudio** のラスター（スプライト）アニメーション（`.ssab`）を Flutter でそのまま再生
 します。アーティストが専用エディタでリグを組み、Flutter の `Canvas` に直接描画 —— 手書きの
 アニメーションコードは不要です。再生処理は
 [SpriteStudio-SDK](https://github.com/cri-middleware/SpriteStudio-SDK) が提供する `libssruntime`
 を介して行います。
 
 !!! tip "SpriteStudio を初めて使う方へ"
-    [OPTPiX SpriteStudio 7](https://www.webtech.co.jp/spritestudio/) はプロ向けの 2D **ラスター**
+    [SpriteStudio](https://www.webtech.co.jp/spritestudio/) はプロ向けの 2D **ラスター**
     アニメーションエディタです。スプライト素材にボーン・メッシュ変形・パーティクルを載せて、
     モーションを視覚的に作れます。アーティストが動きを作り、このプレイヤーが完成ファイルを再生
     します。ベクター系のツールとは用途が異なり、`.gif` や `.mp4` を同梱するより軽量です。
@@ -40,10 +40,10 @@
 
 ## 主な機能 (Key Features)
 
-このプレイヤーは、SpriteStudio 7 の表現力をフルに引き出しつつ、手書きのアニメーションコードを
+このプレイヤーは、SpriteStudio の表現力をフルに引き出しつつ、手書きのアニメーションコードを
 一切書かずに済むように設計されています。
 
-*   **アニメーションコードはゼロ:** キャラクター・**UI・シーン全体**を SpriteStudio 7 で作り、`play()` を呼ぶだけ。
+*   **アニメーションコードはゼロ:** キャラクター・**UI・シーン全体**を SpriteStudio で作り、`play()` を呼ぶだけ。
 *   **完全な機能サポート:** 全コア描画種別（Normal・PartColor・Mask・Mesh・Effect（パーティクル）・Instance・Shape）に加え、ボーン階層とメッシュ変形を標準サポート。
 *   **ネイティブ GPU 描画:** `dart:ffi` で Rust ランタイムを駆動し、Flutter 自身のレンダラで描画（Impeller では `flutter_gpu`、それ以外は `Canvas.drawVertices`）。WebView でも動画デコードでもありません。
 *   **ウィジェットツリーに、[Flame](guide/flame.md) にも合成:** `SpriteStudioView` は普通の `RenderBox`。`ssplayer_flame` パッケージが `SpriteStudioComponent` を追加します。

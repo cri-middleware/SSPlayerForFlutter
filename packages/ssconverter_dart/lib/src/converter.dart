@@ -25,7 +25,7 @@ class SsConverterException implements Exception {
 
 /// High-level, async wrapper over `libssconverter` — a **host / desktop tool**.
 ///
-/// Converts a SpriteStudio 7 `.sspj` project into optimized `.ssab` binary(ies).
+/// Converts a SpriteStudio `.sspj` project into optimized `.ssab` binary(ies).
 /// The native library is delivered via **native assets** — `hook/build.dart`
 /// bundles the prebuilt `libssconverter` as a code asset and the `@Native`
 /// bindings resolve it, so there is no `DynamicLibrary.open` /

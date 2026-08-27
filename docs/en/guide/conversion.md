@@ -88,7 +88,7 @@ desktop GUI, and a CLI — all producing the same `.ssab`. Pick the one that fit
 
 ## Auto importer (Live Reload)
 
-The lowest-friction route while developing: save in SpriteStudio 7 and the running app re-converts and
+The lowest-friction route while developing: save in SpriteStudio and the running app re-converts and
 updates automatically — no manual conversion, **and no deploy step** (the fresh pack is pushed straight
 into the running app). This is Flutter's equivalent of the Godot / Unity importers' fast-iteration
 loop, provided by `ssgen_flutter`. See [Live Reload](live-reload.md).

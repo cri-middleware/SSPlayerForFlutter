@@ -1,6 +1,6 @@
 name: ssplayer_flame_example
 description: >-
-  Example FlameGame that plays a SpriteStudio 7 .ssab (Ringo) via the
+  Example FlameGame that plays a SpriteStudio .ssab (Ringo) via the
   ssplayer_flame SpriteStudioComponent. Tap to toggle play/pause.
 publish_to: none
 version: 0.1.0-dev.1
