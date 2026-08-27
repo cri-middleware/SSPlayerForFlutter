@@ -278,7 +278,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
     //
     // Nesting is expanded eagerly and without a depth cap, like every sibling
     // player: a cap buys nothing against real content (it would only ever fire
-    // on nesting the SS7 editor cannot practically author) while silently
+    // on nesting the SpriteStudio editor cannot practically author) while silently
     // dropping the innermost child if it ever did. A pathological cyclic `.ssab`
     // recurses until it exhausts the stack; the per-child guard below then unwinds
     // it, skipping the offending child rather than crashing the load.

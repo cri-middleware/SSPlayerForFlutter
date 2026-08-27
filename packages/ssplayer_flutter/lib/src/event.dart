@@ -56,9 +56,9 @@ class SsUserData {
       'rect: $rect, point: $point, str: $string)';
 }
 
-/// A **Signal** event (SpriteStudio v7+) — a named command with typed
-/// parameters. Only *active* signals are surfaced (an inactive one is skipped,
-/// matching the sibling players).
+/// A **Signal** event — a named command with typed parameters. Only *active*
+/// signals are surfaced (an inactive one is skipped, matching the sibling
+/// players).
 @immutable
 class SsSignal {
   const SsSignal({
