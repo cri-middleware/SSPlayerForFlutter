@@ -1,4 +1,4 @@
-// `ssconvert` — a host CLI that converts a SpriteStudio 7 project (.sspj) to an
+// `ssconvert` — a host CLI that converts a SpriteStudio project (.sspj) to an
 // optimized binary (.ssab) via libssconverter over dart:ffi.
 //
 //   dart run ssconverter_dart:ssconvert [options] <sspj_file>
@@ -85,7 +85,7 @@ Future<void> main(List<String> argv) async {
 }
 
 String _usage(ArgParser parser) => '''
-Convert a SpriteStudio 7 project (.sspj) to an optimized binary (.ssab).
+Convert a SpriteStudio project (.sspj) to an optimized binary (.ssab).
 
 Usage: dart run ssconverter_dart:ssconvert [options] <sspj_file>
 

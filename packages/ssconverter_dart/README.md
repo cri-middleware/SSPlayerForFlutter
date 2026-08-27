@@ -1,6 +1,6 @@
 # ssconverter_dart
 
-Turn SpriteStudio 7 projects (`.sspj`) into the optimized runtime packs
+Turn SpriteStudio projects (`.sspj`) into the optimized runtime packs
 (`.ssab`) the player loads — a `dart:ffi` wrapper and an `ssconvert` CLI over
 the SpriteStudio-SDK converter (`libssconverter`).
 

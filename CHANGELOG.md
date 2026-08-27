@@ -13,7 +13,7 @@ adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
-- **Initial public release (work in progress).** A Flutter "Body" that plays OPTPiX SpriteStudio 7
+- **Initial public release (work in progress).** A Flutter "Body" that plays SpriteStudio
   animations (`.ssab`) by driving the SpriteStudio-SDK Rust runtime (`libssruntime`) over `dart:ffi`.
 - **Rendering backends**: a pluggable `Canvas` backend (`Canvas.drawVertices`) and a `flutter_gpu`
   (Impeller) backend, selected automatically (`auto`) with a manual override.

@@ -9,7 +9,7 @@ import 'package:ssplayer_flutter/ssplayer_flutter.dart';
 /// Layer 4 — the Flame drawing adapter (sibling to the Widget-based
 /// `SpriteStudioView`).
 ///
-/// A [PositionComponent] that plays a SpriteStudio 7 `.ssab` inside a
+/// A [PositionComponent] that plays a SpriteStudio `.ssab` inside a
 /// `FlameGame`. It owns an **externally-clocked** [SpriteStudioPlayer] (L3, no
 /// `Ticker`): Flame's game loopCount drives time — `update(dt)` forwards to
 /// [SpriteStudioPlayer.advance] and `render` delegates to the player's single

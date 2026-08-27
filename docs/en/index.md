@@ -1,12 +1,12 @@
 # 📱 SpriteStudioPlayer for Flutter
 
-Play **OPTPiX SpriteStudio 7** raster (sprite) animations (`.ssab`) natively in Flutter — rigged by
+Play **SpriteStudio** raster (sprite) animations (`.ssab`) natively in Flutter — rigged by
 an artist in a dedicated editor, drawn straight to the Flutter `Canvas`, with no animation code to
 hand-write. Playback runs through `libssruntime` provided by
 [SpriteStudio-SDK](https://github.com/cri-middleware/SpriteStudio-SDK).
 
 !!! tip "New to SpriteStudio?"
-    [OPTPiX SpriteStudio 7](https://www.webtech.co.jp/spritestudio/) is a professional 2D **raster**
+    [SpriteStudio](https://www.webtech.co.jp/spritestudio/) is a professional 2D **raster**
     animation editor: bone rigs, mesh deformation, and particle effects applied to raster sprite
     art. Your artist authors the motion visually; this player plays the finished file. It is a
     different fit from vector animation tools, and lighter than shipping a `.gif` or `.mp4`.
@@ -40,10 +40,10 @@ hand-write. Playback runs through `libssruntime` provided by
 
 ## Key Features
 
-This player is designed to bring the full expressive power of SpriteStudio 7 to Flutter with zero
+This player is designed to bring the full expressive power of SpriteStudio to Flutter with zero
 animation code to write by hand.
 
-*   **Zero animation code:** Characters, **UIs, and whole scenes** are authored in SpriteStudio 7; you just call `play()`.
+*   **Zero animation code:** Characters, **UIs, and whole scenes** are authored in SpriteStudio; you just call `play()`.
 *   **Full feature support:** Ships every core draw kind — Normal, PartColor, Mask, Mesh, Effect (particles), Instance, and Shape — plus bone hierarchies and mesh deformation.
 *   **Native GPU-accelerated drawing:** `dart:ffi` into the Rust runtime, drawn through Flutter's own renderer — `flutter_gpu` (Impeller) where available, `Canvas.drawVertices` otherwise. Not a WebView, not a video decode.
 *   **Composes with the widget tree — and [Flame](guide/flame.md):** `SpriteStudioView` is a plain `RenderBox`; the `ssplayer_flame` package adds a `SpriteStudioComponent`.

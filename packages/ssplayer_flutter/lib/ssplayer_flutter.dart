@@ -1,4 +1,4 @@
-/// SpriteStudio 7 player for Flutter.
+/// SpriteStudio player for Flutter.
 ///
 /// A dart:ffi "Body" over the SpriteStudio-SDK Rust "Brain" (libssruntime).
 /// Layering (design §2, top → bottom): [SpriteStudioView] (L4 adapter) →

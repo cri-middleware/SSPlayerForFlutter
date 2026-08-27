@@ -7,7 +7,7 @@
 // draws through its parent's backend into the same picture, so a child that
 // re-ran them would free/rebind what the parent's already-recorded mask draws
 // still point at — surfacing as "Image has been disposed" when the picture
-// finally rasterises (seen on the OPTPiX "Basic Samples / Mask" packs, which put
+// finally rasterises (seen on the SpriteStudio "Basic Samples / Mask" packs, which put
 // a mask and an instance in the same animation).
 //
 // This drives a real instance recursion (Instance.ssab → Instance_SourceAnime)

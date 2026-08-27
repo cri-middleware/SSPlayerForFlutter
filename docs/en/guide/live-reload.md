@@ -1,6 +1,6 @@
 # ♻️ Live Reload
 
-Live reload closes the edit-to-runtime loop: **save a `.sspj` in SpriteStudio 7 and the running app
+Live reload closes the edit-to-runtime loop: **save a `.sspj` in SpriteStudio and the running app
 updates** — only the changed project is re-converted, and the player keeps its transport state (the
 current animation and frame keep playing). It piggybacks on Flutter's development workflow, so
 animation editing gets the same fast iteration as a code hot reload.

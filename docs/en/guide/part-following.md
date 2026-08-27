@@ -184,7 +184,7 @@ guard.
 - Part names resolve against the animation the player itself is running. **Parts inside an Instance
   part (the child animation) cannot be followed**, because the child runs as its own player. The
   Instance part itself can be followed.
-- If several parts share a name, the **first** one is used (SpriteStudio 7 does not guarantee unique
+- If several parts share a name, the **first** one is used (SpriteStudio does not guarantee unique
   part names).
 - Names are re-resolved on every read, so **switching animation or loading another `.ssab` needs no
   re-registration** — the anchor picks the part up again as soon as the name resolves.
