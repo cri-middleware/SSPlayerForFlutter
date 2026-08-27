@@ -175,6 +175,6 @@ cd examples\overall; flutter run
 
 ## 📄 ライセンス
 
-本プロジェクトは BSD-3-Clause ライセンスです（[`LICENSE.md`](./LICENSE.md)）。同梱するネイティブ
+本プロジェクトは BSD-3-Clause ライセンスです（[`LICENSE.md`](./LICENSE.md)、参考訳 [`LICENSE.ja.md`](./LICENSE.ja.md)）。同梱するネイティブ
 ランタイムやその他のサードパーティコンポーネントの通知は
 [`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md) を参照してください。
