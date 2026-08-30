@@ -699,10 +699,7 @@ class FlutterGpuBackend implements RenderBackend {
       if (flags.pureMask) continue; // coverage-only, never colour
       final part = frame.partOf(p);
       final pc = part == null ? null : PartColor.read(partsColor, part);
-      final ownBits = maskCtx?.bitsForTarget(rank, flags);
-      final mask = ownBits != null
-          ? maskCtx!.drawFor(ownBits)
-          : inheritedMask?.drawFor(flags);
+      final mask = resolvePartMask(maskCtx, inheritedMask, rank, flags);
       // Integration shader (`SHDR`): its parameters are per-part uniforms,
       // so it cannot join either run — flush both to keep z-order and draw it on
       // its own. NOT combined with a mask test (v1, both siblings agree): a
@@ -1173,10 +1170,7 @@ class FlutterGpuBackend implements RenderBackend {
       if (flags.pureMask) continue;
       final state = frame.partOf(p);
       final pc = state == null ? null : PartColor.read(partsColor, state);
-      final ownBits = maskCtx?.bitsForTarget(rank, flags);
-      final mask = ownBits != null
-          ? maskCtx!.drawFor(ownBits)
-          : inheritedMask?.drawFor(flags);
+      final mask = resolvePartMask(maskCtx, inheritedMask, rank, flags);
       if (pc == null && mask == null) {
         flushPc();
         parts.add(p);
@@ -1300,10 +1294,7 @@ class FlutterGpuBackend implements RenderBackend {
       final p = drawOrder[rank];
       final flags = host.flagsFor(p);
       if (flags.pureMask) continue; // coverage-only, never colour
-      final ownBits = maskCtx?.bitsForTarget(rank, flags);
-      final mask = ownBits != null
-          ? maskCtx!.drawFor(ownBits)
-          : inheritedMask?.drawFor(flags);
+      final mask = resolvePartMask(maskCtx, inheritedMask, rank, flags);
       // Gate only when a GPU coverage texture exists (own or inherited); else draw
       // unmasked (mask disabled).
       if (mask == null || mask.coverageHandle is! gpu.Texture) {
@@ -1493,14 +1484,15 @@ class FlutterGpuBackend implements RenderBackend {
 
       // Player-local -> coverage NDC, built from the SAME uvBasis/uvOffset the
       // main-pass shader samples with, so the two are guaranteed to agree.
-      final covMvpView =
-          _hostBuffer!.emplace(ByteData.sublistView(_coverageMvp(plan)));
+      final covMvp = _coverageMvp(plan);
+      final covMvpView = _hostBuffer!.emplace(ByteData.sublistView(covMvp));
       final mvpSlot = pipeline.vertexShader.getUniformSlot('MaskFrame');
       final bitSlot = pipeline.fragmentShader.getUniformSlot('MaskBit');
       final texSlot = pipeline.fragmentShader.getUniformSlot('u_texture');
 
       var wrote = false;
       for (final writer in plan.writers) {
+        if (writer.partIndex < 0) continue; // carry-over sentinel — baked below
         final flags = host.flagsFor(writer.partIndex);
         Float32List verts;
         Uint16List indices;
@@ -1571,6 +1563,83 @@ class FlutterGpuBackend implements RenderBackend {
         pass.drawIndexed(indices.length);
         wrote = true;
       }
+
+      // Carry-over (§2-6): each instance child's clipping writers, from the
+      // CHILD's geometry, projected through coverageMvp ∘ slot so the child-local
+      // verts land in this player's coverage (the owner-local MVP folds the slot
+      // in, where the Canvas path applies it on the canvas transform stack).
+      for (final bw in plan.bubbled) {
+        final childMvpView = _hostBuffer!
+            .emplace(ByteData.sublistView(_mul4Col(covMvp, bw.slot)));
+        Float32List verts;
+        Uint16List indices;
+        var threshold = -1.0;
+        gpu.Texture writerTex = dummyTex;
+
+        if (bw.flags.shapeGeometry) {
+          final g = bw.geometry
+              .buildShapeParts(bw.geometry.singlePart(bw.childPartIndex), bw.frame);
+          if (g == null) continue;
+          verts = _posUvFromPositions(g.positions);
+          indices = g.indices;
+        } else if (bw.flags.meshGeometry) {
+          final g = bw.geometry
+              .buildMeshGeometry(bw.geometry.singlePart(bw.childPartIndex), bw.frame);
+          if (g == null) continue;
+          verts = _posUvFromPositions(g.positions);
+          indices = g.indices;
+        } else {
+          final quad = bw.geometry.buildPartColorQuad(bw.childPartIndex, bw.frame);
+          if (quad == null) continue;
+          final hash = bw.textureHash;
+          final image = hash == null ? null : bw.textures.imageFor(hash);
+          if (image == null) continue;
+          final tex = _gpuTextureFor(hash!, image);
+          if (tex == null) continue; // cell still uploading
+          writerTex = tex;
+          threshold = bw.threshold;
+          final invW = image.width > 0 ? 1.0 / image.width : 0.0;
+          final invH = image.height > 0 ? 1.0 / image.height : 0.0;
+          final c = quad.corners, ua = quad.uvA, ub = quad.uvB;
+          final v = _writerVertsScratch;
+          v[0] = c[0];
+          v[1] = c[1];
+          v[2] = ua[0] * invW;
+          v[3] = ua[1] * invH;
+          v[4] = c[2];
+          v[5] = c[3];
+          v[6] = ua[2] * invW;
+          v[7] = ua[3] * invH;
+          v[8] = c[4];
+          v[9] = c[5];
+          v[10] = ub[0] * invW;
+          v[11] = ub[1] * invH;
+          v[12] = c[6];
+          v[13] = c[7];
+          v[14] = ub[2] * invW;
+          v[15] = ub[3] * invH;
+          verts = v;
+          indices = _quadIndices;
+        }
+
+        final vb = gpu.gpuContext
+            .createDeviceBufferWithCopy(ByteData.sublistView(verts));
+        final ib = gpu.gpuContext
+            .createDeviceBufferWithCopy(ByteData.sublistView(indices));
+        _beginDraw(pass, pipeline);
+        pass.bindUniform(mvpSlot, childMvpView);
+        pass.bindUniform(bitSlot,
+            _hostBuffer!.emplace(ByteData.sublistView(_bitColor(bw.bit, threshold))));
+        pass.setColorBlendEquation(_additive);
+        pass.bindVertexBuffer(
+            gpu.BufferView(vb, offsetInBytes: 0, lengthInBytes: vb.sizeInBytes));
+        pass.bindIndexBuffer(
+            gpu.BufferView(ib, offsetInBytes: 0, lengthInBytes: ib.sizeInBytes),
+            gpu.IndexType.int16);
+        pass.bindTexture(texSlot, writerTex);
+        pass.drawIndexed(indices.length);
+        wrote = true;
+      }
       if (!wrote) return null;
       cmd.submit();
       // The coverage texture travels with the MaskContext (as the opaque
@@ -1580,6 +1649,24 @@ class FlutterGpuBackend implements RenderBackend {
     } catch (_) {
       return null;
     }
+  }
+
+  /// Column-major 4×4 product `a · b` — the owner-local→NDC coverage matrix
+  /// composed with a carry-over writer's child-local→owner-local slot (§2-6), so
+  /// the child geometry projects straight into the owner's coverage. Fresh list
+  /// (not a scratch): each bubbled writer emplaces its own before the next.
+  static Float32List _mul4Col(Float32List a, Float64List b) {
+    final out = Float32List(16);
+    for (var c = 0; c < 4; c++) {
+      for (var r = 0; r < 4; r++) {
+        var s = 0.0;
+        for (var k = 0; k < 4; k++) {
+          s += a[k * 4 + r] * b[c * 4 + k];
+        }
+        out[c * 4 + r] = s;
+      }
+    }
+    return out;
   }
 
   /// Column-major player-local→coverage-NDC matrix, derived from the plan's

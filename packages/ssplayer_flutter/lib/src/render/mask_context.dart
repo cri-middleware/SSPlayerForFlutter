@@ -149,3 +149,21 @@ class InheritedMask {
   InheritedMask forChild(MaskPartFlags flags, MaskDraw? source) =>
       InheritedMask(comp: comp.compose(flags), source: source);
 }
+
+/// Resolves the mask test for one part at [rank] with [flags]: this player's OWN
+/// mask when the part is a target of it, otherwise the mask inherited from a
+/// parent instance (§2-6 / §3-2-2).
+///
+/// An instance sub-animation is parent-driven and passes [maskCtx] as null (it
+/// rasterises no own coverage — see `_paintTree`), so its parts resolve straight
+/// to the inherited outer mask. At the top-level player [inheritedMask] is null,
+/// so parts resolve to the own mask. This is coverage plumbing only — the target
+/// opt-in and polarity stay the composition's ([MaskContext.comp] /
+/// [InheritedMask]).
+MaskDraw? resolvePartMask(MaskContext? maskCtx, InheritedMask? inheritedMask,
+    int rank, MaskPartFlags flags) {
+  final ownBits = maskCtx?.bitsForTarget(rank, flags);
+  return ownBits != null
+      ? maskCtx!.drawFor(ownBits)
+      : inheritedMask?.drawFor(flags);
+}

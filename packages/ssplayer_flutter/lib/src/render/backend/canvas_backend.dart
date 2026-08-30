@@ -12,6 +12,7 @@ import '../mask_context.dart';
 import '../part_color.dart';
 import '../part_shader.dart';
 import '../root_transform.dart';
+import '../../texture_registry.dart';
 import 'render_backend.dart';
 import 'render_host.dart';
 
@@ -333,79 +334,46 @@ class CanvasBackend implements RenderBackend {
     canvas.translate(-bounds.left, -bounds.top);
 
     var wrote = false;
+    // Own writers (§2-2), baked from this player's geometry — the canvas is
+    // already this player's local space.
     for (final writer in plan.writers) {
-      // A Shape writer (§2-5, the shape special case) has no cell, hence no texel alpha
-      // to threshold: its polygon *is* the mask. That needs no shader at all —
-      // the bit colour over the geometry, additively, is the whole operation.
-      if (host.flagsFor(writer.partIndex).shapeGeometry) {
-        final geometry = host.geometry
-            .buildShapeParts(host.geometry.singlePart(writer.partIndex), frame);
-        if (geometry == null) continue;
-        canvas.drawPath(
-          _trianglesPath(geometry),
-          _maskWritePaint
-            ..blendMode = ui.BlendMode.plus
-            ..color = _bitColor(writer.bit)
-            ..shader = null
-            ..colorFilter = null
-            // A coverage bit is a number, not a picture: a half-covered edge
-            // pixel would decode as a *different* writer's bits, so the fill
-            // must stay binary. (It also keeps the shared edges between the
-            // fan's triangles from double-adding under `plus`.)
-            ..isAntiAlias = false,
-        );
+      if (writer.partIndex < 0) continue; // carry-over sentinel — baked below
+      if (_bakeCoverageWriter(
+        canvas,
+        program,
+        geometry: host.geometry,
+        textures: host.textures,
+        frame: frame,
+        flags: host.flagsFor(writer.partIndex),
+        partIndex: writer.partIndex,
+        bit: writer.bit,
+        threshold: writer.threshold,
+        textureHash: textureByRank[writer.drawRank],
+      )) {
         wrote = true;
-        continue;
       }
-
-      // A Mesh writer (§8): its deformed triangles are the mask. Same treatment
-      // as a shape — geometry-as-mask, no texel cutout (a Flutter shader can't
-      // sample the per-vertex mesh UV) — so it rasterises with a plain bit fill.
-      if (host.flagsFor(writer.partIndex).meshGeometry) {
-        final geometry = host.geometry
-            .buildMeshGeometry(host.geometry.singlePart(writer.partIndex), frame);
-        if (geometry == null) continue;
-        canvas.drawPath(
-          _trianglesPath(geometry),
-          _maskWritePaint
-            ..blendMode = ui.BlendMode.plus
-            ..color = _bitColor(writer.bit)
-            ..shader = null
-            ..colorFilter = null
-            ..isAntiAlias = false, // binary fill — see the shape writer above
-        );
-        wrote = true;
-        continue;
-      }
-
-      final quad = host.geometry.buildPartColorQuad(writer.partIndex, frame);
-      if (quad == null) continue;
-      final hash = textureByRank[writer.drawRank];
-      final image = hash == null ? null : host.textures.imageFor(hash);
-      if (image == null) continue;
-
-      final shader = _maskWriteShaders.next(program);
-      _setMaskWriteUniforms(shader, writer, quad,
-          texWidth: image.width.toDouble(),
-          texHeight: image.height.toDouble());
-      shader.setImageSampler(0, image);
-      // Disjoint bits + additive blend == a lossless OR. Binary fill for the
-      // same reason as the shape/mesh writers above: the shader thresholds the
-      // texel alpha, but rasterizer coverage is applied after it, so an
-      // anti-aliased edge would still emit a fraction of the bit and decode as
-      // some other writer's.
-      canvas.drawPath(
-          _quadPath(quad),
-          _maskWritePaint
-            ..blendMode = ui.BlendMode.plus
-            // Opaque white, NOT the bit colour a previous writer left here: with
-            // a shader bound the paint's RGB is unused but its ALPHA still
-            // modulates the shader's output, and the bit must land undimmed.
-            ..color = const ui.Color(0xFFFFFFFF)
-            ..colorFilter = null
-            ..isAntiAlias = false
-            ..shader = shader);
-      wrote = true;
+    }
+    // Carry-over (§2-6): an instance child's clipping writers, baked from the
+    // CHILD's geometry under the instance slot matrix so they land in this
+    // player's coverage. The slot maps child-local → owner-local; the canvas is
+    // owner-local, so the transform places them exactly where the child draws.
+    for (final bw in plan.bubbled) {
+      canvas.save();
+      canvas.transform(bw.slot);
+      final ok = _bakeCoverageWriter(
+        canvas,
+        program,
+        geometry: bw.geometry,
+        textures: bw.textures,
+        frame: bw.frame,
+        flags: bw.flags,
+        partIndex: bw.childPartIndex,
+        bit: bw.bit,
+        threshold: bw.threshold,
+        textureHash: bw.textureHash,
+      );
+      canvas.restore();
+      if (ok) wrote = true;
     }
     if (!wrote) {
       recorder.endRecording().dispose();
@@ -416,6 +384,82 @@ class CanvasBackend implements RenderBackend {
     final image = picture.toImageSync(pw, ph);
     picture.dispose();
     return image;
+  }
+
+  /// Bakes one coverage writer into [canvas] under its [bit]: the bit colour over
+  /// a shape/mesh polygon (§2-5 shape special case — geometry *is* the mask), or
+  /// the cutout shader over a textured quad. [geometry]/[textures]/[frame] are the
+  /// writer's SOURCE — this player's for an own writer, an instance child's for a
+  /// carried-up one (§2-6) — so this path is source-agnostic. The caller places a
+  /// carried-up writer with a `canvas.transform`; the geometry itself is built in
+  /// source-local space. Returns whether anything was drawn.
+  ///
+  /// Every draw is a **binary** fill (`isAntiAlias = false`): a coverage bit is a
+  /// number, not a picture, so a half-covered edge pixel would decode as a
+  /// *different* writer's bits (and shared triangle edges would double-add under
+  /// `plus`). Disjoint bits + additive blend is a lossless OR.
+  bool _bakeCoverageWriter(
+    ui.Canvas canvas,
+    ui.FragmentProgram program, {
+    required GeometryBuilder geometry,
+    required TextureRegistry textures,
+    required DrawFrame frame,
+    required MaskPartFlags flags,
+    required int partIndex,
+    required int bit,
+    required double threshold,
+    required int? textureHash,
+  }) {
+    if (flags.shapeGeometry) {
+      final geo =
+          geometry.buildShapeParts(geometry.singlePart(partIndex), frame);
+      if (geo == null) return false;
+      canvas.drawPath(
+        _trianglesPath(geo),
+        _maskWritePaint
+          ..blendMode = ui.BlendMode.plus
+          ..color = _bitColor(bit)
+          ..shader = null
+          ..colorFilter = null
+          ..isAntiAlias = false,
+      );
+      return true;
+    }
+    if (flags.meshGeometry) {
+      final geo =
+          geometry.buildMeshGeometry(geometry.singlePart(partIndex), frame);
+      if (geo == null) return false;
+      canvas.drawPath(
+        _trianglesPath(geo),
+        _maskWritePaint
+          ..blendMode = ui.BlendMode.plus
+          ..color = _bitColor(bit)
+          ..shader = null
+          ..colorFilter = null
+          ..isAntiAlias = false,
+      );
+      return true;
+    }
+    final quad = geometry.buildPartColorQuad(partIndex, frame);
+    if (quad == null) return false;
+    final image = textureHash == null ? null : textures.imageFor(textureHash);
+    if (image == null) return false;
+    final shader = _maskWriteShaders.next(program);
+    _setMaskWriteUniforms(shader, bit, threshold, quad,
+        texWidth: image.width.toDouble(), texHeight: image.height.toDouble());
+    shader.setImageSampler(0, image);
+    canvas.drawPath(
+        _quadPath(quad),
+        _maskWritePaint
+          ..blendMode = ui.BlendMode.plus
+          // Opaque white, NOT the bit colour a previous writer left here: with a
+          // shader bound the paint's RGB is unused but its ALPHA still modulates
+          // the shader's output, and the bit must land undimmed.
+          ..color = const ui.Color(0xFFFFFFFF)
+          ..colorFilter = null
+          ..isAntiAlias = false
+          ..shader = shader);
+    return true;
   }
 
   @override
@@ -456,15 +500,13 @@ class CanvasBackend implements RenderBackend {
       if (flags.pureMask) continue;
       final part = frame.partOf(p);
       final pc = part == null ? null : PartColor.read(partsColor, part);
-      // This player's own mask wins per-part; a mask inherited from the parent
-      // instance (§3-2-2) applies to every other part of the child subtree. A
-      // part that is a target of BOTH keeps only its own test — the shader tests
-      // one coverage per fragment, so the inherited clip is dropped for it
-      // (a rare nested-mask case that would need a second peel pass to combine).
-      final ownBits = maskCtx?.bitsForTarget(rank, flags);
-      final mask = ownBits != null
-          ? maskCtx!.drawFor(ownBits)
-          : inheritedMask?.drawFor(flags);
+      // This player's own mask wins per-part when a writer actually reaches the
+      // part; when its own writers miss it, the mask inherited from the parent
+      // instance (§3-2-2) clips it instead of the part vanishing (see
+      // [resolvePartMask]). The shader tests one coverage per fragment, so a part
+      // reached by BOTH keeps only its own test (a nested-mask case that would
+      // need a second sampler to fully combine).
+      final mask = resolvePartMask(maskCtx, inheritedMask, rank, flags);
       // Integration shader (`SHDR`). NOT combined with a mask test: the
       // peeled shader binds no coverage sampler, so a masked shader part keeps
       // the plain masked path and drops its effect — the v1 limitation both
@@ -522,10 +564,7 @@ class CanvasBackend implements RenderBackend {
       final p = frame.drawOrder[rank];
       final flags = host.flagsFor(p);
       if (flags.pureMask) continue; // coverage only, never colour
-      final ownBits = maskCtx?.bitsForTarget(rank, flags);
-      final mask = ownBits != null
-          ? maskCtx!.drawFor(ownBits)
-          : inheritedMask?.drawFor(flags);
+      final mask = resolvePartMask(maskCtx, inheritedMask, rank, flags);
       if (mask == null) {
         run.add(p);
         if (passes.length > 1) flushRun(); // see [emitNormal]
@@ -648,10 +687,7 @@ class CanvasBackend implements RenderBackend {
       if (flags.pureMask) continue; // coverage-only: never draws colour
       final state = frame.partOf(p);
       final pc = state == null ? null : PartColor.read(partsColor, state);
-      final ownBits = maskCtx?.bitsForTarget(rank, flags);
-      final mask = ownBits != null
-          ? maskCtx!.drawFor(ownBits)
-          : inheritedMask?.drawFor(flags);
+      final mask = resolvePartMask(maskCtx, inheritedMask, rank, flags);
       if (pc == null && mask == null) {
         run.add(p);
         if (passes.length > 1) flushRun(); // see [emitNormal]
@@ -1189,7 +1225,8 @@ class CanvasBackend implements RenderBackend {
   /// `shaders/mask_write.frag`.
   static void _setMaskWriteUniforms(
     ui.FragmentShader shader,
-    MaskWriter writer,
+    int bit,
+    double threshold,
     PartColorQuad quad, {
     required double texWidth,
     required double texHeight,
@@ -1216,12 +1253,12 @@ class CanvasBackend implements RenderBackend {
 
     // uBit — this writer's bit pre-encoded into the channel that owns it
     // (8 bits × R/G/B = 24 writers), plus the §2-5 cutout threshold in alpha.
-    final channel = writer.bit ~/ 8;
-    final value = (1 << (writer.bit % 8)) / 255.0;
+    final channel = bit ~/ 8;
+    final value = (1 << (bit % 8)) / 255.0;
     f(channel == 0 ? value : 0.0);
     f(channel == 1 ? value : 0.0);
     f(channel == 2 ? value : 0.0);
-    f(writer.threshold);
+    f(threshold);
   }
 
   /// Configures the shared [_batchPaint] for one [pass] of a batch — the pass's
