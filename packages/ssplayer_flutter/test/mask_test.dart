@@ -40,7 +40,8 @@ void main() {
       expect(f.isClipping, isFalse);
     });
 
-    test('mask_write alone is a clipping writer, and always a target', () {
+    test('mask_write alone is a clipping writer, but not a target on its own',
+        () {
       const f = MaskPartFlags(
         pureMask: false,
         maskWrite: true,
@@ -49,9 +50,17 @@ void main() {
       );
       expect(f.isWriter, isTrue);
       expect(f.isClipping, isTrue);
-      // Clipping parts are affected by masks regardless of mask_influence:
-      // their mask_influence encodes the OP, not an opt-out.
-      expect(f.isTarget, isTrue);
+      // Its own colour is NOT clipped by masks: mask_write does not force
+      // target-ness (§2-3/§3); with mask_influence 0 the clipping writer draws
+      // unmasked. It becomes a target once it also opts in with mask_influence 1.
+      expect(f.isTarget, isFalse);
+      const withInfluence = MaskPartFlags(
+        pureMask: false,
+        maskWrite: true,
+        maskInfluence: true,
+        visibleInsideMask: false,
+      );
+      expect(withInfluence.isTarget, isTrue);
     });
 
     test('a plain part opts out of masking with mask_influence == 0', () {
@@ -272,6 +281,81 @@ void main() {
     for (final w in plan.writers) {
       expect(w.threshold, inInclusiveRange(0.0, 1.0));
     }
+  });
+
+  test('a writer op follows the effective mask_influence (own AND inherited)',
+      () async {
+    // §2-6 (writer side): MaskPlan.build composes each writer's OP with the
+    // influence inherited down the instance chain. Under a mask_influence == 0
+    // instance every writer moves off the invert (parity) plane onto the
+    // increment (union) plane; under an influence == 1 caller the ops are
+    // unchanged (the AND identity). comp must touch ONLY the op.
+    final ssabPath = _firstExisting([
+      'examples/overall/assets/spritestudio/overall/Mask.ssab',
+      '../../examples/overall/assets/spritestudio/overall/Mask.ssab',
+    ]);
+    if (ssabPath == null) {
+      markTestSkipped('Mask.ssab missing — run deploy-examples.sh');
+      return;
+    }
+
+    final bytes = Uint8List.fromList(File(ssabPath).readAsBytesSync());
+    final flags = MaskPartFlags.readAll(bytes);
+    final player = SpriteStudioInternalPlayer.load(bytes);
+    addTearDown(player.dispose);
+
+    final info = SsAnimeInfo(bytes);
+    expect(player.setupAnimation(info.animationNames.first), isTrue);
+    player.play();
+
+    // An opted-out instance (influence 0) and an opted-in one (influence 1).
+    const optOutPart = MaskPartFlags(
+      pureMask: false,
+      maskWrite: false,
+      maskInfluence: false,
+      visibleInsideMask: false,
+    );
+    const optInPart = MaskPartFlags(
+      pureMask: false,
+      maskWrite: false,
+      maskInfluence: true,
+      visibleInsideMask: false,
+    );
+    final optedOut = MaskComposition.identity.compose(optOutPart); // influence 0
+    final optedIn = MaskComposition.identity.compose(optInPart); // influence 1
+
+    var checked = false;
+    for (var i = 0; i < 60 && !checked; i++) {
+      player.update(const Duration(milliseconds: 33));
+      final fd = player.getFrameData(player.frameNo);
+      if (fd == null) continue;
+      final frame = DrawFrame.build(
+        frameData: fd,
+        world: player.worldMatrices(),
+        local: player.localVertices(),
+        uv: player.localUvs(),
+      );
+      if (frame == null) continue;
+      final base = MaskPlan.build(frame, flags);
+      if (base == null || base.writers.isEmpty) continue;
+
+      final under0 = MaskPlan.build(frame, flags, comp: optedOut)!;
+      final under1 = MaskPlan.build(frame, flags, comp: optedIn)!;
+      expect(under0.writers.length, base.writers.length);
+      expect(under1.writers.length, base.writers.length);
+      for (var w = 0; w < base.writers.length; w++) {
+        // An influence == 1 caller is the AND identity — ops unchanged.
+        expect(under1.writers[w].opInvert, base.writers[w].opInvert);
+        // comp changes nothing but the op.
+        expect(under0.writers[w].partIndex, base.writers[w].partIndex);
+        expect(under0.writers[w].isClipping, base.writers[w].isClipping);
+        // Influence 0 forces every writer onto the union (increment) plane.
+        expect(under0.writers[w].opInvert, isFalse);
+      }
+      checked = true;
+    }
+    expect(checked, isTrue,
+        reason: 'Mask.ssab should produce writers on some frame to compose');
   });
 
   test('a real Mask.ssab frame resolves a mask test for its Mesh parts',

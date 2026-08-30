@@ -950,6 +950,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
     double? frameOverride,
     double alphaScale = 1.0,
     InheritedMask? inheritedMask,
+    bool parentDriven = false,
   }) {
     // Sub-frame ON (default): sample the fractional frame for smooth playback;
     // OFF: snap to the integer frame. This is the ONLY place a frame gets
@@ -1009,13 +1010,20 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
 
     // Masking (§9) is a pre-pass: collect this frame's writers, rasterise their
     // coverage bitmap, then let the batch loop test each target against it.
-    // Unlike the flagship's viewport (1-frame latency, size classes, shrink
-    // hysteresis) `toImageSync` gives us the bitmap within this same frame, so
-    // none of that machinery is needed.
-    // The composition (§2-6) reaches the own mask too — a caller that opted out
-    // settles "not masked" for this whole player, its own writers included.
-    final maskCtx = _buildMaskContext(backend, frame, batches,
-        inheritedMask?.comp ?? MaskComposition.identity);
+    //
+    // An instance sub-animation is **parent-driven** (§8): it does NOT rasterise
+    // its own coverage — its own clipping / pure masks do NOT clip its own parts.
+    // SpriteStudio 7.5 renders an instance's parts un-clipped by their siblings
+    // (verified against the tool; the ForGodot and ForWGPU players are
+    // parent-driven the same way — `ss_internal_player.cpp` gates
+    // `_render_mask_coverage` on `!_parent_driven`). The child gets ONLY the outer
+    // mask it inherited, composed per part (via [inheritedMask]); its clipping
+    // writers still carry OUT to the parent ([_collectBubbledWriters], run by the
+    // owner). So the own-coverage pass runs at the top-level player scope only.
+    final maskCtx = parentDriven
+        ? null
+        : _buildMaskContext(backend, frame, batches,
+            inheritedMask?.comp ?? MaskComposition.identity);
 
     // A mask inherited from a parent instance (§3-2-2) reaches the child's
     // peel-maskable kinds — Normal, Shape and Mesh — resolved per part against
@@ -1099,10 +1107,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
       // with the slot matrix, so the child's local fragments sample it correctly.
       // Scope (§2-1) is settled here, at the instance part's rank.
       final flags = flagsFor(part);
-      final ownBits = maskCtx?.bitsForTarget(rank, flags);
-      final source = ownBits != null
-          ? maskCtx!.drawFor(ownBits)
-          : inheritedMask?.drawFor(flags);
+      final source = resolvePartMask(maskCtx, inheritedMask, rank, flags);
       final inherited =
           (inheritedMask ?? const InheritedMask(comp: MaskComposition.identity))
               .forChild(flags, source?.composeSlot(world));
@@ -1127,6 +1132,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
         frameOverride: state.childFrame,
         alphaScale: alpha,
         inheritedMask: inherited,
+        parentDriven: true, // §8: the child never rasterises its own coverage
       );
       if (tint != null) backend.popGroupTint(canvas);
       backend.popTransform(canvas);
@@ -1136,18 +1142,33 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   /// Builds this frame's mask plan and rasterises its coverage bitmap, or null
   /// when nothing masks this frame (the overwhelmingly common case — the whole
   /// mask path then costs one [MaskPlan.build] walk of `draw_order`).
+  ///
+  /// Two sources feed the coverage: this player's OWN writers, and the clipping
+  /// writers **carried up** from visible instance children (§2-6 carry-over), so
+  /// a mask written inside a sub-animation clips this player's parts drawn after
+  /// the instance. The coverage runs when EITHER contributes — a player with no
+  /// mask of its own still rasterises a child's bubbled writers.
   MaskContext? _buildMaskContext(RenderBackend backend, DrawFrame frame,
       List<fbs.DrawBatch> batches, MaskComposition comp) {
-    if (_maskFlags.isEmpty) return null;
-    // NB no early-out on `!comp.influence`: the AND-chain settles the *targets*,
-    // not the writers, and a clipping writer stays a target of its own mask
-    // regardless (`mask_write` does not compose, §2-6). The coverage is still
-    // needed for those.
-    final plan = MaskPlan.build(frame, _maskFlags);
+    // Own writers (§2-2): null when this player writes no mask of its own. [comp]
+    // threads in so the own writers pick up the effective (composed) influence
+    // (§2-6/③). No early-out on `!comp.influence`: the AND-chain settles which
+    // targets the coverage is tested against, not whether it is written.
+    final own = _maskFlags.isEmpty
+        ? null
+        : MaskPlan.build(frame, _maskFlags, comp: comp);
+
+    // Carry-over (§2-6): an instance child's clipping writers bubble up into this
+    // coverage. Runs even when this player owns no writer of its own.
+    final bubbled = _collectBubbledWriters(frame, comp,
+        startBit: own?.writers.length ?? 0);
+
+    if (own == null && bubbled.bakes.isEmpty) return null;
+    final plan = _combineMaskPlan(own, bubbled);
     if (plan == null) return null;
 
-    // Writers need their own texture; take it from the batch that owns each
-    // rank, which is exactly what the colour path resolves against.
+    // Own writers take their texel from the batch that owns each rank (bubbled
+    // writers carry their child texture hash themselves).
     final textureByRank = _textureByRankScratch..clear();
     for (final batch in batches) {
       for (var k = 0; k < batch.count; k++) {
@@ -1158,7 +1179,202 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
     // The backend rasterises the coverage (Canvas: an offscreen bitmap; GPU: a
     // render-target texture) and owns its lifetime. Null when the mask program is
     // still compiling or no writer contributed — draw unmasked.
-    return backend.renderCoverage(frame, this, plan, textureByRank);
+    final ctx = backend.renderCoverage(frame, this, plan, textureByRank);
+    if (ctx == null) return null;
+    // The backend builds the MaskContext with the coverage it owns but the
+    // identity composition; fold the inherited [comp] in so this player's OWN
+    // mask composes with the instance chain (§2-6) — the target opt-in (AND) and
+    // the polarity (OR). Identity at the top level leaves it untouched.
+    // Fold the inherited composition into this player's OWN mask (§2-6), exactly
+    // as the WebGL flagship does: a part is a target when its own mask_influence
+    // survives the AND-chain (`comp.targets`), and its polarity ORs in the
+    // chain's visible_inside (`comp.visibleInsideFor`) —
+    // `composeVisibleInside(ctxVisibleInside, part)` in ssplayer-webgl. Identity
+    // at the top level leaves the backend's context as built.
+    return identical(comp, MaskComposition.identity)
+        ? ctx
+        : MaskContext(ctx.plan, ctx.coverage,
+            coverageHandle: ctx.coverageHandle, comp: comp);
+  }
+
+  /// Collects the clipping writers of every visible instance child, mapped into
+  /// this player's coverage space (§2-6 carry-over). Bits continue from
+  /// [startBit] (after this player's own writers) up to [kMaxMaskWriters].
+  ///
+  /// Only CLIPPING writers carry out — a pure mask closes within the child
+  /// (masks its own earlier parts). Single-stage, matching the downward
+  /// inheritance: a grandchild's writers are not re-bubbled here. Each child's
+  /// own writers are (re)built under the composition that reaches it, so their OP
+  /// is already the effective `mask_influence` (§2-6/③).
+  _BubbledWriters _collectBubbledWriters(DrawFrame frame, MaskComposition comp,
+      {required int startBit}) {
+    if (_instances.isEmpty) return _BubbledWriters.empty;
+    final drawOrder = frame.drawOrder;
+    var bit = startBit;
+    final sentinels = <MaskWriter>[];
+    final bakes = <BubbledWriter>[];
+    var left = double.infinity, top = double.infinity;
+    var right = double.negativeInfinity, bottom = double.negativeInfinity;
+
+    for (var rank = 0; rank < drawOrder.length && bit < kMaxMaskWriters; rank++) {
+      final part = drawOrder[rank];
+      final state = _instances.slotFor(part);
+      if (state == null || !state.visible) continue;
+      final child = state.child;
+      if (child._maskFlags.isEmpty) continue;
+
+      // The composition reaching the child (as in [_emitInstanceBatch]): this
+      // player's inherited [comp] folded with the instance part's own flags.
+      final childComp = comp.compose(flagsFor(part));
+
+      final built = child._buildChildMaskFrame(state.childFrame);
+      if (built == null) continue;
+      final childFrame = built.frame;
+      final childPlan =
+          MaskPlan.build(childFrame, child._maskFlags, comp: childComp);
+      if (childPlan == null) continue;
+
+      // The instance slot matrix (child-local → this player's local), the same
+      // transform [_emitInstanceBatch] draws the child under.
+      final slot = GeometryBuilder.world2dOf(part, frame);
+      if (slot == null) continue;
+
+      for (final cw in childPlan.writers) {
+        if (!cw.isClipping) continue;
+        if (bit >= kMaxMaskWriters) break;
+        final cflags = child.flagsFor(cw.partIndex);
+        final outline = _childWriterOutline(cw.partIndex, cflags, childFrame);
+        if (outline == null) continue;
+        // Fold the child outline, mapped into this player's local space by the
+        // slot matrix (column-major: x' = m0·x + m4·y + m12), into the bounds.
+        for (var c = 0; c * 2 + 1 < outline.length; c++) {
+          final ox = outline[c * 2], oy = outline[c * 2 + 1];
+          final x = slot[0] * ox + slot[4] * oy + slot[12];
+          final y = slot[1] * ox + slot[5] * oy + slot[13];
+          if (x < left) left = x;
+          if (x > right) right = x;
+          if (y < top) top = y;
+          if (y > bottom) bottom = y;
+        }
+        sentinels.add(MaskWriter(
+          partIndex: kBubbledWriterPart,
+          drawRank: rank, // the instance part's rank — clips the parts after it
+          bit: bit,
+          opInvert: cw.opInvert, // effective op (built with childComp)
+          isClipping: true,
+          threshold: cw.threshold,
+        ));
+        bakes.add(BubbledWriter(
+          geometry: child.geometry,
+          textures: child.textures,
+          frame: childFrame,
+          flags: cflags,
+          childPartIndex: cw.partIndex,
+          bit: bit,
+          threshold: cw.threshold,
+          textureHash: built.textureByRank[cw.drawRank],
+          slot: slot,
+        ));
+        bit++;
+      }
+    }
+
+    if (bakes.isEmpty) return _BubbledWriters.empty;
+    final bounds = (right > left && bottom > top)
+        ? ui.Rect.fromLTRB(left, top, right, bottom)
+        : null;
+    return _BubbledWriters(sentinels, bakes, bounds);
+  }
+
+  /// The world-space outline of a child writer, per its geometry kind, for
+  /// folding into the carry-over coverage bounds (mirrors [MaskPlan.build]).
+  Float32List? _childWriterOutline(
+      int childPartIndex, MaskPartFlags flags, DrawFrame childFrame) {
+    if (flags.shapeGeometry) {
+      return GeometryBuilder.shapeWorldOutlineOf(childPartIndex, childFrame);
+    }
+    if (flags.meshGeometry) {
+      return GeometryBuilder.meshWorldOutlineOf(childPartIndex, childFrame);
+    }
+    return GeometryBuilder.worldCornersOf(childPartIndex, childFrame);
+  }
+
+  /// Merges the owner's own [own] plan with the [bubbled] carry-over into one
+  /// plan (writers + coverage bounds + bake descriptors). Returns [own]
+  /// unchanged when nothing bubbled, and null only when there is no geometry to
+  /// cover at all.
+  MaskPlan? _combineMaskPlan(MaskPlan? own, _BubbledWriters bubbled) {
+    if (bubbled.bakes.isEmpty) return own;
+    final bb = bubbled.bounds;
+    final ui.Rect bounds;
+    if (own != null && bb != null) {
+      bounds = own.bounds.expandToInclude(bb);
+    } else if (bb != null) {
+      bounds = bb;
+    } else if (own != null) {
+      bounds = own.bounds;
+    } else {
+      return null; // bubbled geometry degenerate and no own writers
+    }
+    return MaskPlan.fromWriters(
+      writers: <MaskWriter>[...?own?.writers, ...bubbled.sentinels],
+      bounds: bounds,
+      bubbled: bubbled.bakes,
+    );
+  }
+
+  /// Builds this player's [DrawFrame] at [sampled] plus a `drawRank → texture
+  /// hash` map, for baking its (clipping) writers into a PARENT's coverage (§2-6
+  /// carry-over). A lighter mirror of [_paintTree]'s gather — alpha is
+  /// irrelevant to a coverage bit, so it is left at 1.
+  ({DrawFrame frame, Map<int, int> textureByRank})? _buildChildMaskFrame(
+      double sampled) {
+    final fd = getFrameData(subFrameEnabled ? sampled : sampled.floorToDouble());
+    final batches = fd?.drawBatches;
+    if (fd == null || batches == null) return null;
+    var hasMesh = false, hasShapeGeom = false;
+    for (final b in batches) {
+      switch (b.kind) {
+        case fbs.DrawBatchKind.Mesh:
+          hasMesh = true;
+        case fbs.DrawBatchKind.Shape:
+        case fbs.DrawBatchKind.Mask:
+          hasShapeGeom = true;
+        default:
+          break;
+      }
+    }
+    final frame = _geometry.buildFrame(
+      frameData: fd,
+      world: worldMatrices(),
+      local: localVertices(),
+      uv: localUvs(),
+      mesh: hasMesh
+          ? MeshBuffers(
+              x: meshVerticesX(),
+              y: meshVerticesY(),
+              uv: meshUvs(),
+              indices: meshIndices(),
+              vertexOffsets: meshVertexOffsets(),
+              indexOffsets: meshIndexOffsets(),
+            )
+          : null,
+      shape: hasShapeGeom
+          ? ShapeBuffers(
+              vertices: shapeVertices(),
+              boxCoords: shapeVertexBoxCoords(),
+              counts: shapeVertexCounts(),
+            )
+          : null,
+    );
+    if (frame == null) return null;
+    final texByRank = <int, int>{};
+    for (final b in batches) {
+      for (var k = 0; k < b.count; k++) {
+        texByRank[b.startRank + k] = b.textureHash;
+      }
+    }
+    return (frame: frame, textureByRank: texByRank);
   }
 
   // --- InstanceChild (§8): this player driven as another's instance child ---
@@ -1223,4 +1439,20 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
     ssRuntime.destroyContext(_context);
     ssRuntime.destroyResource(_resource);
   }
+}
+
+/// The instance children's clipping writers carried up into a player's coverage
+/// (§2-6), gathered by [SpriteStudioInternalPlayer._collectBubbledWriters]:
+/// [sentinels] for [MaskPlan.writers] (scope resolution) and [bakes] for the
+/// coverage rasteriser, paired by [MaskWriter.bit] / [BubbledWriter.bit], plus
+/// their union [bounds] in owner-local space.
+class _BubbledWriters {
+  const _BubbledWriters(this.sentinels, this.bakes, this.bounds);
+
+  static const _BubbledWriters empty =
+      _BubbledWriters(<MaskWriter>[], <BubbledWriter>[], null);
+
+  final List<MaskWriter> sentinels;
+  final List<BubbledWriter> bakes;
+  final ui.Rect? bounds;
 }

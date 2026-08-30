@@ -2,6 +2,7 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import '../ssab/ssab.g.dart' as ssab;
+import '../texture_registry.dart';
 import 'geometry_builder.dart';
 
 /// Maximum mask writers honoured in one frame (§3-2).
@@ -11,6 +12,14 @@ import 'geometry_builder.dart';
 /// accumulator, exactly as in the Godot flagship. Writers past the cap are
 /// dropped (the flagship `break`s too).
 const int kMaxMaskWriters = 24;
+
+/// Sentinel [MaskWriter.partIndex] for a writer **carried up** from an instance
+/// child (§2-6 carry-over): it is not one of THIS player's parts, so its
+/// geometry cannot be baked from this player's SoA. The coverage pass skips it
+/// in the own-writer loop and bakes it from the parallel [MaskPlan.bubbled]
+/// entry (the child's own geometry, under the instance slot matrix) instead. It
+/// still resolves scope like any clipping writer, ranked at the instance part.
+const int kBubbledWriterPart = -2;
 
 /// [MaskWriter.threshold] for a writer that has no texel to cut out — a Shape
 /// (§2-5, the shape special case), whose whole polygon is the mask. Below every
@@ -103,9 +112,14 @@ class MaskPartFlags {
   /// the parts drawn *after* it (pure masks mask the ones *before*).
   bool get isClipping => maskWrite && !pureMask;
 
-  /// Whether this part is subject to the mask test at all, judged on its own
-  /// flags. Clipping writers are always targets (their `mask_influence` encodes
-  /// the OP, not an opt-out).
+  /// Whether this part's own colour is subject to the mask test at all, judged
+  /// on its own flags — i.e. whether its `mask_influence` opts it in (§2-2).
+  ///
+  /// `mask_write` does NOT force this (Rule_Mask.md §2-3/§3): a clipping writer
+  /// draws its pixels first and only then writes its clip below ("pixels, then
+  /// mask"), so its own write must not clip its own colour — it is still clipped
+  /// by OTHER masks purely on its real `mask_influence`. A clipping writer with
+  /// `mask_influence == 0` therefore draws unmasked.
   ///
   /// This is the top-level reading. Inside an instance sub-animation the
   /// caller's settings compose with these (§2-6) — ask
@@ -160,8 +174,9 @@ class MaskPartFlags {
 /// part's own flags and unnested playback is unchanged.
 ///
 /// `mask_write` deliberately stays out: writing a mask is a local fact about one
-/// part, not something its descendants inherit (it still makes that part itself
-/// a target, see [targets]).
+/// part, not something its descendants inherit — and it does NOT make the part
+/// itself a target either (Rule_Mask.md §2-3/§3); a clipping writer's own colour
+/// is clipped only on its real `mask_influence`, see [targets].
 class MaskComposition {
   const MaskComposition({this.influence = true, this.visibleInside = false});
 
@@ -181,10 +196,15 @@ class MaskComposition {
       );
 
   /// §2-2 under this composition: is a part with [flags] subject to the mask
-  /// test at all? A clipping writer always is — its `mask_influence` encodes the
-  /// write OP rather than an opt-out, and `mask_write` does not compose.
-  bool targets(MaskPartFlags flags) =>
-      (influence && flags.maskInfluence) || flags.maskWrite;
+  /// test at all? Target-ness is the composed `mask_influence` ALONE.
+  ///
+  /// `mask_write` must NOT force it (Rule_Mask.md §2-3/§3): a clipping writer
+  /// draws its colour first, then writes its clip below, so gating its own
+  /// colour with its own `mask_write` made a `visible_inside_mask` writer with
+  /// no covering mask vanish. A clipping writer's own colour is clipped by OTHER
+  /// masks purely on its real (composed) `mask_influence`; with influence 0 it
+  /// draws unmasked.
+  bool targets(MaskPartFlags flags) => influence && flags.maskInfluence;
 
   /// §2-4 under this composition: which side of the mask a part draws on.
   bool visibleInsideFor(MaskPartFlags flags) =>
@@ -259,6 +279,58 @@ class MaskBits {
   bool get isEmpty => increment == 0 && invert == 0;
 }
 
+/// One instance child's clipping writer **carried up** (§2-6) into the owner's
+/// coverage so it clips the owner's parts drawn after the instance.
+///
+/// It carries everything the coverage bake needs to rasterise the child writer
+/// into the owner's bitmap — the child's own [geometry]/[textures]/[frame] and
+/// the child-local→owner-local [slot] — so the bake stays a pure function of the
+/// plan. Its coverage [bit], op and rank live in a parallel [MaskWriter]
+/// (`partIndex == kBubbledWriterPart`) in [MaskPlan.writers], which is what
+/// [MaskPlan.bitsFor] resolves owner targets against.
+class BubbledWriter {
+  const BubbledWriter({
+    required this.geometry,
+    required this.textures,
+    required this.frame,
+    required this.flags,
+    required this.childPartIndex,
+    required this.bit,
+    required this.threshold,
+    required this.textureHash,
+    required this.slot,
+  });
+
+  /// The child's SoA→vertex baker (its geometry, not the owner's).
+  final GeometryBuilder geometry;
+
+  /// The child's texture registry (its cell atlases).
+  final TextureRegistry textures;
+
+  /// The child's frame at the clock the Brain last stepped it to.
+  final DrawFrame frame;
+
+  /// The child writer's static role — its geometry kind (quad / shape / mesh).
+  final MaskPartFlags flags;
+
+  /// The writer's part index INSIDE the child (indexes the child's SoA).
+  final int childPartIndex;
+
+  /// Coverage bit in the OWNER's plan (continues after the owner's own writers).
+  final int bit;
+
+  /// Cutout alpha threshold (§2-5); [noCutoutThreshold] for shape / mesh.
+  final double threshold;
+
+  /// The child writer's cell-atlas texture hash, or null for a shape / mesh
+  /// writer (geometry-as-mask, no texel to sample).
+  final int? textureHash;
+
+  /// Child-local → owner-local affine (the instance slot matrix, column-major
+  /// 4×4) — the backends place the child geometry with it.
+  final Float64List slot;
+}
+
 /// The frame's mask plan: which parts write coverage, the player-local box the
 /// coverage bitmap spans, and the per-target scope resolution (§3-2).
 ///
@@ -271,6 +343,7 @@ class MaskPlan {
     required this.bounds,
     required int maxMaskRank,
     required int minClipRank,
+    this.bubbled = const <BubbledWriter>[],
   })  : _maxMaskRank = maxMaskRank,
         _minClipRank = minClipRank;
 
@@ -282,6 +355,7 @@ class MaskPlan {
   factory MaskPlan.fromWriters({
     required List<MaskWriter> writers,
     required ui.Rect bounds,
+    List<BubbledWriter> bubbled = const <BubbledWriter>[],
   }) {
     var maxMaskRank = -1;
     var minClipRank = -1;
@@ -297,11 +371,20 @@ class MaskPlan {
       bounds: bounds,
       maxMaskRank: maxMaskRank,
       minClipRank: minClipRank,
+      bubbled: bubbled,
     );
   }
 
   /// This frame's writers, in ascending [MaskWriter.drawRank] / [MaskWriter.bit].
+  /// Includes carry-over sentinels (`partIndex == kBubbledWriterPart`) for the
+  /// instance children's bubbled clipping writers — present so [bitsFor] resolves
+  /// them for the owner's later parts; their geometry is baked from [bubbled].
   final List<MaskWriter> writers;
+
+  /// Instance children's clipping writers carried up into this coverage (§2-6),
+  /// each parallel to a sentinel in [writers] by [BubbledWriter.bit]. Empty in
+  /// the common case (no instance child writes a mask this frame).
+  final List<BubbledWriter> bubbled;
 
   /// Union of the writers' world quads in **player-local** space. The coverage
   /// bitmap is stretched over exactly this box, so the local→UV map is
@@ -330,7 +413,8 @@ class MaskPlan {
   /// synchronous, so no second caller can be inside it at the same time.
   static Float32List _outlineScratch = Float32List(8); // one sprite quad
 
-  static MaskPlan? build(DrawFrame frame, List<MaskPartFlags> flags) {
+  static MaskPlan? build(DrawFrame frame, List<MaskPartFlags> flags,
+      {MaskComposition comp = MaskComposition.identity}) {
     final drawOrder = frame.drawOrder;
     final writers = <MaskWriter>[];
     var left = double.infinity, top = double.infinity;
@@ -373,7 +457,14 @@ class MaskPlan {
         partIndex: p,
         drawRank: rank,
         bit: writers.length,
-        opInvert: f.maskInfluence,
+        // §2-6 (writer side): the OP — and therefore which plane the bit lands
+        // on — follows the EFFECTIVE mask_influence, own AND the influence
+        // inherited down the instance chain ([comp]). A writer inside a
+        // mask_influence == 0 instance moves from the invert (parity) plane to
+        // the increment (union) plane, so it composes with an outer mask as a
+        // union instead of cancelling it. Top-level [comp] is the identity, so a
+        // standalone animation is unchanged.
+        opInvert: f.maskInfluence && comp.influence,
         isClipping: f.isClipping,
         // A shape has no texel to threshold, so its whole polygon is the mask
         // (§2-5, the shape special case); a mesh could threshold in principle but our

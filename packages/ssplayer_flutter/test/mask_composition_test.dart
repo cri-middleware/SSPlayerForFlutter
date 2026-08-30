@@ -47,12 +47,22 @@ const _optedOut = MaskPartFlags(
   visibleInsideMask: false,
 );
 
-/// A clipping writer: draws colour AND writes coverage. Its `mask_influence`
-/// encodes the write OP, so it is a target no matter what the chain says.
+/// A clipping writer with `mask_influence == 0`: draws colour AND writes
+/// coverage, but its own colour is NOT clipped by masks (§2-3/§3 — its write OP
+/// bit is 0, which is not an opt-IN for being masked).
 const _clipping = MaskPartFlags(
   pureMask: false,
   maskWrite: true,
   maskInfluence: false,
+  visibleInsideMask: false,
+);
+
+/// A clipping writer that also opts IN as a target (`mask_influence == 1`): its
+/// own colour IS clipped by other masks, and its own write OP is invert.
+const _clippingInfluence = MaskPartFlags(
+  pureMask: false,
+  maskWrite: true,
+  maskInfluence: true,
   visibleInsideMask: false,
 );
 
@@ -62,11 +72,20 @@ void main() {
       const id = MaskComposition.identity;
       expect(id.targets(_plain), isTrue);
       expect(id.targets(_optedOut), isFalse);
-      expect(id.targets(_clipping), isTrue);
+      // A clipping writer with mask_influence 0 is NOT a target of a mask (its
+      // write OP does not opt it in, §2-3/§3); one with mask_influence 1 is.
+      expect(id.targets(_clipping), isFalse);
+      expect(id.targets(_clippingInfluence), isTrue);
       expect(id.visibleInsideFor(_plain), isFalse);
       expect(id.visibleInsideFor(_inside), isTrue);
       // Which is exactly what the top-level reading on the flags says.
-      for (final f in <MaskPartFlags>[_plain, _inside, _optedOut, _clipping]) {
+      for (final f in <MaskPartFlags>[
+        _plain,
+        _inside,
+        _optedOut,
+        _clipping,
+        _clippingInfluence,
+      ]) {
         expect(id.targets(f), f.isTarget);
       }
     });
@@ -99,10 +118,13 @@ void main() {
           reason: 'the caller settled "not masked" for the subtree');
     });
 
-    test('mask_write does not compose, but keeps its own part a target', () {
+    test('mask_write does not compose, and does not make its part a target', () {
       final out = MaskComposition.identity.compose(_optedOut);
-      // The clipping writer itself stays a target of its own mask…
-      expect(out.targets(_clipping), isTrue);
+      // The clipping writer's own colour is clipped only on its real influence,
+      // not forced by mask_write (§2-3/§3): with influence 0 it is not a target,
+      // under any caller…
+      expect(out.targets(_clipping), isFalse);
+      expect(MaskComposition.identity.targets(_clipping), isFalse);
       // …while writing a mask is a local fact that descendants do not inherit:
       // the chain below a clipping writer is decided by its mask_influence.
       expect(MaskComposition.identity.compose(_clipping).influence, isFalse);
@@ -164,10 +186,15 @@ void main() {
       expect(plan.bitsFor(9, _plain), isNull);
     });
 
-    test('a clipping writer stays a target under an opted-out caller', () {
+    test('a clipping writer with mask_influence 0 is not a target', () {
       final out = MaskComposition.identity.compose(_optedOut);
-      // Rank 0 is in the pure mask's scope; mask_write does not compose away.
-      expect(plan.bitsFor(0, _clipping, comp: out), isNotNull);
+      // Rank 0 is in the pure mask's scope, but the clipping writer opted out of
+      // being masked (influence 0), so its own colour is not clipped (§2-3/§3) —
+      // whether or not a caller opted out too.
+      expect(plan.bitsFor(0, _clipping, comp: out), isNull);
+      expect(plan.bitsFor(0, _clipping), isNull);
+      // With mask_influence 1 it IS a target and picks up the writer's bit.
+      expect(plan.bitsFor(0, _clippingInfluence)!.invert, 0x1);
     });
   });
 
