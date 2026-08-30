@@ -366,6 +366,57 @@ void main() {
       expect(_uvsOf(p, apple), equals(permanent),
           reason: 'permanent must survive setAnimation');
     });
+
+    test('a permanent COLOUR override survives setupAnimation, a '
+        'hold-until-next one does not', () {
+      // The Godot flagship lost exactly this: its `setAnimation` re-created and
+      // re-BOUND the resource handle, and `bind_resource` clears the Brain's
+      // whole override table (new pack == new part identities), so a Permanent
+      // colour went with it. This Body binds once, at load
+      // (`SpriteStudioInternalPlayer.load`), and `setupAnimation` never
+      // re-binds — which is what leaves the Brain's own
+      // `retain_permanent_overrides_on_setup` something to retain. Asserted on
+      // the COLOUR attribute specifically: the sibling test above stands in for
+      // the pair with a cell override, and the two clear through different
+      // Brain-side paths.
+      final p = _load();
+      if (p == null) return;
+      addTearDown(p.dispose);
+      final apple = p.findPartIndex('apple');
+      final anims = _animations();
+      if (anims.length < 2) {
+        markTestSkipped('Ringo should ship more than one animation');
+        return;
+      }
+
+      p.setupAnimation(anims[0]);
+      p.setPartColorOverrideByIndex(apple, _blue,
+          blendOp: SsBlendOp.mix, priority: SsOverridePriority.permanent);
+      p.update(const Duration(milliseconds: 16));
+      // Overriding a part the animation gave no PartColor makes the Brain emit
+      // one — so its mere presence, with the override's RGB, is the proof.
+      expect(_colorRgbOf(p, apple), _isColor(_blue),
+          reason: 'the override must reach FrameData.parts_color');
+
+      p.setupAnimation(anims[1]);
+      p.update(const Duration(milliseconds: 16));
+      expect(_colorRgbOf(p, apple), _isColor(_blue),
+          reason: 'a permanent colour override must survive setupAnimation');
+
+      // The other priority clears on the same transition, so the assertion
+      // above is about the priority and not about colour overrides at large.
+      p.setupAnimation(anims[0]);
+      p.clearAllPartOverrides();
+      p.setPartColorOverrideByIndex(apple, _red,
+          blendOp: SsBlendOp.mix, priority: SsOverridePriority.holdUntilNextAnimation);
+      p.update(const Duration(milliseconds: 16));
+      expect(_colorRgbOf(p, apple), _isColor(_red));
+
+      p.setupAnimation(anims[1]);
+      p.update(const Duration(milliseconds: 16));
+      expect(_colorRgbOf(p, apple), isNot(_isColor(_red)),
+          reason: 'holdUntilNextAnimation must not survive setupAnimation');
+    });
   });
 
   group('SpriteStudioPlayer (L3) overrides', () {
@@ -482,6 +533,31 @@ Set<int> _drawnParts(SpriteStudioInternalPlayer p) {
   final order = frame?.drawOrder;
   return order == null ? <int>{} : order.toSet();
 }
+
+/// The `lt` corner RGB of the PartColor the Brain emitted for [partIndex] this
+/// frame, or null when it emitted none.
+///
+/// Only the RGB: the corner alpha carries the part's hierarchical opacity
+/// pre-folded by the Brain, which legitimately differs between two animations,
+/// and `rate` is the blend strength — neither says anything about *which*
+/// colour survived.
+List<double>? _colorRgbOf(SpriteStudioInternalPlayer p, int partIndex) {
+  final fd = p.getFrameData(p.frameNo);
+  final parts = fd?.parts;
+  if (fd == null || parts == null || partIndex < 0 || partIndex >= parts.length) {
+    return null;
+  }
+  final pc = PartColor.read(fd.partsColor, parts[partIndex]);
+  if (pc == null) return null;
+  return <double>[pc.lt.r, pc.lt.g, pc.lt.b];
+}
+
+/// Matches [_colorRgbOf] against an 8-bit sRGB [ui.Color] (1/255 tolerance).
+Matcher _isColor(ui.Color c) => pairwiseCompare<double, double>(
+      <double>[c.r, c.g, c.b],
+      (expected, actual) => (expected - actual).abs() <= 1 / 255,
+      'matches the override colour',
+    );
 
 /// The 10-float UV slice (lt, rt, lb, rb, center — texture PIXELS) of one part.
 List<double> _uvsOf(SpriteStudioInternalPlayer p, int partIndex) {
