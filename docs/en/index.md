@@ -10,6 +10,11 @@ hand-write. Playback runs through `libssruntime` provided by
     animation editor: bone rigs, mesh deformation, and particle effects applied to raster sprite
     art. Your artist authors the motion visually; this player plays the finished file. It is a
     different fit from vector animation tools, and lighter than shipping a `.gif` or `.mp4`.
+    You do not need data of your own to start: the
+    [official sample data](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/) works as-is
+    ([Ringo](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#ringo) for a character,
+    [Particle](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#Perticle_sample) for effects),
+    though that page is Japanese only.
 
 !!! example "Try it in a browser"
     Two [**live Web demos**](demo/) are published beside these pages: the `examples/overall`

@@ -73,6 +73,13 @@ Flutter has no in-editor "import dock" like the Godot / Unity plugins, so conver
 step. The converter is open source and comes in several forms — an auto-importer, a browser tool, a
 desktop GUI, and a CLI — all producing the same `.ssab`. Pick the one that fits your workflow.
 
+!!! tip "No `.sspj` of your own yet?"
+    The [official SpriteStudio sample data](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/) works as-is
+    (that page is only available in Japanese; the downloads themselves are language-neutral).
+    [Ringo](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#ringo) is a good character sample, and
+    [Particle](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#Perticle_sample) is a good one if you want
+    effects. The downloaded project feeds any of the routes below as-is.
+
 | Route | Best for | Getting it |
 |---|---|---|
 | [**Auto importer (Live Reload)**](#auto-importer-live-reload) | Iterating during development — auto-convert on save, no manual step | Built in: [`ssgen_flutter`](live-reload.md) |

@@ -11,6 +11,10 @@
     アニメーションエディタです。スプライト素材にボーン・メッシュ変形・パーティクルを載せて、
     モーションを視覚的に作れます。アーティストが動きを作り、このプレイヤーが完成ファイルを再生
     します。ベクター系のツールとは用途が異なり、`.gif` や `.mp4` を同梱するより軽量です。
+    手元にデータが無くても始められます —— [公式のサンプルデータ](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/)
+    （[Ringo](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#ringo) /
+    [パーティクル](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#Perticle_sample)）が
+    そのまま使えます。
 
 !!! example "ブラウザで試す"
     [**Web デモ**](../demo/) はこのドキュメントの隣に 2 つ公開しています。`ssplayer_flutter`
