@@ -74,6 +74,12 @@ Flutter には Godot / Unity プラグインのようなエディタ内「イン
 GUI・CLI といった形で提供され、いずれも同じ `.ssab` を生成します —— 作業スタイルに合うルートを
 選んでください。
 
+!!! tip "手元に `.sspj` がまだ無いときは"
+    [SpriteStudio 公式のサンプルデータ](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/)がそのまま使えます。
+    キャラクターなら [Ringo](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#ringo)、エフェクトを含むものなら
+    [パーティクル](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#Perticle_sample) が手頃です。
+    ダウンロードした `.sspj` は、以下のどのルートにもそのまま渡せます。
+
 | ルート | 向いている用途 | 入手方法 |
 |---|---|---|
 | [**オートインポート（ライブリロード）**](#_2) | 開発中の反復 —— 保存で自動変換、手動ステップなし | 標準搭載: [`ssgen_flutter`](live-reload.md) |
