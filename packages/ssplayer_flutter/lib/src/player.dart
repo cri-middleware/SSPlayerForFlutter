@@ -903,6 +903,30 @@ class SpriteStudioPlayer extends ChangeNotifier {
   /// Index form of [isPartHidden].
   bool isPartHiddenOf(int partIndex) => _internal?.partHidden(partIndex) ?? false;
 
+  /// Whether the part named [partName] is a **bone-bound (skinned) mesh**, or
+  /// false before [load] / for an unknown part.
+  ///
+  /// A skinned mesh part is a poor [partTransform] / [SpriteStudioPartAnchor]
+  /// target: its vertices are drawn by bone skinning, but the part's own
+  /// transform stays at its setup node position (usually near the character
+  /// root), so a follower snaps near the root instead of onto the visible art.
+  /// To follow a mesh part's position, put a NULL / bone-point part at that spot
+  /// in SpriteStudio and follow *that* by name; a bone (armature) or joint part
+  /// works too. A rigid (deform-only) mesh reads false — it follows correctly.
+  ///
+  /// This is a **non-blocking hint** — following such a part is not prevented, so
+  /// use it to warn or de-emphasise a part in a follow-target picker. The
+  /// judgment mirrors the sibling players (shared `.ssab`, same field).
+  bool isPartSkinnedMesh(String partName) {
+    final internal = _internal;
+    if (internal == null) return false;
+    return internal.partSkinnedMesh(internal.findPartIndex(partName));
+  }
+
+  /// Index form of [isPartSkinnedMesh].
+  bool isPartSkinnedMeshOf(int partIndex) =>
+      _internal?.partSkinnedMesh(partIndex) ?? false;
+
   /// Force-hides a part, or reverts it to the animation. See
   /// [SpriteStudioInternalPlayer.setPartVisibilityOverride] for the cascade and
   /// instance-child caveats.

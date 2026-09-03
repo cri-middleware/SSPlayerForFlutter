@@ -30,6 +30,18 @@ Stack(
     Given a different box, the child lands off the part by exactly half the difference. On an
     unbounded axis the anchor has no box to centre in and falls back to `0`.
 
+!!! warning "Mesh (skinned) parts cannot be followed directly"
+    A **bone-bound mesh part** (a deforming part such as a hand or a face) has its vertices drawn by
+    bone skinning, while the part's *own* transform stays at its setup node position — usually near the
+    character root. So targeting such a part makes the follower snap near the root rather than onto the
+    visible art.
+
+    To follow the position of a mesh part, add a **NULL part (a bone-point / empty part)** at that spot
+    in SpriteStudio and target that part's name instead. A bone (armature) or joint part works the same
+    way. A *rigid* (deform-only) mesh follows correctly and needs none of this — only skinned parts
+    diverge. `isPartSkinnedMesh(name)` reports whether a part is one of these so you can warn or dim it
+    in a follow-target picker; it is a **hint only** and never blocks following.
+
 ## Properties
 
 | Property | Description |
@@ -117,6 +129,8 @@ if (pose != null && !_player.isPartHiddenOf(hand)) {
 | `partTransformOf(index)` | Index form of `partTransform` (skips the name lookup) |
 | `isPartHidden(name)` | Whether the part is hidden on the current frame. `false` before `load()` or for an unknown part |
 | `isPartHiddenOf(index)` | Index form of `isPartHidden` |
+| `isPartSkinnedMesh(name)` | Whether the part is a bone-bound (skinned) mesh — a **poor follow target** (see the warning above). `false` before `load()`, for an unknown part, and for a rigid mesh |
+| `isPartSkinnedMeshOf(index)` | Index form of `isPartSkinnedMesh` |
 
 !!! tip "One-shot reads need no anchor"
     When you only want the part's position at a single moment — a projectile spawn point, for example — rather than continuous following, calling `partTransform()` directly is simpler than mounting a `SpriteStudioPartAnchor`.
@@ -184,6 +198,10 @@ guard.
 - Part names resolve against the animation the player itself is running. **Parts inside an Instance
   part (the child animation) cannot be followed**, because the child runs as its own player. The
   Instance part itself can be followed.
+- **A bone-bound (skinned) mesh part cannot be followed onto its visible art** — its transform stays
+  near the setup node (usually the character root) while the vertices are skinned by bones. Follow a
+  NULL / bone-point part placed at that spot instead; `isPartSkinnedMesh` flags such a part without
+  blocking it. See the warning near the top.
 - If several parts share a name, the **first** one is used (SpriteStudio does not guarantee unique
   part names).
 - Names are re-resolved on every read, so **switching animation or loading another `.ssab` needs no

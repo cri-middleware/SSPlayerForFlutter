@@ -70,7 +70,8 @@ int packRgba(ui.Color color) {
   return (c(color.r) << 24) | (c(color.g) << 16) | (c(color.b) << 8) | c(color.a);
 }
 
-/// Pack-level part names, read once from the `.ssab` `PartData` list.
+/// Pack-level part query table, read once from the `.ssab` `PartData` list:
+/// part names ↔ indices, plus the static per-part skinned-mesh flag.
 ///
 /// Part indices are positional over the pack's parts and stable within one
 /// `.ssab` (§65-4), so a name is resolved once here and the index reused. This
@@ -80,15 +81,23 @@ int packRgba(ui.Color color) {
 ///
 /// Duplicate names keep the FIRST index, matching the flagships' insert-if-absent
 /// map build — SpriteStudio does not guarantee unique part names.
+///
+/// The skinned-mesh flag ([isSkinnedMeshAt]) rides along because it is the same
+/// kind of read — a static per-part fact off `PartData`, done once at load and
+/// immutable for the life of the resource. It backs the part-following hint that
+/// a bone-bound mesh part is a poor follow target (its own node transform stays
+/// near the setup pose while the vertices are drawn by bone skinning); see
+/// [SpriteStudioPlayer.isPartSkinnedMesh].
 class PartNameTable {
-  const PartNameTable._(this._names, this._byName);
+  const PartNameTable._(this._names, this._byName, this._skinnedMesh);
 
   /// Empty table: every lookup misses. Used for a pack with no parts.
   static const PartNameTable empty =
-      PartNameTable._(<String>[], <String, int>{});
+      PartNameTable._(<String>[], <String, int>{}, <bool>[]);
 
   final List<String> _names;
   final Map<String, int> _byName;
+  final List<bool> _skinnedMesh;
 
   /// Part names in part-index order. A part with no name in the pack reads as
   /// the empty string so the list stays index-aligned.
@@ -104,6 +113,18 @@ class PartNameTable {
   String? nameAt(int index) =>
       (index >= 0 && index < _names.length) ? _names[index] : null;
 
+  /// Whether the part at [index] is a **bone-bound (skinned) mesh** — its
+  /// `mesh_binding` exists and binds at least one influence bone (`ssab.fbs`
+  /// `PartMeshBinding.influence_bone`). False out of range, for a rigid
+  /// (deform-only) mesh, and for every non-mesh part.
+  ///
+  /// The judgment matches every official player (shared `.ssab`, same field):
+  /// `is_part_skinned_mesh(part) := mesh_binding present && influence_bone > 0`.
+  /// A rigid mesh reads false because its node transform *does* place the drawn
+  /// vertices, so it follows correctly; only a skinned mesh diverges.
+  bool isSkinnedMeshAt(int index) =>
+      (index >= 0 && index < _skinnedMesh.length) && _skinnedMesh[index];
+
   /// Reads the table out of the `.ssab` `PartData` list (part-index ordered),
   /// the same static block [MaskPartFlags.readAll] walks. Cheap enough to do
   /// once at load; the result is immutable for the life of the resource.
@@ -113,12 +134,18 @@ class PartNameTable {
     final names = List<String>.generate(
         parts.length, (i) => parts[i].name ?? '',
         growable: false);
+    final skinnedMesh = List<bool>.generate(
+        parts.length, (i) {
+          final binding = parts[i].meshBinding;
+          return binding != null && (binding.influenceBone?.length ?? 0) > 0;
+        },
+        growable: false);
     final byName = <String, int>{};
     for (var i = 0; i < names.length; i++) {
       final n = names[i];
       if (n.isEmpty) continue;
       byName.putIfAbsent(n, () => i);
     }
-    return PartNameTable._(names, byName);
+    return PartNameTable._(names, byName, skinnedMesh);
   }
 }

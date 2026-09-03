@@ -896,6 +896,18 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
     return false;
   }
 
+  /// Whether [partIndex] is a **bone-bound (skinned) mesh** part — a static fact
+  /// read once from the `.ssab` `PartData` at load, not a per-frame value.
+  ///
+  /// Such a part is a poor part-following target: its vertices are drawn by bone
+  /// skinning while its own node transform (what [partWorldMatrix] returns) stays
+  /// at the setup pose, usually near the character root. Following it snaps the
+  /// follower near the root rather than onto the visible art. A rigid
+  /// (deform-only) mesh reads false — it follows correctly. Out-of-range → false.
+  /// Backs [SpriteStudioPlayer.isPartSkinnedMesh]; behaviour is unchanged, this
+  /// only lets a caller mark the target.
+  bool partSkinnedMesh(int partIndex) => _partNames.isSkinnedMeshAt(partIndex);
+
   // --- Rendering -----------------------------------------------------------
 
   /// Draws the current frame into [canvas] (design §7; ports the Godot flagship

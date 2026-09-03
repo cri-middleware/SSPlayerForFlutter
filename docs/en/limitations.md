@@ -75,6 +75,11 @@ the following scope.
 
 - **Top-level parts only.** A part inside an Instance part lives in the child animation's own player
   and cannot be followed; the Instance part itself can.
+- **Skinned mesh parts cannot be followed onto their art.** A bone-bound mesh part is drawn by bone
+  skinning, but its own transform stays at the setup node (usually the character root), so a follower
+  snaps there rather than onto the visible art. Target a NULL / bone-point part at that spot instead
+  (`isPartSkinnedMesh` flags such a part, without blocking it). A rigid, deform-only mesh follows
+  correctly. Shared by every official player — the same `libssruntime` behaviour.
 - **Transform only, not draw order.** The following widget paints above the whole animation — it
   cannot be interleaved between the character's own parts.
 - **Assumes the view draws unscaled.** Scale / `BoxFit` placement is not implemented on
