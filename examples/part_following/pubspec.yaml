@@ -1,0 +1,37 @@
+name: ssplayer_part_following_example
+description: >-
+  Part-following demo — attaches Flutter widgets to a live SpriteStudio part.
+  Runs the Ringo character and sticks a marker to a part with
+  SpriteStudioPartAnchor, tracking its position / rotation / scale every frame.
+  The follow-target picker dims skinned-mesh parts (isPartSkinnedMesh), the poor
+  targets. The Flutter take on ForUnity's part tracker and ForGodot's part
+  attachment; a port of SSPlayerForWeb's part-follow example.
+publish_to: none
+version: 0.1.0-dev.1
+
+# Part of the repo-root pub workspace (see ../../pubspec.yaml).
+resolution: workspace
+
+environment:
+  sdk: ">=3.10.0 <4.0.0"
+  flutter: ">=3.38.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  ssplayer_flutter:
+    path: ../../packages/ssplayer_flutter
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    # The Ringo pack (one .ssab holding every animation) plus its reference PNG.
+    # Generated — not committed — by scripts/deploy-examples.sh, which converts
+    # the SDK's tests/Ringo project and copies the result here (the same Ringo
+    # the flame / override_ringo examples use). Run that script before first run.
+    - assets/spritestudio/Ringo/
