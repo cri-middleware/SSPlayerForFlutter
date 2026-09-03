@@ -94,6 +94,8 @@ void main() {
       expect(player.partTransformOf(0), isNull);
       expect(player.isPartHidden('apple'), isFalse);
       expect(player.isPartHiddenOf(0), isFalse);
+      expect(player.isPartSkinnedMesh('apple'), isFalse);
+      expect(player.isPartSkinnedMeshOf(0), isFalse);
     });
 
     test('resolve by name and by index to the same matrix after a frame',
@@ -115,6 +117,35 @@ void main() {
 
       expect(player.partTransform('no-such-part'), isNull);
       expect(player.isPartHidden('no-such-part'), isFalse);
+    });
+
+    test('isPartSkinnedMesh matches the pack\'s static PartData, both ways',
+        () async {
+      final bytes = _ringo();
+      if (bytes == null) return;
+      final player = SpriteStudioPlayer();
+      addTearDown(player.dispose);
+      await player.load(bytes,
+          animationName: _animations().first, loadTextures: false);
+      player.advance(const Duration(milliseconds: 16));
+
+      // Ground truth off the very bytes we loaded — no per-part name is baked
+      // into the test, so it holds whatever Ringo's mesh parts happen to be.
+      final table = PartNameTable.readAll(bytes);
+      for (var i = 0; i < table.length; i++) {
+        final expected = table.isSkinnedMeshAt(i);
+        expect(player.isPartSkinnedMeshOf(i), expected,
+            reason: 'index $i (${table.nameAt(i)})');
+        final name = table.nameAt(i);
+        if (name != null && name.isNotEmpty) {
+          expect(player.isPartSkinnedMesh(name), expected, reason: name);
+        }
+      }
+
+      // It is a read, not a gate: unknown / out-of-range are a quiet false.
+      expect(player.isPartSkinnedMesh('no-such-part'), isFalse);
+      expect(player.isPartSkinnedMeshOf(-1), isFalse);
+      expect(player.isPartSkinnedMeshOf(1 << 20), isFalse);
     });
   });
 

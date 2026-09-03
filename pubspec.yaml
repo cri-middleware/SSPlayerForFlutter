@@ -22,6 +22,7 @@ workspace:
   - packages/ssplayer_flame
   - examples/overall
   - examples/flame
+  - examples/part_following
 
 # Melos must be a workspace dependency (its cli_launcher locates the workspace
 # only via a pubspec that depends on melos — a global `pub global activate`
