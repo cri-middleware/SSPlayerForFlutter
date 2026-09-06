@@ -53,7 +53,7 @@ graph LR
 **手動の配置が要らないのはオートインポートだけです。** `ssgen_flutter` がソースを監視し、保存の
 たびに再変換して、できたての `.ssab` を実行中アプリへ直接プッシュします —— 手動ステップはありません。
 ブラウザ・GUI・CLI の 3 経路は `.ssab` ファイルを手元に出力するだけなので、その後に**配置**が必要です
-——アプリの `assets/` にコピーし、`pubspec.yaml` に登録します（[`.ssab` を配置する](#ssab)を参照）。
+——アプリの `assets/` にコピーし、`pubspec.yaml` に登録します（[`.ssab` を配置する](#ssab-を配置する手動ルート)を参照）。
 
 !!! note "どのファイルが、変換後のどれになるのか"
     `.sspj` / `.ssae` / `.ssce` / `.ssqe` それぞれの役割と変換後の対応は Player 共通なので、
@@ -92,9 +92,9 @@ GUI・CLI といった形で提供され、いずれも同じ `.ssab` を生成�
 
 | ルート | 向いている用途 | 入手方法 |
 |---|---|---|
-| [**オートインポート（ライブリロード）**](#_2) | 開発中の反復 —— 保存で自動変換、手動ステップなし | 標準搭載: [`ssgen_flutter`](live-reload.md) |
-| [**ssconverter-web**](#ssconverter-web) | ブラウザで単発、インストール不要 | 🚧 未公開（Chromium 専用） |
-| [**SSConverterGUI**](#ssconvertergui-gui) | シンプルなデスクトップ GUI —— ドラッグ&ドロップ・バッチ・embedded 切替 | [バイナリをダウンロード](https://github.com/cri-middleware/SSConverterGUI/releases) |
+| [**オートインポート（ライブリロード）**](#オートインポートライブリロード) | 開発中の反復 —— 保存で自動変換、手動ステップなし | 標準搭載: [`ssgen_flutter`](live-reload.md) |
+| [**ssconverter-web**](#ssconverter-webブラウザ) | ブラウザで単発、インストール不要 | 🚧 未公開（Chromium 専用） |
+| [**SSConverterGUI**](#ssconverterguiデスクトップ-gui) | シンプルなデスクトップ GUI —— ドラッグ&ドロップ・バッチ・embedded 切替 | [バイナリをダウンロード](https://github.com/cri-middleware/SSConverterGUI/releases) |
 | [**ssconverter-cli**](#ssconverter-cli) | CI / ビルド時 / 再現性 —— ワークスペース同梱の Dart 製 `ssconvert` を含む | [SDK Releases](https://github.com/cri-middleware/SpriteStudio-SDK/releases) · `dart run ssconverter_dart:ssconvert` |
 
 !!! tip "Flutter プロジェクトは追加インストールがほぼ不要"
@@ -113,7 +113,7 @@ Unity のインポータの高速反復ループに相当し、`ssgen_flutter` �
 ## ssconverter-web（ブラウザ）
 
 ブラウザで `.sspj` を変換して結果をダウンロード —— インストール不要。コンバータの WebAssembly ビルドを
-クライアント側で実行します。その後、ダウンロードした `.ssab` を[配置](#ssab)します。
+クライアント側で実行します。その後、ダウンロードした `.ssab` を[配置](#ssab-を配置する手動ルート)します。
 
 !!! note "🚧 未公開"
     公開後は GitHub Pages でホストされます
@@ -126,7 +126,7 @@ Unity のインポータの高速反復ループに相当し、`ssgen_flutter` �
 embedded 出力の切替ができます。OS 向けバイナリを
 [**SSConverterGUI Releases**](https://github.com/cri-middleware/SSConverterGUI/releases)
 からダウンロードして実行します。ターミナルを触りたくないときに。その後、変換した `.ssab` を
-[配置](#ssab)します。
+[配置](#ssab-を配置する手動ルート)します。
 
 ## ssconverter-cli
 
