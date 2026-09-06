@@ -55,6 +55,17 @@ reconverts on save, and pushes the fresh `.ssab` straight into the running app �
 browser, GUI, and CLI routes hand you a `.ssab` file that you then **deploy**: copy it under your app's
 `assets/` and list it in `pubspec.yaml` (see [Deploy the `.ssab`](#deploy-the-ssab-manual-routes)).
 
+!!! note "Which file becomes which"
+    The roles of `.sspj` / `.ssae` / `.ssce` / `.ssqe` and how they map to the output are the same for
+    every Player, so they are documented in the portal —
+    [Asset Conversion — How a project's files map to the output](https://cri-middleware.github.io/SpriteStudio-Docs/overview/conversion/#how-a-projects-files-map-to-the-output).
+
+    Two points matter. **One `.ssae` becomes one `.ssab`**, and **cell positions are baked from the
+    `.ssce` into the `.ssab`**. Because of the latter, whenever you add, move or resize cells, or change
+    the image size, **rebuild the `.ssab` and ship it alongside the image** — swapping the image alone
+    leaves the old source rectangles in place and the artwork shifts. (With an embedded export there is
+    only the one `.ssab` to replace.)
+
 ## Reference-texture vs. embedded
 
 Decide this **first** — every route below can emit the `.ssab` in either form:
