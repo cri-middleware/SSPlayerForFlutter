@@ -21,7 +21,7 @@ jobs:
     if: startsWith(github.ref_name, 'ssruntime_dart-v')
     permissions:
       id-token: write # OIDC: mint a short-lived pub.dev credential (no stored secret)
-    uses: dart-lang/setup-dart/.github/workflows/publish.yml@7654d458321ee25acccccfdb86cd48bd95768ff1 # v1.8.0
+    uses: dart-lang/setup-dart/.github/workflows/publish.yml@6afc89df92d6eb3834022f73cd65adc8cdfcb92d # v1.8.1
     with:
       working-directory: packages/ssruntime_dart
 
@@ -29,7 +29,7 @@ jobs:
     if: startsWith(github.ref_name, 'ssconverter_dart-v')
     permissions:
       id-token: write
-    uses: dart-lang/setup-dart/.github/workflows/publish.yml@7654d458321ee25acccccfdb86cd48bd95768ff1 # v1.8.0
+    uses: dart-lang/setup-dart/.github/workflows/publish.yml@6afc89df92d6eb3834022f73cd65adc8cdfcb92d # v1.8.1
     with:
       working-directory: packages/ssconverter_dart
 
@@ -37,7 +37,7 @@ jobs:
     if: startsWith(github.ref_name, 'ssgen_dart-v')
     permissions:
       id-token: write
-    uses: dart-lang/setup-dart/.github/workflows/publish.yml@7654d458321ee25acccccfdb86cd48bd95768ff1 # v1.8.0
+    uses: dart-lang/setup-dart/.github/workflows/publish.yml@6afc89df92d6eb3834022f73cd65adc8cdfcb92d # v1.8.1
     with:
       working-directory: packages/ssgen_dart
 
@@ -45,7 +45,7 @@ jobs:
     if: startsWith(github.ref_name, 'ssgen_flutter-v')
     permissions:
       id-token: write
-    uses: dart-lang/setup-dart/.github/workflows/publish.yml@7654d458321ee25acccccfdb86cd48bd95768ff1 # v1.8.0
+    uses: dart-lang/setup-dart/.github/workflows/publish.yml@6afc89df92d6eb3834022f73cd65adc8cdfcb92d # v1.8.1
     with:
       working-directory: packages/ssgen_flutter
 
@@ -74,7 +74,7 @@ jobs:
       # on. Its `dart` is then shadowed by the Flutter SDK's below, which is
       # fine and is what the reusable workflow does too -- the credential is in
       # the shared pub config, not in the binary.
-      - uses: dart-lang/setup-dart@7654d458321ee25acccccfdb86cd48bd95768ff1 # v1.8.0
+      - uses: dart-lang/setup-dart@6afc89df92d6eb3834022f73cd65adc8cdfcb92d # v1.8.1
 
       # The reusable workflow installs an unpinned Flutter; this repository pins
       # one, and the package should be published by the toolchain release.yml
@@ -111,6 +111,6 @@ jobs:
     if: startsWith(github.ref_name, 'ssplayer_flame-v')
     permissions:
       id-token: write
-    uses: dart-lang/setup-dart/.github/workflows/publish.yml@7654d458321ee25acccccfdb86cd48bd95768ff1 # v1.8.0
+    uses: dart-lang/setup-dart/.github/workflows/publish.yml@6afc89df92d6eb3834022f73cd65adc8cdfcb92d # v1.8.1
     with:
       working-directory: packages/ssplayer_flame
