@@ -841,8 +841,10 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   /// Z row — the same contract as [GeometryBuilder.world2dOf] the Instance path
   /// places children through, so a follower lands exactly where the part draws.
   /// The Y-Down flip is already baked in by the Brain (never re-flip); position,
-  /// rotation, scale and skew all ride in the matrix — hand it straight to a
-  /// `Transform` widget.
+  /// rotation and scale ride in the matrix — hand it straight to a `Transform`
+  /// widget. It is **skew-free**: the Brain applies a part's Skew as a
+  /// non-inheriting local-vertex deform, so skew never reaches the world matrix
+  /// (nor a follower), matching SpriteStudio, where Skew does not propagate.
   ///
   /// [rootTransform] is folded in, so this is the pose as **drawn**, flip and
   /// offset included. Note that the result can be a *reflection* — a matrix no

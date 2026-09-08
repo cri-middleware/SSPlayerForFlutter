@@ -51,7 +51,7 @@ Stack(
 | **`child`** | The widget stuck to the part. Its **top-left origin** is pinned to the part's origin |
 | **`position`** | Drive the child's position from the part. Default `true` |
 | **`rotation`** | Drive the child's rotation from the part. Default `true` |
-| **`scale`** | Drive the child's scale from the part. **Default `false`** — a follower is placed *at* the part, not sized by it. Only with all three on is the affine applied as-is, so skew and mirroring are reproduced exactly |
+| **`scale`** | Drive the child's scale from the part. **Default `false`** — a follower is placed *at* the part, not sized by it. Only with all three on is the affine applied as-is, so the part's mirroring is reproduced exactly. The pose is skew-free either way — a follower is never sheared by the part it tracks (SpriteStudio does not propagate Skew to children) |
 | **`onHidden`** | Behaviour on frames where the part is hidden. `followAlways` (default) / `hideChild` |
 | **`onMirrored`** | What a flipped player does to the child. `follow` (default) / `cancel` |
 | **`filterQuality`** | Optional `Transform.filterQuality` — e.g. `FilterQuality.low` to smooth a rotated or scaled child. Null keeps Flutter's nearest-neighbour default |
@@ -139,8 +139,13 @@ if (pose != null && !_player.isPartHiddenOf(hand)) {
 
 The returned `Matrix4` holds **only the 2D affine terms** (`m0, m1, m4, m5, m12, m13`) over an
 identity Z/W row, so a stray Z scale or perspective term can never leak into a `Transform`. Position,
-rotation, scale and skew all ride in those six terms — hand the matrix straight to a `Transform`
+rotation and scale all ride in those six terms — hand the matrix straight to a `Transform`
 widget. The translation is at `storage[12]` / `storage[13]`.
+
+The pose is **skew-free**. The runtime applies a part's Skew as a non-inheriting local-vertex
+deform — it warps the part's own quad, not its matrix — so skew never reaches the world matrix and a
+follower is never sheared by the part it tracks. This matches SpriteStudio, where Skew does not
+propagate to a part's children.
 
 The Y-Down flip is **already applied by the runtime**, so never flip again on your side.
 

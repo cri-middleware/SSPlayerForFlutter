@@ -123,10 +123,15 @@ class SpriteStudioPartAnchor extends StatelessWidget {
   /// with a breathing animation is rarely what was wanted. Turn it on for
   /// something that is part of the artwork — a weapon in a hand.
   ///
-  /// With all three on the part's affine is applied as it is, so skew and
-  /// mirroring are reproduced exactly. With any of them off the affine is
+  /// With all three on the part's affine is applied as it is, so the part's
+  /// mirroring is reproduced exactly. With any of them off the affine is
   /// decomposed and only the enabled axes are rebuilt; a disabled axis takes
   /// the identity, since a wrapped widget has no transform of its own to keep.
+  ///
+  /// The pose is **skew-free** either way: the Brain applies a part's Skew as a
+  /// non-inheriting local-vertex deform, so it never reaches the world matrix
+  /// and a follower is never sheared by the part it tracks — matching
+  /// SpriteStudio, where Skew does not propagate to a part's children.
   final bool scale;
 
   /// What to do when the part is hidden this frame. Defaults to
@@ -148,10 +153,15 @@ class SpriteStudioPartAnchor extends StatelessWidget {
 
   /// [world] with only the enabled axes kept.
   ///
-  /// All three on is the passthrough — and the only path that reproduces skew,
-  /// which a TRS rebuild cannot represent. Otherwise the affine is decomposed
-  /// and recomposed, with `scaleY` carrying the determinant's sign so a mirrored
+  /// All three on is the passthrough — the only path that reproduces a
+  /// reflection (a mirrored part), which a TRS rebuild cannot represent without
+  /// leaving a stray 180 degrees. Otherwise the affine is decomposed and
+  /// recomposed, with `scaleY` carrying the determinant's sign so a mirrored
   /// part reads as a negative scale rather than as a 180-degree rotation.
+  ///
+  /// [world] is skew-free (the Brain applies Skew as a non-inheriting
+  /// local-vertex deform), so no path here carries skew onto the follower — and
+  /// the decompose reads a cleaner rotation for it than a skewed matrix would.
   Matrix4 _axes(Matrix4 world) {
     if (position && rotation && scale) return world;
 
