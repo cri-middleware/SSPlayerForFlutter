@@ -1130,16 +1130,26 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
       // recursion) under the composed transform — Canvas: save+transform; GPU:
       // the world matrix folds into the projection. So the child's geometry lands
       // in the same target/canvas at the instance part's place.
-      // The instance part's PartColor tints the child as a GROUP — one filter
-      // over the finished subtree — where alpha instead folds per-part through
-      // [alphaScale]. The two differ deliberately: a group *alpha* disagrees
-      // with the flagship's per-part modulate wherever child parts overlap (§8),
-      // while a group *colour* is the only reading available at all, since the
-      // formula's offset term (Mix / Add / Sub) cannot be folded into a child's
-      // vertex colours. `rate == 0` yields no matrix and no layer.
-      final tint = pc?.wholeTintMatrix();
+      // ALPHA crosses the instance boundary; COLOUR does not. That is the whole
+      // family's rule, not a simplification here: SSPlayerForGodot modulates the
+      // child's CanvasItem with `Color(1, 1, 1, part_alpha)`, and
+      // SSPlayerForWgpu spells it out — "Colour deliberately does not cross the
+      // boundary — no player propagates an instance part's tint." The SDK's
+      // PartColor part-type table (§1-2) likewise covers Normal / Mesh / Shape
+      // and not Instance. The Editor agrees: a sub-animation under an instance
+      // part carrying a Mul PartColor renders untinted there.
+      //
+      // This Body used to tint the subtree with `wholeTintMatrix` through a
+      // `saveLayer` (Canvas) / sub-texture (GPU). That was wrong twice over. The
+      // tint itself does not belong — an Animate import whose instance part
+      // carried `mul #262626` came out at 15% brightness — and isolating the
+      // subtree to apply it ALSO broke every framebuffer blend inside it: an
+      // `add` child part composited against the empty layer instead of the
+      // scene, turning a glow into an opaque dark blob on both backends.
+      //
+      // [PartColor.instanceAlpha] above still reads the tint's `lt` alpha, which
+      // is the one channel that does cross.
       backend.pushTransform(canvas, world);
-      if (tint != null) backend.pushGroupTint(canvas, tint);
       state.child._paintTree(
         canvas,
         backend,
@@ -1148,7 +1158,6 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
         inheritedMask: inherited,
         parentDriven: true, // §8: the child never rasterises its own coverage
       );
-      if (tint != null) backend.popGroupTint(canvas);
       backend.popTransform(canvas);
     }
   }

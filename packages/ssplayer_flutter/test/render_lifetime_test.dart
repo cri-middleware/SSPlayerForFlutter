@@ -109,11 +109,7 @@ class _SpyBackend implements RenderBackend {
   @override
   void popTransform(ui.Canvas canvas) {}
 
-  @override
-  void pushGroupTint(ui.Canvas canvas, List<double> matrix) {}
 
-  @override
-  void popGroupTint(ui.Canvas canvas) {}
 
   @override
   void emitNormal(ui.Canvas canvas, fbs.DrawBatch batch, DrawFrame frame,

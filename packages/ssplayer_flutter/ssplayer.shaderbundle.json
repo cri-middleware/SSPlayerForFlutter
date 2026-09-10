@@ -31,14 +31,6 @@
     "type": "fragment",
     "file": "shaders/gpu/shapemask.frag"
   },
-  "ColorMatrixVertex": {
-    "type": "vertex",
-    "file": "shaders/gpu/colormatrix.vert"
-  },
-  "ColorMatrixFragment": {
-    "type": "fragment",
-    "file": "shaders/gpu/colormatrix.frag"
-  },
   "SsShaderVertex": {
     "type": "vertex",
     "file": "shaders/gpu/ssshader.vert"

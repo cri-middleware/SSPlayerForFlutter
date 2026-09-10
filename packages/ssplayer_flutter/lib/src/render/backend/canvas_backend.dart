@@ -71,7 +71,6 @@ class CanvasBackend implements RenderBackend {
   final ui.Paint _shapePaint = ui.Paint();
   final ui.Paint _effectPaint = ui.Paint();
   final ui.Paint _maskWritePaint = ui.Paint();
-  final ui.Paint _groupTintPaint = ui.Paint();
 
   // --- Per-frame scratch -----------------------------------------------------
   //
@@ -214,18 +213,8 @@ class CanvasBackend implements RenderBackend {
   @override
   void popTransform(ui.Canvas canvas) => canvas.restore();
 
-  @override
-  void pushGroupTint(ui.Canvas canvas, List<double> matrix) =>
-      // Bounds-less: the subtree's extent isn't known before it is drawn, so the
-      // layer is sized by what lands in it (the same trade the flagship's
-      // group-modulate makes).
-      //
-      // The paint is reused across nested tints — `saveLayer` copies it at
-      // record time.
-      canvas.saveLayer(null, _groupTintPaint..colorFilter = _tintFilter(matrix));
-
-  /// The last whole-part tint, memoised — shared by [pushGroupTint] (§8) and the
-  /// peeled Mesh path (§1-2-3), which build the same kind of 4×5 matrix.
+  /// The last whole-part tint, memoised — used by the peeled Mesh path
+  /// (§1-2-3), which builds a 4×5 matrix per tinted part.
   ///
   /// A `ColorFilter` is immutable, so a tinted part would otherwise build a fresh
   /// one every frame. Such a tint is usually *static* (it only changes when the
@@ -260,9 +249,6 @@ class CanvasBackend implements RenderBackend {
     _lastTintMatrix.setAll(0, matrix);
     return _lastTintFilter = ui.ColorFilter.matrix(matrix);
   }
-
-  @override
-  void popGroupTint(ui.Canvas canvas) => canvas.restore();
 
   @override
   void rewindShaderPools() {
