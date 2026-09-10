@@ -11,6 +11,13 @@ import 'package:flutter/services.dart'
     show AssetBundle, CachingAssetBundle, rootBundle;
 import 'package:ssgen_flutter/ssgen_flutter.dart';
 import 'package:ssplayer_flutter/ssplayer_flutter.dart';
+// The capability probe is not on the public barrel, and asking for `gpu` falls
+// back to Canvas SILENTLY — so a `SS_BACKEND=gpu` run that quietly stayed on
+// Canvas is indistinguishable from one that did not. This demo exists to tell
+// the two apart, hence the reach past the barrel.
+// ignore: implementation_imports
+import 'package:ssplayer_flutter/src/render/backend/gpu_capability.dart'
+    show isFlutterGpuAvailable, resolveBackend;
 
 /// flutter_gpu bring-up switch. Run with `--dart-define=SS_BACKEND=gpu` to drive
 /// the flutter_gpu backend (Impeller; mobile/desktop) instead of the Canvas
@@ -19,6 +26,27 @@ const String _backendName =
     String.fromEnvironment('SS_BACKEND', defaultValue: 'canvas');
 SpriteStudioBackend get _selectedBackend =>
     _backendName == 'gpu' ? SpriteStudioBackend.gpu : SpriteStudioBackend.canvas;
+
+/// What the request actually resolved to — `gpu` is a *preference*, and an
+/// unavailable flutter_gpu downgrades it to Canvas without raising anything, so
+/// this line is the only way to tell a real GPU run from a silent fallback.
+///
+/// `flutter run -d macos --enable-impeller --enable-flutter-gpu` does reach the
+/// engine (verified: the probe returns true). `flutter test -d macos` takes
+/// neither flag — an integration test needs the same two switches as
+/// `FLTEnableImpeller` / `FLTEnableFlutterGPU` in `macos/Runner/Info.plist`,
+/// which is gitignored and regenerated without them.
+String get _backendReport {
+  final resolved = resolveBackend(_selectedBackend).name;
+  if (_selectedBackend == SpriteStudioBackend.gpu &&
+      resolved != 'gpu' &&
+      !kIsWeb) {
+    return 'backend: requested gpu -> RUNNING ON $resolved '
+        '(flutter_gpu unavailable on this run)';
+  }
+  return 'backend: requested ${_selectedBackend.name} -> running on $resolved '
+      '(flutter_gpu available: ${kIsWeb ? false : isFlutterGpuAvailable()})';
+}
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -166,6 +194,8 @@ class _PlayerPageState extends State<PlayerPage>
     // `--dart-define=SS_BACKEND=gpu` to exercise the flutter_gpu backend
     // (mobile/desktop only; falls back to Canvas where Impeller is unavailable),
     // otherwise the default Canvas path. Lets the same pack be A/B-compared.
+    // ignore: avoid_print
+    print('[ssplayer] $_backendReport');
     _player = SpriteStudioPlayer(vsync: this, backend: _selectedBackend)
       // Surface the decoded timeline events (§6C). Set once — the callbacks
       // persist across loadAsset, so switching packs keeps them wired.
@@ -579,6 +609,19 @@ class _PlayerPageState extends State<PlayerPage>
                   Text(
                     'source: $source  ·  drag to move · scroll to zoom · drop a folder of .ssab here',
                     style: Theme.of(context).textTheme.bodySmall,
+                    textAlign: TextAlign.center,
+                  ),
+                  // A downgraded gpu request is the one thing here worth
+                  // colouring: every pixel below is then Canvas's, and a GPU
+                  // bug hunt run against it is chasing the wrong backend.
+                  Text(
+                    _backendReport,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: resolveBackend(_selectedBackend) !=
+                                  _selectedBackend
+                              ? Theme.of(context).colorScheme.error
+                              : null,
+                        ),
                     textAlign: TextAlign.center,
                   ),
                 ],
