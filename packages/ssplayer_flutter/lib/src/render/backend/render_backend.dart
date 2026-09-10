@@ -105,22 +105,19 @@ abstract class RenderBackend {
   void pushTransform(ui.Canvas canvas, Float64List world);
   void popTransform(ui.Canvas canvas);
 
-  /// Brackets an instance child's draw with a **group tint** — the PartColor
-  /// (§10) carried by the instance part itself, applied to the whole sub-
-  /// animation once it is composited (§8).
-  ///
-  /// [matrix] is the row-major 4×5 colour matrix from
-  /// `PartColor.wholeTintMatrix` (an Instance part is whole-only, like a Mesh).
-  /// Canvas: `saveLayer` with a `ColorFilter.matrix`. GPU: an offscreen pass the
-  /// subtree draws into, composited back through the colour-matrix pipeline.
-  /// Calls nest with [pushTransform]/[popTransform] and with each other.
-  ///
-  /// The tint is a *group* operation on purpose — one filter over the finished
-  /// subtree — unlike alpha, which folds per-part down the chain
-  /// (`DrawFrame.alphaScale`). Overlapping semi-transparent children therefore
-  /// tint as a unit.
-  void pushGroupTint(ui.Canvas canvas, List<double> matrix);
-  void popGroupTint(ui.Canvas canvas);
+  // There is deliberately NO group-tint hook here. An instance part's PartColor
+  // does not reach its child subtree in any player of this family — Godot
+  // modulates the child with `Color(1, 1, 1, part_alpha)`, wgpu says "no player
+  // propagates an instance part's tint", and the SDK's PartColor part-type table
+  // (§1-2) stops at Normal / Mesh / Shape. Only alpha crosses, and it crosses as
+  // `DrawFrame.alphaScale`, folded per part.
+  //
+  // A `pushGroupTint`/`popGroupTint` pair used to live here (Canvas `saveLayer`,
+  // GPU sub-texture). Besides applying a tint that should not exist, it
+  // *isolated* the subtree, which silently broke every non-source-over blend
+  // inside it — an additive child drew over an empty layer instead of the scene.
+  // Do not reintroduce it without a spec change; a tint that needs isolation is
+  // the shape of the bug, not of the feature.
 
   /// Releases backend-owned GPU/Canvas resources. Called from the player's
   /// `dispose()`.

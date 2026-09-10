@@ -38,8 +38,7 @@ RenderBackend createFlutterGpuBackend() => FlutterGpuBackend();
 /// PartColor pipeline, which carries every per-part value as a **per-vertex
 /// attribute** — the Godot/Web sibling design (§19). A per-vertex attribute
 /// avoids the dynamically-indexed uniform array Impeller/Metal miscompiles, so
-/// no UBO is bound. Instance group tint uses the ColorMatrix pipeline (`TintInfo`
-/// *struct* UBO, which is fine — only uniform *arrays* are the problem).
+/// no UBO is bound.
 ///
 /// Every GPU entry is guarded: any failure (pipeline not loaded, context error)
 /// leaves the frame blank rather than throwing, so a bad GPU state never crashes
@@ -305,21 +304,6 @@ class FlutterGpuBackend implements RenderBackend {
     return _maskWritePipeline = p;
   }
 
-  static gpu.RenderPipeline? _colorMatrixPipeline;
-  static bool _colorMatrixPipelineFailed = false;
-  static gpu.RenderPipeline? _ensureColorMatrixPipeline() {
-    if (_colorMatrixPipeline != null) return _colorMatrixPipeline;
-    if (_colorMatrixPipelineFailed) return null;
-    // Still reading the bundle: not a failure, do not latch one.
-    if (!_libraryReady) return null;
-    final p = _buildPipeline('ColorMatrixVertex', 'ColorMatrixFragment');
-    if (p == null) {
-      _colorMatrixPipelineFailed = true;
-      return null;
-    }
-    return _colorMatrixPipeline = p;
-  }
-
   /// The built-in integration shaders (`SHDR`) — ONE pipeline for all 13,
   /// branching on the effect id in its uniform block.
   ///
@@ -492,7 +476,6 @@ class FlutterGpuBackend implements RenderBackend {
   final Float32List _writerVertsScratch = Float32List(16);
   final Float32List _bitColorScratch = Float32List(4);
   final Float32List _coverageMvpScratch = Float32List(16);
-  final Float32List _tintRowsScratch = Float32List(12);
   Float32List _posUvScratch = Float32List(0);
 
   /// Per-slot mask replay sets for [_drawPartColorRun]. Indexed by position in
@@ -528,7 +511,6 @@ class FlutterGpuBackend implements RenderBackend {
       SsRootTransform root = SsRootTransform.identity}) {
     _active = false;
     _frameCoverages.clear();
-    _tintStack.clear();
     _canvas = canvas;
     final logical = dst?.size ?? sourceSize ?? ui.Size.zero;
     if (logical.width <= 0 || logical.height <= 0) return;
@@ -1766,108 +1748,6 @@ class FlutterGpuBackend implements RenderBackend {
     }
   }
 
-  /// The suspended pass/target/command-buffer of each enclosing [pushGroupTint],
-  /// innermost last — the GPU's answer to the Canvas backend's `saveLayer`
-  /// stack. A frame with no instance tint never touches this.
-  final List<_GroupTintLayer> _tintStack = <_GroupTintLayer>[];
-
-  @override
-  void pushGroupTint(ui.Canvas canvas, List<double> matrix) {
-    if (!_active) return;
-    final target = _target;
-    if (target == null) return;
-    // A failed layer must still push, so the matching pop stays balanced; it
-    // just carries no target and pops back to the same pass (untinted).
-    _GroupTintLayer layer;
-    try {
-      if (_ensureColorMatrixPipeline() == null) throw StateError('no pipeline');
-      // Same size as the pass being suspended, so the composite is a plain
-      // full-target quad — the subtree keeps drawing with the very same
-      // projection and transform stack.
-      final sub = gpu.gpuContext.createTexture(
-          gpu.StorageMode.devicePrivate, target.width, target.height);
-      final cmd = gpu.gpuContext.createCommandBuffer();
-      final pass = cmd.createRenderPass(
-        gpu.RenderTarget.singleColor(gpu.ColorAttachment(texture: sub)),
-      );
-      pass.setColorBlendEnable(true);
-      layer = _GroupTintLayer(_pass!, _target!, _cmd!, sub, cmd, matrix);
-      _pass = pass;
-      _target = sub;
-      _cmd = cmd;
-    } catch (_) {
-      layer = _GroupTintLayer(_pass!, _target!, _cmd!, null, null, matrix);
-    }
-    _tintStack.add(layer);
-  }
-
-  @override
-  void popGroupTint(ui.Canvas canvas) {
-    if (_tintStack.isEmpty) return;
-    final layer = _tintStack.removeLast();
-    _pass = layer.pass;
-    _target = layer.target;
-    _cmd = layer.cmd;
-    final sub = layer.subTarget;
-    final subCmd = layer.subCmd;
-    if (sub == null || subCmd == null) return; // the push failed — nothing to composite
-
-    try {
-      // The subtree's pass must be submitted before the pass that samples it.
-      subCmd.submit();
-      _frameCoverages.add(sub); // keep it alive until the frame is submitted
-      final pipeline = _ensureColorMatrixPipeline()!;
-      _beginDraw(_pass!, pipeline);
-      _pass!.bindUniform(pipeline.fragmentShader.getUniformSlot('TintInfo'),
-          _hostBuffer!.emplace(ByteData.sublistView(_tintRows(layer.matrix))));
-      // The tinted subtree composites over the parent exactly as the Canvas
-      // backend's restore() does: premultiplied source-over.
-      _pass!.setColorBlendEquation(_srcOver);
-
-      final vb = gpu.gpuContext
-          .createDeviceBufferWithCopy(ByteData.sublistView(_fullTargetQuad));
-      final ib = gpu.gpuContext
-          .createDeviceBufferWithCopy(ByteData.sublistView(_quadIndices));
-      _pass!.bindVertexBuffer(
-          gpu.BufferView(vb, offsetInBytes: 0, lengthInBytes: vb.sizeInBytes));
-      _pass!.bindIndexBuffer(
-          gpu.BufferView(ib, offsetInBytes: 0, lengthInBytes: ib.sizeInBytes),
-          gpu.IndexType.int16);
-      _pass!.bindTexture(
-          pipeline.fragmentShader.getUniformSlot('u_texture'), sub);
-      _pass!.drawIndexed(_quadIndices.length);
-    } catch (_) {
-      // The subtree is lost for this frame; the rest of it still draws.
-    }
-  }
-
-  /// The composite quad, in NDC with its 0..1 UVs — `[pos.xy, uv.xy]` per corner
-  /// wound lt, rt, lb, rb to match [_quadIndices]. The V axis carries
-  /// [_kNdcYSign] so the sampled subtree lands the same way up as it was drawn.
-  static final Float32List _fullTargetQuad = Float32List.fromList(<double>[
-    -1.0, _kNdcYSign, 0.0, 0.0, //
-    1.0, _kNdcYSign, 1.0, 0.0, //
-    -1.0, -_kNdcYSign, 0.0, 1.0, //
-    1.0, -_kNdcYSign, 1.0, 1.0, //
-  ]);
-
-  /// The 4×5 `ColorFilter.matrix` [matrix] as the `TintInfo` UBO's three rgb
-  /// rows `(m₀, m₁, m₂, offset)`, with the offset back in 0..1 (the Flutter
-  /// matrix states it in 0..255). The alpha row is dropped — a whole-part tint
-  /// never touches alpha (§10).
-  ///
-  /// Written into [_tintRowsScratch] — emplaced (copied) by the caller before
-  /// the next `popGroupTint` refills it.
-  Float32List _tintRows(List<double> matrix) {
-    final rows = _tintRowsScratch;
-    for (var r = 0; r < 3; r++) {
-      rows[r * 4] = matrix[r * 5];
-      rows[r * 4 + 1] = matrix[r * 5 + 1];
-      rows[r * 4 + 2] = matrix[r * 5 + 2];
-      rows[r * 4 + 3] = matrix[r * 5 + 4] / 255.0;
-    }
-    return rows;
-  }
 
   /// Column-major 4×4 multiply `a · b` (a = current MVP, b = world 2D affine),
   /// into [out] (which must not alias [a]).
@@ -1919,24 +1799,5 @@ class FlutterGpuBackend implements RenderBackend {
     _cmd = null;
     _pass = null;
     _canvas = null;
-    _tintStack.clear();
   }
-}
-
-/// One suspended render pass while an instance subtree draws into its own target
-/// for a group tint ([FlutterGpuBackend.pushGroupTint]).
-///
-/// [subTarget] / [subCmd] are null when the layer could not be allocated — the
-/// entry then exists purely so the matching pop stays balanced and the subtree
-/// draws untinted into the parent's pass rather than vanishing.
-class _GroupTintLayer {
-  _GroupTintLayer(this.pass, this.target, this.cmd, this.subTarget, this.subCmd,
-      this.matrix);
-
-  final gpu.RenderPass pass;
-  final gpu.Texture target;
-  final gpu.CommandBuffer cmd;
-  final gpu.Texture? subTarget;
-  final gpu.CommandBuffer? subCmd;
-  final List<double> matrix;
 }
