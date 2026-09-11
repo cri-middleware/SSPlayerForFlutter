@@ -328,6 +328,13 @@ external ss_event_instance_info ss_runtime_get_active_event_instance(
   int slot_index,
 );
 
+/// The playback speed in effect, as a multiple of `ss_runtime_get_fps`.
+///
+/// Reads back what `ss_runtime_set_animation_speed` stored, which is not
+/// always what it was handed: a negative rate clamps to `0.0`.
+@ffi.Native<ffi.Float Function(ffi.Pointer<ffi.Void>)>()
+external double ss_runtime_get_animation_speed(ffi.Pointer<ffi.Void> context);
+
 /// Per-part resolved cell metadata for the current frame, written by
 /// `ss_runtime_get_frame_data`. Layout:
 /// `[pivot_x, pivot_y, size_w, size_h, rect_left, rect_top]` per part,
@@ -705,6 +712,24 @@ external int ss_runtime_get_passed_event_count(ffi.Pointer<ffi.Void> context);
 
 @ffi.Native<ffi.Int32 Function(ffi.Pointer<ffi.Void>, ffi.Int32)>()
 external int ss_runtime_get_passed_event_index(
+  ffi.Pointer<ffi.Void> context,
+  int index,
+);
+
+/// Which source fired the collected event at `index` — parallel to
+/// `ss_runtime_get_passed_event_index`, and read with the same index.
+///
+/// With every source at the default event threshold (`1.0`) this is uniformly
+/// `ss_runtime_track_main_source` of track 0, so a Player that does not use
+/// animation mixing can ignore it. It diverges once a secondary source opts in
+/// to firing events via `ss_runtime_set_source_event_threshold`, and that is
+/// when a host needs it: without it, two blended animations' events arrive in
+/// one undifferentiated list.
+///
+/// Returns `U32_MAX` for a negative or out-of-range `index`, which no live
+/// handle ever equals.
+@ffi.Native<ffi.Uint32 Function(ffi.Pointer<ffi.Void>, ffi.Int32)>()
+external int ss_runtime_get_passed_event_source_handle(
   ffi.Pointer<ffi.Void> context,
   int index,
 );
@@ -1261,6 +1286,8 @@ const int NINES_MAX_TILE_QUADS = 65536;
 const int SEED_MAGIC = 7573;
 
 const int SHAPE_VERTICES_STRIDE = 24;
+
+const int SKEW_PROPAGATES = 0;
 
 const int SS_RUNTIME_INVALID_HANDLE = 4294967295;
 
