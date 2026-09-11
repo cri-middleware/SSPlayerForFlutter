@@ -17,7 +17,7 @@ Please refer to [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md).
 This player is a strict 4-layer "Body" over the SpriteStudio-SDK "Brain". To keep it fast and portable, please follow these principles:
 
 - **Flutter/Dart idioms first:** Use Flutter's rendering (`RenderBox`, `Canvas.drawVertices`), null-safety, and `dispose` discipline. Match the existing Dart style in the files you touch.
-- **Respect the layer boundaries:** Keep **L2** (`SpriteStudioInternalPlayer`) Widget-free so it stays reusable headless / from Flame / a future `flutter_gpu` backend. L1 FFI bindings live in the sibling `ssruntime_dart` package. Do not leak Widget dependencies downward.
+- **Respect the layer boundaries:** Keep **L2** (`SpriteStudioInternalPlayer`) Widget-free so it stays reusable headless / from Flame / behind the `flutter_gpu` backend. L1 FFI bindings live in the sibling `ssruntime_dart` package. Do not leak Widget dependencies downward.
 - **Performance in the hot path:** Avoid per-frame heap allocations during playback. Consume the runtime's SoA buffers and `DrawBatch` plans directly. Remember that `FrameData` and SoA pointers are **borrows valid only until the next `update`** — consume them within the frame, and release `Context` / `Resource` handles in `dispose`.
 - **SDK separation:** The core animation logic lives in the `SpriteStudio-SDK` submodule (Rust `libssruntime`). Changes to the core/algorithm belong in the SDK repository; Flutter-specific rendering belongs in `packages/`.
 - **Generated code is never hand-edited:** The ffigen `@Native` bindings (`lib/src/*_bindings.g.dart`) and the flatc accessors (`lib/src/ssab/*.g.dart`, `ssruntime_dart` fbs) are committed. Regenerate them with the provided scripts and commit the result. The flatc write side (`*Builder` / `*ObjectBuilder`) is deliberately kept out of `lib/` and generated into `packages/ssplayer_flutter/test/support/*_builders.g.dart` instead — import those shims when a test needs to synthesise a fixture buffer.
@@ -103,7 +103,7 @@ SSPlayerForFlutter にご関心をお寄せいただき、ありがとうござ�
 本プレイヤーは、SpriteStudio-SDK の「Brain」に対する厳密な 4 層構成の「Body」です。高速性と移植性を保つため、以下の原則に従ってください。
 
 - **Flutter/Dart のパラダイムを優先:** Flutter の描画（`RenderBox`、`Canvas.drawVertices`）、null 安全、`dispose` の徹底を活用してください。編集するファイルの既存 Dart スタイルに合わせてください。
-- **レイヤー境界を尊重:** **L2**（`SpriteStudioInternalPlayer`）は Widget 非依存に保ち、headless / Flame / 将来の `flutter_gpu` バックエンドから再利用できるようにしてください。L1 の FFI バインディングは兄弟パッケージ `ssruntime_dart` にあります。下位層へ Widget 依存を漏らさないでください。
+- **レイヤー境界を尊重:** **L2**（`SpriteStudioInternalPlayer`）は Widget 非依存に保ち、headless / Flame / `flutter_gpu` バックエンドから再利用できるようにしてください。L1 の FFI バインディングは兄弟パッケージ `ssruntime_dart` にあります。下位層へ Widget 依存を漏らさないでください。
 - **再生パスのパフォーマンス:** 再生中の毎フレームのヒープ確保は避けてください。ランタイムの SoA バッファと `DrawBatch` プランを直接消費します。`FrameData` と SoA ポインタは**次の `update` までのみ有効な借用**なので、フレーム内で消費し、`Context` / `Resource` ハンドルは `dispose` で解放してください。
 - **SDK の分離:** コアのアニメーション計算ロジックは `SpriteStudio-SDK` サブモジュール（Rust `libssruntime`）にあります。コア / アルゴリズムの修正は SDK 側リポジトリへ、Flutter 固有の描画は `packages/` へ行ってください。
 - **生成コードは手編集しない:** ffigen の `@Native` バインディング（`lib/src/*_bindings.g.dart`）と flatc アクセサ（`lib/src/ssab/*.g.dart`、`ssruntime_dart` の fbs）はコミット済みです。提供スクリプトで再生成してコミットしてください。flatc の書き込み側（`*Builder` / `*ObjectBuilder`）は意図的に `lib/` から外し、`packages/ssplayer_flutter/test/support/*_builders.g.dart` に生成しています。テストでフィクスチャのバッファを組むときはそちらを import してください。

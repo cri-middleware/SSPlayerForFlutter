@@ -21,7 +21,7 @@ Flame; an app opts in by depending on `ssplayer_flame`.
 
 ```yaml
 dependencies:
-  flame: ^1.37.0
+  flame: ^1.38.0
   ssplayer_flame:
     path: ../packages/ssplayer_flame   # or a pub.dev version once published
 ```
@@ -68,7 +68,7 @@ component.player?.seek(0);
   lands on the box centre (`size / 2` in local space), exactly like
   `SpriteStudioView`. With the default zero `size` that is the component's
   `position`.
-* `loop` / `speed` / `subFrame` / `animation` / `autoStart` are constructor
+* `loopCount` / `speed` / `subFrame` / `animation` / `autoStart` are constructor
   options; anything finer goes through `component.player`.
 * `SpriteStudioComponent.asset` resolves reference textures (sibling PNGs) from
   the asset key's own folder — no `baseAssetDir` needed. Pass `baseAssetDir` only
