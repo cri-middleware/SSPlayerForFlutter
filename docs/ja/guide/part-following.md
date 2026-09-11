@@ -15,7 +15,7 @@ Stack(
     Positioned.fill(
       child: SpriteStudioPartAnchor(
         player: _player,
-        partName: 'FrontHand',
+        partName: partName,
         child: const Icon(Icons.star),
       ),
     ),
@@ -84,9 +84,9 @@ Stack(
 ```dart
 SpriteStudioPartAnchor(
   player: _player,
-  partName: 'Head',
+  partName: partName,
   onMirrored: SpriteStudioAnchorMirror.cancel, // 名前ラベルは常に正立
-  child: const Text('Ringo'),
+  child: const Text('Player 1'),
 )
 ```
 
@@ -111,11 +111,11 @@ SpriteStudioPartAnchor(
 
 ```dart
 // パーツ名の解決は 1 度だけ。パーツインデックスは同じ .ssab 内では安定しています。
-final hand = _player.findPartIndex('FrontHand');
+final partIndex = _player.findPartIndex(partName);
 
 // そのパーツの現在フレームの姿勢（プレイヤーローカル＝アニメーション空間）。
-final Matrix4? pose = _player.partTransformOf(hand);
-if (pose != null && !_player.isPartHiddenOf(hand)) {
+final Matrix4? pose = _player.partTransformOf(partIndex);
+if (pose != null && !_player.isPartHiddenOf(partIndex)) {
   final x = pose.storage[12];
   final y = pose.storage[13];
   // ... (x, y) に弾を発射する、自前のコンポーネントを配置する、など
@@ -203,11 +203,9 @@ Y-Down の反転は**ランタイム側で適用済み**です。呼び出し側
 - パーツ名は、そのプレイヤー自身が再生しているアニメーションのパーツから解決されます。
   **インスタンスパーツの内部（子アニメーション）のパーツは追従できません**（子は別のプレイヤーとして
   動作するため）。インスタンスパーツ自体は追従できます。
-- **ボーンバインドされた（スキン）メッシュパーツは、見た目の絵の上には追従できません** —— 頂点はボーンで
-  スキニングされる一方、パーツ自身の変換はセットアップ時のノード（多くはキャラクターのルート付近）に
-  留まるため、追従先はそこへ吸い寄せられます。代わりにその位置へ置いた NULL / ボーンポイントパーツを
-  追従先にしてください。`isPartSkinnedMesh` は該当パーツを（追従を妨げずに）判定できます。冒頭の警告も
-  参照してください。
+- **ボーンバインドされた（スキン）メッシュパーツは、見た目の絵の上には追従できません** —— 代わりに
+  その位置へ置いた NULL / ボーンポイントパーツを追従先にしてください。`isPartSkinnedMesh` は該当パーツを
+  （追従を妨げずに）判定できます。理由は冒頭の警告を参照してください。
 - 同名のパーツが複数ある場合は、**最初**に見つかったものが使われます（SpriteStudio はパーツ名の
   一意性を保証しません）。
 - 名前は読み取りのたびに解決し直されるため、**アニメーションの切り替えや別の `.ssab` の読み込みでも
@@ -227,8 +225,8 @@ Y-Down の反転は**ランタイム側で適用済み**です。呼び出し側
 
 ```dart
 final player = component.player!;
-final pose = player.partTransform('FrontHand');
-if (pose != null && !player.isPartHidden('FrontHand')) {
+final pose = player.partTransform(partName);
+if (pose != null && !player.isPartHidden(partName)) {
   marker.position = Vector2(pose.storage[12], pose.storage[13]);
 }
 ```

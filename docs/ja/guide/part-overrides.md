@@ -6,16 +6,16 @@
 
 ```dart
 // パーツを乗算で着色（通常パーツに適用されます）
-_player.setPartColorOverride('body', SsBlendOp.mul, Colors.red);
+_player.setPartColorOverride(partName, Colors.red, blendOp: SsBlendOp.mul);
 
 // 別のセルを描画させる（セルマップ名は ".ssce" を付けずに指定）
-_player.setPartCellOverride('body', 'Ringo', 'effect3');
+_player.setPartCellOverride(partName, cellmap, cellName);
 
 // パーツを強制非表示にする（子孫にもカスケード）
-_player.setPartVisibilityOverride('body', true, cascade: true);
+_player.setPartVisibilityOverride(partName, true, cascade: true);
 
 // 解除
-_player.clearPartColorOverride('body');
+_player.clearPartColorOverride(partName);
 _player.clearAllPartOverrides();
 ```
 
@@ -38,8 +38,8 @@ _player.clearAllPartOverrides();
 |---|---|
 | `findPartIndex(name)` | パーツインデックス。パックに無ければ `-1` |
 | `partNames` | パーツ名一覧 / 名前⇔インデックスの相互解決（`PartNameTable`） |
-| `setPartColorOverride(part, blendOp, color, priority:)` | パーツカラーオーバーライド（単色） |
-| `setPartColorOverrideCorners(part, blendOp, leftTop:, rightTop:, leftBottom:, rightBottom:, priority:)` | 4 隅個別指定（グラデーション） |
+| `setPartColorOverride(part, color, blendOp:, priority:)` | パーツカラーオーバーライド（単色） |
+| `setPartColorOverrideCorners(part, corners, blendOp:, priority:)` | 4 隅個別指定（グラデーション）。`corners` は `SsCornerColors` レコード |
 | `setPartCellOverride(part, cellmapName, cellName, priority:)` | 別のセルで描画する |
 | `setPartVisibilityOverride(part, hide, cascade:)` | 強制非表示（`hide: false` でアニメーションに戻す） |
 | `clearPartColorOverride` / `clearPartCellOverride` / `clearPartVisibilityOverride` | 1 パーツの 1 オーバーライドを解除 |
@@ -65,8 +65,8 @@ _player.clearAllPartOverrides();
 セルオーバーライドに指定できるセルマップ名 / セル名は、プレイヤーから列挙できます。
 
 ```dart
-final cellmap = _player.cellmapNames.first;   // → "Ringo"
-final cells   = _player.cellNames(cellmap);     // → ["eye2", "tail", "apple", "effect3", ...]
+final cellmap = _player.cellmapNames.first;   // 例: パック先頭のセルマップ
+final cells   = _player.cellNames(cellmap);   // そのセルマップの全セル名
 ```
 
 ## 合成モード（`SsBlendOp`）
@@ -99,7 +99,7 @@ final cells   = _player.cellNames(cellmap);     // → ["eye2", "tail", "apple",
 
 ```dart
 // ✅ 1 度だけ設定する
-_player.setPartColorOverride('body', SsBlendOp.mul, Colors.red);
+_player.setPartColorOverride(partName, Colors.red, blendOp: SsBlendOp.mul);
 
 // ❌ 毎フレーム設定し直す必要はありません
 ```
@@ -134,7 +134,7 @@ _player.setPartColorOverride('body', SsBlendOp.mul, Colors.red);
 
 ```dart
 final player = component.player!;
-player.setPartColorOverride('body', SsBlendOp.mul, Colors.red);
+player.setPartColorOverride(partName, Colors.red, blendOp: SsBlendOp.mul);
 ```
 
 ## 関連

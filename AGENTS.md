@@ -55,10 +55,11 @@ Mesh/Shape buffers), `blend.dart`, `part_color.dart`, `part_shader.dart` (the bu
 `part_override.dart` (per-part color/cell/visibility), `part_anchor.dart`, `root_transform.dart`
 (the player-level flip/offset), `effect.dart`/`instance.dart`;
 the pluggable render backends in `backend/` (`render_backend.dart` abstraction + `canvas_backend.dart` /
-`flutter_gpu_backend.dart` + the capability probe); Canvas shaders `shaders/{partcolor,mask_write}.frag`
-plus `shaders/ss_*.frag` over the shared `shaders/ss_shader_common.glsl`
-(dart:ui runtime-effect) and GPU shaders `shaders/gpu/*.{vert,frag}` (real GLSL); loaders
-`texture_loader.dart`/`instance_loader.dart`; generated `lib/src/ssab/*.g.dart` (never hand-edit).
+`flutter_gpu_backend.dart` + the capability probe). Shaders live at the package root `ssplayer_flutter/shaders/`
+(not under `lib/`): Canvas shaders `shaders/{partcolor,mask_write}.frag` plus `shaders/ss_*.frag` over the
+shared `shaders/ss_shader_common.glsl` (dart:ui runtime-effect), and GPU shaders `shaders/gpu/*.{vert,frag}`
+(real GLSL). Loaders sit one level up from `render/`, at `lib/src/texture_loader.dart` /
+`lib/src/instance_loader.dart`; generated `lib/src/ssab/*.g.dart` (never hand-edit).
 
 **Integration shaders (`SHDR`)**: a per-part attribute, not a draw kind — the Brain
 does not split batches by it, so the Body peels shader parts out of ordinary Normal
@@ -78,7 +79,7 @@ build loudly, and the parts draw individually anyway).
 | `build-runtime` | Build `ssruntime`/`ssconverter`; place bare dylibs into each binding pkg's `native/libs/…` + copy C headers to `native/include/`. Does **not** run ffigen. | After Rust / first setup |
 | `generate-ffigen-code` | `dart run ffigen` → each pkg's `lib/src/*_bindings.g.dart`. Standalone; commit result. | After a C-API change |
 | `generate-fbs-code` | `flatc --dart` → `lib/src/ssab/*.g.dart`, then `strip_fbs_builders.dart` splits the write side out of `lib/`. Standalone. | After a `.fbs` change |
-| `deploy-examples` | Convert `tests/overall/overall.sspj` → example assets. | Refresh example assets |
+| `deploy-examples` | Convert the SDK's bundled test projects (`tests/overall/overall.sspj` and `tests/Ringo/Ringo.sspj`) → example assets. | Refresh example assets |
 | `download-web-runtime` | Put the SDK release's wasm-bindgen `libssruntime` into `ssplayer_flutter/assets/runtime-web/`, flattened to the layout the loader's SIMD probe expects. | Web demo, web release |
 | `build-release` | Per package: run the publish pub.dev will run, minus the upload, and lay the file set it would send out in `release-dist/`. Bumps nothing, tags nothing. | Before cutting versions |
 

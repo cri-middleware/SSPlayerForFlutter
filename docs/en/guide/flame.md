@@ -32,7 +32,7 @@ class RingoGame extends FlameGame {
         'assets/overall/Basic.ssab',
         position: Vector2(200, 200),
         anchor: Anchor.center,
-        loop: -1,
+        loopCount: -1,
       ),
     );
   }
@@ -48,9 +48,9 @@ default constructor `SpriteStudioComponent(ssab: myBytes)`.
 | Option | Default | Description |
 |---|---|---|
 | `animation` | first in pack | Animation to select on load |
-| `loop` | `-1` | Loop count (`-1` forever, `n` plays *n* times) |
+| `loopCount` | `-1` | Loop count (`-1` forever, `n` plays *n* times) |
 | `speed` | `1.0` | Playback speed multiplier |
-| `subFrameEnabled` | `true` | Sub-frame interpolation |
+| `subFrame` | `true` | Sub-frame interpolation |
 | `autoStart` | `true` | Play as soon as the resource loads (set `false` to drive it yourself) |
 | `onEvents` / `onAnimationStarted` / `onAnimationFinished` / `onAnimationLooped` | `null` | Forwarded to the player's callbacks (see [Playback & Events](playback.md)) |
 

@@ -31,7 +31,7 @@ class RingoGame extends FlameGame {
         'assets/overall/Basic.ssab',
         position: Vector2(200, 200),
         anchor: Anchor.center,
-        loop: -1,
+        loopCount: -1,
       ),
     );
   }
@@ -47,9 +47,9 @@ reference テクスチャをキー自身のフォルダから解決します。�
 | 引数 | 既定 | 説明 |
 |---|---|---|
 | `animation` | パック先頭 | 読み込み時に選択するアニメ |
-| `loop` | `-1` | ループ回数（`-1` 無限、`n` は n 回） |
+| `loopCount` | `-1` | ループ回数（`-1` 無限、`n` は n 回） |
 | `speed` | `1.0` | 再生速度倍率 |
-| `subFrameEnabled` | `true` | サブフレーム補間 |
+| `subFrame` | `true` | サブフレーム補間 |
 | `autoStart` | `true` | 読み込み完了と同時に再生（`false` で自分で駆動） |
 | `onEvents` / `onAnimationStarted` / `onAnimationFinished` / `onAnimationLooped` | `null` | プレイヤーのコールバックへ転送（[再生とイベント](playback.md)） |
 

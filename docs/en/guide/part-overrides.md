@@ -5,16 +5,16 @@ An override wins over both the keyframes and any animation blending, so it never
 
 ```dart
 // Tint a part with multiply (Normal parts only)
-_player.setPartColorOverride('body', SsBlendOp.mul, Colors.red);
+_player.setPartColorOverride(partName, Colors.red, blendOp: SsBlendOp.mul);
 
 // Draw a different cell (the cellmap name carries no ".ssce" extension)
-_player.setPartCellOverride('body', 'Ringo', 'effect3');
+_player.setPartCellOverride(partName, cellmap, cellName);
 
 // Force-hide a part, cascading to its descendants
-_player.setPartVisibilityOverride('body', true, cascade: true);
+_player.setPartVisibilityOverride(partName, true, cascade: true);
 
 // Clear
-_player.clearPartColorOverride('body');
+_player.clearPartColorOverride(partName);
 _player.clearAllPartOverrides();
 ```
 
@@ -38,8 +38,8 @@ These are methods on `SpriteStudioPlayer`.
 |---|---|
 | `findPartIndex(name)` | Part index, or `-1` if the pack has no such part |
 | `partNames` | Part-name list and name↔index lookup (`PartNameTable`) |
-| `setPartColorOverride(part, blendOp, color, priority:)` | Colour override (single value) |
-| `setPartColorOverrideCorners(part, blendOp, leftTop:, rightTop:, leftBottom:, rightBottom:, priority:)` | Four distinct corners (a gradient) |
+| `setPartColorOverride(part, color, blendOp:, priority:)` | Colour override (single value) |
+| `setPartColorOverrideCorners(part, corners, blendOp:, priority:)` | Four distinct corners (a gradient), as an `SsCornerColors` record |
 | `setPartCellOverride(part, cellmapName, cellName, priority:)` | Draw a different cell |
 | `setPartVisibilityOverride(part, hide, cascade:)` | Force-hide (`hide: false` reverts to the animation) |
 | `clearPartColorOverride` / `clearPartCellOverride` / `clearPartVisibilityOverride` | Clear one override on one part |
@@ -66,8 +66,8 @@ Each method takes a **part name**; the `ByIndex`-suffixed form takes a **part in
 The cellmap / cell names a cell override accepts can be enumerated from the player:
 
 ```dart
-final cellmap = _player.cellmapNames.first;   // → "Ringo"
-final cells   = _player.cellNames(cellmap);     // → ["eye2", "tail", "apple", "effect3", ...]
+final cellmap = _player.cellmapNames.first;   // e.g. the pack's first cellmap
+final cells   = _player.cellNames(cellmap);   // every cell name in that cellmap
 ```
 
 ## Blend operations (`SsBlendOp`)
@@ -100,7 +100,7 @@ animation's own loops.
 
 ```dart
 // ✅ set it once
-_player.setPartColorOverride('body', SsBlendOp.mul, Colors.red);
+_player.setPartColorOverride(partName, Colors.red, blendOp: SsBlendOp.mul);
 
 // ❌ no per-frame re-application is required
 ```
@@ -136,7 +136,7 @@ exposes.
 
 ```dart
 final player = component.player!;
-player.setPartColorOverride('body', SsBlendOp.mul, Colors.red);
+player.setPartColorOverride(partName, Colors.red, blendOp: SsBlendOp.mul);
 ```
 
 ## See also

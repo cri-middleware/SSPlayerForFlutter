@@ -90,7 +90,7 @@ the view repaints on its own.
 
 !!! question "Why not just wrap the view in `Transform.flip`?"
     Because that mirrors the **whole** wrapped subtree, which becomes a problem as soon as
-    [part tracking](part-following.md) is in play.
+    [part following](part-following.md) is in play.
 
     | Approach | Result |
     |---|---|
@@ -98,9 +98,9 @@ the view repaints on its own.
     | Wrap only the `SpriteStudioView` | The anchors are left behind at the unflipped positions |
     | **`player.flipX`** | The animation mirrors, the anchors travel with it, and their own children can stay upright |
 
-    Without part tracking, wrapping in `Transform.flip` is perfectly sufficient.
+    Without part following, wrapping in `Transform.flip` is perfectly sufficient.
 
-    See [Part Tracking](part-following.md) for what a flipped player does to a follower.
+    See [Part Following](part-following.md) for what a flipped player does to a follower.
 
 !!! note "Not on the Flame adapter"
     `SpriteStudioComponent` is a Flame `PositionComponent` and already has `flipHorizontally()` and

@@ -1,7 +1,7 @@
 # 📱 SpriteStudioPlayer for Flutter
 
 Play **SpriteStudio** raster (sprite) animations (`.ssab`) natively in Flutter — rigged by
-an artist in a dedicated editor, drawn straight to the Flutter `Canvas`, with no animation code to
+an artist in a dedicated editor, drawn through Flutter's own renderer, with no animation code to
 hand-write. Playback runs through `libssruntime` provided by
 [SpriteStudio-SDK](https://github.com/cri-middleware/SpriteStudio-SDK).
 
@@ -31,6 +31,7 @@ hand-write. Playback runs through `libssruntime` provided by
 - **Workflow**
     - [Quick Start](guide/quickstart.md)
     - [Playback & Events](guide/playback.md)
+    - [Part Following](guide/part-following.md)
     - [Part Overrides](guide/part-overrides.md)
     - [Flame Integration](guide/flame.md)
     - [Preparing Assets (`.sspj` → `.ssab`)](guide/conversion.md) (start here for the initial import)

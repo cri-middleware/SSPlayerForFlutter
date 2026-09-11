@@ -15,7 +15,7 @@ Stack(
     Positioned.fill(
       child: SpriteStudioPartAnchor(
         player: _player,
-        partName: 'FrontHand',
+        partName: partName,
         child: const Icon(Icons.star),
       ),
     ),
@@ -83,9 +83,9 @@ Pick `follow` for anything that should turn around with the character — a weap
 ```dart
 SpriteStudioPartAnchor(
   player: _player,
-  partName: 'Head',
+  partName: partName,
   onMirrored: SpriteStudioAnchorMirror.cancel, // the name plate stays readable
-  child: const Text('Ringo'),
+  child: const Text('Player 1'),
 )
 ```
 
@@ -110,11 +110,11 @@ hand — from a Flame component, a `CustomPainter`, or your own layout code.
 
 ```dart
 // Resolve the name once; part indices are stable within one .ssab.
-final hand = _player.findPartIndex('FrontHand');
+final partIndex = _player.findPartIndex(partName);
 
 // The part's current-frame pose, in player-local (animation) space.
-final Matrix4? pose = _player.partTransformOf(hand);
-if (pose != null && !_player.isPartHiddenOf(hand)) {
+final Matrix4? pose = _player.partTransformOf(partIndex);
+if (pose != null && !_player.isPartHiddenOf(partIndex)) {
   final x = pose.storage[12];
   final y = pose.storage[13];
   // ... spawn a projectile at (x, y), place your own component, etc.
@@ -203,10 +203,9 @@ guard.
 - Part names resolve against the animation the player itself is running. **Parts inside an Instance
   part (the child animation) cannot be followed**, because the child runs as its own player. The
   Instance part itself can be followed.
-- **A bone-bound (skinned) mesh part cannot be followed onto its visible art** — its transform stays
-  near the setup node (usually the character root) while the vertices are skinned by bones. Follow a
+- **A bone-bound (skinned) mesh part cannot be followed onto its visible art** — follow a
   NULL / bone-point part placed at that spot instead; `isPartSkinnedMesh` flags such a part without
-  blocking it. See the warning near the top.
+  blocking it. See the warning near the top for why.
 - If several parts share a name, the **first** one is used (SpriteStudio does not guarantee unique
   part names).
 - Names are re-resolved on every read, so **switching animation or loading another `.ssab` needs no
@@ -226,8 +225,8 @@ component with it.
 
 ```dart
 final player = component.player!;
-final pose = player.partTransform('FrontHand');
-if (pose != null && !player.isPartHidden('FrontHand')) {
+final pose = player.partTransform(partName);
+if (pose != null && !player.isPartHidden(partName)) {
   marker.position = Vector2(pose.storage[12], pose.storage[13]);
 }
 ```

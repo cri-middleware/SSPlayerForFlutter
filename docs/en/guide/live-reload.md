@@ -34,7 +34,8 @@ animation editing gets the same fast iteration as a code hot reload.
 ## Enabling it (recipe)
 
 1. Add `ssgen_flutter` to your app's `pubspec.yaml`.
-2. Mix `SsLiveReload` into your `State` and point it at your player and current pack:
+2. Mix `SsLiveReload` into your `State` and point it at your player and current pack (the mixin only
+   registers the player on the push channel):
 
     ```dart
     class _MyPageState extends State<MyPage>

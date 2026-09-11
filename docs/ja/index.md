@@ -1,7 +1,7 @@
 # 📱 SpriteStudioPlayer for Flutter
 
 **SpriteStudio** のラスター（スプライト）アニメーション（`.ssab`）を Flutter でそのまま再生
-します。アーティストが専用エディタでリグを組み、Flutter の `Canvas` に直接描画 —— 手書きの
+します。アーティストが専用エディタでリグを組み、Flutter 自身のレンダラで描画 —— 手書きの
 アニメーションコードは不要です。再生処理は
 [SpriteStudio-SDK](https://github.com/cri-middleware/SpriteStudio-SDK) が提供する `libssruntime`
 を介して行います。
@@ -30,6 +30,7 @@
 - **ワークフロー**
     - [クイックスタート](guide/quickstart.md)
     - [再生制御とイベント](guide/playback.md)
+    - [パーツトラッキング](guide/part-following.md)
     - [パーツオーバーライド](guide/part-overrides.md)
     - [Flame との連携](guide/flame.md)
     - [アセットの準備（`.sspj` → `.ssab`）](guide/conversion.md)（初回の変換はこちら）
