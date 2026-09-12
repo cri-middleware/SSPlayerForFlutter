@@ -33,19 +33,6 @@
 - [アセットの準備（`.sspj` → `.ssab`）](docs/ja/guide/conversion.md)
 - [制限事項と対応範囲](docs/ja/limitations.md)
 
-## 📦 パッケージ
-
-このモノレポは以下のパッケージを pub.dev に公開予定です 🚧（まだ未公開 —— 下のクイックスタート参照）。
-
-| 目的 | パッケージ | 種別 |
-|---|---|---|
-| アニメ再生（ランタイム描画） | [`ssplayer_flutter`](./packages/ssplayer_flutter) | Flutter パッケージ（全プラットフォーム・`ssruntime_dart` に依存） |
-| [Flame](https://flame-engine.org/) ゲームエンジンアダプタ | [`ssplayer_flame`](./packages/ssplayer_flame) | Flutter パッケージ（`SpriteStudioComponent`） |
-| ランタイム FFI バインディング（Layer 1） | [`ssruntime_dart`](./packages/ssruntime_dart) | 純 Dart（renderer 非依存コア） |
-| `.sspj` → `.ssab` 変換（CLI / ライブラリ） | [`ssconverter_dart`](./packages/ssconverter_dart) | 純 Dart（デスクトップ専用のホストツール） |
-| stale なものだけ再変換するホストライブラリ（`ssgen_flutter` の土台） | [`ssgen_dart`](./packages/ssgen_dart) | 純 Dart（デスクトップ用ホストライブラリ） |
-| 編集→実機ループのライブリロード | [`ssgen_flutter`](./packages/ssgen_flutter) | Flutter 開発ツール（`ssgen_dart` の上） |
-
 ---
 
 ## 🚀 1. クイックスタート
@@ -101,7 +88,7 @@ class _MyState extends State<MyWidget> with SingleTickerProviderStateMixin {
 }
 ```
 
-> ⚠️ ネイティブ Brain（`libssruntime`）が必要です。これは依存先 `ssruntime_dart` の
+> ⚠️ ネイティブランタイム（`libssruntime`。各公式 Player が共通で使う Rust コア）が必要です。これは依存先 `ssruntime_dart` の
 > **Native Assets**（`hook/build.dart`）がアプリに自動同梱します（プラグイン／framework 配線は不要）。
 > `hook/build.dart` はピン留めした SDK リリースからプリビルドを**自動ダウンロード**するので
 > Rust ツールチェーンは不要です（ソースからビルドする場合のみ 2 章参照）。
@@ -154,7 +141,7 @@ dart run ssconverter_dart:ssconvert -e -o assets/spritestudio/MyChar/ SpriteStud
 ## ⚙️ 2. フル開発環境（SDK / Player 開発者）
 
 コア（Rust ランタイム / Player）をソースから開発する場合。**前提**: Rust（`rustup`）、
-Flutter / Dart は[インストール](docs/ja/guide/install.md)の下限以上（Native Assets が標準。ネイティブ Brain 同梱に CocoaPods／vendored
+Flutter / Dart は[インストール](docs/ja/guide/install.md)の下限以上（Native Assets が標準。ネイティブランタイム同梱に CocoaPods／vendored
 framework は不要）。`flatc` は `.fbs` を再生成するときだけ。cbindgen は SDK の `build.rs` が
 build-dependency として使うため個別導入不要。
 
@@ -177,6 +164,19 @@ cd examples\overall; flutter run
 
 実装規約・要注意点・Native Assets 同梱は [AGENTS.md](./AGENTS.md)、今後の作業は [ROADMAP.md](./ROADMAP.md) を参照してください。
 
+## 📦 パッケージ
+
+このモノレポが pub.dev に公開するものです 🚧。アニメーションを再生するだけなら最初の 1 行で足り、残りはその土台と周辺ツールです。
+
+| 目的 | パッケージ | 種別 |
+|---|---|---|
+| アニメ再生（ランタイム描画） | [`ssplayer_flutter`](./packages/ssplayer_flutter) | Flutter パッケージ（全プラットフォーム・`ssruntime_dart` に依存） |
+| [Flame](https://flame-engine.org/) ゲームエンジンアダプタ | [`ssplayer_flame`](./packages/ssplayer_flame) | Flutter パッケージ（`SpriteStudioComponent`） |
+| `dart:ffi` 越しのランタイムバインディング | [`ssruntime_dart`](./packages/ssruntime_dart) | 純 Dart（renderer 非依存コア） |
+| `.sspj` → `.ssab` 変換（CLI / ライブラリ） | [`ssconverter_dart`](./packages/ssconverter_dart) | 純 Dart（デスクトップ専用のホストツール） |
+| 変更されたものだけ再変換するホストライブラリ（`ssgen_flutter` の土台） | [`ssgen_dart`](./packages/ssgen_dart) | 純 Dart（デスクトップ用ホストライブラリ） |
+| 編集→実機ループのライブリロード | [`ssgen_flutter`](./packages/ssgen_flutter) | Flutter 開発ツール（`ssgen_dart` の上） |
+
 ## 🎬 サンプル
 
 [`examples/`](./examples/) にすぐ動かせるアプリがあります。先に `scripts/deploy-examples.*` を
@@ -188,7 +188,9 @@ cd examples\overall; flutter run
 
 ## 🔗 関連リポジトリ
 
-- [SpriteStudio-SDK](https://github.com/cri-middleware/SpriteStudio-SDK) — Rust ランタイム / コンバータ / `.fbs` スキーマ（Brain）
+- [SpriteStudio Docs](https://cri-middleware.github.io/SpriteStudio-Docs/ja/) — SDK と全公式 Player のドキュメントポータル
+- [SpriteStudio-SDK](https://github.com/cri-middleware/SpriteStudio-SDK) — 本 Player が駆動する Rust ランタイム / コンバータ / `.fbs` スキーマ
+- [SSConverterGUI](https://github.com/cri-middleware/SSConverterGUI) — Player なしで `.sspj` を変換できるデスクトップ GUI
 
 ## 📄 ライセンス
 
