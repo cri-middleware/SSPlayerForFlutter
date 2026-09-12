@@ -90,7 +90,7 @@ graph LR
 
 ## Supported Versions
 
-- **Flutter**: 3.47 or later — **Dart**: 3.13 or later. Native assets has been stable and default-on since 3.38; the floor sits at 3.47 because that is where flutter_gpu's current GPU API landed, and the GPU backend is built against it.
+- **Flutter / Dart**: the floor is on [Installation](./guide/install.md), and `ssplayer_flutter`'s `environment:` enforces it — it sits above the native-assets floor because the GPU backend is built against flutter_gpu's current API.
 - **Platforms**: verified on macOS, iOS (simulator), Android (emulator), and Web (developer preview). A physical iOS device and the 32-bit `armeabi-v7a` ABI are not yet confirmed.
 
 ## Samples

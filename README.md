@@ -31,6 +31,7 @@ For installation, the asset pipeline, and API references, see the MkDocs documen
 - [Quick Start](docs/en/guide/quickstart.md)
 - [Flame Integration](docs/en/guide/flame.md)
 - [Preparing Assets (`.sspj` → `.ssab`)](docs/en/guide/conversion.md)
+- [Limitations & Scope](docs/en/limitations.md)
 
 ## 📦 Packages
 
@@ -48,6 +49,11 @@ This monorepo will publish the following packages to pub.dev 🚧 (not yet publi
 ---
 
 ## 🚀 1. Quick Start
+
+**Using it in your app?** Read on — add the dependency, convert your `.sspj`, play.
+Everything after that (events, per-part overrides, live reload) is the same path
+further in, on the [documentation site](docs/en/index.md).
+**Working on the Player, or the Rust runtime under it?** [Section 2](#-2-full-build-environment-for-sdk--player-developers).
 
 ### Setup
 
@@ -103,7 +109,10 @@ class _MyState extends State<MyWidget> with SingleTickerProviderStateMixin {
 > framework wiring. The hook **auto-downloads** the prebuilt binary from the pinned SDK release,
 > so no Rust toolchain is needed (build from source only if you want to — see section 2).
 
-### Verifying It Works
+### See it running from a checkout
+
+> 🚧 Until the packages are on pub.dev, this is how to watch the player work. It is a
+> checkout, not part of the install above — you do not need it to use the package.
 
 Run the bundled example to confirm the player works. **No Rust toolchain required** — each package's
 `hook/build.dart` downloads the prebuilt native libraries (`libssruntime` / `libssconverter`) from
@@ -129,7 +138,7 @@ cd examples\overall; flutter run
 
 ### Convert your own `.sspj`
 
-Put your SpriteStudio project (`.sspj` + `.ssae` + images) under a **`SpriteStudio_Source/`** folder,
+Projects have to be authored in **SpriteStudio 7.5 or later**. Put yours (`.sspj` + `.ssae` + images) under a **`SpriteStudio_Source/`** folder,
 then convert it with the `ssconverter_dart` CLI (`-e` produces a self-contained embedded `.ssab`,
 ideal for shipping). **No Rust toolchain** — `libssconverter` auto-downloads:
 
@@ -148,8 +157,8 @@ point `hooks.user_defines.<pkg>.lib<name>` in the app's `pubspec.yaml` at it.
 ## ⚙️ 2. Full Build Environment (For SDK / Player Developers)
 
 To develop the core (Rust runtime / Player) from source. **Prerequisites**: Rust (`rustup`),
-Flutter 3.47+ / Dart 3.13+ (native assets is standard — no CocoaPods / vendored framework to embed
-the Brain; the flutter_gpu backend is what puts the floor at 3.47). `flatc` only when regenerating `.fbs`; cbindgen is pulled in as a build-dependency by the
+a Flutter/Dart SDK at or above the floor on [Installation](docs/en/guide/install.md) (native assets is
+standard — no CocoaPods / vendored framework to embed the Brain). `flatc` only when regenerating `.fbs`; cbindgen is pulled in as a build-dependency by the
 SDK's `build.rs`, so no separate install.
 
 **macOS / Linux:**
@@ -171,6 +180,15 @@ cd examples\overall; flutter run
 
 See [AGENTS.md](./AGENTS.md) (implementation rules, gotchas, native-asset packaging) and
 [ROADMAP.md](./ROADMAP.md) (upcoming work) for the full developer guide.
+
+## 🎬 Samples
+
+Runnable apps under [`examples/`](./examples/). Run `scripts/deploy-examples.*` once first — it
+converts the SDK's test projects into the `.ssab` each one loads.
+
+- [overall](./examples/overall) — The one to open. Plays `tests/overall`, with a dropdown to switch between its animations.
+- [flame](./examples/flame) — The [`ssplayer_flame`](./packages/ssplayer_flame) adapter: one `SpriteStudioComponent` in a `FlameGame` playing Ringo, tap to toggle play/pause.
+- [part_following](./examples/part_following) — Pins an ordinary Flutter widget to a part with `SpriteStudioPartAnchor`, so it tracks that part's position, rotation and scale every frame.
 
 ## 🔗 Related Repositories
 

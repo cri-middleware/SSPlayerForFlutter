@@ -8,7 +8,7 @@ delivered automatically through Dart **native assets** — there is no CocoaPods
 
 | Item | Details |
 |---|---|
-| Flutter / Dart | **Flutter 3.47+ / Dart 3.13+** (native assets is default-on from 3.38; the flutter_gpu backend sets the 3.47 floor) |
+| Flutter / Dart | **Flutter 3.47+ / Dart 3.13+** (native assets is default-on from 3.38; the flutter_gpu backend sets the 3.47 floor). This page is where that floor is written down — `ssplayer_flutter`'s `environment:` enforces it, so `flutter pub get` is what tells you if yours is older |
 | Verified platforms | macOS · iOS · Android |
 | Other platforms | Windows / Linux build from source; Web is a developer preview |
 | Native toolchain | None — the Brain is downloaded prebuilt by the `ssruntime_dart` build hook |
