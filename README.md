@@ -33,19 +33,6 @@ For installation, the asset pipeline, and API references, see the MkDocs documen
 - [Preparing Assets (`.sspj` → `.ssab`)](docs/en/guide/conversion.md)
 - [Limitations & Scope](docs/en/limitations.md)
 
-## 📦 Packages
-
-This monorepo will publish the following packages to pub.dev 🚧 (not yet published — see the Quick Start below).
-
-| Purpose | Package | Kind |
-|---|---|---|
-| Animation playback (runtime rendering) | [`ssplayer_flutter`](./packages/ssplayer_flutter) | Flutter package (all platforms; depends on `ssruntime_dart`) |
-| [Flame](https://flame-engine.org/) game-engine adapter | [`ssplayer_flame`](./packages/ssplayer_flame) | Flutter package (`SpriteStudioComponent`) |
-| Runtime FFI bindings (Layer 1) | [`ssruntime_dart`](./packages/ssruntime_dart) | Pure Dart (renderer-agnostic core) |
-| `.sspj` → `.ssab` conversion (CLI / library) | [`ssconverter_dart`](./packages/ssconverter_dart) | Pure Dart (desktop-only host tool) |
-| Reconvert-only-stale host lib (powers `ssgen_flutter`) | [`ssgen_dart`](./packages/ssgen_dart) | Pure Dart (desktop host lib) |
-| Live reload for the edit-to-runtime loop | [`ssgen_flutter`](./packages/ssgen_flutter) | Flutter dev tooling (on `ssgen_dart`) |
-
 ---
 
 ## 🚀 1. Quick Start
@@ -104,7 +91,8 @@ class _MyState extends State<MyWidget> with SingleTickerProviderStateMixin {
 }
 ```
 
-> ⚠️ The native Brain (`libssruntime`) is required. It is bundled automatically by the
+> ⚠️ The native runtime (`libssruntime`, the Rust core shared by every official player) is
+> required. It is bundled automatically by the
 > **native assets** hook (`hook/build.dart`) of the `ssruntime_dart` dependency — no plugin or
 > framework wiring. The hook **auto-downloads** the prebuilt binary from the pinned SDK release,
 > so no Rust toolchain is needed (build from source only if you want to — see section 2).
@@ -158,7 +146,7 @@ point `hooks.user_defines.<pkg>.lib<name>` in the app's `pubspec.yaml` at it.
 
 To develop the core (Rust runtime / Player) from source. **Prerequisites**: Rust (`rustup`),
 a Flutter/Dart SDK at or above the floor on [Installation](docs/en/guide/install.md) (native assets is
-standard — no CocoaPods / vendored framework to embed the Brain). `flatc` only when regenerating `.fbs`; cbindgen is pulled in as a build-dependency by the
+standard — no CocoaPods / vendored framework to embed the native runtime). `flatc` only when regenerating `.fbs`; cbindgen is pulled in as a build-dependency by the
 SDK's `build.rs`, so no separate install.
 
 **macOS / Linux:**
@@ -181,6 +169,19 @@ cd examples\overall; flutter run
 See [AGENTS.md](./AGENTS.md) (implementation rules, gotchas, native-asset packaging) and
 [ROADMAP.md](./ROADMAP.md) (upcoming work) for the full developer guide.
 
+## 📦 Packages
+
+What this monorepo publishes to pub.dev 🚧 — you need only the first row to play an animation; the rest are what it is built on and the tooling around it.
+
+| Purpose | Package | Kind |
+|---|---|---|
+| Animation playback (runtime rendering) | [`ssplayer_flutter`](./packages/ssplayer_flutter) | Flutter package (all platforms; depends on `ssruntime_dart`) |
+| [Flame](https://flame-engine.org/) game-engine adapter | [`ssplayer_flame`](./packages/ssplayer_flame) | Flutter package (`SpriteStudioComponent`) |
+| Runtime bindings over `dart:ffi` | [`ssruntime_dart`](./packages/ssruntime_dart) | Pure Dart (renderer-agnostic core) |
+| `.sspj` → `.ssab` conversion (CLI / library) | [`ssconverter_dart`](./packages/ssconverter_dart) | Pure Dart (desktop-only host tool) |
+| Reconverts only what changed (powers `ssgen_flutter`) | [`ssgen_dart`](./packages/ssgen_dart) | Pure Dart (desktop host lib) |
+| Live reload for the edit-to-runtime loop | [`ssgen_flutter`](./packages/ssgen_flutter) | Flutter dev tooling (on `ssgen_dart`) |
+
 ## 🎬 Samples
 
 Runnable apps under [`examples/`](./examples/). Run `scripts/deploy-examples.*` once first — it
@@ -192,7 +193,9 @@ converts the SDK's test projects into the `.ssab` each one loads.
 
 ## 🔗 Related Repositories
 
-- [SpriteStudio-SDK](https://github.com/cri-middleware/SpriteStudio-SDK) — the Rust runtime / converter / `.fbs` schemas (the Brain)
+- [SpriteStudio Docs](https://cri-middleware.github.io/SpriteStudio-Docs/) — the portal for the SDK and every official player
+- [SpriteStudio-SDK](https://github.com/cri-middleware/SpriteStudio-SDK) — the Rust runtime / converter / `.fbs` schemas this player drives
+- [SSConverterGUI](https://github.com/cri-middleware/SSConverterGUI) — desktop GUI for converting `.sspj` without a player
 
 ## 📄 License
 
