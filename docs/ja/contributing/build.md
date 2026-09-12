@@ -8,7 +8,7 @@
 | ツール | いつ |
 |---|---|
 | Rust（`rustup`） | ネイティブをソースからビルドするとき |
-| Flutter 3.47+ / Dart 3.13+ | 常時（Native Assets は 3.38 から既定で有効。下限 3.47 は flutter_gpu バックエンドの要件） |
+| Flutter / Dart | 常時。下限は[インストール](../guide/install.md)にあります（古いと `flutter pub get` が落ちます） |
 | `wasm-pack` ＋ `wasm32-unknown-unknown` ターゲット | **web** ターゲットのときだけ（`cargo install wasm-pack`；`rustup target add wasm32-unknown-unknown`） |
 | `flatc` | `.fbs` スキーマを再生成するときだけ |
 | cbindgen | 手動導入不要 —— SDK の `build.rs` の build-dependency |

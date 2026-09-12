@@ -4,7 +4,6 @@ Flutter **Body** for the SpriteStudio-SDK **Brain**. This monorepo (a pub
 workspace, Melos-released) implements the Player that renders `.ssab` animations
 by driving the Rust `libssruntime` runtime over `dart:ffi`. The Brain lives in
 the `SpriteStudio-SDK/` submodule — see its own [AGENTS.md](./SpriteStudio-SDK/AGENTS.md).
-`CLAUDE.md` is a symlink to this file.
 
 ## Operating rules
 

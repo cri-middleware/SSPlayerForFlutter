@@ -42,7 +42,7 @@ If you find a bug, please open a GitHub Issue and include:
 ## Development Environment
 
 ### Prerequisites
-- Flutter 3.47+ / Dart 3.13+ (native assets is stable and default-on; the flutter_gpu backend needs 3.47).
+- Flutter / Dart — the floor is on [Installation](docs/en/guide/install.md) and enforced by `ssplayer_flutter`'s `environment:`, so `flutter pub get` is what tells you if yours is older.
 - A Rust toolchain (`rustup`) — required to build `libssruntime` / `libssconverter` from source.
 - `flatc` — only when regenerating a `.fbs` schema. (cbindgen is a build-dependency of the SDK's `build.rs`; no separate install.)
 - The `SpriteStudio-SDK` submodule: `git submodule update --init --recursive`.
@@ -127,7 +127,7 @@ SSPlayerForFlutter にご関心をお寄せいただき、ありがとうござ�
 ## 開発環境のセットアップ
 
 ### 前提条件
-- Flutter 3.47+ / Dart 3.13+（Native Assets が標準・既定で有効。3.47 を下限にしているのは flutter_gpu バックエンド）。
+- Flutter / Dart —— 下限は[インストール](docs/ja/guide/install.md)にあり、`ssplayer_flutter` の `environment:` が強制します（古いと `flutter pub get` が落ちます）。
 - Rust ツールチェイン（`rustup`）—— `libssruntime` / `libssconverter` をソースからビルドする場合に必要です。
 - `flatc` —— `.fbs` スキーマを再生成するときのみ。（cbindgen は SDK の `build.rs` の build-dependency なので個別導入は不要です。）
 - `SpriteStudio-SDK` サブモジュール: `git submodule update --init --recursive`。

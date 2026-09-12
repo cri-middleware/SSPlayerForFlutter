@@ -20,7 +20,7 @@
 
 インストール、アセットパイプライン、API リファレンスは MkDocs ドキュメントサイトを参照してください。
 
-- [**ドキュメントサイト（ホスト版）**](https://cri-middleware.github.io/SSPlayerForFlutter/) — 🚧 最初のリリース後に公開
+- [**ドキュメントサイト（ホスト版）**](https://cri-middleware.github.io/SSPlayerForFlutter/ja/) — 🚧 最初のリリース後に公開
 - [**Web デモ**](https://cri-middleware.github.io/SSPlayerForFlutter/demo/) — `ssplayer_flutter` と `ssplayer_flame` がブラウザで動きます — 🚧 最初のリリース後に公開
 - [**Documentation (English)**](./docs/en/index.md)
 - [**ドキュメント (日本語)**](./docs/ja/index.md)
@@ -31,6 +31,7 @@
 - [クイックスタート](docs/ja/guide/quickstart.md)
 - [Flame 連携](docs/ja/guide/flame.md)
 - [アセットの準備（`.sspj` → `.ssab`）](docs/ja/guide/conversion.md)
+- [制限事項と対応範囲](docs/ja/limitations.md)
 
 ## 📦 パッケージ
 
@@ -48,6 +49,10 @@
 ---
 
 ## 🚀 1. クイックスタート
+
+**アプリで使う場合**はこのまま下へ。依存を追加する → 自分の `.sspj` を変換する → 再生する。
+その先（イベント、パーツ単位の上書き、ライブリロード）も同じ道の続きで、[ドキュメント](docs/ja/index.md)にあります。
+**Player 自体や、その下の Rust ランタイムを変更する場合**は [2 章](#-2-フル開発環境sdk--player-開発者)へ。
 
 ### セットアップ
 
@@ -101,7 +106,10 @@ class _MyState extends State<MyWidget> with SingleTickerProviderStateMixin {
 > `hook/build.dart` はピン留めした SDK リリースからプリビルドを**自動ダウンロード**するので
 > Rust ツールチェーンは不要です（ソースからビルドする場合のみ 2 章参照）。
 
-### 動作確認
+### チェックアウトから動かしてみる
+
+> 🚧 pub.dev 公開までは、これが動いているところを見る方法です。上のインストール手順の一部では
+> なくチェックアウトなので、パッケージを使うだけなら不要です。
 
 同梱のサンプルを起動して動作を確認します。**Rust ツールチェーンは不要** —— 各パッケージの
 `hook/build.dart` が、ピン留めした SDK リリースからプリビルド（`libssruntime` / `libssconverter`）を
@@ -127,7 +135,7 @@ cd examples\overall; flutter run
 
 ### 自分の `.sspj` を変換する
 
-SpriteStudio のプロジェクト（`.sspj` + `.ssae` + 画像）を **`SpriteStudio_Source/`** フォルダに入れ、
+対応するのは **SpriteStudio 7.5 以上**で作成されたプロジェクトです。`.sspj` + `.ssae` + 画像を **`SpriteStudio_Source/`** フォルダに入れ、
 `ssconverter_dart` の CLI で変換します（`-e` で自己完結の embedded `.ssab`。配布向け）。**Rust ツール
 チェーンは不要** —— `libssconverter` は自動ダウンロードされます:
 
@@ -146,8 +154,8 @@ dart run ssconverter_dart:ssconvert -e -o assets/spritestudio/MyChar/ SpriteStud
 ## ⚙️ 2. フル開発環境（SDK / Player 開発者）
 
 コア（Rust ランタイム / Player）をソースから開発する場合。**前提**: Rust（`rustup`）、
-Flutter 3.47+ / Dart 3.13+（Native Assets が標準。ネイティブ Brain 同梱に CocoaPods／vendored
-framework は不要。下限を 3.47 にしているのは flutter_gpu バックエンド）。`flatc` は `.fbs` を再生成するときだけ。cbindgen は SDK の `build.rs` が
+Flutter / Dart は[インストール](docs/ja/guide/install.md)の下限以上（Native Assets が標準。ネイティブ Brain 同梱に CocoaPods／vendored
+framework は不要）。`flatc` は `.fbs` を再生成するときだけ。cbindgen は SDK の `build.rs` が
 build-dependency として使うため個別導入不要。
 
 **macOS / Linux:**
@@ -168,6 +176,15 @@ cd examples\overall; flutter run
 ```
 
 実装規約・要注意点・Native Assets 同梱は [AGENTS.md](./AGENTS.md)、今後の作業は [ROADMAP.md](./ROADMAP.md) を参照してください。
+
+## 🎬 サンプル
+
+[`examples/`](./examples/) にすぐ動かせるアプリがあります。先に `scripts/deploy-examples.*` を
+一度実行してください（SDK のテストプロジェクトを、各サンプルが読み込む `.ssab` へ変換します）。
+
+- [overall](./examples/overall) — まず開くのはこちら。`tests/overall` を再生し、ドロップダウンでアニメを切り替えられます。
+- [flame](./examples/flame) — [`ssplayer_flame`](./packages/ssplayer_flame) アダプタのサンプル。`FlameGame` に `SpriteStudioComponent` を 1 つ載せて Ringo を再生し、タップで再生 / 一時停止を切り替えます。
+- [part_following](./examples/part_following) — `SpriteStudioPartAnchor` で通常の Flutter ウィジェットをパーツに貼り付け、位置・回転・スケールを毎フレーム追従させます。
 
 ## 🔗 関連リポジトリ
 
