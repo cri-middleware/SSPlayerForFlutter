@@ -830,7 +830,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   // ForGodot's part attachment, done the Flutter way). No C-API of its own: the
   // Brain already emits a world matrix per part every update; these just
   // re-sample the current frame and slice it. Address parts by index (resolve a
-  // name once through [partIndexOf]); the results are borrows recomputed per
+  // name once through [findPartIndex]); the results are borrows recomputed per
   // call, so read them within the frame.
 
   /// The current-frame world transform of [partIndex] as a [Matrix4] in

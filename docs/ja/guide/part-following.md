@@ -114,8 +114,8 @@ SpriteStudioPartAnchor(
 final partIndex = _player.findPartIndex(partName);
 
 // そのパーツの現在フレームの姿勢（プレイヤーローカル＝アニメーション空間）。
-final Matrix4? pose = _player.partTransformOf(partIndex);
-if (pose != null && !_player.isPartHiddenOf(partIndex)) {
+final Matrix4? pose = _player.partTransformByIndex(partIndex);
+if (pose != null && !_player.isPartHiddenByIndex(partIndex)) {
   final x = pose.storage[12];
   final y = pose.storage[13];
   // ... (x, y) に弾を発射する、自前のコンポーネントを配置する、など
@@ -127,11 +127,11 @@ if (pose != null && !_player.isPartHiddenOf(partIndex)) {
 | `findPartIndex(name)` | パーツインデックス。パックに無ければ `-1` |
 | `partNames` | パーツ名一覧 / 名前⇔インデックスの相互解決（`PartNameTable`） |
 | `partTransform(name)` | そのパーツの現在フレームの変換行列を `Matrix4?` で返す（プレイヤーローカル）。`load()` 前や不明なパーツでは null |
-| `partTransformOf(index)` | `partTransform` のインデックス指定版（名前解決を省略） |
+| `partTransformByIndex(index)` | `partTransform` のインデックス指定版（名前解決を省略） |
 | `isPartHidden(name)` | そのパーツが現在フレームで hide かを返す。`load()` 前や不明なパーツでは `false` |
-| `isPartHiddenOf(index)` | `isPartHidden` のインデックス指定版 |
+| `isPartHiddenByIndex(index)` | `isPartHidden` のインデックス指定版 |
 | `isPartSkinnedMesh(name)` | そのパーツがボーンバインドされた（スキン）メッシュか＝**追従に向かないパーツ**かを返す（上記の警告を参照）。`load()` 前・不明なパーツ・リジッドメッシュでは `false` |
-| `isPartSkinnedMeshOf(index)` | `isPartSkinnedMesh` のインデックス指定版 |
+| `isPartSkinnedMeshByIndex(index)` | `isPartSkinnedMesh` のインデックス指定版 |
 
 !!! tip "一瞬だけ知りたいならアンカーは不要です"
     常時追従させるまでもなく「その瞬間のパーツ位置だけ知りたい」場合（弾の発射位置を取るなど）は、`SpriteStudioPartAnchor` を配置せず `partTransform()` を直接呼ぶ方が簡潔です。

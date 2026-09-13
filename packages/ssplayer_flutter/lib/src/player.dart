@@ -887,8 +887,8 @@ class SpriteStudioPlayer extends ChangeNotifier {
   }
 
   /// Index form of [partTransform] (skips the name lookup when the caller
-  /// already resolved the index through [partIndexOf]).
-  Matrix4? partTransformOf(int partIndex) =>
+  /// already resolved the index through [findPartIndex]).
+  Matrix4? partTransformByIndex(int partIndex) =>
       _internal?.partWorldMatrix(partIndex);
 
   /// Whether the part named [partName] is hidden on the current frame (keyframe
@@ -901,7 +901,7 @@ class SpriteStudioPlayer extends ChangeNotifier {
   }
 
   /// Index form of [isPartHidden].
-  bool isPartHiddenOf(int partIndex) => _internal?.partHidden(partIndex) ?? false;
+  bool isPartHiddenByIndex(int partIndex) => _internal?.partHidden(partIndex) ?? false;
 
   /// Whether the part named [partName] is a **bone-bound (skinned) mesh**, or
   /// false before [load] / for an unknown part.
@@ -924,7 +924,7 @@ class SpriteStudioPlayer extends ChangeNotifier {
   }
 
   /// Index form of [isPartSkinnedMesh].
-  bool isPartSkinnedMeshOf(int partIndex) =>
+  bool isPartSkinnedMeshByIndex(int partIndex) =>
       _internal?.partSkinnedMesh(partIndex) ?? false;
 
   /// Force-hides a part, or reverts it to the animation. See
