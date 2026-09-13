@@ -41,7 +41,38 @@ Legend: ☐ **Ready** (Player-only, can start now) · ⛔ **Blocked on SDK** (ne
   kinds, plus fitting the animation's design bounds into the destination box.
   Unimplemented on both render backends.
 
-## SDK-integration features (⛔ blocked on SDK Phase 3)
+## UI integration (widget-side)
+
+Behaving like a Flutter widget, not merely painting inside one. `Nines` / `Text` /
+`BoxFit` above is the drawing half of this; these are the parts of a widget the
+view does not implement yet. The vocabulary is shared with the sibling Players:
+`fit` / `align` for placement, a part rect read-out for hit areas, and a UI-state
+map.
+
+- ☐ **Intrinsic sizing** — `SpriteStudioRenderBox` has no intrinsic dimensions and
+  `computeDryLayout` constrains `width ?? infinity`, so the view collapses or
+  overflows wherever the constraints are unbounded (a `Row`, a `ListView`, an
+  `IntrinsicHeight`) and a caller must hand it explicit numbers. Report the
+  animation's content box through `computeMinIntrinsicWidth` and friends, from the
+  same measurement `BoxFit` needs, so `Row` / `Wrap` / `FittedBox` can size it.
+- ☐ **Per-part hit testing** — `hitTestSelf` is not overridden, so the box is
+  transparent to pointers and a `GestureDetector` around it answers for the whole
+  rectangle. Add `partRectOf(part)` (built from the `PartState` fields the runtime
+  already delivers every frame — `size_x` / `size_y`, `anchor`, `pivot` — and the
+  part transform), then `hitTestPart(Offset)`, and answer `hitTestSelf` from it so
+  an irregular button stops eating taps around its artwork.
+- ☐ **UI state binding** — a widget that drives the player from
+  `WidgetStatesController` (`hovered` / `pressed` / `disabled` / `focused`), each
+  state mapped to an animation or a label, so a player drops into an `InkWell` or a
+  `ButtonStyleButton` and reacts like the rest of the button does.
+- ☐ **Semantics** — the view contributes no `SemanticsNode`, so a player used as a
+  control is invisible to screen readers and to widget tests that look up by label.
+  Take a `semanticsLabel` and mark a decorative player as excluded.
+- ☐ **Carry the fit into `SpriteStudioPartAnchor`** — the anchor documents that it
+  assumes the view draws unscaled. It has to apply the same fit transform the day
+  `BoxFit` lands, or every follower comes off its part on a fitted view.
+
+## SDK-integration features (⛔ blocked on the SDK)
 
 - ⛔ **Dynamic instance animation swap** — replace the animation mounted on an
   Instance part at runtime. Waits on the SDK **Instance Lifecycle API**.
@@ -50,6 +81,12 @@ Legend: ☐ **Ready** (Player-only, can start now) · ⛔ **Blocked on SDK** (ne
 - ⛔ **Replicate / crowd rendering** — draw many instances of one animation cheaply
   from a single evaluated `FrameData`. Waits on the SDK **Instance Lifecycle API**
   (shared evaluation context).
+- ⛔ **Stretch a `Nines` part to the layout box** — the runtime evaluates a
+  Nines part's size from its keyframes and hands over finished vertices, and the
+  Override Layer covers colour / cell / visibility only, so nothing can resize
+  one from the host: an authored window frame cannot follow the box Flutter
+  gives it. Waits on the SDK **Per-part size override** (Phase 3) — the Override
+  Layer extended with `size_x` / `size_y`.
 
 ## Distribution & verification
 
