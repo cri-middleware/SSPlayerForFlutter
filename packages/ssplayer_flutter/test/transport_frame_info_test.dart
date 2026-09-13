@@ -87,6 +87,52 @@ void main() {
     expect(player.frameRate, authored, reason: 'clearing restores the pack rate');
   });
 
+  test('a frameRate override set before load reaches the player', () async {
+    // The other three transport settings are cached on the Player so they can
+    // be set before the first load; `frameRate` was the one that only pushed to
+    // a Layer 2 that did not exist yet, so the write went nowhere and the
+    // read-back said 0.
+    if (ssabPath == null) {
+      markTestSkipped('Basic.ssab missing — run deploy-examples.sh');
+      return;
+    }
+    final bytes = Uint8List.fromList(File(ssabPath).readAsBytesSync());
+    final player = SpriteStudioPlayer();
+    addTearDown(player.dispose);
+
+    player.frameRate = 48;
+    player.loopCount = 3;
+    expect(player.frameRate, 48, reason: 'readable back before there is a pack');
+
+    await player.load(bytes, loadTextures: false);
+    player.setAnimation(player.animationNames.first);
+    expect(player.frameRate, 48, reason: 'the override reached the new player');
+    expect(player.loopCount, 3, reason: 'its siblings already did');
+  });
+
+  test('a frameRate override survives reload', () async {
+    // `reload` is the live-reload path the file watcher drives, and it builds a
+    // fresh Layer 2. Everything else the host configured comes back with it.
+    if (ssabPath == null) {
+      markTestSkipped('Basic.ssab missing — run deploy-examples.sh');
+      return;
+    }
+    final bytes = Uint8List.fromList(File(ssabPath).readAsBytesSync());
+    final player = SpriteStudioPlayer();
+    addTearDown(player.dispose);
+    await player.load(bytes, loadTextures: false);
+    player.setAnimation(player.animationNames.first);
+
+    final authored = player.frameRate;
+    player.frameRate = authored * 2;
+    player.speedScale = 2.0;
+
+    await player.reload(bytes, loadTextures: false);
+    expect(player.frameRate, authored * 2,
+        reason: 'the override outlives the swap, like speed does');
+    expect(player.speedScale, 2.0);
+  });
+
   test('isFinished latches on completion; justLooped marks the crossing tick',
       () async {
     final player = await loadedPlayer();

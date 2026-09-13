@@ -70,6 +70,7 @@ class SpriteStudioPlayer extends ChangeNotifier {
   int? _loop;
   double? _speed;
   bool? _skipFrames;
+  int? _frameRate;
 
   /// Sub-frame interpolation (default ON): smooth playback beyond the source
   /// FPS. Applies to the current and future loaded animations.
@@ -637,8 +638,9 @@ class SpriteStudioPlayer extends ChangeNotifier {
   }
 
   /// Frames per second the animation advances at — the rate authored in the
-  /// pack unless overridden. 0 before [load].
-  int get frameRate => _internal?.fps ?? 0;
+  /// pack unless overridden. Before [load] there is no pack to read, so this
+  /// reports the override if one was set and 0 otherwise.
+  int get frameRate => _internal?.fps ?? _frameRate ?? 0;
 
   /// Overrides the advance rate, in absolute frames per second.
   ///
@@ -648,6 +650,7 @@ class SpriteStudioPlayer extends ChangeNotifier {
   /// animation was authored at. To scale playback without replacing the
   /// authored rate, use [speedScale] instead.
   set frameRate(int fps) {
+    _frameRate = fps;
     _internal?.frameRate = fps;
   }
 
@@ -661,14 +664,22 @@ class SpriteStudioPlayer extends ChangeNotifier {
   // on their own since SDK #369/#370, so these two only matter for the first
   // setup after a value was set.
   //
-  // Nothing else needs pushing: `speed`, `skipFrames`, the `frameRate` override
-  // and the playback direction / style all survive setup in the Brain. The
-  // section is the one thing left to reset, and deliberately -- a range of frame
-  // numbers means nothing against a different animation.
+  // `frameRate` is here for the same reason as `speed` and `skipFrames`, and
+  // not for the reason `loop` is: the Brain keeps an fps override across a
+  // transition, so this is not about surviving setup. It is about reaching a
+  // player that did not exist when the host set it — before the first [load],
+  // and again after [reload] builds a new one.
+  //
+  // The playback direction / style are the ones that genuinely need nothing:
+  // they survive setup in the Brain and have no pre-[load] path, because they
+  // are set through a method rather than cached here. The section is the one
+  // thing left to reset, and deliberately -- a range of frame numbers means
+  // nothing against a different animation.
   void _applyTransportSettings(SpriteStudioInternalPlayer internal) {
     if (_loop != null) internal.loopCount = _loop!;
     if (_speed != null) internal.speedScale = _speed!;
     if (_skipFrames != null) internal.frameSkipEnabled = _skipFrames!;
+    if (_frameRate != null) internal.frameRate = _frameRate!;
   }
 
   double get frameNo => _internal?.frameNo ?? 0;
