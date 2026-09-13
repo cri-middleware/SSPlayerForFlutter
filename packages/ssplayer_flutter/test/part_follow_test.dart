@@ -91,11 +91,11 @@ void main() {
       // A UI that queries a pose while the pack is still loading is not a bug —
       // like the overrides, these no-op rather than throw.
       expect(player.partTransform('apple'), isNull);
-      expect(player.partTransformOf(0), isNull);
+      expect(player.partTransformByIndex(0), isNull);
       expect(player.isPartHidden('apple'), isFalse);
-      expect(player.isPartHiddenOf(0), isFalse);
+      expect(player.isPartHiddenByIndex(0), isFalse);
       expect(player.isPartSkinnedMesh('apple'), isFalse);
-      expect(player.isPartSkinnedMeshOf(0), isFalse);
+      expect(player.isPartSkinnedMeshByIndex(0), isFalse);
     });
 
     test('resolve by name and by index to the same matrix after a frame',
@@ -110,7 +110,7 @@ void main() {
 
       final apple = player.findPartIndex('apple');
       final byName = player.partTransform('apple');
-      final byIndex = player.partTransformOf(apple);
+      final byIndex = player.partTransformByIndex(apple);
       expect(byName, isNotNull);
       expect(byIndex, isNotNull);
       expect(byName!.storage, byIndex!.storage);
@@ -134,7 +134,7 @@ void main() {
       final table = PartNameTable.readAll(bytes);
       for (var i = 0; i < table.length; i++) {
         final expected = table.isSkinnedMeshAt(i);
-        expect(player.isPartSkinnedMeshOf(i), expected,
+        expect(player.isPartSkinnedMeshByIndex(i), expected,
             reason: 'index $i (${table.nameAt(i)})');
         final name = table.nameAt(i);
         if (name != null && name.isNotEmpty) {
@@ -144,8 +144,8 @@ void main() {
 
       // It is a read, not a gate: unknown / out-of-range are a quiet false.
       expect(player.isPartSkinnedMesh('no-such-part'), isFalse);
-      expect(player.isPartSkinnedMeshOf(-1), isFalse);
-      expect(player.isPartSkinnedMeshOf(1 << 20), isFalse);
+      expect(player.isPartSkinnedMeshByIndex(-1), isFalse);
+      expect(player.isPartSkinnedMeshByIndex(1 << 20), isFalse);
     });
   });
 

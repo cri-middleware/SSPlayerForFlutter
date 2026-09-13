@@ -251,9 +251,9 @@ void main() {
       player.advance(const Duration(milliseconds: 16));
       final apple = player.findPartIndex('apple');
       player.flipY = true;
-      final both = player.partTransformOf(apple)!;
+      final both = player.partTransformByIndex(apple)!;
       player.rootTransform = SsRootTransform.identity;
-      final plain = player.partTransformOf(apple)!;
+      final plain = player.partTransformByIndex(apple)!;
       expect(both.storage[12], -plain.storage[12] + 4);
       expect(both.storage[13], -plain.storage[13] + 6);
     });

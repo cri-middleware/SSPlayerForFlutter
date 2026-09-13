@@ -113,8 +113,8 @@ hand — from a Flame component, a `CustomPainter`, or your own layout code.
 final partIndex = _player.findPartIndex(partName);
 
 // The part's current-frame pose, in player-local (animation) space.
-final Matrix4? pose = _player.partTransformOf(partIndex);
-if (pose != null && !_player.isPartHiddenOf(partIndex)) {
+final Matrix4? pose = _player.partTransformByIndex(partIndex);
+if (pose != null && !_player.isPartHiddenByIndex(partIndex)) {
   final x = pose.storage[12];
   final y = pose.storage[13];
   // ... spawn a projectile at (x, y), place your own component, etc.
@@ -126,11 +126,11 @@ if (pose != null && !_player.isPartHiddenOf(partIndex)) {
 | `findPartIndex(name)` | Part index, or `-1` if the pack has no such part |
 | `partNames` | Part-name list and name↔index lookup (`PartNameTable`) |
 | `partTransform(name)` | The part's transform for the current frame as a `Matrix4?` (player-local). Null before `load()` or for an unknown part |
-| `partTransformOf(index)` | Index form of `partTransform` (skips the name lookup) |
+| `partTransformByIndex(index)` | Index form of `partTransform` (skips the name lookup) |
 | `isPartHidden(name)` | Whether the part is hidden on the current frame. `false` before `load()` or for an unknown part |
-| `isPartHiddenOf(index)` | Index form of `isPartHidden` |
+| `isPartHiddenByIndex(index)` | Index form of `isPartHidden` |
 | `isPartSkinnedMesh(name)` | Whether the part is a bone-bound (skinned) mesh — a **poor follow target** (see the warning above). `false` before `load()`, for an unknown part, and for a rigid mesh |
-| `isPartSkinnedMeshOf(index)` | Index form of `isPartSkinnedMesh` |
+| `isPartSkinnedMeshByIndex(index)` | Index form of `isPartSkinnedMesh` |
 
 !!! tip "One-shot reads need no anchor"
     When you only want the part's position at a single moment — a projectile spawn point, for example — rather than continuous following, calling `partTransform()` directly is simpler than mounting a `SpriteStudioPartAnchor`.
