@@ -32,6 +32,28 @@ flutter_gpu backend needs the GPU API that landed in 3.47.
 ## Use
 
 ```dart
+SpriteStudioAnimation.asset(
+  'assets/overall/Basic.ssab',
+  width: 400,
+  height: 400,
+)
+```
+
+It reads the bytes from the asset bundle, resolves sibling reference textures
+from the key's own folder (embedded packs too), selects the pack's first
+animation, loops it, and disposes everything with the widget. `animation:`
+chooses another; `placeholder:` is what to show until the first frame is
+drawable; `onError:` hears about a load that failed.
+
+### Owning the player
+
+`SpriteStudioAnimation` builds a player because most screens do not want one.
+When yours does — swapping animations from a state machine, subscribing to
+events, sticking a widget to a part, or driving the clock yourself — build a
+`SpriteStudioPlayer` and hand it to `SpriteStudioView`, which is a plain
+`RenderBox` you position, transform and clip like any other widget:
+
+```dart
 class _MyState extends State<MyWidget> with SingleTickerProviderStateMixin {
   late final SpriteStudioPlayer _player = SpriteStudioPlayer(vsync: this);
 
@@ -42,8 +64,6 @@ class _MyState extends State<MyWidget> with SingleTickerProviderStateMixin {
   }
 
   Future<void> _init() async {
-    // Reads the bytes from the asset bundle and resolves sibling reference
-    // textures from the key's own folder (embedded packs too).
     await _player.loadAsset('assets/overall/Basic.ssab');
     _player
       ..setAnimation(_player.animationNames.first)
@@ -59,9 +79,6 @@ class _MyState extends State<MyWidget> with SingleTickerProviderStateMixin {
       SpriteStudioView(player: _player, width: 400, height: 400);
 }
 ```
-
-`SpriteStudioView` is a plain `RenderBox` — position, transform and clip it like
-any other widget.
 
 ### Notes
 

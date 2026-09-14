@@ -63,33 +63,21 @@ dependencies:
 The minimal code to embed a `.ssab` animation (you supply the `.ssab` — see [Convert your own](#convert-your-own-sspj)):
 
 ```dart
-class _MyState extends State<MyWidget> with SingleTickerProviderStateMixin {
-  late final SpriteStudioPlayer _player = SpriteStudioPlayer(vsync: this);
-
-  @override
-  void initState() {
-    super.initState();
-    _init();
-  }
-
-  Future<void> _init() async {
-    // loadAsset reads the bytes and resolves sibling reference textures from the
-    // key's own folder — no baseAssetDir needed (embedded packs work too).
-    await _player.loadAsset('assets/spritestudio/overall/Basic.ssab');
-    _player
-      ..setAnimation(_player.animationNames.first)
-      ..loopCount = -1
-      ..play();
-  }
-
-  @override
-  void dispose() { _player.dispose(); super.dispose(); }
-
-  @override
-  Widget build(BuildContext context) =>
-      SpriteStudioView(player: _player, width: 400, height: 400);
-}
+SpriteStudioAnimation.asset(
+  'assets/spritestudio/overall/Basic.ssab',
+  width: 400,
+  height: 400,
+)
 ```
+
+That reads the bytes, resolves sibling reference textures from the key's own
+folder (embedded packs too), selects the pack's first animation, loops it, and
+disposes everything with the widget. Pass `animation:` to choose another,
+`placeholder:` for what to show until the first frame is drawable.
+
+Want to own the player — to swap animations from a state machine, subscribe to
+events, or stick a widget to a part? Build a `SpriteStudioPlayer` and hand it to
+`SpriteStudioView`; see [Quick start](./docs/en/guide/quickstart.md).
 
 > ⚠️ The native runtime (`libssruntime`, the Rust core shared by every official player) is
 > required. It is bundled automatically by the

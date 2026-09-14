@@ -6,7 +6,6 @@
 // and `setAnimation` compares against that same field, so re-asking for the very
 // same bad name returned `true` without doing anything.
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
