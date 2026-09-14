@@ -39,16 +39,24 @@ class SsAnimeInfo {
 
   /// The authored design-canvas size (SpriteStudio `<canvasSize>`) of animation
   /// [name], in player-local pixels, or null when the animation is unknown or
-  /// carries no canvas rect.
+  /// carries no canvas.
   ///
-  /// Only the *size* is exposed: the stored rect's offset is in authoring space
-  /// (top-left origin), not the runtime's origin-relative space, so it would be
-  /// misleading for a caller sizing a box around the runtime origin (which the
-  /// Brain places somewhere inside the canvas, not at its corner).
+  /// **The `.ssab`'s `canvas` field is not a rectangle.** Its schema type says
+  /// `Rect`, but the converter packs two different things into it — `x1`/`y1`
+  /// are the animation's `<pivot>` and `x2`/`y2` are its `<canvasSize>`
+  /// (`ssconverter`, `model_t/animedata.rs`). Reading it as a rect and taking
+  /// `x2 - x1` therefore subtracts the pivot from the size: right only while the
+  /// pivot is `0`, which is what most authored animations happen to have.
+  ///
+  /// The pivot half is deliberately **not** exposed here. It is the only record
+  /// of where the runtime origin sits inside the authored canvas, so something
+  /// will want it — but naming it is the SDK's call, not one port's: the
+  /// schema's `canvas: Rect` wants settling first, and a stem belongs in the
+  /// Player API conventions before the first Player ships one.
   ui.Size? canvasSize(String name) {
     final c = _animationByName(name)?.canvas;
     if (c == null) return null;
-    return ui.Size((c.x2 - c.x1).abs(), (c.y2 - c.y1).abs());
+    return ui.Size(c.x2, c.y2);
   }
 
   /// Names of the cellmaps referenced by this pack.
