@@ -68,7 +68,12 @@ void main() {
     // asserting a typo every frame must not fill the console.
     final missing = lines.where((l) => l.contains('wakl')).toList();
     expect(missing, hasLength(1), reason: lines.join('\n'));
-    expect(missing.single, contains('has no animation "wakl"'));
+    expect(missing.single, contains('could not select animation "wakl"'));
+    // The Brain's own wording, carried through `ss_runtime_get_last_error` and
+    // `ss_runtime_error_message`. Asserting it is what pins the whole chain:
+    // the C ABI, the generated bindings, L2's accessor and L3's report.
+    expect(missing.single, contains('Animation not found'),
+        reason: 'the reason should come from the runtime, not be assumed');
 
     // A different wrong name is a different report.
     expect(player.setAnimation('also_wrong'), isFalse);

@@ -74,6 +74,21 @@ abstract interface class SsRuntime {
 
   bool setupAnimation(SsContext context, String name);
 
+  /// Why the last call on [context] that tracks a reason failed, or null when
+  /// the last such call succeeded.
+  ///
+  /// The Brain's own wording, not a code: a Player reports it, it does not
+  /// branch on it. (Branching would mean hard-coding the integers from
+  /// `SSRuntimeError::as_code`, which the C ABI publishes as a compatibility
+  /// surface but exports no constants for.)
+  ///
+  /// The two backends reach it differently and mean the same thing. Native asks
+  /// the context, which records a reason on every fallible call. The wasm face
+  /// has no such accessor — it throws instead — so the web backend keeps what it
+  /// caught. Either way this is the reason for the *last* failure, so read it
+  /// straight after the call that returned `false`.
+  String? lastErrorMessage(SsContext context);
+
   /// Canonical name→id hash (FNV-1a in the Brain — never re-implement in Dart).
   int hashString(String name);
 

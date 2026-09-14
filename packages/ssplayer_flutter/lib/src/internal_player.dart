@@ -335,6 +335,12 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
 
   // --- Setup / transport ---------------------------------------------------
 
+  /// Why the last call that tracks a reason failed, or null when it succeeded.
+  ///
+  /// Read it straight after the call that returned `false` — it is the reason
+  /// for the *last* failure, not a log.
+  String? get lastErrorMessage => ssRuntime.lastErrorMessage(_context);
+
   /// Selects the animation to play by name and rewinds to frame 0.
   bool setupAnimation(String name) {
     _ensureAlive();

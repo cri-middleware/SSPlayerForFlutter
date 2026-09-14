@@ -517,7 +517,14 @@ class SpriteStudioPlayer extends ChangeNotifier {
     if (_reportedMissingAnimation == name) return;
     _reportedMissingAnimation = name;
     final where = _sourceLabel ?? 'the loaded pack';
-    debugPrint('SpriteStudioPlayer: $where has no animation "$name". '
+    // The Brain's own reason, verbatim. It used to say "has no animation",
+    // which is the common case and not the only one: a player whose pack never
+    // bound fails the same call with `SSAB data is not loaded`, and being told
+    // the name is missing sends the reader to look at the wrong thing.
+    final reason = _internal?.lastErrorMessage;
+    final because = reason == null ? '' : ' — $reason';
+    debugPrint(
+        'SpriteStudioPlayer: $where could not select animation "$name"$because. '
         'Check animationNames for what it does have.');
   }
 
