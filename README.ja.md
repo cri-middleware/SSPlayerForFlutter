@@ -60,33 +60,21 @@ dependencies:
 `.ssab` アニメを組み込む最小コードです（`.ssab` は事前に用意します —— [自分の `.sspj` を変換する](#自分の-sspj-を変換する)参照）:
 
 ```dart
-class _MyState extends State<MyWidget> with SingleTickerProviderStateMixin {
-  late final SpriteStudioPlayer _player = SpriteStudioPlayer(vsync: this);
-
-  @override
-  void initState() {
-    super.initState();
-    _init();
-  }
-
-  Future<void> _init() async {
-    // loadAsset がバイト列を読み、reference テクスチャ（同じフォルダの PNG）を
-    // キー自身のフォルダから解決します。baseAssetDir は不要（embedded も同じ）。
-    await _player.loadAsset('assets/spritestudio/overall/Basic.ssab');
-    _player
-      ..setAnimation(_player.animationNames.first)
-      ..loopCount = -1
-      ..play();
-  }
-
-  @override
-  void dispose() { _player.dispose(); super.dispose(); }
-
-  @override
-  Widget build(BuildContext context) =>
-      SpriteStudioView(player: _player, width: 400, height: 400);
-}
+SpriteStudioAnimation.asset(
+  'assets/spritestudio/overall/Basic.ssab',
+  width: 400,
+  height: 400,
+)
 ```
+
+これでバイト列を読み、reference テクスチャ（同じフォルダの PNG）をキー自身のフォルダから
+解決し（embedded も同じ）、パックの最初のアニメを選んでループ再生し、ウィジェットと一緒に
+すべて破棄します。別のアニメを選ぶなら `animation:`、最初のフレームが描けるまでの表示は
+`placeholder:` です。
+
+プレイヤーを自分で持ちたい場合 —— ステートマシンからアニメを差し替える、イベントを購読する、
+ウィジェットをパーツに貼り付ける —— は `SpriteStudioPlayer` を作って `SpriteStudioView` に
+渡してください。→ [クイックスタート](./docs/ja/guide/quickstart.md)
 
 > ⚠️ ネイティブランタイム（`libssruntime`。各公式 Player が共通で使う Rust コア）が必要です。これは依存先 `ssruntime_dart` の
 > **Native Assets**（`hook/build.dart`）がアプリに自動同梱します（プラグイン／framework 配線は不要）。
