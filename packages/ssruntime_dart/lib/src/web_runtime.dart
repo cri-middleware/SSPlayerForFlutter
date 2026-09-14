@@ -264,6 +264,14 @@ extension type _JsInstance(JSObject _) implements JSObject {
 class _WebContext implements SsContext {
   _WebContext(this.js);
   final _JsCtx js;
+
+  /// What the wasm face threw on the last call that tracks a reason.
+  ///
+  /// The native side records this inside the Brain and hands it back through
+  /// `ss_runtime_get_last_error`; the wasm face throws instead, so the reason
+  /// only exists for as long as the `catch` that sees it. Kept here so the two
+  /// backends can answer `lastErrorMessage` the same way.
+  String? lastError;
 }
 
 class _WebResource implements SsResource {
@@ -346,13 +354,22 @@ class _WebRuntime implements SsRuntime {
 
   @override
   bool setupAnimation(SsContext context, String name) {
+    final ctx = context as _WebContext;
     try {
-      _ctx(context).setup_animation(name);
+      ctx.js.setup_animation(name);
+      ctx.lastError = null;
       return true;
-    } catch (_) {
+    } catch (e) {
+      // `catch (_)` used to drop this. The wasm face formats the Brain's error
+      // with `Display`, so what arrives is the wording a user should see.
+      ctx.lastError = e.toString();
       return false;
     }
   }
+
+  @override
+  String? lastErrorMessage(SsContext context) =>
+      (context as _WebContext).lastError;
 
   @override
   int hashString(String name) =>

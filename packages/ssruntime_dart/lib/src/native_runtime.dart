@@ -143,6 +143,16 @@ class _NativeRuntime implements SsRuntime {
   }
 
   @override
+  String? lastErrorMessage(SsContext context) {
+    final code = ss_runtime_get_last_error(_ctx(context));
+    if (code == 0) return null;
+    // Borrowed from the runtime and valid until the next call to this function
+    // on this context, so copy it out before returning.
+    final text = ss_runtime_error_message(code).cast<Utf8>().toDartString();
+    return text.isEmpty ? null : text;
+  }
+
+  @override
   int hashString(String name) {
     final cName = name.toNativeUtf8();
     try {
