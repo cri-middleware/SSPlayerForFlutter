@@ -45,7 +45,8 @@ backend over the SDK's wasm-bindgen build, bundled as a Flutter asset under
 | `ssgen_dart`       | Host lib: reconvert only the *stale* `.sspj` in a dir (mtime-diff over `ssconverter_dart`). Desktop. |
 | `ssgen_flutter`    | Dev-only live-reload: `SsLiveReload` mixin + `SsDevChannel` (VM Service) + the `sswatch` host runner that pushes fresh packs into the running app. |
 
-Examples: `examples/overall` (Basic validation) and `examples/flame`.
+Examples: `examples/overall` (Basic validation), `examples/flame` and
+`examples/part_following` (`SpriteStudioPartAnchor`).
 
 **L2 render internals** (`ssplayer_flutter/lib/src/render/`): `geometry_builder.dart`
 (SoA→geometry bake — `ui.Vertices` for Canvas and interleaved VBOs for GPU — plus `DrawFrame`,
