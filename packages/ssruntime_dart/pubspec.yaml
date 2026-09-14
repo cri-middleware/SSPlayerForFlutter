@@ -19,9 +19,9 @@ environment:
 dependencies:
   flat_buffers: ^25.9.23
   ffi: ^2.2.0
-  hooks: ^2.0.2
+  hooks: ^2.2.0
   code_assets: ^2.0.0
-  archive: ^4.1.0
+  archive: ^4.3.0
   crypto: ^3.0.7
 
 dev_dependencies:
