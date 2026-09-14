@@ -11,7 +11,7 @@ environment:
   flutter: ">=3.38.0"
 
 dependencies:
-  desktop_drop: ^0.8.0
+  desktop_drop: ^0.8.4
   flutter:
     sdk: flutter
   ssplayer_flutter:

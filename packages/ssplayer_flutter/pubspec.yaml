@@ -35,7 +35,7 @@ dependencies:
   flutter_gpu:
     sdk: flutter
   flutter_gpu_shaders: ^0.5.2
-  hooks: ^2.0.2
+  hooks: ^2.2.0
 
 dev_dependencies:
   flutter_test:
