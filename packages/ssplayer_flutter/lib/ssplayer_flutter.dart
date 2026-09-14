@@ -8,6 +8,9 @@ library;
 
 // Layer 4 — drawing adapters.
 export 'src/render/sprite_studio_view.dart';
+// The same layer, for the caller who has no reason to own a player: builds one
+// from an asset key, loads it, starts it and disposes it.
+export 'src/render/sprite_studio_animation.dart' show SpriteStudioAnimation;
 // Part following (ForUnity part tracker / ForGodot part attachment, done the
 // Flutter way): a Widget that sticks to a part's live transform. The read API it
 // drives (partTransform / isPartHidden) lives on SpriteStudioPlayer.

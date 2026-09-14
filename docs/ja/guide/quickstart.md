@@ -20,6 +20,40 @@ flutter:
 ## 2. 読み込んで再生する
 
 ```dart
+SpriteStudioAnimation.asset(
+  'assets/overall/Basic.ssab',
+  width: 400,
+  height: 400,
+)
+```
+
+これで全部です。このウィジェットがプレイヤーを作り、アセットバンドルからバイト列を読み
+（reference テクスチャはキー自身のフォルダから解決。embedded も同じ）、パックの最初の
+アニメを選んでループ再生を始め、ウィジェットと一緒に破棄します。別のアニメを選ぶなら
+`animation:`、1 フレーム目で止めておくなら `autoPlay: false`、最初のフレームが描けるまでの
+表示は `placeholder:`、ロード失敗を受け取るなら `onError:` です。
+
+## 渡せるもの
+
+| 引数 | 役割 |
+|---|---|
+| `animation` | 選択するアニメ名。省略するとパックの最初。未選択のパックは空の箱を描き、それはロード失敗と見分けが付きません。 |
+| `width` / `height` | 描画する箱。省略すると親の制約に従います。 |
+| `loopCount` | `-1` で無限ループ、`n > 0` で n 回。→ [再生とイベント](playback.md) |
+| `autoPlay` | 既定でオン。オフにすると 1 フレーム目のポーズで止まります（`autoplay` の無い `<video>` がポスターを出すのと同じ）。 |
+| `placeholder` | 最初のフレームが描けるまでの表示。設定する価値があります —— それまで描くものは無く、空の箱は壊れたパックと同じ見た目だからです。 |
+| `onError` | ロード失敗時に呼ばれます。設定しないと未処理の非同期エラーとしてゾーンへ流れます。 |
+| `onPlayerCreated` | 引数でカバーしていない API に手を伸ばすためにプレイヤーを渡します。破棄はウィジェットがやるので、呼び出し側でしないでください。 |
+| `bundle` / `backend` | 読み込む `AssetBundle` と、描画バックエンド。 |
+
+## プレイヤーを自分で持つ場合
+
+`SpriteStudioAnimation` がプレイヤーを作るのは、たいていの画面がそれを欲しがらないからです。
+欲しい場合 —— ステートマシンからアニメを差し替える、イベントを購読する、ウィジェットを
+パーツに貼り付ける、クロックを別から駆動する —— は
+[`SpriteStudioPlayer`](playback.md) を自分で作って `SpriteStudioView` に渡してください。
+
+```dart
 class _MyState extends State<MyWidget> with SingleTickerProviderStateMixin {
   late final SpriteStudioPlayer _player = SpriteStudioPlayer(vsync: this);
 
@@ -30,8 +64,6 @@ class _MyState extends State<MyWidget> with SingleTickerProviderStateMixin {
   }
 
   Future<void> _init() async {
-    // loadAsset がアセットバンドルからバイト列を読み、reference テクスチャ（同じフォルダの
-    // PNG）をキー自身のフォルダから解決します（embedded も同じ）。
     await _player.loadAsset('assets/overall/Basic.ssab');
     _player
       ..setAnimation(_player.animationNames.first)
@@ -48,16 +80,9 @@ class _MyState extends State<MyWidget> with SingleTickerProviderStateMixin {
 }
 ```
 
-## 各ステップの意味
-
-| ステップ | 役割 |
-|---|---|
-| `SpriteStudioPlayer(vsync: this)` | 自前の `Ticker` を持つプレイヤーを生成。`vsync` を省くとクロックを自分で駆動できます（[再生とイベント](playback.md)）。 |
-| `loadAsset('assets/overall/Basic.ssab')` | アセットバンドルからバイト列を読み、ネイティブランタイムへ渡し、reference テクスチャをキー自身のフォルダから解決します。 |
-| `animationNames` / `setAnimation` | 読み込んだ `.ssab` 内のアニメ名を列挙して選択します。 |
-| `loopCount = -1` | 無限ループ（`n > 0` は n 回。[再生とイベント](playback.md)）。 |
-| `play()` | トランスポートを開始します。 |
-| `SpriteStudioView(player:, width:, height:)` | 普通の `RenderBox` ウィジェット。他のウィジェットと同じく配置・変形・クリップできます。 |
+たまに props の外へ手を伸ばしたいだけなら、`SpriteStudioAnimation` が
+`onPlayerCreated:` で自分のプレイヤーを渡します。生成と破棄のタイミングまで握りたく
+なったら、そこからは `SpriteStudioView` の仕事です。
 
 !!! tip "テクスチャ: embedded と reference"
     どちらのモードも追加引数なしで解決します。**embedded** な `.ssab`（`ssconvert -e` で生成）は
