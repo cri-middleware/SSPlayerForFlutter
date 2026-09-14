@@ -67,6 +67,23 @@ class SpriteStudioPlayer extends ChangeNotifier {
   // a resource swap in [reload] and can be set before the first [load].
   // `subFrame` above is the pre-existing precedent for this pattern.
   String? _currentAnimation;
+
+  /// What the pack is called, for a report about it. `null` for bytes handed to
+  /// [load] directly — a network download or a device push has no name to give.
+  String? _sourceLabel;
+
+  /// Carried from [loadAsset] into the [load] it delegates to, so that a report
+  /// raised *during* the load (an `animationName` the pack does not have) can
+  /// still say which pack. [load] takes it and clears it, which is what leaves a
+  /// direct `load(bytes)` correctly unnamed.
+  String? _pendingSourceLabel;
+
+  /// The animation name already reported missing. [setAnimation] leaves
+  /// [_currentAnimation] alone when the switch fails, so its own early return
+  /// cannot absorb a repeat — a state machine asserting a typo every frame would
+  /// report it every frame. Keyed on the name, so a second wrong one still gets
+  /// its own line.
+  String? _reportedMissingAnimation;
   int? _loop;
   double? _speed;
   bool? _skipFrames;
@@ -244,6 +261,7 @@ class SpriteStudioPlayer extends ChangeNotifier {
     final bnd = bundle ?? rootBundle;
     final data = await bnd.load(assetKey);
     final bytes = data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
+    _pendingSourceLabel = assetKey;
     await load(
       bytes,
       animationName: animationName,
@@ -289,6 +307,9 @@ class SpriteStudioPlayer extends ChangeNotifier {
     _internal?.dispose();
     _internal = null;
     _lastTextureReport = null;
+    _sourceLabel = _pendingSourceLabel;
+    _pendingSourceLabel = null;
+    _reportedMissingAnimation = null;
     _animeInfo = SsAnimeInfo(ssab);
 
     // Instance children (§8) are built inside the sync `load` below — a child's
@@ -320,9 +341,15 @@ class SpriteStudioPlayer extends ChangeNotifier {
     };
     internal.subFrameEnabled = _subFrame;
     internal.rootTransform = _root;
-    _currentAnimation = animationName;
-    if (animationName != null) {
-      internal.setupAnimation(animationName);
+    // Assigned from the result, not ahead of it. Assigning first left
+    // `currentAnimation` naming an animation that was never set up — and, worse,
+    // made [setAnimation] return `true` for that same name without doing
+    // anything, because its early return compares against this field.
+    if (animationName != null && !internal.setupAnimation(animationName)) {
+      _reportMissingAnimation(animationName);
+      _currentAnimation = null;
+    } else {
+      _currentAnimation = animationName;
     }
     // Push the cached settings AFTER setupAnimation: the loop count is reset
     // there, so setting it any earlier would be clobbered.
@@ -467,8 +494,11 @@ class SpriteStudioPlayer extends ChangeNotifier {
     // set up rather than being taken for one already selected.
     if (_currentAnimation == name) return true;
     final ok = internal.setupAnimation(name);
-    if (ok) {
+    if (!ok) {
+      _reportMissingAnimation(name);
+    } else {
       _currentAnimation = name;
+      _reportedMissingAnimation = null;
       // The Brain reset the loop count; restore the cached settings so a
       // mid-session animation switch (or [reload]) keeps the caller's loop count
       // instead of silently reverting to infinite looping.
@@ -476,6 +506,19 @@ class SpriteStudioPlayer extends ChangeNotifier {
     }
     notifyListeners();
     return ok;
+  }
+
+  /// Say which pack was asked for what (SDK: `20_design/40_api_conventions`, §7).
+  ///
+  /// The names that *would* have worked are deliberately absent: [animationNames]
+  /// is public, so a caller who wants the list can print it, and a required list
+  /// would mean deciding here how to truncate a pack with two hundred animations.
+  void _reportMissingAnimation(String name) {
+    if (_reportedMissingAnimation == name) return;
+    _reportedMissingAnimation = name;
+    final where = _sourceLabel ?? 'the loaded pack';
+    debugPrint('SpriteStudioPlayer: $where has no animation "$name". '
+        'Check animationNames for what it does have.');
   }
 
   /// Starts (or restarts) playback from the head — the Brain's `play` is a
