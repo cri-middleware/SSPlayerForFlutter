@@ -281,6 +281,21 @@ external bool ss_runtime_crossfade_by_hash(
 @ffi.Native<ffi.Void Function(ffi.Pointer<ffi.Void>)>()
 external void ss_runtime_destroy(ffi.Pointer<ffi.Void> context);
 
+/// The wording behind a code from [`ss_runtime_get_last_error`], as
+/// NUL-terminated UTF-8.
+///
+/// **Takes the code, not a context**, so it is a pure lookup: no lifetime to
+/// respect, nothing to free, and the same answer forever. An unrecognised code
+/// — including `0`, which is "no error" — gives an empty string, so the result
+/// goes straight into a log call without a branch.
+///
+/// The text carries no numbers. `InvalidVersion` reads "Invalid SSAB version";
+/// a Player that wants to say *which* versions should compare
+/// [`ss_runtime_ssab_schema_version`] against the pack's own `version` field,
+/// which gives it two integers rather than a sentence to parse.
+@ffi.Native<ffi.Pointer<ffi.Char> Function(ffi.Int32)>()
+external ffi.Pointer<ffi.Char> ss_runtime_error_message(int code);
+
 @ffi.Native<
   ffi.Bool Function(ffi.Pointer<ffi.Void>, ffi.Uint32, ffi.Float, ffi.Float)
 >()
@@ -387,6 +402,22 @@ external void ss_runtime_get_frame_data(
 
 @ffi.Native<ffi.Float Function(ffi.Pointer<ffi.Void>)>()
 external double ss_runtime_get_frame_no(ffi.Pointer<ffi.Void> context);
+
+/// Why the last call that tracks a reason failed, as the stable code from
+/// [`crate::error::SSRuntimeError::as_code`]. `0` means the last such call
+/// succeeded, and so does a null `context`.
+///
+/// Every fallible entry point that has a context to write to clears this on
+/// entry, so it always describes the most recent one rather than some earlier
+/// failure. The exceptions are the resource constructors
+/// (`ss_resource_create_borrow` / `ss_resource_create_copy`), which take no
+/// context and so have nowhere to record: a null return from those is all there
+/// is.
+///
+/// Reading does not clear it. Read it immediately after the call that returned
+/// `false`, before making another on the same context.
+@ffi.Native<ffi.Int32 Function(ffi.Pointer<ffi.Void>)>()
+external int ss_runtime_get_last_error(ffi.Pointer<ffi.Void> context);
 
 /// # Safety
 ///
@@ -1198,6 +1229,14 @@ external double ss_runtime_source_weight(
   ffi.Pointer<ffi.Void> context,
   int handle,
 );
+
+/// The `.ssab` schema version this runtime reads.
+///
+/// The counterpart of `ss_converter_ssab_schema_version`, and what turns an
+/// `InvalidVersion` failure into something a Player can say: compare it against
+/// the `version` field of the pack it just failed to load.
+@ffi.Native<ffi.Uint32 Function()>()
+external int ss_runtime_ssab_schema_version();
 
 @ffi.Native<ffi.Void Function(ffi.Pointer<ffi.Void>)>()
 external void ss_runtime_stop(ffi.Pointer<ffi.Void> context);
