@@ -218,7 +218,7 @@ class SpriteStudioPlayer extends ChangeNotifier {
 
   /// The authored design-canvas size (SpriteStudio `<canvasSize>`) of the
   /// [currentAnimation], in player-local pixels, or null before an animation is
-  /// selected / when the pack carries no canvas rect.
+  /// selected / when the pack carries no canvas.
   ///
   /// A drawing adapter that must hand [paint] an explicit, finite render box can
   /// size one from this: the flutter_gpu backend renders into an offscreen
