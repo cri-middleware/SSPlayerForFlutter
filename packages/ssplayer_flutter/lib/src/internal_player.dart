@@ -409,7 +409,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   /// callers wanting a one-shot notification must take the rising edge.
   bool get isFinished => ssRuntime.isFinished(_context);
 
-  bool get justLooped => ssRuntime.isLooped(_context);
+  bool get justLooped => ssRuntime.justLooped(_context);
 
   /// Which way the playhead is actually travelling — see
   /// [SpriteStudioPlayer.isPlayingForward].
@@ -417,10 +417,10 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   double get frameNo => ssRuntime.frameNo(_context);
   int get startFrame => ssRuntime.startFrame(_context);
   int get endFrame => ssRuntime.endFrame(_context);
-  int get fps => ssRuntime.fps(_context);
+  int get frameRate => ssRuntime.frameRate(_context);
 
-  set loopCount(int count) => ssRuntime.setLoop(_context, count);
-  set speedScale(double rate) => ssRuntime.setSpeed(_context, rate);
+  set loopCount(int count) => ssRuntime.setLoopCount(_context, count);
+  set speedScale(double rate) => ssRuntime.setSpeedScale(_context, rate);
   set frameRate(int fps) => ssRuntime.setFrameRate(_context, fps);
   /// Moves the playhead, then re-resolves the slot-based kinds (§8) *at the new
   /// frame*. Without that second half an instance child keeps whatever
@@ -473,7 +473,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   double updateMs(double deltaMs) {
     _ensureAlive();
     final frame = ssRuntime.update(_context, deltaMs);
-    // `is_looped` is per-update (cleared at the top of each update), so it is
+    // `just_looped` is per-update (cleared at the top of each update), so it is
     // the loop *edge* the slots want, not "looping is enabled".
     _stepSlots(frame, deltaMs, justLooped);
     return frame;
@@ -506,7 +506,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
         deltaSeconds: deltaMs / 1000.0,
         // The animation's authored fps (converts the delta to frames for
         // independent slots), NOT the display's.
-        fps: fps > 0 ? fps.toDouble() : 60.0,
+        fps: frameRate > 0 ? frameRate.toDouble() : 60.0,
         parentLooped: looped,
       );
     }

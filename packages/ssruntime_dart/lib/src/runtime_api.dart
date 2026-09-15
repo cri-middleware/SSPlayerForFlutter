@@ -109,7 +109,7 @@ abstract interface class SsRuntime {
   bool isPlaying(SsContext context);
   bool isPausing(SsContext context);
   bool isFinished(SsContext context);
-  bool isLooped(SsContext context);
+  bool justLooped(SsContext context);
 
   /// Which way the playhead is **actually** travelling this frame, which is not
   /// the heading [setPlaybackDirection] configured: under ping-pong the return
@@ -124,10 +124,10 @@ abstract interface class SsRuntime {
   double frameNo(SsContext context);
   int startFrame(SsContext context);
   int endFrame(SsContext context);
-  int fps(SsContext context);
+  int frameRate(SsContext context);
 
-  void setLoop(SsContext context, int count);
-  void setSpeed(SsContext context, double rate);
+  void setLoopCount(SsContext context, int count);
+  void setSpeedScale(SsContext context, double rate);
   void setFrameRate(SsContext context, int fps);
   void seek(SsContext context, double frame);
 

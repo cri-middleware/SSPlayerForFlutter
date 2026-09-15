@@ -72,7 +72,7 @@ class EffectSlots {
   /// effects (the SDK calls this out explicitly). [deltaSeconds] and [fps] only
   /// matter for `independent` slots, which run on their own clock and ignore
   /// [parentFrame]; synced slots are the reverse. [parentLooped] is the parent's
-  /// loop **edge** for this update (`ss_runtime_is_looped` is reset at the top of
+  /// loop **edge** for this update (`ss_runtime_just_looped` is reset at the top of
   /// each update), which re-arms a synced effect so it re-fires next cycle.
   void step(
     SsContext context, {
