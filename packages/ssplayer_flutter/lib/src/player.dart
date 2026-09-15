@@ -690,7 +690,7 @@ class SpriteStudioPlayer extends ChangeNotifier {
   /// Frames per second the animation advances at — the rate authored in the
   /// pack unless overridden. Before [load] there is no pack to read, so this
   /// reports the override if one was set and 0 otherwise.
-  int get frameRate => _internal?.fps ?? _frameRate ?? 0;
+  int get frameRate => _internal?.frameRate ?? _frameRate ?? 0;
 
   /// Overrides the advance rate, in absolute frames per second.
   ///

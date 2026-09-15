@@ -109,7 +109,7 @@ class _NativeRuntime implements SsRuntime {
 
   @override
   void setCoordinateSystem(SsContext context, int system) =>
-      ss_context_set_coordinate_system(_ctx(context), system);
+      ss_runtime_set_coordinate_system(_ctx(context), system);
 
   @override
   void registerForGc(Object owner,
@@ -188,7 +188,7 @@ class _NativeRuntime implements SsRuntime {
   bool isFinished(SsContext context) => ss_runtime_is_finished(_ctx(context));
 
   @override
-  bool isLooped(SsContext context) => ss_runtime_is_looped(_ctx(context));
+  bool justLooped(SsContext context) => ss_runtime_just_looped(_ctx(context));
 
   @override
   bool isPlayingForward(SsContext context) =>
@@ -205,15 +205,15 @@ class _NativeRuntime implements SsRuntime {
   int endFrame(SsContext context) => ss_runtime_get_end_frame(_ctx(context));
 
   @override
-  int fps(SsContext context) => ss_runtime_get_fps(_ctx(context));
+  int frameRate(SsContext context) => ss_runtime_get_frame_rate(_ctx(context));
 
   @override
-  void setLoop(SsContext context, int count) =>
-      ss_runtime_set_loop(_ctx(context), count);
+  void setLoopCount(SsContext context, int count) =>
+      ss_runtime_set_loop_count(_ctx(context), count);
 
   @override
-  void setSpeed(SsContext context, double rate) =>
-      ss_runtime_set_animation_speed(_ctx(context), rate);
+  void setSpeedScale(SsContext context, double rate) =>
+      ss_runtime_set_speed_scale(_ctx(context), rate);
 
   @override
   void setFrameRate(SsContext context, int fps) =>

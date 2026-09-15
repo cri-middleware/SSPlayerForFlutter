@@ -149,14 +149,14 @@ extension type _JsCtx(JSObject _) implements JSObject {
   external bool is_playing();
   external bool is_pausing();
   external bool is_finished();
-  external bool is_looped();
+  external bool just_looped();
   external bool is_playing_forward();
   external double get_frame_no();
   external int get_start_frame();
   external int get_end_frame();
-  external int get_fps();
-  external void set_loop(int loops);
-  external void set_animation_speed(double rate);
+  external int get_frame_rate();
+  external void set_loop_count(int loops);
+  external void set_speed_scale(double rate);
   external void set_frame_rate(int fps);
   external void set_frame_no(double frame);
   external void set_animation_section(int startFrame, int endFrame);
@@ -168,8 +168,9 @@ extension type _JsCtx(JSObject _) implements JSObject {
   external void set_skip_frames(bool skip);
   external bool get_skip_frames();
   external double update(double delta);
-  external int get_frame_data_buf(double frameNo);
-  external int get_frame_data_len(double frameNo);
+  external int prepare_frame_data(double frameNo);
+  external int get_frame_data_buf();
+  external int get_frame_data_len();
   external int get_world_matrices_buf();
   external int get_world_matrices_len();
   external int get_local_vertices_buf();
@@ -402,7 +403,7 @@ class _WebRuntime implements SsRuntime {
   bool isFinished(SsContext context) => _ctx(context).is_finished();
 
   @override
-  bool isLooped(SsContext context) => _ctx(context).is_looped();
+  bool justLooped(SsContext context) => _ctx(context).just_looped();
 
   @override
   bool isPlayingForward(SsContext context) =>
@@ -418,14 +419,14 @@ class _WebRuntime implements SsRuntime {
   int endFrame(SsContext context) => _ctx(context).get_end_frame();
 
   @override
-  int fps(SsContext context) => _ctx(context).get_fps();
+  int frameRate(SsContext context) => _ctx(context).get_frame_rate();
 
   @override
-  void setLoop(SsContext context, int count) => _ctx(context).set_loop(count);
+  void setLoopCount(SsContext context, int count) => _ctx(context).set_loop_count(count);
 
   @override
-  void setSpeed(SsContext context, double rate) =>
-      _ctx(context).set_animation_speed(rate);
+  void setSpeedScale(SsContext context, double rate) =>
+      _ctx(context).set_speed_scale(rate);
 
   @override
   void setFrameRate(SsContext context, int fps) =>
@@ -468,9 +469,12 @@ class _WebRuntime implements SsRuntime {
     // (e.g. a paint that races ahead of the async .ssab load); the native C-API
     // returns null there. Mirror native so the Body's null path handles it.
     try {
-      final len = c.get_frame_data_len(frameNo);
+      // One evaluation. The old buf/len pair each ran a full `get_frame_data`,
+      // so every painted frame cost the Brain twice; `prepare_frame_data`
+      // builds it and returns the length, and the pointer is then a pure read.
+      final len = c.prepare_frame_data(frameNo);
       if (len == 0) return null;
-      return _u8(c.get_frame_data_buf(frameNo), len);
+      return _u8(c.get_frame_data_buf(), len);
     } catch (_) {
       return null;
     }

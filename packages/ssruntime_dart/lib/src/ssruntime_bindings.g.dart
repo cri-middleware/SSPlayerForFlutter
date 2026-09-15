@@ -10,27 +10,6 @@ library;
 
 import 'dart:ffi' as ffi;
 
-@ffi.Native<ffi.Int32 Function(ffi.Pointer<ffi.Void>)>()
-external int ss_context_get_coordinate_system(ffi.Pointer<ffi.Void> context);
-
-@ffi.Native<ffi.Int32 Function(ffi.Pointer<ffi.Void>)>()
-external int ss_context_get_origin(ffi.Pointer<ffi.Void> context);
-
-@ffi.Native<ffi.Int32 Function(ffi.Pointer<ffi.Void>)>()
-external int ss_context_get_unit(ffi.Pointer<ffi.Void> context);
-
-@ffi.Native<ffi.Void Function(ffi.Pointer<ffi.Void>, ffi.Int32)>()
-external void ss_context_set_coordinate_system(
-  ffi.Pointer<ffi.Void> context,
-  int coordinate_system,
-);
-
-@ffi.Native<ffi.Void Function(ffi.Pointer<ffi.Void>, ffi.Int32)>()
-external void ss_context_set_origin(ffi.Pointer<ffi.Void> context, int origin);
-
-@ffi.Native<ffi.Void Function(ffi.Pointer<ffi.Void>, ffi.Int32)>()
-external void ss_context_set_unit(ffi.Pointer<ffi.Void> context, int unit);
-
 @ffi.Native<ffi.Pointer<ffi.Uint8> Function(ffi.UintPtr, ffi.UintPtr)>()
 external ffi.Pointer<ffi.Uint8> ss_custom_alloc(int size, int align);
 
@@ -196,6 +175,36 @@ external ffi.Pointer<ffi.Void> ss_resource_create_copy(
 @ffi.Native<ffi.Void Function(ffi.Pointer<ffi.Void>)>()
 external void ss_resource_destroy(ffi.Pointer<ffi.Void> resource);
 
+/// Add another weighted source to `track` (locomotion-style blending). Returns
+/// `SS_RUNTIME_INVALID_HANDLE` on failure.
+///
+/// # Safety
+/// `name` must be a valid null-terminated UTF-8 (or lossy-decodable) string.
+@ffi.Native<
+  ffi.Uint32 Function(
+    ffi.Pointer<ffi.Void>,
+    ffi.Uint32,
+    ffi.Pointer<ffi.Char>,
+    ffi.Float,
+  )
+>()
+external int ss_runtime_add_track_source(
+  ffi.Pointer<ffi.Void> context,
+  int track,
+  ffi.Pointer<ffi.Char> name,
+  double weight,
+);
+
+@ffi.Native<
+  ffi.Uint32 Function(ffi.Pointer<ffi.Void>, ffi.Uint32, ffi.Uint32, ffi.Float)
+>()
+external int ss_runtime_add_track_source_by_hash(
+  ffi.Pointer<ffi.Void> context,
+  int track,
+  int hash,
+  double weight,
+);
+
 /// Binds an AnimationResource to a Context.
 ///
 /// # Safety and Lifetimes
@@ -343,13 +352,6 @@ external ss_event_instance_info ss_runtime_get_active_event_instance(
   int slot_index,
 );
 
-/// The playback speed in effect, as a multiple of `ss_runtime_get_fps`.
-///
-/// Reads back what `ss_runtime_set_animation_speed` stored, which is not
-/// always what it was handed: a negative rate clamps to `0.0`.
-@ffi.Native<ffi.Float Function(ffi.Pointer<ffi.Void>)>()
-external double ss_runtime_get_animation_speed(ffi.Pointer<ffi.Void> context);
-
 /// Per-part resolved cell metadata for the current frame, written by
 /// `ss_runtime_get_frame_data`. Layout:
 /// `[pivot_x, pivot_y, size_w, size_h, rect_left, rect_top]` per part,
@@ -376,10 +378,10 @@ external void ss_runtime_get_cell_meta(
 );
 
 @ffi.Native<ffi.Int32 Function(ffi.Pointer<ffi.Void>)>()
-external int ss_runtime_get_end_frame(ffi.Pointer<ffi.Void> context);
+external int ss_runtime_get_coordinate_system(ffi.Pointer<ffi.Void> context);
 
 @ffi.Native<ffi.Int32 Function(ffi.Pointer<ffi.Void>)>()
-external int ss_runtime_get_fps(ffi.Pointer<ffi.Void> context);
+external int ss_runtime_get_end_frame(ffi.Pointer<ffi.Void> context);
 
 /// # Safety
 ///
@@ -402,6 +404,9 @@ external void ss_runtime_get_frame_data(
 
 @ffi.Native<ffi.Float Function(ffi.Pointer<ffi.Void>)>()
 external double ss_runtime_get_frame_no(ffi.Pointer<ffi.Void> context);
+
+@ffi.Native<ffi.Int32 Function(ffi.Pointer<ffi.Void>)>()
+external int ss_runtime_get_frame_rate(ffi.Pointer<ffi.Void> context);
 
 /// Why the last call that tracks a reason failed, as the stable code from
 /// [`crate::error::SSRuntimeError::as_code`]. `0` means the last such call
@@ -464,7 +469,7 @@ external void ss_runtime_get_local_vertices(
 );
 
 @ffi.Native<ffi.Int32 Function(ffi.Pointer<ffi.Void>)>()
-external int ss_runtime_get_loops(ffi.Pointer<ffi.Void> context);
+external int ss_runtime_get_loop_count(ffi.Pointer<ffi.Void> context);
 
 /// CSR-style prefix sum (length = `num_parts + 1`) for the triangle indices in
 /// `ss_runtime_get_mesh_indices`. Part `p` occupies `[offsets[p], offsets[p + 1])`;
@@ -739,6 +744,9 @@ external void ss_runtime_get_nines_vertices(
 );
 
 @ffi.Native<ffi.Int32 Function(ffi.Pointer<ffi.Void>)>()
+external int ss_runtime_get_origin(ffi.Pointer<ffi.Void> context);
+
+@ffi.Native<ffi.Int32 Function(ffi.Pointer<ffi.Void>)>()
 external int ss_runtime_get_passed_event_count(ffi.Pointer<ffi.Void> context);
 
 @ffi.Native<ffi.Int32 Function(ffi.Pointer<ffi.Void>, ffi.Int32)>()
@@ -751,7 +759,7 @@ external int ss_runtime_get_passed_event_index(
 /// `ss_runtime_get_passed_event_index`, and read with the same index.
 ///
 /// With every source at the default event threshold (`1.0`) this is uniformly
-/// `ss_runtime_track_main_source` of track 0, so a Player that does not use
+/// `ss_runtime_get_track_main_source` of track 0, so a Player that does not use
 /// animation mixing can ignore it. It diverges once a secondary source opts in
 /// to firing events via `ss_runtime_set_source_event_threshold`, and that is
 /// when a host needs it: without it, two blended animations' events arrive in
@@ -772,7 +780,7 @@ external int ss_runtime_get_playback_direction(ffi.Pointer<ffi.Void> context);
 external int ss_runtime_get_playback_style(ffi.Pointer<ffi.Void> context);
 
 @ffi.Native<ffi.Int32 Function(ffi.Pointer<ffi.Void>)>()
-external int ss_runtime_get_remain_loops(ffi.Pointer<ffi.Void> context);
+external int ss_runtime_get_remaining_loops(ffi.Pointer<ffi.Void> context);
 
 @ffi.Native<ffi.Uint8 Function(ffi.Pointer<ffi.Void>)>()
 external int ss_runtime_get_render_mode(ffi.Pointer<ffi.Void> context);
@@ -852,6 +860,33 @@ external void ss_runtime_get_shape_vertices(
 @ffi.Native<ffi.Bool Function(ffi.Pointer<ffi.Void>)>()
 external bool ss_runtime_get_skip_frames(ffi.Pointer<ffi.Void> context);
 
+@ffi.Native<ffi.Float Function(ffi.Pointer<ffi.Void>, ffi.Uint32)>()
+external double ss_runtime_get_source_event_threshold(
+  ffi.Pointer<ffi.Void> context,
+  int handle,
+);
+
+@ffi.Native<ffi.Float Function(ffi.Pointer<ffi.Void>, ffi.Uint32)>()
+external double ss_runtime_get_source_frame(
+  ffi.Pointer<ffi.Void> context,
+  int handle,
+);
+
+/// Returns `NaN` for an invalid or released handle, so `weight == 0` stays
+/// distinguishable from "no such source".
+@ffi.Native<ffi.Float Function(ffi.Pointer<ffi.Void>, ffi.Uint32)>()
+external double ss_runtime_get_source_weight(
+  ffi.Pointer<ffi.Void> context,
+  int handle,
+);
+
+/// The playback speed in effect, as a multiple of `ss_runtime_get_frame_rate`.
+///
+/// Reads back what `ss_runtime_set_speed_scale` stored, which is not
+/// always what it was handed: a negative rate clamps to `0.0`.
+@ffi.Native<ffi.Float Function(ffi.Pointer<ffi.Void>)>()
+external double ss_runtime_get_speed_scale(ffi.Pointer<ffi.Void> context);
+
 /// # Safety
 ///
 /// This function is unsafe because it dereferences raw pointers for output.
@@ -879,6 +914,50 @@ external int ss_runtime_get_ssab_len(ffi.Pointer<ffi.Void> context);
 
 @ffi.Native<ffi.Int32 Function(ffi.Pointer<ffi.Void>)>()
 external int ss_runtime_get_start_frame(ffi.Pointer<ffi.Void> context);
+
+/// Returns `NaN` for a track that does not exist, so callers can tell it apart
+/// from a valid `alpha` of 0.
+@ffi.Native<ffi.Float Function(ffi.Pointer<ffi.Void>, ffi.Uint32)>()
+external double ss_runtime_get_track_alpha(
+  ffi.Pointer<ffi.Void> context,
+  int track,
+);
+
+/// Returns `SS_RUNTIME_INVALID_HANDLE` for a track that does not exist.
+@ffi.Native<ffi.Uint32 Function(ffi.Pointer<ffi.Void>, ffi.Uint32)>()
+external int ss_runtime_get_track_blend(
+  ffi.Pointer<ffi.Void> context,
+  int track,
+);
+
+@ffi.Native<ffi.Uint32 Function(ffi.Pointer<ffi.Void>)>()
+external int ss_runtime_get_track_count(ffi.Pointer<ffi.Void> context);
+
+/// Progress in `[0, 1]` of the fade on `track`; `NaN` when it is not fading.
+@ffi.Native<ffi.Float Function(ffi.Pointer<ffi.Void>, ffi.Uint32)>()
+external double ss_runtime_get_track_fade_progress(
+  ffi.Pointer<ffi.Void> context,
+  int track,
+);
+
+/// Returns `NaN` when the track has no animation on it.
+@ffi.Native<ffi.Float Function(ffi.Pointer<ffi.Void>, ffi.Uint32)>()
+external double ss_runtime_get_track_frame(
+  ffi.Pointer<ffi.Void> context,
+  int track,
+);
+
+/// Handle of the source carrying the track's animation, so it can be given a
+/// weight once the track holds several. `SS_RUNTIME_INVALID_HANDLE` when the
+/// track has no animation.
+@ffi.Native<ffi.Uint32 Function(ffi.Pointer<ffi.Void>, ffi.Uint32)>()
+external int ss_runtime_get_track_main_source(
+  ffi.Pointer<ffi.Void> context,
+  int track,
+);
+
+@ffi.Native<ffi.Int32 Function(ffi.Pointer<ffi.Void>)>()
+external int ss_runtime_get_unit(ffi.Pointer<ffi.Void> context);
 
 /// # Safety
 ///
@@ -914,9 +993,6 @@ external int ss_runtime_hash_string(ffi.Pointer<ffi.Char> s);
 external bool ss_runtime_is_finished(ffi.Pointer<ffi.Void> context);
 
 @ffi.Native<ffi.Bool Function(ffi.Pointer<ffi.Void>)>()
-external bool ss_runtime_is_looped(ffi.Pointer<ffi.Void> context);
-
-@ffi.Native<ffi.Bool Function(ffi.Pointer<ffi.Void>)>()
 external bool ss_runtime_is_pausing(ffi.Pointer<ffi.Void> context);
 
 @ffi.Native<ffi.Bool Function(ffi.Pointer<ffi.Void>)>()
@@ -924,6 +1000,9 @@ external bool ss_runtime_is_playing(ffi.Pointer<ffi.Void> context);
 
 @ffi.Native<ffi.Bool Function(ffi.Pointer<ffi.Void>)>()
 external bool ss_runtime_is_playing_forward(ffi.Pointer<ffi.Void> context);
+
+@ffi.Native<ffi.Bool Function(ffi.Pointer<ffi.Void>)>()
+external bool ss_runtime_just_looped(ffi.Pointer<ffi.Void> context);
 
 /// # Safety
 ///
@@ -1000,10 +1079,10 @@ external void ss_runtime_set_animation_section(
   int end_frame,
 );
 
-@ffi.Native<ffi.Void Function(ffi.Pointer<ffi.Void>, ffi.Float)>()
-external void ss_runtime_set_animation_speed(
+@ffi.Native<ffi.Void Function(ffi.Pointer<ffi.Void>, ffi.Int32)>()
+external void ss_runtime_set_coordinate_system(
   ffi.Pointer<ffi.Void> context,
-  double speed_rate,
+  int coordinate_system,
 );
 
 @ffi.Native<ffi.Void Function(ffi.Pointer<ffi.Void>, ffi.Float)>()
@@ -1013,13 +1092,22 @@ external void ss_runtime_set_frame_no(
 );
 
 @ffi.Native<ffi.Void Function(ffi.Pointer<ffi.Void>, ffi.Int)>()
-external void ss_runtime_set_frame_rate(ffi.Pointer<ffi.Void> context, int fps);
+external void ss_runtime_set_frame_rate(
+  ffi.Pointer<ffi.Void> context,
+  int frame_rate,
+);
 
 @ffi.Native<ffi.Void Function(SsLogCallback)>()
 external void ss_runtime_set_log_callback(SsLogCallback callback);
 
 @ffi.Native<ffi.Void Function(ffi.Pointer<ffi.Void>, ffi.Int)>()
-external void ss_runtime_set_loop(ffi.Pointer<ffi.Void> context, int loops);
+external void ss_runtime_set_loop_count(
+  ffi.Pointer<ffi.Void> context,
+  int loop_count,
+);
+
+@ffi.Native<ffi.Void Function(ffi.Pointer<ffi.Void>, ffi.Int32)>()
+external void ss_runtime_set_origin(ffi.Pointer<ffi.Void> context, int origin);
 
 /// Set a per-part cell override, identified by FNV-1a hashes of the cellmap name
 /// (without `.ssce`) and the cell name. `(0, 0)` reverts to the animation.
@@ -1144,6 +1232,12 @@ external bool ss_runtime_set_source_weight(
   double weight,
 );
 
+@ffi.Native<ffi.Void Function(ffi.Pointer<ffi.Void>, ffi.Float)>()
+external void ss_runtime_set_speed_scale(
+  ffi.Pointer<ffi.Void> context,
+  double speed_scale,
+);
+
 @ffi.Native<ffi.Bool Function(ffi.Pointer<ffi.Void>, ffi.Uint32, ffi.Float)>()
 external bool ss_runtime_set_track_alpha(
   ffi.Pointer<ffi.Void> context,
@@ -1191,6 +1285,9 @@ external bool ss_runtime_set_track_speed(
   double speed,
 );
 
+@ffi.Native<ffi.Void Function(ffi.Pointer<ffi.Void>, ffi.Int32)>()
+external void ss_runtime_set_unit(ffi.Pointer<ffi.Void> context, int unit);
+
 /// # Safety
 ///
 /// This function is unsafe because it dereferences a raw pointer.
@@ -1210,26 +1307,6 @@ external bool ss_runtime_setup_animation_by_hash(
   int name_hash,
 );
 
-@ffi.Native<ffi.Float Function(ffi.Pointer<ffi.Void>, ffi.Uint32)>()
-external double ss_runtime_source_event_threshold(
-  ffi.Pointer<ffi.Void> context,
-  int handle,
-);
-
-@ffi.Native<ffi.Float Function(ffi.Pointer<ffi.Void>, ffi.Uint32)>()
-external double ss_runtime_source_frame(
-  ffi.Pointer<ffi.Void> context,
-  int handle,
-);
-
-/// Returns `NaN` for an invalid or released handle, so `weight == 0` stays
-/// distinguishable from "no such source".
-@ffi.Native<ffi.Float Function(ffi.Pointer<ffi.Void>, ffi.Uint32)>()
-external double ss_runtime_source_weight(
-  ffi.Pointer<ffi.Void> context,
-  int handle,
-);
-
 /// The `.ssab` schema version this runtime reads.
 ///
 /// The counterpart of `ss_converter_ssab_schema_version`, and what turns an
@@ -1240,74 +1317,6 @@ external int ss_runtime_ssab_schema_version();
 
 @ffi.Native<ffi.Void Function(ffi.Pointer<ffi.Void>)>()
 external void ss_runtime_stop(ffi.Pointer<ffi.Void> context);
-
-/// Add another weighted source to `track` (locomotion-style blending). Returns
-/// `SS_RUNTIME_INVALID_HANDLE` on failure.
-///
-/// # Safety
-/// `name` must be a valid null-terminated UTF-8 (or lossy-decodable) string.
-@ffi.Native<
-  ffi.Uint32 Function(
-    ffi.Pointer<ffi.Void>,
-    ffi.Uint32,
-    ffi.Pointer<ffi.Char>,
-    ffi.Float,
-  )
->()
-external int ss_runtime_track_add_source(
-  ffi.Pointer<ffi.Void> context,
-  int track,
-  ffi.Pointer<ffi.Char> name,
-  double weight,
-);
-
-@ffi.Native<
-  ffi.Uint32 Function(ffi.Pointer<ffi.Void>, ffi.Uint32, ffi.Uint32, ffi.Float)
->()
-external int ss_runtime_track_add_source_by_hash(
-  ffi.Pointer<ffi.Void> context,
-  int track,
-  int hash,
-  double weight,
-);
-
-/// Returns `NaN` for a track that does not exist, so callers can tell it apart
-/// from a valid `alpha` of 0.
-@ffi.Native<ffi.Float Function(ffi.Pointer<ffi.Void>, ffi.Uint32)>()
-external double ss_runtime_track_alpha(
-  ffi.Pointer<ffi.Void> context,
-  int track,
-);
-
-/// Returns `SS_RUNTIME_INVALID_HANDLE` for a track that does not exist.
-@ffi.Native<ffi.Uint32 Function(ffi.Pointer<ffi.Void>, ffi.Uint32)>()
-external int ss_runtime_track_blend(ffi.Pointer<ffi.Void> context, int track);
-
-@ffi.Native<ffi.Uint32 Function(ffi.Pointer<ffi.Void>)>()
-external int ss_runtime_track_count(ffi.Pointer<ffi.Void> context);
-
-/// Progress in `[0, 1]` of the fade on `track`; `NaN` when it is not fading.
-@ffi.Native<ffi.Float Function(ffi.Pointer<ffi.Void>, ffi.Uint32)>()
-external double ss_runtime_track_fade_progress(
-  ffi.Pointer<ffi.Void> context,
-  int track,
-);
-
-/// Returns `NaN` when the track has no animation on it.
-@ffi.Native<ffi.Float Function(ffi.Pointer<ffi.Void>, ffi.Uint32)>()
-external double ss_runtime_track_frame(
-  ffi.Pointer<ffi.Void> context,
-  int track,
-);
-
-/// Handle of the source carrying the track's animation, so it can be given a
-/// weight once the track holds several. `SS_RUNTIME_INVALID_HANDLE` when the
-/// track has no animation.
-@ffi.Native<ffi.Uint32 Function(ffi.Pointer<ffi.Void>, ffi.Uint32)>()
-external int ss_runtime_track_main_source(
-  ffi.Pointer<ffi.Void> context,
-  int track,
-);
 
 @ffi.Native<ffi.Float Function(ffi.Pointer<ffi.Void>, ffi.Float)>()
 external double ss_runtime_update(ffi.Pointer<ffi.Void> context, double delta);
@@ -1329,6 +1338,12 @@ const int SHAPE_VERTICES_STRIDE = 24;
 const int SKEW_PROPAGATES = 0;
 
 const int SS_RUNTIME_INVALID_HANDLE = 4294967295;
+
+const int SS_RUNTIME_LOG_ERROR = 1;
+
+const int SS_RUNTIME_LOG_INFO = 3;
+
+const int SS_RUNTIME_LOG_WARN = 2;
 
 const int SS_RUNTIME_TRACK_BLEND_ADDITIVE = 1;
 
