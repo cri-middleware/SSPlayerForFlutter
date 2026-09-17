@@ -5475,7 +5475,7 @@ class AnimationDataBuilder {
   final fb.Builder fbBuilder;
 
   void begin() {
-    fbBuilder.startTable(12);
+    fbBuilder.startTable(13);
   }
 
   int addNameOffset(int? offset) {
@@ -5522,8 +5522,12 @@ class AnimationDataBuilder {
     fbBuilder.addInt16(10, fps);
     return fbBuilder.offset;
   }
-  int addCanvasOffset(int? offset) {
+  int addCanvasSizeOffset(int? offset) {
     fbBuilder.addOffset(11, offset);
+    return fbBuilder.offset;
+  }
+  int addPivotOffset(int? offset) {
+    fbBuilder.addOffset(12, offset);
     return fbBuilder.offset;
   }
 
@@ -5544,7 +5548,8 @@ class AnimationDataObjectBuilder extends fb.ObjectBuilder {
   final int? _endFrame;
   final int? _totalFrame;
   final int? _fps;
-  final RectObjectBuilder? _canvas;
+  final Vec2ObjectBuilder? _canvasSize;
+  final Vec2ObjectBuilder? _pivot;
 
   AnimationDataObjectBuilder({
     String? name,
@@ -5558,7 +5563,8 @@ class AnimationDataObjectBuilder extends fb.ObjectBuilder {
     int? endFrame,
     int? totalFrame,
     int? fps,
-    RectObjectBuilder? canvas,
+    Vec2ObjectBuilder? canvasSize,
+    Vec2ObjectBuilder? pivot,
   })
       : _name = name,
         _nameHash = nameHash,
@@ -5571,7 +5577,8 @@ class AnimationDataObjectBuilder extends fb.ObjectBuilder {
         _endFrame = endFrame,
         _totalFrame = totalFrame,
         _fps = fps,
-        _canvas = canvas;
+        _canvasSize = canvasSize,
+        _pivot = pivot;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -5588,8 +5595,9 @@ class AnimationDataObjectBuilder extends fb.ObjectBuilder {
         : fbBuilder.writeList(_initialEvents!.map((b) => b.getOrCreateOffset(fbBuilder)).toList());
     final int? labelsOffset = _labels == null ? null
         : fbBuilder.writeList(_labels!.map((b) => b.getOrCreateOffset(fbBuilder)).toList());
-    final int? canvasOffset = _canvas?.getOrCreateOffset(fbBuilder);
-    fbBuilder.startTable(12);
+    final int? canvasSizeOffset = _canvasSize?.getOrCreateOffset(fbBuilder);
+    final int? pivotOffset = _pivot?.getOrCreateOffset(fbBuilder);
+    fbBuilder.startTable(13);
     fbBuilder.addOffset(0, nameOffset);
     fbBuilder.addUint32(1, _nameHash);
     fbBuilder.addOffset(2, partsInitialAttributesOffset);
@@ -5601,7 +5609,8 @@ class AnimationDataObjectBuilder extends fb.ObjectBuilder {
     fbBuilder.addInt16(8, _endFrame);
     fbBuilder.addInt16(9, _totalFrame);
     fbBuilder.addInt16(10, _fps);
-    fbBuilder.addOffset(11, canvasOffset);
+    fbBuilder.addOffset(11, canvasSizeOffset);
+    fbBuilder.addOffset(12, pivotOffset);
     return fbBuilder.endTable();
   }
 

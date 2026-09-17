@@ -120,7 +120,7 @@ class SsSequenceBinary {
   final fb.BufferContext _bc;
   final int _bcOffset;
 
-  int get version => const fb.Uint32Reader().vTableGet(_bc, _bcOffset, 4, 1);
+  int get version => const fb.Uint32Reader().vTableGet(_bc, _bcOffset, 4, 0);
   List<Sequence>? get sequenceList => const fb.ListReader<Sequence>(Sequence.reader).vTableGetNullable(_bc, _bcOffset, 6);
 
   @override

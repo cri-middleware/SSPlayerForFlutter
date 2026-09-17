@@ -3065,11 +3065,12 @@ class AnimationData {
   int get endFrame => const fb.Int16Reader().vTableGet(_bc, _bcOffset, 20, 0);
   int get totalFrame => const fb.Int16Reader().vTableGet(_bc, _bcOffset, 22, 0);
   int get fps => const fb.Int16Reader().vTableGet(_bc, _bcOffset, 24, 0);
-  Rect? get canvas => Rect.reader.vTableGetNullable(_bc, _bcOffset, 26);
+  Vec2? get canvasSize => Vec2.reader.vTableGetNullable(_bc, _bcOffset, 26);
+  Vec2? get pivot => Vec2.reader.vTableGetNullable(_bc, _bcOffset, 28);
 
   @override
   String toString() {
-    return 'AnimationData{name: ${name}, nameHash: ${nameHash}, partsInitialAttributes: ${partsInitialAttributes}, partsAnimationData: ${partsAnimationData}, events: ${events}, initialEvents: ${initialEvents}, labels: ${labels}, startFrame: ${startFrame}, endFrame: ${endFrame}, totalFrame: ${totalFrame}, fps: ${fps}, canvas: ${canvas}}';
+    return 'AnimationData{name: ${name}, nameHash: ${nameHash}, partsInitialAttributes: ${partsInitialAttributes}, partsAnimationData: ${partsAnimationData}, events: ${events}, initialEvents: ${initialEvents}, labels: ${labels}, startFrame: ${startFrame}, endFrame: ${endFrame}, totalFrame: ${totalFrame}, fps: ${fps}, canvasSize: ${canvasSize}, pivot: ${pivot}}';
   }
 }
 
@@ -3183,7 +3184,7 @@ class SsAnimeBinary {
   final fb.BufferContext _bc;
   final int _bcOffset;
 
-  int get version => const fb.Uint32Reader().vTableGet(_bc, _bcOffset, 4, 1);
+  int get version => const fb.Uint32Reader().vTableGet(_bc, _bcOffset, 4, 0);
   String? get name => const fb.StringReader().vTableGetNullable(_bc, _bcOffset, 6);
   int get nameHash => const fb.Uint32Reader().vTableGet(_bc, _bcOffset, 8, 0);
   List<PartData>? get parts => const fb.ListReader<PartData>(PartData.reader).vTableGetNullable(_bc, _bcOffset, 10);
