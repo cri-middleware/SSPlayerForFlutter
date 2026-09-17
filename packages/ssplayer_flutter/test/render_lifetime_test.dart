@@ -86,6 +86,9 @@ class _SpyBackend implements RenderBackend {
   set onResourcesReady(ui.VoidCallback? callback) {} // nothing async here
 
   @override
+  void invalidateTexture(int textureHash) {}
+
+  @override
   void beginFrame(ui.Canvas canvas,
       {ui.Rect? dst,
       ui.Size? sourceSize,

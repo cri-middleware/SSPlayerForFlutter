@@ -26,5 +26,8 @@ dart doc
   [再生とイベント](guide/playback.md) を参照。
 - **`SsBlendOp` / `SsOverridePriority` / `PartNameTable`** —— パーツオーバーライド。
   [パーツオーバーライド](guide/part-overrides.md) を参照。
-- **`SsAnimeInfo`** —— `.ssab` バイト列からアニメーション / セルマップ / セル名を列挙。
+- **テクスチャ差し替え** —— `SpriteStudioPlayer.setCellmapTexture` / `cellmapTextureOverride` /
+  `replaceableTextureNames`。低レベルの **`TextureRegistry`** が土台。
+  [テクスチャ差し替え](guide/textures.md) を参照。
+- **`SsAnimeInfo`** —— `.ssab` バイト列からアニメーション / セルマップ / セル / 外部テクスチャ名を列挙。
 - **`SsConverter` / `ssconvert`**（`ssconverter_dart`）—— [アセット準備](guide/conversion.md) を参照。

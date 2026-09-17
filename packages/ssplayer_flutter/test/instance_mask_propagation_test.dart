@@ -202,6 +202,9 @@ class _CoveragePlanSpy implements RenderBackend {
   set onResourcesReady(ui.VoidCallback? callback) {}
 
   @override
+  void invalidateTexture(int textureHash) {}
+
+  @override
   void finish() {}
 
   @override

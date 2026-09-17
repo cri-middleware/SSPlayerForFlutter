@@ -27,6 +27,12 @@ class TextureLoadReport {
 /// path is tried. Each decoded [ui.Image] is registered under
 /// `cellmap.nameHash`, which equals `DrawBatch.texture_hash` — so no Dart-side
 /// re-hashing (which would risk diverging from the Brain's FNV-1a).
+///
+/// It then loads `external_textures()` the same way, keyed by their own
+/// `name_hash`: the second hash space `texture_hash` spans (a TextureChange binds
+/// the texture *file* name, `fnv1a("common.png")`, not the cellmap name). That
+/// pass is silent best-effort — the converter fills the list with a superset of
+/// names, so a missing one is not a load error (see [load]).
 class SsTextureLoader {
   /// Decodes and registers every cellmap texture. Cellmaps that are neither
   /// embedded nor resolvable as an asset are collected in the returned report.
@@ -92,6 +98,39 @@ class SsTextureLoader {
         }
       }
       unresolved.add(path ?? 'cellmap#${cm.nameHash}');
+    }));
+
+    // Also load `external_textures()` — the SECOND hash space `texture_hash`
+    // spans (SDK §"Texture resolution"): a TextureChange (`TCHG`) binds the
+    // texture FILE name's hash (`fnv1a("common.png")`), a different key from the
+    // cellmap name's (`fnv1a("common")`). Both must be in the one map or a TCHG
+    // frame — and any runtime replacement of that file — resolves to nothing.
+    //
+    // Best-effort and SILENT (not added to [unresolved]): the converter fills
+    // this list with every name a TCHG can select, INCLUDING each cellmap's own
+    // image, so most entries are duplicates or optional. A genuinely missing one
+    // is simply not replaceable, which is not a load failure — unlike a cellmap,
+    // whose absence leaves a part untextured.
+    await Future.wait((anime.externalTextures ?? const <ssab.ExternalTexture>[])
+        .map((ext) async {
+      if (registry.contains(ext.nameHash)) return;
+      // Embedded bytes are keyed by name hash, same as a cellmap's image.
+      final data = embedded[ext.nameHash]?.data;
+      if (data != null && data.isNotEmpty) {
+        registry.register(ext.nameHash, await decodeImage(_asBytes(data)));
+        return;
+      }
+      // Reference: the external texture's own name is the sibling file name.
+      final name = ext.name;
+      if (name != null && name.isNotEmpty && baseAssetDir != null) {
+        try {
+          final assetPath = _joinAsset(baseAssetDir, name);
+          final bytes = (await bnd.load(assetPath)).buffer.asUint8List();
+          registry.register(ext.nameHash, await decodeImage(bytes));
+        } catch (_) {
+          // Silent: a superset entry, not a shippable requirement.
+        }
+      }
     }));
 
     return TextureLoadReport(unresolved);

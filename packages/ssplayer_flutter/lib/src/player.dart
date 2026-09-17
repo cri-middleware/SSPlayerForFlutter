@@ -203,6 +203,70 @@ class SpriteStudioPlayer extends ChangeNotifier {
   List<String> cellNames(String cellmapName) =>
       _animeInfo?.cellNames(cellmapName) ?? const <String>[];
 
+  /// The [textures] key for the cellmap named [cellmapName] (null before [load]
+  /// or for an unknown name). Feed it to `textures.register(hash, image)` to
+  /// swap a whole cellmap's bitmap at runtime — every part that samples it,
+  /// Normal and Mesh alike, then draws the new image.
+  int? cellmapTextureHash(String cellmapName) =>
+      _animeInfo?.cellmapTextureHash(cellmapName);
+
+  // --- Runtime texture replacement -----------------------------------------
+  //
+  // Swap the bitmap a cellmap (or a TextureChange target file) samples, from
+  // program code — costumes, dynamic expressions. Ports ForGodot's
+  // `set_cellmap_texture` (SDK 40_components/70_external_resources), and is NOT
+  // the §65 Override Layer: it is a texture-registry swap, not per-part state.
+  // Like the override calls it notifies listeners on success (a swap changes
+  // pixels without changing the frame, so a paused player would not otherwise
+  // repaint), no-ops before [load] / for an unknown name, and never throws.
+
+  /// Names every texture a runtime replacement can target — cellmap names
+  /// (`common`) followed by TextureChange file names (`common.png`), for a
+  /// picker. Empty before [load]. All are valid arguments to [setCellmapTexture].
+  List<String> get replaceableTextureNames =>
+      _animeInfo?.replaceableTextureNames ?? const <String>[];
+
+  /// Replaces the bitmap the cellmap (or TextureChange target file) named [name]
+  /// samples with [image] — a runtime costume / expression swap — or **restores
+  /// the original** when [image] is null. Returns false before [load], for an
+  /// unknown [name], after [dispose], or when restoring a [name] that had no
+  /// override; true when an override was set or actually cleared.
+  ///
+  /// [name] is a cellmap name (no extension, e.g. `character`) or a TextureChange
+  /// file name (with extension, e.g. `costume2.png`) — both listed by
+  /// [replaceableTextureNames].
+  ///
+  /// [image] stays **yours**: the player borrows it and never disposes it. Keep
+  /// it alive while it is set, and dispose it after you clear the override (or
+  /// replace it). Use a same-size, same-layout atlas as the original — the UVs
+  /// are in the original cellmap's pixel space (SDK §"The size of the replacement
+  /// texture").
+  ///
+  /// **Applies tree-wide.** Because instance children share this player's texture
+  /// registry, the swap reaches every part sampling that texture — root or child
+  /// alike — unlike ForGodot's per-player override.
+  bool setCellmapTexture(String name, ui.Image? image) {
+    final hash = _animeInfo?.textureHashForName(name);
+    if (hash == null) return false;
+    return setCellmapTextureByHash(hash, image);
+  }
+
+  /// Registry-key form of [setCellmapTexture] (skip the name lookup when you
+  /// already hold the hash from [cellmapTextureHash] / [SsAnimeInfo]).
+  bool setCellmapTextureByHash(int textureHash, ui.Image? image) =>
+      _override((i) => i.setCellmapTexture(textureHash, image));
+
+  /// The override image currently set for the texture named [name] (the OVERRIDE
+  /// value only, never the loaded original — mirrors ForGodot's
+  /// `get_cellmap_texture`), or null when it is unset / before [load] / for an
+  /// unknown name.
+  ui.Image? cellmapTextureOverride(String name) {
+    final internal = _internal;
+    final hash = _animeInfo?.textureHashForName(name);
+    if (internal == null || hash == null) return null;
+    return internal.cellmapTextureOverride(hash);
+  }
+
   /// Resolves an [SsAudioEvent.soundNameHash] (from an [onAudio] trigger) to its
   /// pack-relative sound file path — e.g. `sound/foo.mp3` — or null before
   /// [load] / if unknown. Convenience over [SsAnimeInfo.soundFilePath] for

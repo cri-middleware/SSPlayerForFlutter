@@ -33,6 +33,7 @@ hand-write. Playback runs through `libssruntime` provided by
     - [Playback & Events](guide/playback.md)
     - [Part Following](guide/part-following.md)
     - [Part Overrides](guide/part-overrides.md)
+    - [Texture Replacement](guide/textures.md)
     - [Flame Integration](guide/flame.md)
     - [Preparing Assets (`.sspj` → `.ssab`)](guide/conversion.md) (start here for the initial import)
     - [Live Reload](guide/live-reload.md)
@@ -53,6 +54,7 @@ animation code to write by hand.
 *   **Full feature support:** Ships every core draw kind — Normal, PartColor, Mask, Mesh, Effect (particles), Instance, and Shape — plus bone hierarchies and mesh deformation.
 *   **Native GPU-accelerated drawing:** `dart:ffi` into the Rust runtime, drawn through Flutter's own renderer — `flutter_gpu` (Impeller) where available, `Canvas.drawVertices` otherwise. Not a WebView, not a video decode.
 *   **Composes with the widget tree — and [Flame](guide/flame.md):** `SpriteStudioView` is a plain `RenderBox`; the `ssplayer_flame` package adds a `SpriteStudioComponent`.
+*   **Runtime texture replacement (skins & costumes):** swap the bitmap a cellmap samples at runtime — colour variants, equipment changes, dynamic expressions — with [`setCellmapTexture()`](guide/textures.md), no per-combination animation needed.
 *   **Smooth sub-frame interpolation:** Playback follows the display refresh rate, not a fixed fps — buttery-smooth even in slow motion.
 *   **Bring your own art, with live-reload:** Convert `.sspj` → `.ssab` from a [CLI or CI](guide/conversion.md), and **[live-reload](guide/live-reload.md)** editor edits straight into the running app.
 *   **High performance & low memory:** A SIMD-optimized runtime and zero-parse binary format (`.ssab`); the native runtime is bundled automatically via native assets — no CocoaPods, no manual linking.
