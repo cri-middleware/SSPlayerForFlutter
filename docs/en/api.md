@@ -26,5 +26,8 @@ dart doc
   [Playback & Events](guide/playback.md).
 - **`SsBlendOp` / `SsOverridePriority` / `PartNameTable`** — part overrides. See
   [Part Overrides](guide/part-overrides.md).
-- **`SsAnimeInfo`** — enumerate animation / cellmap / cell names from `.ssab` bytes.
+- **Texture replacement** — `SpriteStudioPlayer.setCellmapTexture` / `cellmapTextureOverride` /
+  `replaceableTextureNames`, backed by the low-level **`TextureRegistry`**. See
+  [Texture Replacement](guide/textures.md).
+- **`SsAnimeInfo`** — enumerate animation / cellmap / cell / external-texture names from `.ssab` bytes.
 - **`SsConverter` / `ssconvert`** (`ssconverter_dart`) — see [Preparing Assets](guide/conversion.md).

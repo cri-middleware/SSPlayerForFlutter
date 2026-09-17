@@ -57,6 +57,7 @@ nav:
       - 再生とイベント: guide/playback.md
       - パーツトラッキング: guide/part-following.md
       - パーツオーバーライド: guide/part-overrides.md
+      - テクスチャ差し替え: guide/textures.md
       - Flame 連携: guide/flame.md
       - アセットの準備（.sspj → .ssab）: guide/conversion.md
       - ライブリロード: guide/live-reload.md

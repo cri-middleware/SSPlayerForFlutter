@@ -389,6 +389,13 @@ class FlutterGpuBackend implements RenderBackend {
   final Map<int, gpu.Texture> _gpuTextures = <int, gpu.Texture>{};
   final Set<int> _uploading = <int>{};
 
+  /// Per-hash upload generation, bumped by [invalidateTexture] when a runtime
+  /// texture replacement changes what a hash resolves to. An in-flight [_upload]
+  /// captures the generation it started under and commits only if it still
+  /// matches — so a replacement issued while the OLD image was uploading can
+  /// never land the stale bitmap in [_gpuTextures].
+  final Map<int, int> _texGeneration = <int, int>{};
+
   /// A shared opaque-white texel for the **fallback** Shape path (sprite + white,
   /// `texel * colour` collapsing to the per-vertex colour) used only when the
   /// ShapeMask pipeline — the primary, texture-free Shape path (see
@@ -957,6 +964,18 @@ class FlutterGpuBackend implements RenderBackend {
     }
   }
 
+  @override
+  void invalidateTexture(int textureHash) {
+    // Evict the cached upload so the next [_gpuTextureFor] re-uploads from the
+    // registry's now-current image, and bump the generation so any in-flight
+    // upload of the old image discards itself on completion. Dropping the map
+    // entry is enough to release the old `gpu.Texture` — it is GC-managed (no
+    // explicit destroy), like every texture this backend allocates.
+    _gpuTextures.remove(textureHash);
+    _uploading.remove(textureHash);
+    _texGeneration[textureHash] = (_texGeneration[textureHash] ?? 0) + 1;
+  }
+
   /// Returns the uploaded GPU texture for [hash], or null while it uploads.
   ///
   /// Upload is async (`Image.toByteData`), so the first frame(s) after a texture
@@ -967,17 +986,20 @@ class FlutterGpuBackend implements RenderBackend {
     if (ready != null) return ready;
     if (!_uploading.contains(hash)) {
       _uploading.add(hash);
-      _upload(hash, image);
+      _upload(hash, image, _texGeneration[hash] ?? 0);
     }
     return null;
   }
 
-  Future<void> _upload(int hash, ui.Image image) async {
+  Future<void> _upload(int hash, ui.Image image, int generation) async {
     var ready = false;
     try {
       // rawRgba is premultiplied — matches the sprite.frag / bake convention.
       final bytes = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
       if (bytes == null) return;
+      // A runtime replacement issued while we awaited invalidated this upload;
+      // drop the stale result rather than caching it under the current hash.
+      if ((_texGeneration[hash] ?? 0) != generation) return;
       // Default coordinate system (renderToTexture, top-left) matches toByteData's
       // top-to-bottom rows and the Brain's top-left UVs, so no vertical flip.
       final tex = gpu.gpuContext.createTexture(
@@ -1786,6 +1808,7 @@ class FlutterGpuBackend implements RenderBackend {
     // flutter_gpu API); drop references so they can be collected.
     _gpuTextures.clear();
     _uploading.clear();
+    _texGeneration.clear();
     _whiteTexture = null;
     _whiteUploading = false;
     _dummyCoverage = null;

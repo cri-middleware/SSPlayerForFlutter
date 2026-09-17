@@ -916,6 +916,59 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   /// only lets a caller mark the target.
   bool partSkinnedMesh(int partIndex) => _partNames.isSkinnedMeshAt(partIndex);
 
+  // --- Runtime texture replacement -----------------------------------------
+  //
+  // Swap the bitmap a whole cellmap (or a TextureChange's target file) samples,
+  // from program code — costume changes, dynamic expressions. Ports the SDK's
+  // "Runtime texture replacement (a Player-side override)"
+  // (40_components/70_external_resources) and ForGodot's `set_cellmap_texture`.
+  //
+  // It is NOT part of the §65 Override Layer (per-part colour/cell/visibility,
+  // owned by the Brain). This is a pure Body concern: [textures] maps
+  // `texture_hash → image` and the draw loop already binds by
+  // `DrawBatch.texture_hash`, so a swap "just draws" — for both backends (Canvas
+  // reads the registry every draw; the GPU backend is told to evict its upload
+  // cache via [RenderBackend.invalidateTexture]).
+  //
+  // Address by the registry key: [SsAnimeInfo.textureHashForName] resolves a
+  // cellmap/external-texture NAME to it, and L3 [SpriteStudioPlayer] carries the
+  // name-taking face and the repaint.
+  //
+  // **The registry is shared across the whole instance tree here** (children draw
+  // from the parent's registry so a shared atlas decodes once), so an override
+  // reaches every part in the tree that samples that hash — ROOT and INSTANCE
+  // CHILD alike. That is the opposite of ForGodot, where each child owns its own
+  // `_textures` and the override does not propagate (memo §5-1); this port's
+  // shared-registry design makes it a tree-wide, hash-keyed swap instead.
+  //
+  // A part under a TextureChange binds the FILE-name hash on the frames it fires,
+  // not the cellmap-name hash: to replace what it shows there, target the
+  // external-texture name (`common.png`), not the cellmap name (`common`).
+
+  /// Replaces the texture registered under [textureHash] with [image], or
+  /// restores the loaded original when [image] is null. Returns false for the
+  /// reserved `0` hash (a TCHG "no override" / an unresolved name) and for a null
+  /// [image] when no override was set (nothing changed). [image] stays the
+  /// caller's — the registry borrows it and never disposes it.
+  bool setCellmapTexture(int textureHash, ui.Image? image) {
+    _ensureAlive();
+    if (textureHash == 0) return false;
+    if (image != null) {
+      textures.setOverride(textureHash, image);
+    } else if (!textures.clearOverride(textureHash)) {
+      return false;
+    }
+    // The GPU backend caches uploads by hash; evict so it re-reads the registry.
+    // The whole tree draws through this player's backend, so one call covers it.
+    _backend.invalidateTexture(textureHash);
+    return true;
+  }
+
+  /// The runtime override currently set for [textureHash] (the override VALUE
+  /// only, never the loaded original), or null when none is set.
+  ui.Image? cellmapTextureOverride(int textureHash) =>
+      textures.overrideImageFor(textureHash);
+
   // --- Rendering -----------------------------------------------------------
 
   /// Draws the current frame into [canvas] (design §7; ports the Godot flagship
@@ -941,6 +994,13 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   /// [TextureRegistry] passed to both `load`s keeps the atlases single-copy.
   void paint(ui.Canvas canvas, {ui.Rect? dst, ui.Size? sourceSize}) {
     _ensureAlive();
+    // Dispose shaders orphaned by a runtime texture replacement since the last
+    // frame — once per top-level frame, where the previous frame's recorded
+    // picture is guaranteed to have rasterised (the same boundary the backend's
+    // pool rewind relies on), so a live swap can never free a shader a pending
+    // picture still reads. Instance children draw through this player's registry
+    // and never reach here, so it runs exactly once for the whole tree.
+    textures.flushRetired();
     // Per-FRAME, not per-player: both hooks recycle resources that stay live
     // until the recorded picture rasterises, so an instance child must never run
     // them — doing so frees/rebinds what the parent's already-recorded draws are

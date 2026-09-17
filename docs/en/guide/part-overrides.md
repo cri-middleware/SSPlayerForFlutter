@@ -141,8 +141,9 @@ player.setPartColorOverride(partName, Colors.red, blendOp: SsBlendOp.mul);
 
 ## See also
 
+- [Texture Replacement](textures.md) — swap a **whole cellmap (texture)** at runtime (skins /
+  costumes): it re-skins **every part** that samples that texture, where a cell override here works on
+  **one part at a time**, replacing the cell it draws. Pick whichever matches your intent.
 - [Part Following](part-following.md) — read the other direction: follow a part's live pose with a
   widget
 - [Playback & Events](playback.md) — transport and event callbacks
-- To swap a **whole cellmap (texture)** at once, use texture replacement instead. This feature works
-  on **one part at a time**, replacing the cell it draws.

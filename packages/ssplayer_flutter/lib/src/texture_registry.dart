@@ -20,6 +20,26 @@ class TextureRegistry {
   final Map<int, _Sampling> _sampling = {};
   final Map<int, ui.ImageShader> _shaders = {};
 
+  /// Runtime texture replacements ("Runtime texture replacement (a Player-side
+  /// override)" in the SDK's `70_external_resources`; ForGodot's
+  /// `setCellMapOverrideTexture`). Keyed by the same `texture_hash` as [_images];
+  /// when present, the override WINS over the loaded original in every lookup.
+  ///
+  /// The override images are the **caller's** — the registry borrows them and
+  /// never disposes them (that would free a bitmap the app still owns and may
+  /// re-use). Restoring is dropping the entry, which falls back to the original
+  /// still held in [_images]: instant and infallible, where ForGodot reloads the
+  /// image from its path (Flutter keeps the decoded original alive instead).
+  final Map<int, ui.Image> _overrides = {};
+  final Map<int, _Sampling> _overrideSampling = {};
+
+  /// Shaders orphaned by a live override swap, disposed at the next frame's
+  /// [flushRetired] rather than on the spot: a picture recorded before the swap
+  /// may still reference the old shader until it rasterises. Only the
+  /// registry-built [ui.ImageShader] wrapper is retired here — never the override
+  /// image, which the caller owns.
+  final List<ui.ImageShader> _retired = [];
+
   /// Registers (or replaces) the decoded image for a `cellmap` texture hash,
   /// together with the cellmap's declared sampling (design §7): [filterQuality]
   /// maps the cellmap `filterMode` (Nearest → [ui.FilterQuality.none], Linear →
@@ -49,7 +69,10 @@ class TextureRegistry {
     if (previous != null && !identical(previous, image)) previous.dispose();
   }
 
-  ui.Image? imageFor(int textureHash) => _images[textureHash];
+  /// The effective image for [textureHash] — the runtime [setOverride] if one is
+  /// set, otherwise the loaded original. Null when neither exists.
+  ui.Image? imageFor(int textureHash) =>
+      _overrides[textureHash] ?? _images[textureHash];
 
   /// Whether a texture is already registered for [textureHash]. Lets a loader
   /// skip re-decoding an atlas a sibling pack has already brought in (§8: a root
@@ -63,9 +86,11 @@ class TextureRegistry {
   ui.ImageShader? shaderFor(int textureHash) {
     final cached = _shaders[textureHash];
     if (cached != null) return cached;
-    final image = _images[textureHash];
+    final image = imageFor(textureHash);
     if (image == null) return null;
-    final s = _sampling[textureHash] ?? const _Sampling.defaults();
+    final s = _overrideSampling[textureHash] ??
+        _sampling[textureHash] ??
+        const _Sampling.defaults();
     return _shaders[textureHash] = ui.ImageShader(
       image,
       s.tileMode,
@@ -75,6 +100,72 @@ class TextureRegistry {
     );
   }
 
+  // --- Runtime texture replacement -----------------------------------------
+
+  /// Sets a runtime replacement for [textureHash]: every subsequent lookup
+  /// ([imageFor] / [shaderFor]) returns [image] in place of the loaded original.
+  /// [image] is **not** owned by the registry — keep it alive while it is set and
+  /// dispose it yourself once it is cleared or replaced.
+  ///
+  /// Sampling defaults to the original cellmap's ([filterQuality] / [tileMode]
+  /// override it), on the same-size/same-layout-atlas assumption the SDK spells
+  /// out for a texture replacement.
+  void setOverride(
+    int textureHash,
+    ui.Image image, {
+    ui.FilterQuality? filterQuality,
+    ui.TileMode? tileMode,
+  }) {
+    _overrides[textureHash] = image;
+    if (filterQuality != null || tileMode != null) {
+      final base = _sampling[textureHash] ?? const _Sampling.defaults();
+      _overrideSampling[textureHash] = _Sampling(
+        filterQuality ?? base.filterQuality,
+        tileMode ?? base.tileMode,
+      );
+    } else {
+      _overrideSampling.remove(textureHash);
+    }
+    _retireShader(textureHash);
+  }
+
+  /// Clears the runtime replacement for [textureHash] (revert to the loaded
+  /// original). Returns whether one was actually set. The override image is the
+  /// caller's and is never disposed here.
+  bool clearOverride(int textureHash) {
+    final had = _overrides.remove(textureHash) != null;
+    _overrideSampling.remove(textureHash);
+    if (had) _retireShader(textureHash);
+    return had;
+  }
+
+  /// Whether a runtime replacement is currently set for [textureHash].
+  bool hasOverride(int textureHash) => _overrides.containsKey(textureHash);
+
+  /// The runtime replacement set for [textureHash] (the override VALUE only,
+  /// never the loaded original), or null when none is set — mirrors ForGodot's
+  /// `get_cellmap_texture`.
+  ui.Image? overrideImageFor(int textureHash) => _overrides[textureHash];
+
+  /// Moves the cached shader for [hash] to the retired list (see [_retired]) so
+  /// the next [shaderFor] rebuilds it against the new effective image.
+  void _retireShader(int hash) {
+    final s = _shaders.remove(hash);
+    if (s != null) _retired.add(s);
+  }
+
+  /// Disposes shaders retired by [setOverride] / [clearOverride]. Called once per
+  /// top-level frame (before the backend begins the frame), the point at which
+  /// the previous frame's recorded picture is guaranteed to have rasterised — so
+  /// a live swap can never dispose a shader a pending picture still reads.
+  void flushRetired() {
+    if (_retired.isEmpty) return;
+    for (final shader in _retired) {
+      shader.dispose();
+    }
+    _retired.clear();
+  }
+
   /// Drops every entry **without** releasing it — for a registry whose images
   /// are owned elsewhere. Prefer [dispose] unless the caller is handing the
   /// textures on to something else.
@@ -82,6 +173,11 @@ class TextureRegistry {
     _images.clear();
     _sampling.clear();
     _shaders.clear();
+    // Overrides are borrowed (caller-owned) — drop the references, never dispose.
+    _overrides.clear();
+    _overrideSampling.clear();
+    // Retired shaders are our own wrappers; disposing them here is always safe.
+    flushRetired();
   }
 
   /// Releases every decoded image and cached shader, then empties the maps.

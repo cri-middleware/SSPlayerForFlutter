@@ -83,6 +83,53 @@ class SsAnimeInfo {
     return const <String>[];
   }
 
+  /// The texture-registry key for the cellmap named [cellmapName], or null when
+  /// the pack has no such cellmap. This is the cellmap's pre-baked name hash —
+  /// equal to `DrawBatch.texture_hash` — so a runtime whole-cellmap texture swap
+  /// (`player.textures.register(hash, image)`) targets the same key the loader
+  /// registered under, without any Dart-side re-hashing (which would risk
+  /// diverging from the Brain's FNV-1a).
+  int? cellmapTextureHash(String cellmapName) {
+    for (final c in _root.cellmaps ?? const <ssab.CellMap>[]) {
+      if (c.name == cellmapName) return c.nameHash;
+    }
+    return null;
+  }
+
+  /// Names of the **external textures** — the texture *file* names (WITH
+  /// extension, e.g. `common.png`) a TextureChange (`TCHG`) can bind. The
+  /// converter fills this with every name a `TCHG` points at, including each
+  /// cellmap's own image, so it is a superset. A distinct hash space from
+  /// [cellmapNames] (see [textureHashForName]).
+  List<String> get externalTextureNames =>
+      _root.externalTextures
+          ?.map((t) => t.name)
+          .whereType<String>()
+          .toList(growable: false) ??
+      const <String>[];
+
+  /// Every texture name a runtime replacement can target: [cellmapNames] (no
+  /// extension) followed by [externalTextureNames] (with extension). Mirrors
+  /// ForGodot's `get_cellmap_names`; all are legitimately replaceable via
+  /// [SpriteStudioPlayer.setCellmapTexture].
+  List<String> get replaceableTextureNames =>
+      <String>[...cellmapNames, ...externalTextureNames];
+
+  /// The [textures] registry key for [name], resolving a cellmap name FIRST
+  /// (`common`) then an external-texture file name (`common.png`) — the two hash
+  /// spaces `texture_hash` spans — or null when neither has it. Generalises
+  /// [cellmapTextureHash] across both spaces (ForGodot's `get_cellmap_hash`); the
+  /// pre-baked `name_hash` is returned verbatim (never re-hash on the Dart side).
+  int? textureHashForName(String name) {
+    for (final c in _root.cellmaps ?? const <ssab.CellMap>[]) {
+      if (c.name == name) return c.nameHash;
+    }
+    for (final t in _root.externalTextures ?? const <ssab.ExternalTexture>[]) {
+      if (t.name == name) return t.nameHash;
+    }
+    return null;
+  }
+
   /// Image paths (for reference-mode textures), one per cellmap.
   List<String> get imagePaths =>
       _root.cellmaps

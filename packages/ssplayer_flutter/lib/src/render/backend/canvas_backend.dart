@@ -35,6 +35,12 @@ class CanvasBackend implements RenderBackend {
   @override
   set onResourcesReady(ui.VoidCallback? callback) {}
 
+  /// No-op: every draw reads its shader/image straight from the (override-aware)
+  /// [RenderHost.textures] registry, so a runtime texture replacement shows up on
+  /// the next paint with nothing to evict here — unlike the GPU backend's cache.
+  @override
+  void invalidateTexture(int textureHash) {}
+
   /// PartColor (§10) + mask-replay (§3-2) fragment program — the shader every
   /// *peeled* part goes through. Compiled once, shared across players.
   static final _LazyProgram _partColorProgram =
