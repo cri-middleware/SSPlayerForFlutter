@@ -1,12 +1,6 @@
-// The `.ssab`'s `canvas` field is not a rectangle.
-//
-// Its schema type says `Rect`, but the converter packs two unrelated things into
-// it: `x1`/`y1` are the animation's `<pivot>` and `x2`/`y2` are its
-// `<canvasSize>` (`ssconverter`, `model_t/animedata.rs`). Reading it as a rect
-// and taking `x2 - x1` subtracts the pivot from the size — right only while the
-// pivot is `0`, which is what most authored animations happen to have, and what
-// every `overall` fixture has. The family's `ParticleEffect` packs carry
-// `-0.5, 0` and `0, -0.5`, so the error is reachable with shipped data.
+// `canvasSize` is the animation's `<canvasSize>`, never mixed with its
+// `<pivot>`. The two shared one `Rect` until the schema split them, so a reader
+// that took `x2 - x1` subtracted the pivot from the size.
 //
 // Built here rather than read from a fixture: a synthetic pack pins the
 // arithmetic with a pivot chosen to make a wrong reading obvious.
@@ -29,13 +23,8 @@ Uint8List packWithCanvas({
       animations: [
         ssab.AnimationDataObjectBuilder(
           name: 'anime_1',
-          // x1/y1 = pivot, x2/y2 = size. Not a min/max pair.
-          canvas: ssab.RectObjectBuilder(
-            x1: pivotX,
-            y1: pivotY,
-            x2: width,
-            y2: height,
-          ),
+          canvasSize: ssab.Vec2ObjectBuilder(v1: width, v2: height),
+          pivot: ssab.Vec2ObjectBuilder(v1: pivotX, v2: pivotY),
           partsInitialAttributes: [],
           partsAnimationData: [],
         ),
@@ -51,8 +40,8 @@ void main() {
         packWithCanvas(pivotX: 0, pivotY: 0, width: 320, height: 240));
     expect(centred.canvasSize('anime_1'), const Size(320, 240));
 
-    // A moved pivot: `x2 - x1` would report 320.5 x 240, and a caller sizing a
-    // box from it would be wrong by the pivot rather than by the canvas.
+    // A moved pivot: the old reading reported 320.5 x 240, so a caller sizing a
+    // box from it was wrong by the pivot rather than by the canvas.
     final moved = SsAnimeInfo(
         packWithCanvas(pivotX: -0.5, pivotY: 0, width: 320, height: 240));
     expect(moved.canvasSize('anime_1'), const Size(320, 240));
