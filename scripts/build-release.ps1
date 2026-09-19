@@ -124,7 +124,10 @@ function Show-Usage {
     Write-Host "  verify=<yes|no>         Re-open the finished archives and check them"
     Write-Host "                          (default: $Verify)."
     Write-Host "  clean=<yes|no>          Delete <out> before building (default: $Clean)."
-    Write-Host "  -h | --help             Show this help"
+        Write-Host "  in= skip=               Accepted and ignored here. The family's build-release"
+    Write-Host "                          scripts share out= clean= verify= in= sdk= skip=,"
+    Write-Host "                          so one command line drives all of them."
+Write-Host "  -h | --help             Show this help"
     Write-Host ""
     Write-Host "Output: <out>/ holds, per package, <name>-<version>.tar.gz (the file set pub"
     Write-Host "would upload, packed here so it can be looked at -- pub builds its own archive"
@@ -153,14 +156,21 @@ foreach ($item in $args) {
                 "sdk"      { $Sdk = $value.ToLowerInvariant() }
                 "verify"   { $Verify = $value.ToLowerInvariant() }
                 "clean"    { $Clean = $value.ToLowerInvariant() }
+                # Accepted so one command line drives build-release in every
+                # repository of the family; this one has no use for them.
+                "in"       { [Console]::Error.WriteLine("${App}: in= does not apply here; ignored") }
+                "skip"     { [Console]::Error.WriteLine("${App}: skip= does not apply here; ignored") }
                 default {
-                    Write-Error "$App`: unknown option '$key' (see $App --help)"
+                    # Plain stderr and the code, matching the .sh twin. Write-Error
+                    # throws under $ErrorActionPreference = "Stop", so the exit 2
+                    # below it never ran and the shell saw 1.
+                    [Console]::Error.WriteLine("${App}: unknown option '$key' (see $App --help)")
                     exit 2
                 }
             }
         }
         default {
-            Write-Error "$App`: unknown argument '$item' (options are key=value; see $App --help)"
+            [Console]::Error.WriteLine("${App}: unknown argument '$item' (options are key=value; see $App --help)")
             exit 2
         }
     }
