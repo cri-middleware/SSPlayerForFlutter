@@ -208,7 +208,7 @@ class SsAnimeInfo {
       partName: partNames.nameAt(e.partIndex),
       frameNo: frameNo,
       integer: v?.integer?.value,
-      rect: r == null ? null : ui.Rect.fromLTRB(r.x1, r.y1, r.x2, r.y2),
+      rect: r == null ? null : ui.Rect.fromLTRB(r.left, r.top, r.right, r.bottom),
       point: p == null ? null : ui.Offset(p.v1, p.v2),
       string: v?.str,
     );

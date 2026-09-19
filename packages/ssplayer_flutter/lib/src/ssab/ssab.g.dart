@@ -835,35 +835,35 @@ class _Vec2Reader extends fb.TableReader<Vec2> {
     Vec2._(bc, offset);
 }
 
-class Rect {
-  Rect._(this._bc, this._bcOffset);
-  factory Rect(List<int> bytes) {
+class Bounds {
+  Bounds._(this._bc, this._bcOffset);
+  factory Bounds(List<int> bytes) {
     final rootRef = fb.BufferContext.fromBytes(bytes);
     return reader.read(rootRef, 0);
   }
 
-  static const fb.Reader<Rect> reader = _RectReader();
+  static const fb.Reader<Bounds> reader = _BoundsReader();
 
   final fb.BufferContext _bc;
   final int _bcOffset;
 
-  double get x1 => const fb.Float32Reader().vTableGet(_bc, _bcOffset, 4, 0.0);
-  double get y1 => const fb.Float32Reader().vTableGet(_bc, _bcOffset, 6, 0.0);
-  double get x2 => const fb.Float32Reader().vTableGet(_bc, _bcOffset, 8, 0.0);
-  double get y2 => const fb.Float32Reader().vTableGet(_bc, _bcOffset, 10, 0.0);
+  double get left => const fb.Float32Reader().vTableGet(_bc, _bcOffset, 4, 0.0);
+  double get top => const fb.Float32Reader().vTableGet(_bc, _bcOffset, 6, 0.0);
+  double get right => const fb.Float32Reader().vTableGet(_bc, _bcOffset, 8, 0.0);
+  double get bottom => const fb.Float32Reader().vTableGet(_bc, _bcOffset, 10, 0.0);
 
   @override
   String toString() {
-    return 'Rect{x1: ${x1}, y1: ${y1}, x2: ${x2}, y2: ${y2}}';
+    return 'Bounds{left: ${left}, top: ${top}, right: ${right}, bottom: ${bottom}}';
   }
 }
 
-class _RectReader extends fb.TableReader<Rect> {
-  const _RectReader();
+class _BoundsReader extends fb.TableReader<Bounds> {
+  const _BoundsReader();
 
   @override
-  Rect createObject(fb.BufferContext bc, int offset) => 
-    Rect._(bc, offset);
+  Bounds createObject(fb.BufferContext bc, int offset) => 
+    Bounds._(bc, offset);
 }
 
 class Region {
@@ -928,14 +928,14 @@ class _MinMax2Reader extends fb.TableReader<MinMax2> {
     MinMax2._(bc, offset);
 }
 
-class U8Rect {
-  U8Rect._(this._bc, this._bcOffset);
-  factory U8Rect(List<int> bytes) {
+class U8Color {
+  U8Color._(this._bc, this._bcOffset);
+  factory U8Color(List<int> bytes) {
     final rootRef = fb.BufferContext.fromBytes(bytes);
     return reader.read(rootRef, 0);
   }
 
-  static const fb.Reader<U8Rect> reader = _U8RectReader();
+  static const fb.Reader<U8Color> reader = _U8ColorReader();
 
   final fb.BufferContext _bc;
   final int _bcOffset;
@@ -947,16 +947,16 @@ class U8Rect {
 
   @override
   String toString() {
-    return 'U8Rect{a: ${a}, r: ${r}, g: ${g}, b: ${b}}';
+    return 'U8Color{a: ${a}, r: ${r}, g: ${g}, b: ${b}}';
   }
 }
 
-class _U8RectReader extends fb.TableReader<U8Rect> {
-  const _U8RectReader();
+class _U8ColorReader extends fb.TableReader<U8Color> {
+  const _U8ColorReader();
 
   @override
-  U8Rect createObject(fb.BufferContext bc, int offset) => 
-    U8Rect._(bc, offset);
+  U8Color createObject(fb.BufferContext bc, int offset) => 
+    U8Color._(bc, offset);
 }
 
 class SsCurve {
@@ -1974,7 +1974,7 @@ class SsAttributePartColorKeyValueColor {
   final fb.BufferContext _bc;
   final int _bcOffset;
 
-  U8Rect? get rgba => U8Rect.reader.vTableGetNullable(_bc, _bcOffset, 4);
+  U8Color? get rgba => U8Color.reader.vTableGetNullable(_bc, _bcOffset, 4);
   double get rate => const fb.Float32Reader().vTableGet(_bc, _bcOffset, 6, 0.0);
 
   @override
@@ -2204,7 +2204,7 @@ class PartAttributeUserData {
   final int _bcOffset;
 
   IntValueEntry? get integer => IntValueEntry.reader.vTableGetNullable(_bc, _bcOffset, 4);
-  Rect? get rect => Rect.reader.vTableGetNullable(_bc, _bcOffset, 6);
+  Bounds? get rect => Bounds.reader.vTableGetNullable(_bc, _bcOffset, 6);
   Vec2? get point => Vec2.reader.vTableGetNullable(_bc, _bcOffset, 8);
   String? get str => const fb.StringReader().vTableGetNullable(_bc, _bcOffset, 10);
 

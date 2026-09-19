@@ -65,8 +65,8 @@ class Vec2ObjectBuilder extends fb.ObjectBuilder {
   }
 }
 
-class RectBuilder {
-  RectBuilder(this.fbBuilder);
+class BoundsBuilder {
+  BoundsBuilder(this.fbBuilder);
 
   final fb.Builder fbBuilder;
 
@@ -74,20 +74,20 @@ class RectBuilder {
     fbBuilder.startTable(4);
   }
 
-  int addX1(double? x1) {
-    fbBuilder.addFloat32(0, x1);
+  int addLeft(double? left) {
+    fbBuilder.addFloat32(0, left);
     return fbBuilder.offset;
   }
-  int addY1(double? y1) {
-    fbBuilder.addFloat32(1, y1);
+  int addTop(double? top) {
+    fbBuilder.addFloat32(1, top);
     return fbBuilder.offset;
   }
-  int addX2(double? x2) {
-    fbBuilder.addFloat32(2, x2);
+  int addRight(double? right) {
+    fbBuilder.addFloat32(2, right);
     return fbBuilder.offset;
   }
-  int addY2(double? y2) {
-    fbBuilder.addFloat32(3, y2);
+  int addBottom(double? bottom) {
+    fbBuilder.addFloat32(3, bottom);
     return fbBuilder.offset;
   }
 
@@ -96,31 +96,31 @@ class RectBuilder {
   }
 }
 
-class RectObjectBuilder extends fb.ObjectBuilder {
-  final double? _x1;
-  final double? _y1;
-  final double? _x2;
-  final double? _y2;
+class BoundsObjectBuilder extends fb.ObjectBuilder {
+  final double? _left;
+  final double? _top;
+  final double? _right;
+  final double? _bottom;
 
-  RectObjectBuilder({
-    double? x1,
-    double? y1,
-    double? x2,
-    double? y2,
+  BoundsObjectBuilder({
+    double? left,
+    double? top,
+    double? right,
+    double? bottom,
   })
-      : _x1 = x1,
-        _y1 = y1,
-        _x2 = x2,
-        _y2 = y2;
+      : _left = left,
+        _top = top,
+        _right = right,
+        _bottom = bottom;
 
   /// Finish building, and store into the [fbBuilder].
   @override
   int finish(fb.Builder fbBuilder) {
     fbBuilder.startTable(4);
-    fbBuilder.addFloat32(0, _x1);
-    fbBuilder.addFloat32(1, _y1);
-    fbBuilder.addFloat32(2, _x2);
-    fbBuilder.addFloat32(3, _y2);
+    fbBuilder.addFloat32(0, _left);
+    fbBuilder.addFloat32(1, _top);
+    fbBuilder.addFloat32(2, _right);
+    fbBuilder.addFloat32(3, _bottom);
     return fbBuilder.endTable();
   }
 
@@ -269,8 +269,8 @@ class MinMax2ObjectBuilder extends fb.ObjectBuilder {
   }
 }
 
-class U8RectBuilder {
-  U8RectBuilder(this.fbBuilder);
+class U8ColorBuilder {
+  U8ColorBuilder(this.fbBuilder);
 
   final fb.Builder fbBuilder;
 
@@ -300,13 +300,13 @@ class U8RectBuilder {
   }
 }
 
-class U8RectObjectBuilder extends fb.ObjectBuilder {
+class U8ColorObjectBuilder extends fb.ObjectBuilder {
   final int? _a;
   final int? _r;
   final int? _g;
   final int? _b;
 
-  U8RectObjectBuilder({
+  U8ColorObjectBuilder({
     int? a,
     int? r,
     int? g,
@@ -2533,11 +2533,11 @@ class SsAttributePartColorKeyValueColorBuilder {
 }
 
 class SsAttributePartColorKeyValueColorObjectBuilder extends fb.ObjectBuilder {
-  final U8RectObjectBuilder? _rgba;
+  final U8ColorObjectBuilder? _rgba;
   final double? _rate;
 
   SsAttributePartColorKeyValueColorObjectBuilder({
-    U8RectObjectBuilder? rgba,
+    U8ColorObjectBuilder? rgba,
     double? rate,
   })
       : _rgba = rgba,
@@ -3131,13 +3131,13 @@ class PartAttributeUserDataBuilder {
 
 class PartAttributeUserDataObjectBuilder extends fb.ObjectBuilder {
   final IntValueEntryObjectBuilder? _integer;
-  final RectObjectBuilder? _rect;
+  final BoundsObjectBuilder? _rect;
   final Vec2ObjectBuilder? _point;
   final String? _str;
 
   PartAttributeUserDataObjectBuilder({
     IntValueEntryObjectBuilder? integer,
-    RectObjectBuilder? rect,
+    BoundsObjectBuilder? rect,
     Vec2ObjectBuilder? point,
     String? str,
   })
