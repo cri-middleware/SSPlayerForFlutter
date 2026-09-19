@@ -1,16 +1,17 @@
 #!/usr/bin/env bash
 #
-# Stage the SDK's bundled test projects (tests/overall, tests/Ringo) into the
-# example's SpriteStudio_Source/, then convert THOSE copies into .ssab assets,
-# using the Dart `ssconvert` CLI (ssconverter_dart). SpriteStudio_Source is the
-# single source of truth the desktop live-reload (example reassemble()) reconverts
-# on hot reload, so the initial assets and the live output come from the same place.
+# Stage the SDK's bundled test projects (tests/overall, tests/Ringo, tests/Doll)
+# into the example's SpriteStudio_Source/, then convert THOSE copies into .ssab
+# assets, using the Dart `ssconvert` CLI (ssconverter_dart). SpriteStudio_Source
+# is the single source of truth the desktop live-reload (example reassemble())
+# reconverts on hot reload, so the initial assets and the live output come from
+# the same place.
 # It loads the PREBUILT libssconverter over dart:ffi, so this needs NO Rust
 # toolchain — build the native libs via scripts/build-runtime.sh.
 # All the sibling players share this "Rust-free for customizers" philosophy.
 # Output lands in examples/overall/assets/spritestudio/<stem>/ (the SsProjectSync
 # convention — <stem> is the .sspj filename, so it matches what live-reload
-# regenerates; both dirs are referenced by examples/overall/pubspec.yaml).
+# regenerates; overall/ and Ringo/ are referenced by examples/overall/pubspec.yaml).
 #
 # SDK location (for the source .sspj): $SSSDK, else ./SpriteStudio-SDK, else
 # ../SpriteStudio-SDK.
@@ -25,6 +26,7 @@ CONV_PKG="$ROOT_DIR/packages/ssconverter_dart"
 PROJECTS=(
   "overall|overall.sspj"
   "Ringo|Ringo.sspj"
+  "Doll|Doll.sspj"
 )
 
 SDK_DIR="${SSSDK:-}"
