@@ -133,6 +133,142 @@ class RectObjectBuilder extends fb.ObjectBuilder {
   }
 }
 
+class RegionBuilder {
+  RegionBuilder(this.fbBuilder);
+
+  final fb.Builder fbBuilder;
+
+  void begin() {
+    fbBuilder.startTable(4);
+  }
+
+  int addX(double? x) {
+    fbBuilder.addFloat32(0, x);
+    return fbBuilder.offset;
+  }
+  int addY(double? y) {
+    fbBuilder.addFloat32(1, y);
+    return fbBuilder.offset;
+  }
+  int addW(double? w) {
+    fbBuilder.addFloat32(2, w);
+    return fbBuilder.offset;
+  }
+  int addH(double? h) {
+    fbBuilder.addFloat32(3, h);
+    return fbBuilder.offset;
+  }
+
+  int finish() {
+    return fbBuilder.endTable();
+  }
+}
+
+class RegionObjectBuilder extends fb.ObjectBuilder {
+  final double? _x;
+  final double? _y;
+  final double? _w;
+  final double? _h;
+
+  RegionObjectBuilder({
+    double? x,
+    double? y,
+    double? w,
+    double? h,
+  })
+      : _x = x,
+        _y = y,
+        _w = w,
+        _h = h;
+
+  /// Finish building, and store into the [fbBuilder].
+  @override
+  int finish(fb.Builder fbBuilder) {
+    fbBuilder.startTable(4);
+    fbBuilder.addFloat32(0, _x);
+    fbBuilder.addFloat32(1, _y);
+    fbBuilder.addFloat32(2, _w);
+    fbBuilder.addFloat32(3, _h);
+    return fbBuilder.endTable();
+  }
+
+  /// Convenience method to serialize to byte list.
+  @override
+  Uint8List toBytes([String? fileIdentifier]) {
+    final fbBuilder = fb.Builder(deduplicateTables: false);
+    fbBuilder.finish(finish(fbBuilder), fileIdentifier);
+    return fbBuilder.buffer;
+  }
+}
+
+class MinMax2Builder {
+  MinMax2Builder(this.fbBuilder);
+
+  final fb.Builder fbBuilder;
+
+  void begin() {
+    fbBuilder.startTable(4);
+  }
+
+  int addXMin(double? xMin) {
+    fbBuilder.addFloat32(0, xMin);
+    return fbBuilder.offset;
+  }
+  int addYMin(double? yMin) {
+    fbBuilder.addFloat32(1, yMin);
+    return fbBuilder.offset;
+  }
+  int addXMax(double? xMax) {
+    fbBuilder.addFloat32(2, xMax);
+    return fbBuilder.offset;
+  }
+  int addYMax(double? yMax) {
+    fbBuilder.addFloat32(3, yMax);
+    return fbBuilder.offset;
+  }
+
+  int finish() {
+    return fbBuilder.endTable();
+  }
+}
+
+class MinMax2ObjectBuilder extends fb.ObjectBuilder {
+  final double? _xMin;
+  final double? _yMin;
+  final double? _xMax;
+  final double? _yMax;
+
+  MinMax2ObjectBuilder({
+    double? xMin,
+    double? yMin,
+    double? xMax,
+    double? yMax,
+  })
+      : _xMin = xMin,
+        _yMin = yMin,
+        _xMax = xMax,
+        _yMax = yMax;
+
+  /// Finish building, and store into the [fbBuilder].
+  @override
+  int finish(fb.Builder fbBuilder) {
+    fbBuilder.startTable(4);
+    fbBuilder.addFloat32(0, _xMin);
+    fbBuilder.addFloat32(1, _yMin);
+    fbBuilder.addFloat32(2, _xMax);
+    fbBuilder.addFloat32(3, _yMax);
+    return fbBuilder.endTable();
+  }
+
+  /// Convenience method to serialize to byte list.
+  @override
+  Uint8List toBytes([String? fileIdentifier]) {
+    final fbBuilder = fb.Builder(deduplicateTables: false);
+    fbBuilder.finish(finish(fbBuilder), fileIdentifier);
+    return fbBuilder.buffer;
+  }
+}
+
 class U8RectBuilder {
   U8RectBuilder(this.fbBuilder);
 
@@ -512,8 +648,8 @@ class Vec2ValueEntryObjectBuilder extends fb.ObjectBuilder {
   }
 }
 
-class RectValueEntryBuilder {
-  RectValueEntryBuilder(this.fbBuilder);
+class MinMax2ValueEntryBuilder {
+  MinMax2ValueEntryBuilder(this.fbBuilder);
 
   final fb.Builder fbBuilder;
 
@@ -531,11 +667,11 @@ class RectValueEntryBuilder {
   }
 }
 
-class RectValueEntryObjectBuilder extends fb.ObjectBuilder {
-  final RectObjectBuilder? _value;
+class MinMax2ValueEntryObjectBuilder extends fb.ObjectBuilder {
+  final MinMax2ObjectBuilder? _value;
 
-  RectValueEntryObjectBuilder({
-    RectObjectBuilder? value,
+  MinMax2ValueEntryObjectBuilder({
+    MinMax2ObjectBuilder? value,
   })
       : _value = value;
 
@@ -933,7 +1069,7 @@ class CellBuilder {
     fbBuilder.addOffset(1, offset);
     return fbBuilder.offset;
   }
-  int addRectangleOffset(int? offset) {
+  int addRegionOffset(int? offset) {
     fbBuilder.addOffset(2, offset);
     return fbBuilder.offset;
   }
@@ -966,7 +1102,7 @@ class CellBuilder {
 class CellObjectBuilder extends fb.ObjectBuilder {
   final int? _nameHash;
   final String? _name;
-  final RectObjectBuilder? _rectangle;
+  final RegionObjectBuilder? _region;
   final Vec2ObjectBuilder? _pivot;
   final bool? _rotated;
   final List<double>? _tableCoordX;
@@ -976,7 +1112,7 @@ class CellObjectBuilder extends fb.ObjectBuilder {
   CellObjectBuilder({
     int? nameHash,
     String? name,
-    RectObjectBuilder? rectangle,
+    RegionObjectBuilder? region,
     Vec2ObjectBuilder? pivot,
     bool? rotated,
     List<double>? tableCoordX,
@@ -985,7 +1121,7 @@ class CellObjectBuilder extends fb.ObjectBuilder {
   })
       : _nameHash = nameHash,
         _name = name,
-        _rectangle = rectangle,
+        _region = region,
         _pivot = pivot,
         _rotated = rotated,
         _tableCoordX = tableCoordX,
@@ -997,7 +1133,7 @@ class CellObjectBuilder extends fb.ObjectBuilder {
   int finish(fb.Builder fbBuilder) {
     final int? nameOffset = _name == null ? null
         : fbBuilder.writeString(_name!);
-    final int? rectangleOffset = _rectangle?.getOrCreateOffset(fbBuilder);
+    final int? regionOffset = _region?.getOrCreateOffset(fbBuilder);
     final int? pivotOffset = _pivot?.getOrCreateOffset(fbBuilder);
     final int? tableCoordXOffset = _tableCoordX == null ? null
         : fbBuilder.writeListFloat32(_tableCoordX!);
@@ -1008,7 +1144,7 @@ class CellObjectBuilder extends fb.ObjectBuilder {
     fbBuilder.startTable(8);
     fbBuilder.addUint32(0, _nameHash);
     fbBuilder.addOffset(1, nameOffset);
-    fbBuilder.addOffset(2, rectangleOffset);
+    fbBuilder.addOffset(2, regionOffset);
     fbBuilder.addOffset(3, pivotOffset);
     fbBuilder.addBool(4, _rotated);
     fbBuilder.addOffset(5, tableCoordXOffset);
@@ -1186,8 +1322,8 @@ class EffectParticlePointGravityObjectBuilder extends fb.ObjectBuilder {
   }
 }
 
-class RectAndVec2ValueTableBuilder {
-  RectAndVec2ValueTableBuilder(this.fbBuilder);
+class MinMax2AndVec2ValueTableBuilder {
+  MinMax2AndVec2ValueTableBuilder(this.fbBuilder);
 
   final fb.Builder fbBuilder;
 
@@ -1209,12 +1345,12 @@ class RectAndVec2ValueTableBuilder {
   }
 }
 
-class RectAndVec2ValueTableObjectBuilder extends fb.ObjectBuilder {
-  final RectObjectBuilder? _size;
+class MinMax2AndVec2ValueTableObjectBuilder extends fb.ObjectBuilder {
+  final MinMax2ObjectBuilder? _size;
   final Vec2ObjectBuilder? _scaleFactorValue;
 
-  RectAndVec2ValueTableObjectBuilder({
-    RectObjectBuilder? size,
+  MinMax2AndVec2ValueTableObjectBuilder({
+    MinMax2ObjectBuilder? size,
     Vec2ObjectBuilder? scaleFactorValue,
   })
       : _size = size,
@@ -2007,7 +2143,7 @@ class FontGlyphBitmapBuilder {
 
 class FontGlyphBitmapObjectBuilder extends fb.ObjectBuilder {
   final int? _id;
-  final RectObjectBuilder? _atlas;
+  final RegionObjectBuilder? _atlas;
   final Vec2ObjectBuilder? _offset;
   final double? _widthAdvance;
   final String? _text;
@@ -2016,7 +2152,7 @@ class FontGlyphBitmapObjectBuilder extends fb.ObjectBuilder {
 
   FontGlyphBitmapObjectBuilder({
     int? id,
-    RectObjectBuilder? atlas,
+    RegionObjectBuilder? atlas,
     Vec2ObjectBuilder? offset,
     double? widthAdvance,
     String? text,
