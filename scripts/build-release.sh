@@ -141,7 +141,10 @@ usage () {
   echo "  verify=<yes|no>         Re-open the finished archives and check them"
   echo "                          (default: $VERIFY)."
   echo "  clean=<yes|no>          Delete <out> before building (default: $CLEAN)."
-  echo "  -h | --help             Show this help"
+    echo "  in= skip=               Accepted and ignored here. The family's build-release"
+  echo "                          scripts share out= clean= verify= in= sdk= skip=,"
+  echo "                          so one command line drives all of them."
+echo "  -h | --help             Show this help"
   echo ""
   echo "Output: <out>/ holds, per package, <name>-<version>.tar.gz (the file set pub"
   echo "would upload, packed here so it can be looked at -- pub builds its own archive"
@@ -176,6 +179,9 @@ while [ $# -gt 0 ]; do
         sdk)      SDK="$(printf '%s' "$value" | tr '[:upper:]' '[:lower:]')" ;;
         verify)   VERIFY="$(printf '%s' "$value" | tr '[:upper:]' '[:lower:]')" ;;
         clean)    CLEAN="$(printf '%s' "$value" | tr '[:upper:]' '[:lower:]')" ;;
+        # Accepted so one command line drives build-release in every repository
+        # of the family; this one has no use for them (AGENTS.md).
+        in|skip) echo "$APP: ${key}= does not apply here; ignored" >&2 ;;
         *)
           echo "$APP: unknown option '$key' (see $APP --help)" >&2
           exit 2
