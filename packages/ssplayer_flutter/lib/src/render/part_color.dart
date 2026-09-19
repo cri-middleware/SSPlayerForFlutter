@@ -187,7 +187,7 @@ class PartColor {
     );
   }
 
-  // `U8Rect` is stored A,R,G,B (alpha first); normalise each channel to 0..1.
+  // `U8Color` is stored A,R,G,B (alpha first); normalise each channel to 0..1.
   static PartColorCorner _corner(fbs.SsAttributePartColorKeyValueColor c) {
     final u = c.rgba;
     return PartColorCorner(

@@ -30,7 +30,7 @@ Uint8List _buildSsab() {
                 partIndex: 3,
                 value: ssab.PartAttributeUserDataObjectBuilder(
                   integer: ssab.IntValueEntryObjectBuilder(value: 42),
-                  rect: ssab.RectObjectBuilder(x1: 1, y1: 2, x2: 3, y2: 4),
+                  rect: ssab.BoundsObjectBuilder(left: 1, top: 2, right: 3, bottom: 4),
                   point: ssab.Vec2ObjectBuilder(v1: 7, v2: 8),
                   str: 'hello',
                 ),

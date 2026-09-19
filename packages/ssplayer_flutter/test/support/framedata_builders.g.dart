@@ -95,8 +95,8 @@ class Vec2ObjectBuilder extends fb.ObjectBuilder {
   }
 }
 
-class U8RectBuilder {
-  U8RectBuilder(this.fbBuilder);
+class U8ColorBuilder {
+  U8ColorBuilder(this.fbBuilder);
 
   final fb.Builder fbBuilder;
 
@@ -110,13 +110,13 @@ class U8RectBuilder {
 
 }
 
-class U8RectObjectBuilder extends fb.ObjectBuilder {
+class U8ColorObjectBuilder extends fb.ObjectBuilder {
   final int _a;
   final int _r;
   final int _g;
   final int _b;
 
-  U8RectObjectBuilder({
+  U8ColorObjectBuilder({
     required int a,
     required int r,
     required int g,
@@ -160,11 +160,11 @@ class SsAttributePartColorKeyValueColorBuilder {
 }
 
 class SsAttributePartColorKeyValueColorObjectBuilder extends fb.ObjectBuilder {
-  final U8RectObjectBuilder _rgba;
+  final U8ColorObjectBuilder _rgba;
   final double _rate;
 
   SsAttributePartColorKeyValueColorObjectBuilder({
-    required U8RectObjectBuilder rgba,
+    required U8ColorObjectBuilder rgba,
     required double rate,
   })
       : _rgba = rgba,

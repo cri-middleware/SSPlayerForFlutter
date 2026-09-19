@@ -270,10 +270,10 @@ class _Vec2Reader extends fb.StructReader<Vec2> {
     Vec2._(bc, offset);
 }
 
-class U8Rect {
-  U8Rect._(this._bc, this._bcOffset);
+class U8Color {
+  U8Color._(this._bc, this._bcOffset);
 
-  static const fb.Reader<U8Rect> reader = _U8RectReader();
+  static const fb.Reader<U8Color> reader = _U8ColorReader();
 
   final fb.BufferContext _bc;
   final int _bcOffset;
@@ -285,19 +285,19 @@ class U8Rect {
 
   @override
   String toString() {
-    return 'U8Rect{a: ${a}, r: ${r}, g: ${g}, b: ${b}}';
+    return 'U8Color{a: ${a}, r: ${r}, g: ${g}, b: ${b}}';
   }
 }
 
-class _U8RectReader extends fb.StructReader<U8Rect> {
-  const _U8RectReader();
+class _U8ColorReader extends fb.StructReader<U8Color> {
+  const _U8ColorReader();
 
   @override
   int get size => 4;
 
   @override
-  U8Rect createObject(fb.BufferContext bc, int offset) => 
-    U8Rect._(bc, offset);
+  U8Color createObject(fb.BufferContext bc, int offset) => 
+    U8Color._(bc, offset);
 }
 
 class SsAttributePartColorKeyValueColor {
@@ -308,7 +308,7 @@ class SsAttributePartColorKeyValueColor {
   final fb.BufferContext _bc;
   final int _bcOffset;
 
-  U8Rect get rgba => U8Rect.reader.read(_bc, _bcOffset + 0);
+  U8Color get rgba => U8Color.reader.read(_bc, _bcOffset + 0);
   double get rate => const fb.Float32Reader().read(_bc, _bcOffset + 4);
 
   @override

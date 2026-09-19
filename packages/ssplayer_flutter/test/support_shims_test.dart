@@ -15,9 +15,9 @@ import 'support/ssqb_builders.g.dart' as ssqb;
 
 void main() {
   test('the ssab shim round-trips a buffer through the re-exported reader', () {
-    final bytes = ssab.RectObjectBuilder(x1: 1, y1: 2, x2: 3, y2: 4).toBytes();
-    expect(ssab.Rect(bytes).x1, 1);
-    expect(ssab.Rect(bytes).y2, 4);
+    final bytes = ssab.BoundsObjectBuilder(left: 1, top: 2, right: 3, bottom: 4).toBytes();
+    expect(ssab.Bounds(bytes).left, 1);
+    expect(ssab.Bounds(bytes).bottom, 4);
   });
 
   test('the ssqb shim round-trips a buffer through the re-exported reader', () {
