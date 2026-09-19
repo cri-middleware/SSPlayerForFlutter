@@ -20,6 +20,25 @@
 
 $ErrorActionPreference = "Stop"
 
+$HelpApp = Split-Path -Leaf $PSCommandPath
+function Show-Usage {
+    Write-Host "Usage: ${HelpApp} [--help]"
+    Write-Host "  Stage the SDK's bundled test projects into examples/overall/SpriteStudio_Source/"
+    Write-Host "  and convert those copies into examples/overall/assets/spritestudio/."
+    Write-Host "  Needs the Dart SDK and the native libs from build-runtime."
+}
+
+foreach ($arg in $args) {
+    switch -Regex ($arg) {
+        '^(-h|--help|help)$' { Show-Usage; exit 0 }
+        default {
+            [Console]::Error.WriteLine("${HelpApp}: unknown argument '$arg'")
+            Show-Usage
+            exit 2
+        }
+    }
+}
+
 $RootDir = Split-Path -Parent (Split-Path -Parent $PSCommandPath)
 $ConvPkg = Join-Path $RootDir "packages/ssconverter_dart"
 

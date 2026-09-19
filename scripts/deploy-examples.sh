@@ -17,6 +17,23 @@
 # ../SpriteStudio-SDK.
 set -euo pipefail
 
+HELP_APP="$(basename "$0")"
+usage () {
+    cat <<USAGE
+Usage: ${HELP_APP} [--help]
+  Stage the SDK's bundled test projects into examples/overall/SpriteStudio_Source/
+  and convert those copies into examples/overall/assets/spritestudio/.
+  Needs the Dart SDK and the native libs from build-runtime.
+USAGE
+}
+
+for arg in "$@"; do
+  case "$arg" in
+    -h|--help|help) usage; exit 0 ;;
+    *) echo "${HELP_APP}: unknown argument '${arg}'" >&2; usage >&2; exit 2 ;;
+  esac
+done
+
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 CONV_PKG="$ROOT_DIR/packages/ssconverter_dart"
 
