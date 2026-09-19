@@ -866,6 +866,68 @@ class _RectReader extends fb.TableReader<Rect> {
     Rect._(bc, offset);
 }
 
+class Region {
+  Region._(this._bc, this._bcOffset);
+  factory Region(List<int> bytes) {
+    final rootRef = fb.BufferContext.fromBytes(bytes);
+    return reader.read(rootRef, 0);
+  }
+
+  static const fb.Reader<Region> reader = _RegionReader();
+
+  final fb.BufferContext _bc;
+  final int _bcOffset;
+
+  double get x => const fb.Float32Reader().vTableGet(_bc, _bcOffset, 4, 0.0);
+  double get y => const fb.Float32Reader().vTableGet(_bc, _bcOffset, 6, 0.0);
+  double get w => const fb.Float32Reader().vTableGet(_bc, _bcOffset, 8, 0.0);
+  double get h => const fb.Float32Reader().vTableGet(_bc, _bcOffset, 10, 0.0);
+
+  @override
+  String toString() {
+    return 'Region{x: ${x}, y: ${y}, w: ${w}, h: ${h}}';
+  }
+}
+
+class _RegionReader extends fb.TableReader<Region> {
+  const _RegionReader();
+
+  @override
+  Region createObject(fb.BufferContext bc, int offset) => 
+    Region._(bc, offset);
+}
+
+class MinMax2 {
+  MinMax2._(this._bc, this._bcOffset);
+  factory MinMax2(List<int> bytes) {
+    final rootRef = fb.BufferContext.fromBytes(bytes);
+    return reader.read(rootRef, 0);
+  }
+
+  static const fb.Reader<MinMax2> reader = _MinMax2Reader();
+
+  final fb.BufferContext _bc;
+  final int _bcOffset;
+
+  double get xMin => const fb.Float32Reader().vTableGet(_bc, _bcOffset, 4, 0.0);
+  double get yMin => const fb.Float32Reader().vTableGet(_bc, _bcOffset, 6, 0.0);
+  double get xMax => const fb.Float32Reader().vTableGet(_bc, _bcOffset, 8, 0.0);
+  double get yMax => const fb.Float32Reader().vTableGet(_bc, _bcOffset, 10, 0.0);
+
+  @override
+  String toString() {
+    return 'MinMax2{xMin: ${xMin}, yMin: ${yMin}, xMax: ${xMax}, yMax: ${yMax}}';
+  }
+}
+
+class _MinMax2Reader extends fb.TableReader<MinMax2> {
+  const _MinMax2Reader();
+
+  @override
+  MinMax2 createObject(fb.BufferContext bc, int offset) => 
+    MinMax2._(bc, offset);
+}
+
 class U8Rect {
   U8Rect._(this._bc, this._bcOffset);
   factory U8Rect(List<int> bytes) {
@@ -1094,32 +1156,32 @@ class _Vec2ValueEntryReader extends fb.TableReader<Vec2ValueEntry> {
     Vec2ValueEntry._(bc, offset);
 }
 
-class RectValueEntry {
-  RectValueEntry._(this._bc, this._bcOffset);
-  factory RectValueEntry(List<int> bytes) {
+class MinMax2ValueEntry {
+  MinMax2ValueEntry._(this._bc, this._bcOffset);
+  factory MinMax2ValueEntry(List<int> bytes) {
     final rootRef = fb.BufferContext.fromBytes(bytes);
     return reader.read(rootRef, 0);
   }
 
-  static const fb.Reader<RectValueEntry> reader = _RectValueEntryReader();
+  static const fb.Reader<MinMax2ValueEntry> reader = _MinMax2ValueEntryReader();
 
   final fb.BufferContext _bc;
   final int _bcOffset;
 
-  Rect? get value => Rect.reader.vTableGetNullable(_bc, _bcOffset, 4);
+  MinMax2? get value => MinMax2.reader.vTableGetNullable(_bc, _bcOffset, 4);
 
   @override
   String toString() {
-    return 'RectValueEntry{value: ${value}}';
+    return 'MinMax2ValueEntry{value: ${value}}';
   }
 }
 
-class _RectValueEntryReader extends fb.TableReader<RectValueEntry> {
-  const _RectValueEntryReader();
+class _MinMax2ValueEntryReader extends fb.TableReader<MinMax2ValueEntry> {
+  const _MinMax2ValueEntryReader();
 
   @override
-  RectValueEntry createObject(fb.BufferContext bc, int offset) => 
-    RectValueEntry._(bc, offset);
+  MinMax2ValueEntry createObject(fb.BufferContext bc, int offset) => 
+    MinMax2ValueEntry._(bc, offset);
 }
 
 class EventUserData {
@@ -1314,7 +1376,7 @@ class Cell {
 
   int get nameHash => const fb.Uint32Reader().vTableGet(_bc, _bcOffset, 4, 0);
   String? get name => const fb.StringReader().vTableGetNullable(_bc, _bcOffset, 6);
-  Rect? get rectangle => Rect.reader.vTableGetNullable(_bc, _bcOffset, 8);
+  Region? get region => Region.reader.vTableGetNullable(_bc, _bcOffset, 8);
   Vec2? get pivot => Vec2.reader.vTableGetNullable(_bc, _bcOffset, 10);
   bool get rotated => const fb.BoolReader().vTableGet(_bc, _bcOffset, 12, false);
   List<double>? get tableCoordX => const fb.ListReader<double>(fb.Float32Reader()).vTableGetNullable(_bc, _bcOffset, 14);
@@ -1323,7 +1385,7 @@ class Cell {
 
   @override
   String toString() {
-    return 'Cell{nameHash: ${nameHash}, name: ${name}, rectangle: ${rectangle}, pivot: ${pivot}, rotated: ${rotated}, tableCoordX: ${tableCoordX}, tableCoordY: ${tableCoordY}, tableIndexVertex: ${tableIndexVertex}}';
+    return 'Cell{nameHash: ${nameHash}, name: ${name}, region: ${region}, pivot: ${pivot}, rotated: ${rotated}, tableCoordX: ${tableCoordX}, tableCoordY: ${tableCoordY}, tableIndexVertex: ${tableIndexVertex}}';
   }
 }
 
@@ -1399,33 +1461,33 @@ class _EffectParticlePointGravityReader extends fb.TableReader<EffectParticlePoi
     EffectParticlePointGravity._(bc, offset);
 }
 
-class RectAndVec2ValueTable {
-  RectAndVec2ValueTable._(this._bc, this._bcOffset);
-  factory RectAndVec2ValueTable(List<int> bytes) {
+class MinMax2AndVec2ValueTable {
+  MinMax2AndVec2ValueTable._(this._bc, this._bcOffset);
+  factory MinMax2AndVec2ValueTable(List<int> bytes) {
     final rootRef = fb.BufferContext.fromBytes(bytes);
     return reader.read(rootRef, 0);
   }
 
-  static const fb.Reader<RectAndVec2ValueTable> reader = _RectAndVec2ValueTableReader();
+  static const fb.Reader<MinMax2AndVec2ValueTable> reader = _MinMax2AndVec2ValueTableReader();
 
   final fb.BufferContext _bc;
   final int _bcOffset;
 
-  Rect? get size => Rect.reader.vTableGetNullable(_bc, _bcOffset, 4);
+  MinMax2? get size => MinMax2.reader.vTableGetNullable(_bc, _bcOffset, 4);
   Vec2? get scaleFactorValue => Vec2.reader.vTableGetNullable(_bc, _bcOffset, 6);
 
   @override
   String toString() {
-    return 'RectAndVec2ValueTable{size: ${size}, scaleFactorValue: ${scaleFactorValue}}';
+    return 'MinMax2AndVec2ValueTable{size: ${size}, scaleFactorValue: ${scaleFactorValue}}';
   }
 }
 
-class _RectAndVec2ValueTableReader extends fb.TableReader<RectAndVec2ValueTable> {
-  const _RectAndVec2ValueTableReader();
+class _MinMax2AndVec2ValueTableReader extends fb.TableReader<MinMax2AndVec2ValueTable> {
+  const _MinMax2AndVec2ValueTableReader();
 
   @override
-  RectAndVec2ValueTable createObject(fb.BufferContext bc, int offset) => 
-    RectAndVec2ValueTable._(bc, offset);
+  MinMax2AndVec2ValueTable createObject(fb.BufferContext bc, int offset) => 
+    MinMax2AndVec2ValueTable._(bc, offset);
 }
 
 class EffectParticleElementTransColor {
@@ -1601,7 +1663,7 @@ class EffectNodeBehaviorWrapper {
       case 2: return IntValueEntry.reader.vTableGetNullable(_bc, _bcOffset, 6);
       case 3: return IntValueEntry.reader.vTableGetNullable(_bc, _bcOffset, 6);
       case 4: return Vec2ValueEntry.reader.vTableGetNullable(_bc, _bcOffset, 6);
-      case 5: return RectValueEntry.reader.vTableGetNullable(_bc, _bcOffset, 6);
+      case 5: return MinMax2ValueEntry.reader.vTableGetNullable(_bc, _bcOffset, 6);
       case 6: return EffectParticleElementRotation.reader.vTableGetNullable(_bc, _bcOffset, 6);
       case 7: return EffectParticleElementRotationTrans.reader.vTableGetNullable(_bc, _bcOffset, 6);
       case 8: return Vec2ValueEntry.reader.vTableGetNullable(_bc, _bcOffset, 6);
@@ -1609,8 +1671,8 @@ class EffectNodeBehaviorWrapper {
       case 10: return EffectParticleElementInitColor.reader.vTableGetNullable(_bc, _bcOffset, 6);
       case 11: return EffectParticleElementTransColor.reader.vTableGetNullable(_bc, _bcOffset, 6);
       case 12: return Vec2ValueEntry.reader.vTableGetNullable(_bc, _bcOffset, 6);
-      case 13: return RectAndVec2ValueTable.reader.vTableGetNullable(_bc, _bcOffset, 6);
-      case 14: return RectAndVec2ValueTable.reader.vTableGetNullable(_bc, _bcOffset, 6);
+      case 13: return MinMax2AndVec2ValueTable.reader.vTableGetNullable(_bc, _bcOffset, 6);
+      case 14: return MinMax2AndVec2ValueTable.reader.vTableGetNullable(_bc, _bcOffset, 6);
       case 15: return EffectParticlePointGravity.reader.vTableGetNullable(_bc, _bcOffset, 6);
       case 16: return FloatValueEntry.reader.vTableGetNullable(_bc, _bcOffset, 6);
       case 17: return IntValueEntry.reader.vTableGetNullable(_bc, _bcOffset, 6);
@@ -1775,7 +1837,7 @@ class FontGlyphBitmap {
   final int _bcOffset;
 
   int get id => const fb.Uint16Reader().vTableGet(_bc, _bcOffset, 4, 0);
-  Rect? get atlas => Rect.reader.vTableGetNullable(_bc, _bcOffset, 6);
+  Region? get atlas => Region.reader.vTableGetNullable(_bc, _bcOffset, 6);
   Vec2? get offset => Vec2.reader.vTableGetNullable(_bc, _bcOffset, 8);
   double get widthAdvance => const fb.Float32Reader().vTableGet(_bc, _bcOffset, 10, 0.0);
   String? get text => const fb.StringReader().vTableGetNullable(_bc, _bcOffset, 12);
