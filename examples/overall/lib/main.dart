@@ -120,6 +120,11 @@ class _PlayerPageState extends State<PlayerPage>
       'Sound',
     ],
     'assets/spritestudio/Ringo': <String>['Ringo', 'Ringo_tyu'],
+    // Instance and effect parts on one rig: both body packs mount `Eye`'s
+    // `Wait` out of a different animation pack, and Action02_Body authors EFCT
+    // keys beside them. `Eye` is listed too — it is the pack the instance parts
+    // reach into, and playing it alone is how to see what they mount.
+    'assets/spritestudio/Doll': <String>['Action01_Body', 'Action02_Body', 'Eye'],
   };
   static const _defaultSource = 'assets/spritestudio/overall';
 
