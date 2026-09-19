@@ -20,6 +20,10 @@ external void ss_custom_free(ffi.Pointer<ffi.Void> ptr, int size, int align);
 
 /// Create a new EffectSlot bound to `resource`. Returns null on failure
 /// (resource not loaded, effect_name_hash not found, malformed effect data).
+///
+/// The slot holds its own reference to `resource`, so `ss_resource_destroy`
+/// may be called while the slot is still alive, exactly as it may while a
+/// Context is still bound.
 @ffi.Native<
   ffi.Pointer<ffi.Void> Function(ffi.Pointer<ffi.Void>, ffi.Uint32, ffi.Uint32)
 >()
