@@ -15,9 +15,10 @@
 // later parts. A parallel pass renders the same frames through the real
 // CanvasBackend to exercise the bubbled coverage bake without throwing.
 //
-// The fixtures are the SDK's "overall" InstancePropagation animation and its
-// Source01 sub-animation, converted on demand into test/fixtures/instprop (not
-// committed); the test skips when they are absent.
+// The fixtures in test/fixtures/instprop are the SDK's "overall"
+// InstancePropagation animation and its Source01 sub-animation, committed here
+// and re-converted whenever the .ssab layout changes; the test skips when they
+// are absent, and the runtime rejects them when they are stale.
 import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
