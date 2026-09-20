@@ -21,7 +21,8 @@ import 'package:ssplayer_flutter/src/render/backend/gpu_capability.dart'
 
 /// flutter_gpu bring-up switch. Run with `--dart-define=SS_BACKEND=gpu` to drive
 /// the flutter_gpu backend (Impeller; mobile/desktop) instead of the Canvas
-/// default. `gpu` falls back to Canvas where flutter_gpu is unavailable.
+/// default, or `scripts/run.sh --gpu`, which adds the engine switches that go
+/// with it. `gpu` falls back to Canvas where flutter_gpu is unavailable.
 const String _backendName =
     String.fromEnvironment('SS_BACKEND', defaultValue: 'canvas');
 SpriteStudioBackend get _selectedBackend =>
@@ -31,11 +32,13 @@ SpriteStudioBackend get _selectedBackend =>
 /// unavailable flutter_gpu downgrades it to Canvas without raising anything, so
 /// this line is the only way to tell a real GPU run from a silent fallback.
 ///
-/// `flutter run -d macos --enable-impeller --enable-flutter-gpu` does reach the
-/// engine (verified: the probe returns true). `flutter test -d macos` takes
-/// neither flag — an integration test needs the same two switches as
-/// `FLTEnableImpeller` / `FLTEnableFlutterGPU` in `macos/Runner/Info.plist`,
-/// which is gitignored and regenerated without them.
+/// On macOS `flutter run -d macos --enable-flutter-gpu` is enough to reach the
+/// engine (verified: the probe returns true). `--enable-impeller` is ignored
+/// there — Impeller is already the default — and only earns its place on
+/// Android; `scripts/run.sh --gpu` passes it anyway so one flag is right on
+/// every target. `flutter test -d macos` takes no such flag at all: an
+/// integration test needs `FLTEnableImpeller` / `FLTEnableFlutterGPU` in
+/// `macos/Runner/Info.plist`, which is gitignored and regenerated without them.
 String get _backendReport {
   final resolved = resolveBackend(_selectedBackend).name;
   if (_selectedBackend == SpriteStudioBackend.gpu &&
