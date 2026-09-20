@@ -83,17 +83,15 @@
 |---|---|---|
 | macOS デスクトップ | VM Service push（file） | end-to-end 検証済み |
 | Android | VM Service push（embedded） | end-to-end 検証済み（emulator） |
-| iOS | VM Service push（embedded） | 見込みあり・未検証 |
+| iOS | VM Service push（embedded） | end-to-end 検証済み（シミュレータ） |
 | Windows / Linux デスクトップ | VM Service push（file） | 見込みあり（OS 非依存）・未検証 |
 | Web（`-d chrome`・デバッグ） | VM Service push（embedded・DWDS 中継） | デバッグ DDC のみ（`--wasm`/`build web` 不可） |
 
 `--device` はターゲットの選択ではなく**ペイロードの選択**です。ホストのパスではなくバイトを送るだけ
 なので、どのターゲットでも受け取れます。つまり `sswatch --run -d macos --device` を実行すれば、
-デバイスを繋がずに embedded 経路まるごと —— ルーティング・転送・`reload()` —— を動かせます。実際
-その方法で検証済みです（再生位置が保たれる: frame 1.68 → 2 回目の保存で 6.70、編集したプロジェクト
-だけが再変換され、push と同時に `assets/` も更新される）。したがって未検証のままの行で未確認なのは
-**そのターゲットの接続**であって push 自体ではありません。どれかが無反応なときは、まずそこを疑って
-ください。
+デバイスを繋がずに embedded 経路まるごと —— ルーティング・転送・`reload()` —— を動かせます。
+push が壊れているのか、単にターゲットが繋がっていないだけなのかを切り分けるのに使えます。未検証の
+ままの行が意味するのもその差で、push 自体はどのターゲットでも同じコードです。
 
 試すときは**実際の編集**を保存してください。`touch` は watcher に確実には届きません（macOS で確認:
 イベントが 1 つも出ませんでした）。これはファイル監視側の性質で、リロードの問題ではありません。
