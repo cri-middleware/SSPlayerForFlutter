@@ -52,7 +52,20 @@ cd "$EXAMPLE_DIR"
 
 # 1. Generate the macOS platform folder if missing. Idempotent: `flutter create`
 #    only fills in what is absent and never clobbers lib/ or pubspec.yaml.
-flutter create --platforms=macos .
+# `flutter create` rewrites .metadata's migration list to EXACTLY the platforms
+# it is handed, dropping the entry for every runner it is not told about — so a
+# run for android alone silently removes macos from a project that has macos/.
+# The runners already on disk are therefore carried along; nothing is generated
+# twice, because create only fills in what is absent.
+carry_existing() {
+  local list="$1" p
+  for p in android ios macos windows linux web; do
+    case ",$list," in *",$p,"*) continue ;; esac
+    [ -d "$p" ] && list="${list:+$list,}$p"
+  done
+  echo "$list"
+}
+flutter create --platforms="$(carry_existing macos)" .
 
 DBG="macos/Runner/DebugProfile.entitlements"
 REL="macos/Runner/Release.entitlements"

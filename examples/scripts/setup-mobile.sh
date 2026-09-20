@@ -61,9 +61,24 @@ fi
 PLATFORMS=""
 [ "$WANT_ANDROID" = 1 ] && PLATFORMS="android"
 [ "$WANT_IOS" = 1 ] && PLATFORMS="${PLATFORMS:+$PLATFORMS,}ios"
+REQUESTED="$PLATFORMS"
+
+# `flutter create` rewrites .metadata's migration list to EXACTLY the platforms
+# it is handed, dropping the entry for every runner it is not told about — so a
+# run for android alone silently removes macos from a project that has macos/.
+# The runners already on disk are therefore carried along; nothing is generated
+# twice, because create only fills in what is absent.
+carry_existing() {
+  local list="$1" p
+  for p in android ios macos windows linux web; do
+    case ",$list," in *",$p,"*) continue ;; esac
+    [ -d "$p" ] && list="${list:+$list,}$p"
+  done
+  echo "$list"
+}
 
 cd "$EXAMPLE_DIR"
-flutter create --platforms="$PLATFORMS" .
+flutter create --platforms="$(carry_existing "$PLATFORMS")" .
 
 # The native Brain is the part `flutter create` cannot produce. hook/build.dart
 # prefers a local build and falls back to downloading the pinned SDK release —
@@ -71,7 +86,7 @@ flutter create --platforms="$PLATFORMS" .
 # the ONLY route on these two platforms. Say so here rather than let the build
 # fail 90 seconds later inside Gradle with an HTTP 404.
 RT_LIBS="$ROOT_DIR/packages/ssruntime_dart/native/libs"
-for p in $(echo "$PLATFORMS" | tr ',' ' '); do
+for p in $(echo "$REQUESTED" | tr ',' ' '); do
   if [ ! -d "$RT_LIBS/$p" ]; then
     echo "[setup-mobile] no libssruntime for $p yet — build it with:"
     echo "[setup-mobile]   bash scripts/build-runtime.sh platform=$p"
@@ -80,4 +95,4 @@ for p in $(echo "$PLATFORMS" | tr ',' ' '); do
   fi
 done
 
-echo "[setup-mobile] done — $EXAMPLE/{$PLATFORMS} ready (run: flutter run -d <device>)"
+echo "[setup-mobile] done — $EXAMPLE/{$REQUESTED} ready (run: flutter run -d <device>)"

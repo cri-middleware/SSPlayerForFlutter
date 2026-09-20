@@ -32,7 +32,18 @@ $Platforms = 'android'
 
 Push-Location $ExampleDir
 try {
-    & flutter create --platforms=$Platforms .
+    # `flutter create` rewrites .metadata's migration list to EXACTLY the
+    # platforms it is handed, dropping the entry for every runner it is not told
+    # about — so a run for android alone silently removes macos from a project
+    # that has macos/. Carry the runners already on disk; nothing is generated
+    # twice, because create only fills in what is absent.
+    $Carry = @($Platforms)
+    foreach ($p in @('android', 'ios', 'macos', 'windows', 'linux', 'web')) {
+        if ($Carry -notcontains $p -and (Test-Path -PathType Container $p)) {
+            $Carry += $p
+        }
+    }
+    & flutter create --platforms=($Carry -join ',') .
     if ($LASTEXITCODE -ne 0) { Write-Error "[setup-mobile] flutter create failed" }
 }
 finally { Pop-Location }
