@@ -68,6 +68,9 @@ flutter test          # native assets bundles the Brain via hook/build.dart — 
 ```
 `ssruntime_dart` and `ssconverter_dart` each run `dart test` in their own package.
 
+### Documentation
+Pages live as both `docs/en/<path>` and `docs/ja/<path>`; there is no fallback locale, so a page missing from one side is a nav entry pointing at nothing. If you edit one, build both locales before you finish — see [RELEASING.md](./RELEASING.md). Nothing builds the docs on a pull request, so that local build is the only gate.
+
 ## Coding Standards
 
 ### Dart Guidelines
@@ -152,6 +155,9 @@ flutter analyze lib test
 flutter test          # Native Assets が hook/build.dart 経由で Brain を同梱。env 変数は不要
 ```
 `ssruntime_dart` / `ssconverter_dart` は各パッケージで `dart test` を実行します。
+
+### ドキュメント
+ページは `docs/en/<path>` と `docs/ja/<path>` の両方に存在します。フォールバックロケールは無いため、片方に欠けたページは行き先の無い nav エントリになります。編集したら、仕上げる前に両ロケールをビルドしてください（手順は [RELEASING.md](./RELEASING.md)）。プルリクエストでは docs はビルドされないため、手元のビルドが唯一のゲートです。
 
 ## コーディング規約
 
