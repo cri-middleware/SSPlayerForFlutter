@@ -26,10 +26,16 @@ animation editing gets the same fast iteration as a code hot reload.
    alongside an IDE debugger — the same mechanism on desktop, device and the web).
     - **Desktop** — the app reads the re-converted `.ssab` off disk.
     - **Device (iOS / Android)** — a texture-embedded `.ssab` is sent as bytes (a device can't read a
-      host path).
+      host path). The pack is routed by convention: the **last segment of the app's `ssAssetDir`**
+      names the `<stem>.sspj` it came from. `sswatch` says so on stderr when the two disagree —
+      nothing is pushed until they match.
     - **Web (`flutter run -d chrome`, debug)** — like a device, a texture-embedded `.ssab` is sent as
       bytes; the VM Service extension is routed by DWDS. Debug only (not `--wasm`, not `flutter build web`).
 4. The player calls `reload()`, swapping the resource while preserving playback state.
+5. On `--device`, `assets/` is re-converted too, after the push. A byte push only reaches the
+   running isolate, so without this the next hot restart would drop back to the art bundled at
+   launch. It costs a second conversion per save; desktop needs none, as its reconvert already
+   writes into `assets/`.
 
 ## Enabling it (recipe)
 
@@ -65,6 +71,13 @@ animation editing gets the same fast iteration as a code hot reload.
 
 Place your source projects under `SpriteStudio_Source/<project>/`. Save a real edit (a `touch` produces
 identical bytes — and may not even trip the watcher).
+
+!!! warning "macOS desktop: the App Sandbox blocks the file push"
+    A `file` push hands the app a host path outside its container, so a sandboxed debug build
+    cannot read it and the push reports `reloaded 0 player(s)` with no error. Set
+    `com.apple.security.app-sandbox` to `false` in `macos/Runner/DebugProfile.entitlements`
+    (debug only — Release keeps the sandbox on). `--device` is unaffected: those bytes travel
+    over the VM Service.
 
 ## Platform status
 

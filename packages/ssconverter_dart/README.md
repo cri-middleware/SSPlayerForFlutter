@@ -51,7 +51,7 @@ final out = await const SsConverter()
 * **Keep `.sspj` sources out of the shipped app.** Manage them outside the
   Flutter package and commit only the converted `.ssab`; the game never needs
   the source data.
-* **Reconverting a whole directory on every hot reload is a different job** —
+* **Reconverting a whole directory on every source save is a different job** —
   see [`ssgen_dart`](../ssgen_dart), which reconverts only what went stale.
 * Other front-ends for the same converter: the
   [SSConverterGUI](https://github.com/cri-middleware/SSConverterGUI) desktop app

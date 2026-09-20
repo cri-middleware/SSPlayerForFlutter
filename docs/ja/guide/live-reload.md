@@ -24,11 +24,16 @@
    デバッガと両立。デスクトップ／デバイス／Web で同じ仕組み）。
     - **デスクトップ** —— 再変換した `.ssab` をアプリがその場で読み込みます。
     - **デバイス（iOS / Android）** —— テクスチャ内包の embedded `.ssab` をバイトで送ります
-      （端末はホストのパスを読めないため）。
+      （端末はホストのパスを読めないため）。どのパックを送るかは規約で決まります ——
+      アプリの **`ssAssetDir` の末尾セグメント**が、変換元の `<stem>.sspj` を指します。
+      食い違うと `sswatch` が stderr で指摘し、一致するまで何も push されません。
     - **Web（`flutter run -d chrome`・デバッグ）** —— デバイスと同じくテクスチャ内包の embedded
       `.ssab` をバイトで送ります（VM Service 拡張は DWDS が中継）。デバッグの DDC のみ
       （`--wasm` や `flutter build web` は不可）。
 4. プレイヤーが `reload()` を呼び、再生状態を保ったままリソースを差し替えます。
+5. `--device` では push のあとに `assets/` も再変換します。バイト push は実行中の isolate に
+   しか届かないため、これが無いと次の hot restart で起動時に同梱した絵まで巻き戻ります。
+   保存ごとに変換が 1 回増えますが、デスクトップは再変換先が `assets/` なので不要です。
 
 ## 有効化（レシピ）
 
@@ -64,6 +69,13 @@
 
 ソースプロジェクトは `SpriteStudio_Source/<project>/` に置きます。実際の編集を保存してください
 （`touch` は同一バイトで見た目が変わらない上、watcher が拾わないこともあります）。
+
+!!! warning "macOS デスクトップ: App Sandbox が file push を止めます"
+    `file` push はコンテナ外のホストパスをアプリに渡すため、サンドボックス有効のデバッグ
+    ビルドでは読めず、エラーも出ないまま `reloaded 0 player(s)` になります。
+    `macos/Runner/DebugProfile.entitlements` の `com.apple.security.app-sandbox` を
+    `false` にしてください（デバッグのみ。Release はサンドボックス有効のまま）。
+    `--device` はバイトを VM Service で送るので影響ありません。
 
 ## プラットフォーム状況
 

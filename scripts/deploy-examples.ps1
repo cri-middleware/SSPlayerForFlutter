@@ -3,9 +3,8 @@
 # Stage the SDK's bundled test projects (tests/overall, tests/Ringo, tests/Doll)
 # into the example's SpriteStudio_Source/, then convert THOSE copies into .ssab
 # assets, using the Dart `ssconvert` CLI (ssconverter_dart). SpriteStudio_Source
-# is the single source of truth the desktop live-reload (example reassemble())
-# reconverts on hot reload, so the initial assets and the live output come from
-# the same place.
+# is the single source of truth the live-reload watcher (`sswatch`) reconverts
+# on save, so the initial assets and the live output come from the same place.
 # It loads the PREBUILT libssconverter over dart:ffi, so this needs NO Rust
 # toolchain — build the native libs via scripts/build-runtime.ps1.
 # All the sibling players share this "Rust-free for customizers" philosophy.
@@ -72,11 +71,11 @@ Push-Location $ConvPkg
 try { & dart pub get 2>&1 | Out-Null } finally { Pop-Location }
 
 # Stage a source project, then convert THAT copy (not the SDK original):
-#  1) SpriteStudio_Source/<stem>/ is the single source of truth the desktop
-#     live-reload (example reassemble()) reconverts on hot reload. Copy the
-#     project dir wholesale so its referenced .ssae/.ssce/.png travel with it.
+#  1) SpriteStudio_Source/<stem>/ is the single source of truth the live-reload
+#     watcher (`sswatch`) reconverts on save. Copy the project dir wholesale so
+#     its referenced .ssae/.ssce/.png travel with it.
 #  2) Convert into examples/overall/assets/spritestudio/<stem>/ — the same SsProjectSync
-#     convention + location the hot-reload path reuses. The non-embedded
+#     convention + location the live-reload path reuses. The non-embedded
 #     converter also copies the referenced textures/fonts/sounds into the output,
 #     so this single call produces the complete asset tree.
 function Deploy-Project {

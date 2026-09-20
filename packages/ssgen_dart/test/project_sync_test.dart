@@ -4,9 +4,9 @@ import 'package:test/test.dart';
 import 'package:ssgen_dart/ssgen_dart.dart';
 
 /// Exercises SsProjectSync — the "reconvert only the stale projects in a dir"
-/// library behind a consumer-owned reconvert trigger (e.g. a State.reassemble
-/// hook that rides Flutter's hot reload). The native libssconverter is bundled
-/// by ssconverter_dart's hook/build.dart (native assets).
+/// library behind a consumer-owned reconvert trigger (`ssgen_flutter`'s
+/// `sswatch` runner calls it on a source save). The native libssconverter is
+/// bundled by ssconverter_dart's hook/build.dart (native assets).
 void main() {
   final overallDir = Directory('../../SpriteStudio-SDK/tests/overall');
   final overallSspj = File('${overallDir.path}/overall.sspj');
@@ -40,8 +40,8 @@ void main() {
       expect(second.converted, isEmpty, reason: 'nothing stale');
       expect(second.upToDate, contains(sspj));
 
-      // 3) a source edit newer than the output → reconverts (mirrors editing
-      //    the project in SpriteStudio, then hitting hot reload).
+      // 3) a source edit newer than the output → reconverts (mirrors saving
+      //    the project in SpriteStudio while the watcher runs).
       final outMtime = basic.statSync().modified;
       File(sspj).setLastModifiedSync(outMtime.add(const Duration(seconds: 10)));
       final third = await const SsProjectSync()
