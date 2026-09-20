@@ -10,9 +10,10 @@
 #   --drag-drop       add com.apple.security.files.user-selected.read-only to BOTH
 #                     build configs — for apps that read user-picked files/folders
 #                     (e.g. desktop_drop drag-&-drop).
-#   --dev-unsandbox   DEBUG-only: com.apple.security.app-sandbox = false, so a dev
-#                     tool (in-process host converter / live-reload) can read
-#                     project sources. Release keeps the sandbox ON.
+#   --dev-unsandbox   DEBUG-only: com.apple.security.app-sandbox = false, so the
+#                     live-reload file push can read the reconverted .ssab at the
+#                     host path `sswatch` sends (outside the app container).
+#                     Release keeps the sandbox ON.
 #
 # macOS-only (PlistBuddy). Idempotent — safe to re-run.
 set -euo pipefail

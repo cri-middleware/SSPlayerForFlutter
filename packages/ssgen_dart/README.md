@@ -7,8 +7,9 @@ changed.
 
 **Desktop only** (macOS / Windows / Linux), pure Dart, and deliberately small:
 no CLI, no watcher, no daemon state. One shot per call, triggered by whoever
-owns the loop — typically a Flutter app's `State.reassemble`, so Flutter's own
-hot reload doubles as "rebuild the art".
+owns the loop — typically the `sswatch` runner in
+[`ssgen_flutter`](../ssgen_flutter), which watches the source tree and pushes
+what this reconverted into the running app.
 
 It lives outside [`ssplayer_flutter`](../ssplayer_flutter) on purpose: the
 runtime an app ships stays converter-free.

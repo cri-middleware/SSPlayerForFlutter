@@ -138,4 +138,77 @@ void main() {
       );
     });
   });
+
+  // The device push is the only path whose routing depends on a naming
+  // convention (the app's `ssAssetDir` last segment naming a `<stem>.sspj`).
+  // Nothing else here reaches it, and a mismatch used to reload nothing in
+  // silence — so pin every outcome.
+  group('ssProjectStem / ssAssetDirStem', () {
+    test('a .sspj path loses its extension, either separator', () {
+      expect(ssProjectStem('SpriteStudio_Source/Ringo/Ringo.sspj'), 'Ringo');
+      expect(ssProjectStem(r'C:\src\Doll\Doll.sspj'), 'Doll');
+      expect(ssProjectStem('bare'), 'bare');
+    });
+
+    test('a project whose name holds a dot keeps everything before the last',
+        () {
+      expect(ssProjectStem('src/My.Project/My.Project.sspj'), 'My.Project');
+    });
+
+    test('an asset dir keeps its last segment verbatim — it is a directory', () {
+      expect(ssAssetDirStem('assets/spritestudio/Ringo'), 'Ringo');
+      // Not a file: a dotted directory must NOT be truncated, or it would stop
+      // matching the `My.Project.sspj` the reconvert wrote it from.
+      expect(ssAssetDirStem('assets/spritestudio/My.Project'), 'My.Project');
+      expect(ssAssetDirStem('assets/spritestudio/Ringo/'), 'Ringo');
+      expect(ssAssetDirStem('Ringo'), 'Ringo');
+    });
+  });
+
+  group('routeEmbeddedPush', () {
+    SsPushRouting route(
+      String assetDir, {
+      Set<String> converted = const {'Ringo'},
+      Set<String> projects = const {'Ringo', 'Doll'},
+      bool packExists = true,
+    }) =>
+        routeEmbeddedPush(
+          assetDir: assetDir,
+          convertedStems: converted,
+          projectStems: projects,
+          packExists: () => packExists,
+        );
+
+    test('pushes when the project reconverted and holds the pack', () {
+      expect(route('assets/spritestudio/Ringo'), SsPushRouting.push);
+    });
+
+    test('an untouched project is an ordinary no-op, not a mismatch', () {
+      expect(route('assets/spritestudio/Doll'),
+          SsPushRouting.projectUnchanged);
+    });
+
+    test('an asset dir matching no project is reported, never silent', () {
+      expect(route('assets/anim/hero'), SsPushRouting.unknownProject);
+    });
+
+    test('a reconverted project that emits no such pack is reported', () {
+      expect(route('assets/spritestudio/Ringo', packExists: false),
+          SsPushRouting.packMissing);
+    });
+
+    test('the pack is only looked for once the names agree', () {
+      var looked = false;
+      routeEmbeddedPush(
+        assetDir: 'assets/anim/hero',
+        convertedStems: const {'Ringo'},
+        projectStems: const {'Ringo'},
+        packExists: () {
+          looked = true;
+          return true;
+        },
+      );
+      expect(looked, isFalse, reason: 'no stat for a dir that cannot match');
+    });
+  });
 }

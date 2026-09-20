@@ -1,5 +1,6 @@
-/// Flutter dev-tooling for SpriteStudio live-reload — a [State] mixin that rides
-/// Flutter's own hot reload to rebuild the art and hot-swap it in place.
+/// Flutter dev-tooling for SpriteStudio live-reload — a [State] mixin that joins
+/// the VM-Service push channel so the `sswatch` host runner can hot-swap the art
+/// in place on save, with no keypress and the IDE debugger left attached.
 ///
 /// See [SsLiveReload]. DEV ONLY — the `ssplayer_flutter` runtime stays
 /// converter-free; add this package only in apps that want in-app live-reload.

@@ -14,7 +14,7 @@ A player that renders **[SpriteStudio](https://www.webtech.co.jp/spritestudio/)*
 - **Raster sprite animation, drawn natively — not vector, not video.** It rigs and deforms **raster sprite art**, so hand-painted characters and game sprites animate exactly as authored — a different fit from vector animation tools, and lighter than shipping a `.gif` or `.mp4`. Playback runs on `dart:ffi` into a Rust runtime and draws through Flutter's own renderer — GPU-batched via **flutter_gpu** on Impeller, or `Canvas.drawVertices` elsewhere — not a WebView, not a video decode — scaling freely at runtime, looping seamlessly, and reacting to your app instead of merely playing back.
 - **Composes with the widget tree — and with Flame.** `SpriteStudioView` is a plain `RenderBox` widget, so you position, transform, and clip it exactly like any other widget. Building a game? The separate [`ssplayer_flame`](./packages/ssplayer_flame) adapter drops the same animation into a `FlameGame` as a `PositionComponent`.
 - **Smooth motion, not locked to a frame rate.** **Sub-frame interpolation** renders each frame at its exact display time, so motion follows your display's refresh rate and playback speed — smoother than a fixed-fps flipbook or a baked video.
-- **A seamless edit-to-runtime loop.** Live reload watches your `SpriteStudio_Source/` during `flutter run`: save in SpriteStudio, hot-reload, and only the changed project is re-converted and appears live in your app — no manual export step.
+- **A seamless edit-to-runtime loop.** Live reload watches your `SpriteStudio_Source/` while the app runs: save in SpriteStudio and only the changed project is re-converted and pushed into the running app — no keypress, no manual export step.
 
 ## 📚 Documentation
 

@@ -300,9 +300,14 @@ Future<void> runSsWatch(List<String> argv) async {
     return;
   }
 
+  // Asset dirs already explained as mis-routed, so a broken --device naming
+  // convention is reported once rather than on every save.
+  final warned = <String>{};
+
   // --once only makes sense without --run (a one-shot push to a running app).
   if (opts.once && !opts.run) {
-    await _reconvertAndPush(service, sync, projectRoot, opts, initial: true);
+    await _reconvertAndPush(service, sync, projectRoot, opts, warned,
+        initial: true);
     await service.dispose();
     return;
   }
@@ -318,7 +323,7 @@ Future<void> runSsWatch(List<String> argv) async {
 
   final runner = ChangeRunner(
     debounce: Duration(milliseconds: opts.debounceMs),
-    onChange: () => _reconvertAndPush(service, sync, projectRoot, opts),
+    onChange: () => _reconvertAndPush(service, sync, projectRoot, opts, warned),
   );
   final watcher = DirectoryWatcher(sourceDir);
   // onError matters as much as the data callback: package:watcher surfaces a
@@ -413,12 +418,14 @@ Future<String> _pollFile(
 ///   * desktop (file): reconvert into `assets/` and push a host path the app
 ///     reads off disk (cheap; picks up changed textures too).
 ///   * device (bytes): reconvert **embedded** into a temp dir (not `assets/`)
-///     and push a self-contained `.ssab` as base64 for the on-screen pack only.
+///     and push a self-contained `.ssab` as base64 for the on-screen pack only,
+///     then refresh `assets/` as well so a hot restart keeps the new art.
 Future<void> _reconvertAndPush(
   VmService service,
   SsProjectSync sync,
   String projectRoot,
-  SsWatchOptions opts, {
+  SsWatchOptions opts,
+  Set<String> warned, {
   bool initial = false,
 }) async {
   if (opts.device) {
@@ -435,7 +442,14 @@ Future<void> _reconvertAndPush(
       return;
     }
     _logConverted(report);
-    await _pushEmbeddedBytes(service, embeddedDir, report);
+    await _pushEmbeddedBytes(service, embeddedDir, report, warned);
+    // A byte push only reaches the running isolate, and the embedded dir is
+    // deliberately outside `assets/` — so without this the app's BUNDLE still
+    // holds the art `flutter run` shipped at launch, and the first hot restart
+    // silently throws the session's edits away. Desktop has no such gap: its
+    // reconvert writes straight into `assets/`. Costs a second (non-embedded)
+    // convert per save, taken AFTER the push so it never delays what you see.
+    await _safeReconvert(sync, projectRoot);
   } else {
     final report = await _safeReconvert(sync, projectRoot);
     if (report == null || report.converted.isEmpty) {
@@ -450,10 +464,14 @@ Future<void> _reconvertAndPush(
 /// Device push: ask the app which pack each target is showing
 /// (`ext.ssgen.targets`), then push that pack's embedded `.ssab` bytes — only
 /// for projects this pass reconverted, so an unrelated edit is a no-op.
+///
+/// [warned] carries the asset dirs already reported as mis-routed, so a broken
+/// convention is explained once per session instead of on every save.
 Future<void> _pushEmbeddedBytes(
   VmService service,
   String embeddedDir,
   SsReconvertReport report,
+  Set<String> warned,
 ) async {
   final isolateIds = await _isolatesWithExtension(service);
   if (isolateIds.isEmpty) {
@@ -464,17 +482,28 @@ Future<void> _pushEmbeddedBytes(
     );
     return;
   }
-  final convertedStems = report.converted.keys.map(_stem).toSet();
+  final convertedStems = report.converted.keys.map(ssProjectStem).toSet();
+  final projectStems = {
+    ...convertedStems,
+    ...report.upToDate.map(ssProjectStem),
+  };
   for (final id in isolateIds) {
     final targets = await _queryTargets(service, id);
     for (final t in targets) {
       final pack = t['pack'];
       final assetDir = t['assetDir'];
       if (pack == null || pack.isEmpty || assetDir == null) continue;
-      final stem = assetDir.split('/').last; // convention: assets/…/<stem>
-      if (!convertedStems.contains(stem)) continue; // this project didn't change
-      final file = File('$embeddedDir/$stem/$pack.ssab');
-      if (!file.existsSync()) continue;
+      final file = File('$embeddedDir/${ssAssetDirStem(assetDir)}/$pack.ssab');
+      final routing = routeEmbeddedPush(
+        assetDir: assetDir,
+        convertedStems: convertedStems,
+        projectStems: projectStems,
+        packExists: file.existsSync,
+      );
+      if (routing != SsPushRouting.push) {
+        _warnMisroutedPush(routing, assetDir, pack, projectStems, warned);
+        continue;
+      }
       final b64 = base64Encode(await file.readAsBytes());
       try {
         final resp = await service.callServiceExtension(
@@ -497,6 +526,39 @@ Future<void> _pushEmbeddedBytes(
         stderr.writeln('[sswatch] push failed for "$pack": $e');
       }
     }
+  }
+}
+
+/// Explains a device push that routed nowhere — once per asset dir, and never
+/// for [SsPushRouting.projectUnchanged], which is the ordinary "you edited a
+/// different project" case.
+void _warnMisroutedPush(
+  SsPushRouting routing,
+  String assetDir,
+  String pack,
+  Set<String> projectStems,
+  Set<String> warned,
+) {
+  if (routing == SsPushRouting.projectUnchanged) return;
+  if (!warned.add('$routing:$assetDir/$pack')) return;
+  final known = (projectStems.toList()..sort()).join(', ');
+  switch (routing) {
+    case SsPushRouting.unknownProject:
+      stderr.writeln(
+        '[sswatch] nothing will be pushed to "$assetDir": --device routes the '
+        'LAST segment of the app\'s ssAssetDir to a <stem>.sspj, and the source '
+        'tree holds {$known}. Rename one to match, or drop --device (the '
+        'desktop file push matches by pack name instead).',
+      );
+    case SsPushRouting.packMissing:
+      stderr.writeln(
+        '[sswatch] reconverted "${ssAssetDirStem(assetDir)}" but it emits no '
+        '"$pack.ssab" — the app\'s ssPack must name a pack the project '
+        'produces.',
+      );
+    case SsPushRouting.push:
+    case SsPushRouting.projectUnchanged:
+      break;
   }
 }
 
@@ -523,10 +585,63 @@ Future<List<Map<String, String>>> _queryTargets(
 
 /// The `.sspj` stem (basename without extension), matching the reconvert
 /// output-dir convention (`<outputBase>/<stem>/`).
-String _stem(String path) {
+String ssProjectStem(String path) {
   final base = path.split(RegExp(r'[/\\]')).last;
   final dot = base.lastIndexOf('.');
   return dot > 0 ? base.substring(0, dot) : base;
+}
+
+/// The trailing segment of an app's `ssAssetDir` — the project stem a device
+/// push routes by (`assets/spritestudio/Ringo` → `Ringo`). A directory name, so
+/// unlike [ssProjectStem] nothing is stripped: a project called `My.Project`
+/// converts into `My.Project/` and must match segment-for-segment. Tolerates a
+/// trailing separator.
+String ssAssetDirStem(String assetDir) {
+  var p = assetDir;
+  while (p.length > 1 && (p.endsWith('/') || p.endsWith('\\'))) {
+    p = p.substring(0, p.length - 1);
+  }
+  return p.split(RegExp(r'[/\\]')).last;
+}
+
+/// Why a device (`--device`) push did or did not go out for one on-screen
+/// target. Only [push] sends bytes; the rest say which link in the convention
+/// broke, so a mismatch is reported instead of silently reloading nothing.
+enum SsPushRouting {
+  /// The target's project reconverted this pass and holds its pack — send it.
+  push,
+
+  /// The project exists but nothing in it changed — an ordinary no-op (you
+  /// edited a different project than the one on screen).
+  projectUnchanged,
+
+  /// No `.sspj` in the source tree matches the target's asset dir, so this
+  /// target can never be pushed to until the two names agree.
+  unknownProject,
+
+  /// The project reconverted, but its output holds no `<pack>.ssab` — the app
+  /// is showing a pack this project does not emit.
+  packMissing,
+}
+
+/// Routes one device-push target (`assetDir` + its pack) against a reconvert
+/// pass: [convertedStems] is what this pass rebuilt, [projectStems] every
+/// project the source tree holds, and [packExists] whether the reconverted
+/// output has the pack (called only when the first two agree).
+///
+/// Pure, because this convention — the app's `ssAssetDir` last segment naming
+/// the `<stem>.sspj` — is the one coupling in the device path that the desktop
+/// file push does not have, and the one thing that used to fail in silence.
+SsPushRouting routeEmbeddedPush({
+  required String assetDir,
+  required Set<String> convertedStems,
+  required Set<String> projectStems,
+  required bool Function() packExists,
+}) {
+  final stem = ssAssetDirStem(assetDir);
+  if (!projectStems.contains(stem)) return SsPushRouting.unknownProject;
+  if (!convertedStems.contains(stem)) return SsPushRouting.projectUnchanged;
+  return packExists() ? SsPushRouting.push : SsPushRouting.packMissing;
 }
 
 /// Pushes each reconverted output dir to the app's `ext.ssgen.reload`. The app
@@ -627,7 +742,10 @@ void _printUsage() => stdout.writeln(
       '  --source=<dir>               source dir override\n'
       '  --device                     push embedded .ssab bytes for the on-screen\n'
       '                               pack (iOS/Android/web -d chrome; desktop\n'
-      '                               uses a file path)\n'
+      '                               uses a file path). Routes the LAST segment\n'
+      '                               of the app ssAssetDir to <stem>.sspj, and\n'
+      '                               also refreshes assets/ so a hot restart\n'
+      '                               keeps the new art\n'
       '  --embedded-dir=<dir>         where --device writes the embedded .ssab\n'
       '                               (default .dart_tool/ssgen/embedded)\n'
       '  --run [flutter args…]        also spawn `flutter run` and attach — a\n'

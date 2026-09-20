@@ -77,10 +77,10 @@ class SsReconvertReport {
 }
 
 /// Host-side "reconvert only the stale projects in a directory" — the library
-/// primitive behind a **consumer-owned** reconvert trigger. The app decides when
-/// to call [reconvert] (e.g. from `State.reassemble`, so Flutter's own hot
-/// reload doubles as "rebuild the art"), then feeds the changed `.ssab` back
-/// through `SpriteStudioPlayer.reload`.
+/// primitive behind a **consumer-owned** reconvert trigger. The caller decides
+/// when to call [reconvert] (`ssgen_flutter`'s `sswatch` runner does it on a
+/// source save), then feeds the changed `.ssab` back through
+/// `SpriteStudioPlayer.reload`.
 ///
 /// It is NOT a daemon and NOT a CLI — no watching, no auto-anything, no state.
 /// **Desktop only** (it drives [SsConverter] / the host `libssconverter`).

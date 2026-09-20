@@ -7,9 +7,9 @@
 #                    sandboxed app can read the .ssab folders/files dropped on the
 #                    window (the desktop_drop drag-&-drop in lib/main.dart).
 #   --dev-unsandbox  DEBUG-only com.apple.security.app-sandbox = false, so the
-#                    desktop dev live-reload (State.reassemble -> reconvert the
-#                    stale SpriteStudio_Source projects -> reload) can read the
-#                    project sources and run the host libssconverter in-process.
+#                    desktop live-reload file push can read the reconverted
+#                    .ssab at the host path `sswatch` sends — a sandboxed app
+#                    cannot, and the push then silently reloads 0 players.
 #                    Release keeps the sandbox ON.
 #
 # Run from anywhere:  bash examples/overall/scripts/setup-macos.sh
