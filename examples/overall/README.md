@@ -38,6 +38,52 @@ flutter run -d macos     # 実行（macOS ウィンドウが開く）
 flutter build macos      # .app をビルド
 ```
 
+### iOS / Android
+
+`macos/` と同じく runner は未コミットなので、まず生成します。
+
+```sh
+bash scripts/setup-mobile.sh              # ios + android（macOS 以外では android のみ）
+bash scripts/setup-mobile.sh --android    # android だけ
+pwsh scripts/setup-mobile.ps1             # Windows（android のみ。iOS は Xcode が要る）
+```
+
+ネイティブ Brain は `hook/build.dart` がピン留めした SDK リリースから落としますが、
+**そのリリースはまだ公開されていません**。初回リリースまでは、この 2 つのプラットフォームは
+ローカルのクロスビルドだけが経路です（Rust と各ターゲット、Android は実在する NDK が要る）。
+
+```sh
+bash scripts/build-runtime.sh platform=android   # リポジトリルートで
+bash scripts/build-runtime.sh platform=ios
+```
+
+生成していないと、Gradle の中で HTTP 404 として 90 秒後に落ちます。`setup-mobile` は
+その場で気づけるよう、ライブラリが無ければ上のコマンドを表示します。
+
+### flutter_gpu（Impeller）で動かす
+
+バックエンド切り替えに要るスイッチは 3 つあり、毎回打つには長いのでラッパにまとめてあります。
+
+```sh
+bash scripts/run.sh -d macos                # Canvas（既定）
+bash scripts/run.sh --gpu -d macos          # flutter_gpu
+bash scripts/run.sh --gpu --watch -d macos  # flutter_gpu + ライブリロード
+pwsh scripts/run.ps1 -Gpu -d windows        # Windows
+```
+
+`--gpu` は `--dart-define=SS_BACKEND=gpu --enable-impeller --enable-flutter-gpu` に展開されます。
+このうち `--enable-impeller` が効くのは **Android だけ**で（Impeller が既定でない唯一のターゲット）、
+macOS / iOS では `flutter run` が無視します —— macOS では残り 2 つだけでも
+`running on gpu` になることを確認済みです。1 つのフラグがどのターゲットでも正しくなるよう、
+常に 3 つとも渡しています。`--gpu` 以外の引数はそのまま `flutter run` へ流れます。
+
+起動時のコンソール行が唯一の判定材料です。`gpu` は*要求*でしかなく、flutter_gpu が使えなければ
+**何も言わずに** Canvas へ落ちます。
+
+```
+[ssplayer] backend: requested gpu -> running on gpu (flutter_gpu available: true)
+```
+
 成功するとコンソールに `[ssplayer] OK — playing "…" (frame=…)` が出ます。macOS ビルドでは
 `libssruntime` が `*.app/Contents/Frameworks/ssruntime.framework` に埋め込まれ、
 `flutter_assets/NativeAssetsManifest.json` に写像が記録されます（`package:ssruntime_dart/ssruntime`
