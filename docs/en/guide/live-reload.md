@@ -89,4 +89,15 @@ identical bytes — and may not even trip the watcher).
 | Windows / Linux desktop | VM Service push (file) | Expected (OS-independent), not yet confirmed |
 | Web (`-d chrome`, debug) | VM Service push (embedded, via DWDS) | Debug DDC only — not `--wasm`/`build web` |
 
+`--device` is a choice of payload, not of target: it sends the pack as bytes instead of a host path,
+and any target accepts it. Running `sswatch --run -d macos --device` therefore exercises the whole
+embedded path — routing, transport, `reload()` — on a machine with no device attached, and it is
+verified that way: the playhead survives (frame 1.68, then 6.70 on a second save), only the edited
+project re-converts, and `assets/` is refreshed alongside the push. So on the rows still marked
+unconfirmed, what is unconfirmed is that target's connection, not the push itself — which is the
+first thing to suspect when one of them stays quiet.
+
+Save a **real** edit to test it. A `touch` does not reliably reach the watcher (confirmed on macOS:
+it produced no event at all), which is a property of the filesystem watch, not of the reload.
+
 For a one-off manual conversion instead, see [Preparing Assets](conversion.md).
