@@ -26,12 +26,18 @@ workspace:
 
 # Melos must be a workspace dependency (its cli_launcher locates the workspace
 # only via a pubspec that depends on melos — a global `pub global activate`
-# install cannot detect it). Pinned <7.8.2 on purpose: melos 7.8.2 bumped its
-# transitive `cli_util` to ^0.5.0, which conflicts with ffigen's ^0.4.2 pin in
-# the shared workspace resolution. 7.8.1 is the newest melos that coexists with
-# ffigen and it already has full pub-workspace support (added in melos 7.0.0).
+# install cannot detect it).
+#
+# The `cli_util` override is what lets Melos 8 coexist with ffigen in the shared
+# workspace resolution: Melos 8 needs `cli_util >=0.5.0` and ffigen 22 still pins
+# `^0.4.2`. ffigen uses one symbol from it — `Ansi`, which the 0.5 break (dropping
+# `applicationConfigHome`) does not touch — and regenerates byte-identical
+# bindings against 0.5.x. Drop the override once ffigen allows 0.5+.
 dev_dependencies:
-  melos: ">=7.0.0 <7.8.2"
+  melos: ^8.8.0
+
+dependency_overrides:
+  cli_util: ^0.5.1
 
 # ── Melos: monorepo release automation ────────────────────────────────────────
 # Melos reads this `melos:` key of the workspace-root pubspec. Workspace members
