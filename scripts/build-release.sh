@@ -571,7 +571,7 @@ for name in $SELECTED; do
   fi
 
   # `flutter test` for a package that depends on the Flutter SDK, `dart test`
-  # otherwise -- the same split AGENTS.md's verification table draws.
+  # otherwise -- the same split CONTRIBUTING.md's Test section draws.
   RUNNER="dart"
   if grep -q 'sdk: flutter' "$PUBSPEC"; then RUNNER="flutter"; fi
   if [ "$RUNNER" = "flutter" ] && ! command -v flutter > /dev/null 2>&1; then

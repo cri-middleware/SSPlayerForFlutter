@@ -1,8 +1,7 @@
 // Headless render test: proves the Phase-1 Normal-batch path actually rasterizes
 // a textured, non-blank frame (geometry bake + UV + ImageShader + drawVertices).
 //
-//   SSRUNTIME_LIBRARY_PATH=$PWD/native/libs/macos/libssruntime.framework/libssruntime \
-//     flutter test test/render_test.dart
+//   flutter test test/render_test.dart
 import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;

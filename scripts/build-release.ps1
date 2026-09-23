@@ -528,7 +528,7 @@ try {
         if (-not $version) { Add-Failure "packages/$name has no version in its pubspec"; continue }
 
         # `flutter test` for a package that depends on the Flutter SDK, `dart
-        # test` otherwise -- the same split AGENTS.md's verification table draws.
+        # test` otherwise -- the same split CONTRIBUTING.md's Test section draws.
         $runner = "dart"
         if (Select-String -LiteralPath $pubspec -Pattern "sdk: flutter" -Quiet) { $runner = "flutter" }
         if ($runner -eq "flutter" -and -not (Get-Command flutter -ErrorAction SilentlyContinue)) {
