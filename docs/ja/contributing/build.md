@@ -103,6 +103,4 @@ flutter test          # Native Assets が hook/build.dart 経由で Brain を同
 | L1 バインディング smoke | `packages/ssruntime_dart/`（`dart test`） |
 | コンバータ smoke + CLI | `packages/ssconverter_dart/`（`dart test`） |
 | macOS 埋め込み確認 | `examples/overall/` → `flutter build macos` → `*.app/Contents/Frameworks/` に `ssruntime.framework` |
-
-FFI ポインタ寿命・`updateFlag` の罠・UV ピクセル座標・Native Assets 同梱など、実装規約と要注意点は
-[`AGENTS.md`](https://github.com/cri-middleware/SSPlayerForFlutter/blob/main/AGENTS.md) を参照してください。
+4 つのレイヤーとそれぞれが持つものは [アーキテクチャ](architecture.md)、ネイティブライブラリの解決と同梱は [ネイティブランタイム](native-runtime.md) にあります。

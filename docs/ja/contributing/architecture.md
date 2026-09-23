@@ -47,5 +47,4 @@ Sub / Invert 合成 —— は、`Canvas` ではバッチから切り出して�
 
 ## さらに詳しく
 
-実装規約・FFI 寿命の不変条件・kind ごとの描画ルール・Native Assets 同梱の注意は
-[`AGENTS.md`](https://github.com/cri-middleware/SSPlayerForFlutter/blob/main/AGENTS.md) にあります。
+ネイティブライブラリの解決と同梱は [ネイティブランタイム](native-runtime.md)、チェックアウトからのビルドとテストは [ビルドガイド](build.md) にあります。
