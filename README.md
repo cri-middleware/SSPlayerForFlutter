@@ -40,7 +40,7 @@ For installation, the asset pipeline, and API references, see the MkDocs documen
 **Using it in your app?** Read on — add the dependency, convert your `.sspj`, play.
 Everything after that (events, per-part overrides, live reload) is the same path
 further in, on the [documentation site](docs/en/index.md).
-**Working on the Player, or the Rust runtime under it?** [Section 2](#-2-full-build-environment-for-sdk--player-developers).
+**Working on the Player, or the Rust runtime under it?** [Section 2](#%EF%B8%8F-2-full-build-environment-for-sdk--player-developers).
 
 ### Setup
 
