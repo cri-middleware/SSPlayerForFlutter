@@ -35,9 +35,7 @@ Windows は各スクリプトの `.ps1` を使います。android / ios のク�
 
 ## Web（開発者プレビュー）
 
-web ターゲットは **`dart:ffi` も Native Assets も無い**ため、Brain を dylib として同梱できません。
-代わりに SDK の wasm-bindgen `web` ビルド（`.wasm` ＋ JS グルー）を作り、素の Flutter **アセット**として
-同梱し、Dart から `dart:js_interop` で駆動します。
+web ターゲットは **`dart:ffi` も Native Assets も無い**ため、Brain を dylib として同梱できません。代わりに SDK の wasm-bindgen `web` ビルド（`.wasm` ＋ JS グルー）を作り、素の Flutter **アセット**として同梱し、Dart から `dart:js_interop` で駆動します。
 
 **セットアップ — wasm ランタイムをビルド**（`wasm-pack` ＋ `wasm32-unknown-unknown` ターゲットが必要）:
 
@@ -65,9 +63,7 @@ flutter run -d chrome --wasm   # Skwasm レンダラ（WebAssembly ビルドモ�
 
 !!! warning "🚧 開発者プレビュー"
     web の**ランタイムバックエンド**は配線済みです。継ぎ目は `lib/src/runtime_api.dart` で、`dart:ffi`
-    バックエンド（`native_runtime.dart`）と `dart:js_interop` バックエンド（`web_runtime.dart`）を
-    条件付き export で切り替えるため、Layer 2（`internal_player.dart` ほか）は `dart:ffi` 無しで
-    コンパイルできます。`flutter build web` / `flutter run -d chrome` はビルド・描画まで通り、全描画
+    バックエンド（`native_runtime.dart`）と `dart:js_interop` バックエンド（`web_runtime.dart`）を条件付き export で切り替えるため、Layer 2（`internal_player.dart` ほか）は `dart:ffi` 無しでコンパイルできます。`flutter build web` / `flutter run -d chrome` はビルド・描画まで通り、全描画
     kind（Normal / Shape / Mesh / Effect / Instance）、シェーダ経路（PartColor / マスク）、framebuffer
     ブレンド、タイムラインイベントのコールバック（UserData / Signal / Audio）を CanvasKit 上で確認済みです。
     web は **デバッグ用途の `drawVertices` 経路**の位置づけ（`flutter_gpu` へ向かうのは mobile / desktop）で、
@@ -80,19 +76,16 @@ flutter run -d chrome --wasm   # Skwasm レンダラ（WebAssembly ビルドモ�
 
 ## コード生成（コミット済み・変更時に再生成）
 
-生成コードは**コミット済み**なので、通常のチェックアウトや pub.dev 利用者は ffigen / flatc なしで
-ビルドできます。対応する変更をしたら再生成してコミットします:
+生成コードは**コミット済み**なので、通常のチェックアウトや pub.dev 利用者は ffigen / flatc なしでビルドできます。対応する変更をしたら再生成してコミットします:
 
 - **ffigen バインディング**（`lib/src/*_bindings.g.dart`）—— C-API を変えたら
-  `scripts/generate-ffigen-code.sh` を実行してコミット。**スタンドアロン**で、`build-runtime` は実行
-  しません。
+  `scripts/generate-ffigen-code.sh` を実行してコミット。**スタンドアロン**で、`build-runtime` は実行しません。
 - **FlatBuffers**（`lib/src/ssab/*.g.dart` アセット形式・`ssruntime_dart` のランタイム fbs）——
   `.fbs` を変えたら `scripts/generate-fbs-code.sh`。flatc は
   reader ごとに必ずシリアライザも吐くので、`scripts/strip_fbs_builders.dart` がその
   `*Builder` / `*ObjectBuilder` を `lib/` から追い出します（`lib/` 側でバッファを書く箇所は無く、
   `.ssab` は SpriteStudio ツールの出力、ランタイム fbs は dart:ffi 越しに読むだけ）。移動先は
-  `packages/ssplayer_flutter/test/support/*_builders.g.dart` で、テストのフィクスチャ合成に使います。
-  これで flatc 出力の約 2/3 が公開パッケージから外れます。
+  `packages/ssplayer_flutter/test/support/*_builders.g.dart` で、テストのフィクスチャ合成に使います。これで flatc 出力の約 2/3 が公開パッケージから外れます。
 
 ## 検証
 

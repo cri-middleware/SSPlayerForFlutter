@@ -1,7 +1,6 @@
 # ▶️ 再生とイベント
 
-`SpriteStudioPlayer` は直感的なトランスポートとイベントコールバックを備え、アプリのロジックに
-そのまま組み込めます。ここでは再生制御・アニメ切り替え・イベント処理を扱います。
+`SpriteStudioPlayer` は直感的なトランスポートとイベントコールバックを備え、アプリのロジックにそのまま組み込めます。ここでは再生制御・アニメ切り替え・イベント処理を扱います。
 
 ## 再生制御
 
@@ -33,21 +32,16 @@ _player.play();                    // 先頭から再生
 
 ### `setAnimation` をまたいで残るもの
 
-アニメをセットアップすると Brain のトランスポートは全部リセットされます。プレイヤーは
-**あなたが決めた設定**を復元し、**アニメ自身を表す設定**はリセットされるに任せます。
+アニメをセットアップすると Brain のトランスポートは全部リセットされます。プレイヤーは**あなたが決めた設定**を復元し、**アニメ自身を表す設定**はリセットされるに任せます。
 
 | 自動で再適用される | リセットされる |
 |---|---|
 | `loopCount` / `speedScale` / `frameSkipEnabled` / `frameRate` / `playbackDirection`・`playbackStyle` / `subFrameEnabled` | 再生区間 |
 
-再生区間は別のアニメでは意味を持たないフレーム番号の範囲です。持ち越すと、いま選んだアニメの
-設定を黙って上書きしてしまいます。必要ならセットアップのたびに設定し直してください。特に区間を
-`setAnimation` の**前**に設定しても
-消えてしまう点に注意してください。
+再生区間は別のアニメでは意味を持たないフレーム番号の範囲です。持ち越すと、いま選んだアニメの設定を黙って上書きしてしまいます。必要ならセットアップのたびに設定し直してください。特に区間を
+`setAnimation` の**前**に設定しても消えてしまう点に注意してください。
 
-Player 側が戻すのは `loopCount` だけで、残りは Brain 自身が保持します。`frameRate` の上書きも遷移を
-跨いで残るので、各アニメの authored 値に戻したいときは `0` を渡してクリアしてください。authored 値
-そのものを置き換えずに再生を伸縮させたいだけなら、`frameRate` ではなく `speedScale` を使います。
+Player 側が戻すのは `loopCount` だけで、残りは Brain 自身が保持します。`frameRate` の上書きも遷移を跨いで残るので、各アニメの authored 値に戻したいときは `0` を渡してクリアしてください。authored 値そのものを置き換えずに再生を伸縮させたいだけなら、`frameRate` ではなく `speedScale` を使います。
 
 ### 逆再生と往復再生
 
@@ -55,9 +49,7 @@ Player 側が戻すのは `loopCount` だけで、残りは Brain 自身が保�
 _player.setPlaybackDirection(SsPlaybackDirection.backward, SsPlaybackStyle.pingPong);
 ```
 
-`pingPong` では 1 ループが**往復 1 回**なので、`loopCount = 1` で行って戻って終わりです。`speedScale` に
-負の値を渡しても逆再生にはならず（再生ヘッドが停止します）、向きを変えるのは `playbackDirection` です。
-こちらはセットアップをまたいで残ります。
+`pingPong` では 1 ループが**往復 1 回**なので、`loopCount = 1` で行って戻って終わりです。`speedScale` に負の値を渡しても逆再生にはならず（再生ヘッドが停止します）、向きを変えるのは `playbackDirection` です。こちらはセットアップをまたいで残ります。
 
 ### アニメの一部だけ再生する
 
@@ -67,8 +59,7 @@ _player.setAnimationSection(10, 24);   // setup の後で。前だと消える
 _player..loopCount = -1..play();            // 10〜24 の範囲でループ
 ```
 
-`startFrame` / `endFrame` / `totalFrames` は区間を反映するので、それらに紐づけたスクラバもそのまま
-追従します。
+`startFrame` / `endFrame` / `totalFrames` は区間を反映するので、それらに紐づけたスクラバもそのまま追従します。
 
 ## 反転とオフセット
 
@@ -86,12 +77,10 @@ _player..loopCount = -1..play();            // 10〜24 の範囲でループ
 _player.flipX = velocity.dx < 0;
 ```
 
-インスタンスパーツの子アニメーションを含むツリー全体に適用され、`reload()` をまたいでも保持されます。
-変更するとリスナーへ通知されるため、ビューは自動で再描画されます。
+インスタンスパーツの子アニメーションを含むツリー全体に適用され、`reload()` をまたいでも保持されます。変更するとリスナーへ通知されるため、ビューは自動で再描画されます。
 
 !!! question "`Transform.flip` でビューを包むのとの違い"
-    包む方法は、包んだサブツリー**全体**を反転します。[パーツトラッキング](part-following.md) を
-    併用していると、これが問題になります。
+    包む方法は、包んだサブツリー**全体**を反転します。[パーツトラッキング](part-following.md) を併用していると、これが問題になります。
 
     | やり方 | 結果 |
     |---|---|
@@ -105,16 +94,14 @@ _player.flipX = velocity.dx < 0;
     [パーツトラッキング](part-following.md) を参照してください。
 
 !!! note "Flame アダプタは未対応です"
-    `SpriteStudioComponent` は Flame の `PositionComponent` として `flipHorizontally()` などを
-    既に持つため、プレイヤー側の反転は公開していません。
+    `SpriteStudioComponent` は Flame の `PositionComponent` として `flipHorizontally()` などを既に持つため、プレイヤー側の反転は公開していません。
 
 ## アニメを切り替える
 
 `setAnimation(name)` はアニメを選択して**先頭フレームで待機**します —— 再生は開始しません。
 
 Brain 側のトランスポートはリセットされますが、`SpriteStudioPlayer` は**あなたが設定した
-`loopCount` / `speedScale` を覚えていて再適用**するので、アニメを切り替えるたびに設定し直す必要は
-ありません（「`setAnimation` をまたいで残るもの」の表のとおり）。
+`loopCount` / `speedScale` を覚えていて再適用**するので、アニメを切り替えるたびに設定し直す必要はありません（「`setAnimation` をまたいで残るもの」の表のとおり）。
 
 ```dart
 _player.setAnimation('walk');
@@ -144,15 +131,10 @@ _player..loopCount = 3..speedScale = 1.5..play();
 | `onAnimationLooped` | `VoidCallback` | ループ境界を跨いだとき（最終周は代わりに `onAnimationFinished` が発火） |
 | `onEvents` | `void Function(List<int> passedEventIndices)` | 低レベルの逃げ道。デコード前の生の index がそのフレーム分だけ渡される |
 
-通常はデコード済みの `onUserData` / `onSignal` / `onAudio` を使ってください。`onEvents` が渡すのは
-現在のアニメのイベントテーブルへの index で、デコードは呼び出し側の仕事になります。デコードは
-3 つのデコード済みコールバックがどれも未設定なら丸ごとスキップされるので、`onEvents` だけを
-登録しても余計なコストはかかりません。
+通常はデコード済みの `onUserData` / `onSignal` / `onAudio` を使ってください。`onEvents` が渡すのは現在のアニメのイベントテーブルへの index で、デコードは呼び出し側の仕事になります。デコードは
+3 つのデコード済みコールバックがどれも未設定なら丸ごとスキップされるので、`onEvents` だけを登録しても余計なコストはかかりません。
 
-デコード済みの 3 つはいずれも `partIndex` / `partName` / `frameNo` を持ちます。`frameNo` はキーが
-**置かれている** フレームであって、検出されたフレームとは限りません。1 回の `advance` で複数
-フレームをまたぐことがあり、その間のキーはすべてそこで発火するため、プレイヤーの現在フレームとは
-一致しません。
+デコード済みの 3 つはいずれも `partIndex` / `partName` / `frameNo` を持ちます。`frameNo` はキーが**置かれている** フレームであって、検出されたフレームとは限りません。1 回の `advance` で複数フレームをまたぐことがあり、その間のキーはすべてそこで発火するため、プレイヤーの現在フレームとは一致しません。
 
 ### 例: ユーザーデータを受け取る
 
@@ -165,13 +147,9 @@ _player.onUserData = (userData) {
 
 ### 例: オーディオトリガを鳴らす
 
-SpriteStudio のオーディオはトリガのみです。プレイヤーは「鳴らすべき音」を渡すだけで、
-オーディオスタックには関与しません。ハッシュをパック相対パスに解決して、お使いの再生手段に渡してください。
+SpriteStudio のオーディオはトリガのみです。プレイヤーは「鳴らすべき音」を渡すだけで、オーディオスタックには関与しません。ハッシュをパック相対パスに解決して、お使いの再生手段に渡してください。
 
-**`isPlayingForward` で抑止してください。** SpriteStudio に逆再生の音声は無いので、逆向きに進んで
-いる最中に通過したキーは鳴らすべきものではありません。自前のオーディオバックエンドを持つプレイヤーは
-この判定を自分で行いますが、こちらは再生せず通知するだけなので `onAudio` はどちらでも発火します。
-判定はあなたの側の仕事です。
+**`isPlayingForward` で抑止してください。** SpriteStudio に逆再生の音声は無いので、逆向きに進んでいる最中に通過したキーは鳴らすべきものではありません。自前のオーディオバックエンドを持つプレイヤーはこの判定を自分で行いますが、こちらは再生せず通知するだけなので `onAudio` はどちらでも発火します。判定はあなたの側の仕事です。
 
 ```dart
 _player.onAudio = (audio) {
@@ -182,8 +160,7 @@ _player.onAudio = (audio) {
 ```
 
 `isPlayingForward` は*瞬間の*向きです。`playbackDirection` ではなくこちらで判定するのはそのためで、
-`SsPlaybackStyle.pingPong` の戻りでは `playbackDirection` が `forward` のまま実際には逆向きに進んで
-います。再生前は `true` なので、このゲートが初回フレームを取りこぼすことはありません。
+`SsPlaybackStyle.pingPong` の戻りでは `playbackDirection` が `forward` のまま実際には逆向きに進んでいます。再生前は `true` なので、このゲートが初回フレームを取りこぼすことはありません。
 
 ### 例: アニメを連結する
 
@@ -198,8 +175,7 @@ _player.onAnimationFinished = () {
 
 ## パーツへのウィジェット追従
 
-指定パーツの位置・回転・スケールにウィジェットを毎フレーム追従させる、あるいはその瞬間の姿勢だけを
-読み取るには、[パーツトラッキング](part-following.md) を参照してください。
+指定パーツの位置・回転・スケールにウィジェットを毎フレーム追従させる、あるいはその瞬間の姿勢だけを読み取るには、[パーツトラッキング](part-following.md) を参照してください。
 
 ## パーツ単位の上書き
 

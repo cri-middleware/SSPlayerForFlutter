@@ -95,15 +95,11 @@ scripts/prepare-docs.sh    # 一度だけ: .venv と docs/requirements.txt の�
 scripts/build-docs.sh      # 英語 → 日本語の順に、どちらも --strict
 ```
 
-必ず両ロケールを、英語を先に。英語ビルドは `site/`（その中に `site/ja` がある）を消すため、英語だけ
-建てると古い日本語サイトが残り、壊したページが無傷に見えます。`mkdocs.base.yml` が `strict: true` を
-設定します。`zensical serve` は `--strict` を付けても何も検証しません。Windows は `.ps1` 双子、どちらも
+必ず両ロケールを、英語を先に。英語ビルドは `site/`（その中に `site/ja` がある）を消すため、英語だけ建てると古い日本語サイトが残り、壊したページが無傷に見えます。`mkdocs.base.yml` が `strict: true` を設定します。`zensical serve` は `--strict` を付けても何も検証しません。Windows は `.ps1` 双子、どちらも
 `key=value` オプションと `--help` を取ります。
 
 `scripts/build-pages.sh` が公開ツリーです。上記 2 ロケールに続けて Web デモ 2 本 — `examples/overall`
-を `site/demo/flutter/`、`examples/flame` を `site/demo/flame/`、選択ページを `site/demo/` に — を
-建てます。`pages.yml` のビルドジョブはこのスクリプトをすべてのオプションを明示して実行するので、CI と
-手元がずれません。
+を `site/demo/flutter/`、`examples/flame` を `site/demo/flame/`、選択ページを `site/demo/` に — を建てます。`pages.yml` のビルドジョブはこのスクリプトをすべてのオプションを明示して実行するので、CI と手元がずれません。
 
 ```bash
 scripts/build-pages.sh serve=yes          # -> http://localhost:8000/SSPlayerForFlutter/
@@ -113,29 +109,21 @@ scripts/build-pages.sh base=/ zip=yes     # Cloudflare Pages 用: SSPlayerForFlu
 ```
 
 *   **デモはここでビルドします。ダウンロードではありません。** `release.yml` は pub.dev へ publish
-    するだけで GitHub Release を作らないため、取得できる asset がありません。`sdk=` は Brain の入手元
-    という別の話で、既定かつ CI が使う `download` なら Rust ツールチェーンは一切不要です。
-*   **`base=` はビルド時に焼き込まれます**（`flutter build web --base-href`）。あるパス用に建てたデモは
-    別のパスでは 404 します。`serve=yes` が `site/` を `.pages-preview/<repo>` に吊るして配信するのは、
-    建てたときのアドレスでデモを開く唯一の方法だからです。
+    するだけで GitHub Release を作らないため、取得できる asset がありません。`sdk=` は Brain の入手元という別の話で、既定かつ CI が使う `download` なら Rust ツールチェーンは一切不要です。
+*   **`base=` はビルド時に焼き込まれます**（`flutter build web --base-href`）。あるパス用に建てたデモは別のパスでは 404 します。`serve=yes` が `site/` を `.pages-preview/<repo>` に吊るして配信するのは、建てたときのアドレスでデモを開く唯一の方法だからです。
 *   **examples の `web/` ランナーは git 管理外**なので、無ければスクリプトが `flutter create
-    --platforms=web .` を実行し、そのあと `.metadata` を戻します（`flutter create` はプラットフォーム
-    一覧を追記ではなく置き換えるため）。
+    --platforms=web .` を実行し、そのあと `.metadata` を戻します（`flutter create` はプラットフォーム一覧を追記ではなく置き換えるため）。
 *   **`deploy-examples.sh` は毎回走ります。** デモが再生する `.ssab` は生成物で git 管理外です。古い
     pack は公開デモで誰も気づかない類の事故です。
-*   **もう 1 部を手作業で Cloudflare Pages に上げます。** あちらはプロジェクトを自身のルートで配信する
-    ので `base=/` が要ります。`zip=yes` は `site/` の中身をアーカイブのルートに置いて固め、サブパス用に
-    建てたツリーなら拒否します。正典は GitHub Pages 側です（README の絶対 URL はそちらを指し、`docs/`
+*   **もう 1 部を手作業で Cloudflare Pages に上げます。** あちらはプロジェクトを自身のルートで配信するので `base=/` が要ります。`zip=yes` は `site/` の中身をアーカイブのルートに置いて固め、サブパス用に建てたツリーなら拒否します。正典は GitHub Pages 側です（README の絶対 URL はそちらを指し、`docs/`
     内のデモリンクはすべて相対なので、1 回のビルドが両方のホストで正しく動きます）。
 
 ## リリースの手順
 
 バージョンの決まり方と通常運転の流れは
-[リリース](./docs/ja/contributing/releasing.md) / [en](./docs/en/contributing/releasing.md) にあります。
-リリースの実体は pub.dev への 6 パッケージの publish で、GitHub Release も asset もありません。
+[リリース](./docs/ja/contributing/releasing.md) / [en](./docs/en/contributing/releasing.md) にあります。リリースの実体は pub.dev への 6 パッケージの publish で、GitHub Release も asset もありません。
 
-バージョンを切る前に必ずプリフライトを実行してください。`melos version` は **pub.dev がパッケージを
-見るより先に** `<package>-v<version>` タグを push し、pub.dev のバージョンは永久に取り消せません。
+バージョンを切る前に必ずプリフライトを実行してください。`melos version` は **pub.dev がパッケージを見るより先に** `<package>-v<version>` タグを push し、pub.dev のバージョンは永久に取り消せません。
 publish 時に pub に弾かれたパッケージは、その時点でバージョン番号と CHANGELOG のコミットを消費済みです。
 
 ```bash
@@ -146,21 +134,13 @@ scripts/build-release.sh packages=ssruntime_dart
 
 `release.yml` の最初のジョブがこのスクリプト（オプションはすべて明示）です。
 
-*   **private なパッケージはスキップせずプレビューします。** dry run の間だけ `publish_to: none` を
-    外し、スクリプトがどう終了しても復元します。バックアップはパッケージの**外**に置きます（pub は
-    未追跡ファイルも publish するため、隣に置いた `pubspec.yaml.bak` はアーカイブに入ってしまいます）。
-*   **`dart pub publish` は警告を致命エラーとして扱います。** `--ignore-warnings` を渡すのは `-f` でも
-    再利用ワークフローでもありません。`LICENSE` ではなく `LICENSE.md` である、`CHANGELOG.md` が無い、
-    だけで publish は中断します。
+*   **private なパッケージはスキップせずプレビューします。** dry run の間だけ `publish_to: none` を外し、スクリプトがどう終了しても復元します。バックアップはパッケージの**外**に置きます（pub は未追跡ファイルも publish するため、隣に置いた `pubspec.yaml.bak` はアーカイブに入ってしまいます）。
+*   **`dart pub publish` は警告を致命エラーとして扱います。** `--ignore-warnings` を渡すのは `-f` でも再利用ワークフローでもありません。`LICENSE` ではなく `LICENSE.md` である、`CHANGELOG.md` が無い、だけで publish は中断します。
 *   **ピンした SDK リリースが存在している必要があります。** `packages/*/hook/build.dart` が
-    `_sdkVersion` のリリースから `libssruntime` / `libssconverter` を取得します。2 つの hook は**同じ**
-    リリースを指す必要があります。SDK が未タグのうち `sdk=check` が失敗するのは正しい挙動です。
+    `_sdkVersion` のリリースから `libssruntime` / `libssconverter` を取得します。2 つの hook は**同じ**リリースを指す必要があります。SDK が未タグのうち `sdk=check` が失敗するのは正しい挙動です。
 *   **Web の Brain は git 管理外のビルド生成物ですが、publish に含める必要があります。**
     `assets/runtime-web/{ssruntime.js,ssruntime_bg.wasm,ssruntime_bg.nosimd.wasm}` は
     `ssruntime_dart` の `web_runtime.dart` が名前で読み込むファイルで、pub は git が無視するものを
     publish しません。そのための `assets/runtime-web/.pubignore` で、pub はそのディレクトリの
     `.gitignore` の**代わりに**これを読みます。dart-lang の再利用ワークフローは checkout と
-    `dart pub publish` の間に何も挟めないため、`publish.yml` の **`ssplayer_flutter` ジョブだけは
-    手書き**です（同じ手順に `scripts/download-web-runtime.sh` を dry run の前に挿入）。この取得手順が
-    消えた場合は `build-release.sh` の verify が指摘します。空の `assets/runtime-web/` を抱えた
-    一見完全なアーカイブが pub.dev に上がるのを防ぐためです。
+    `dart pub publish` の間に何も挟めないため、`publish.yml` の **`ssplayer_flutter` ジョブだけは手書き**です（同じ手順に `scripts/download-web-runtime.sh` を dry run の前に挿入）。この取得手順が消えた場合は `build-release.sh` の verify が指摘します。空の `assets/runtime-web/` を抱えた一見完全なアーカイブが pub.dev に上がるのを防ぐためです。

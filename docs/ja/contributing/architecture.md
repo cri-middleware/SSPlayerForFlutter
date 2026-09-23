@@ -1,11 +1,8 @@
 # 🏗️ アーキテクチャ
 
 SpriteStudioPlayer for Flutter は、SpriteStudio-SDK の **Brain** に対する **Body** です。Brain
-（`libssruntime`、Rust `no_std`）が `.ssab` を読み込んで時間を進め、フレームごとの **SoA バッファ**
-（ワールド行列・ローカル頂点 / UV）と、**`DrawBatch`** プランを載せた FlatBuffers の **`FrameData`**
-を出力します。Body はそれを `dart:ffi` で受け取り、差し替え可能なレンダーバックエンド
-（`Canvas.drawVertices` または `flutter_gpu`（Impeller））でプランを実行します。
-保持シーングラフは持たず、毎フレーム作り直します。
+（`libssruntime`、Rust `no_std`）が `.ssab` を読み込んで時間を進め、フレームごとの **SoA バッファ**（ワールド行列・ローカル頂点 / UV）と、**`DrawBatch`** プランを載せた FlatBuffers の **`FrameData`**
+を出力します。Body はそれを `dart:ffi` で受け取り、差し替え可能なレンダーバックエンド（`Canvas.drawVertices` または `flutter_gpu`（Impeller））でプランを実行します。保持シーングラフは持たず、毎フレーム作り直します。
 
 ## 4 レイヤー
 
@@ -28,8 +25,7 @@ flowchart TD
 | **L2** | `SpriteStudioInternalPlayer` —— FFI Resource/Context ライフサイクル、SoA → geometry bake（Canvas は `ui.Vertices`、GPU はインターリーブ VBO）、`paint` = `DrawBatch.kind` ディスパッチ | `ssplayer_flutter` |
 | **L1** | ffigen `@Native` C-API バインディング + ランタイム FlatBuffers | `ssruntime_dart` |
 
-**L2 は Widget 非依存**に保つことで、ヘッドレス / Flame / どちらのレンダーバックエンド
-（`Canvas` / `flutter_gpu`）からも再利用できます。
+**L2 は Widget 非依存**に保つことで、ヘッドレス / Flame / どちらのレンダーバックエンド（`Canvas` / `flutter_gpu`）からも再利用できます。
 
 ## どこに何があるか
 
@@ -44,15 +40,10 @@ flowchart TD
 ## 描画モデル
 
 Brain が `DrawBatch` プランを出し、`paint` は `DrawBatch.kind`
-（`Normal / Mesh / Effect / Instance / Shape`）で分岐して、各バッチをアクティブな**レンダーバックエンド**
-に委譲します。`Canvas` バックエンドは各バッチを 1 つの indexed `ui.Vertices`（`Canvas.drawVertices`）に
-bake し、`flutter_gpu`（Impeller）バックエンドはインターリーブ VBO を bake して自前のパイプラインで
-オフスクリーンに描画します。独立したパスを要するパーツ —— PartColor・統合シェーダ・マルチパスの
-Sub / Invert 合成 —— は、`Canvas` ではバッチから切り出して個別に描画し、`flutter_gpu` バックエンドでは
-まとめて描画します。バックエンドは `SpriteStudioBackend` に応じて選択されます（`auto` は capability
-プローブが通れば flutter_gpu、通らなければ Canvas）。毎フレーム作り直すため、性能のレバーは
-**毎フレームのアロケーション** と **ドローコール数** です（バッチのまとめ方ではありません —— それは
-既に Brain のプランと一致）。
+（`Normal / Mesh / Effect / Instance / Shape`）で分岐して、各バッチをアクティブな**レンダーバックエンド**に委譲します。`Canvas` バックエンドは各バッチを 1 つの indexed `ui.Vertices`（`Canvas.drawVertices`）に
+bake し、`flutter_gpu`（Impeller）バックエンドはインターリーブ VBO を bake して自前のパイプラインでオフスクリーンに描画します。独立したパスを要するパーツ —— PartColor・統合シェーダ・マルチパスの
+Sub / Invert 合成 —— は、`Canvas` ではバッチから切り出して個別に描画し、`flutter_gpu` バックエンドではまとめて描画します。バックエンドは `SpriteStudioBackend` に応じて選択されます（`auto` は capability
+プローブが通れば flutter_gpu、通らなければ Canvas）。毎フレーム作り直すため、性能のレバーは**毎フレームのアロケーション** と **ドローコール数** です（バッチのまとめ方ではありません —— それは既に Brain のプランと一致）。
 
 ## さらに詳しく
 

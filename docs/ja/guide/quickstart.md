@@ -8,8 +8,7 @@
 
 ## 1. アセットを追加する
 
-`.ssab`（参照テクスチャ形式なら同じフォルダの PNG / WebP も）をアプリのアセットに置き、`pubspec.yaml` に
-フォルダを宣言します。
+`.ssab`（参照テクスチャ形式なら同じフォルダの PNG / WebP も）をアプリのアセットに置き、`pubspec.yaml` にフォルダを宣言します。
 
 ```yaml
 flutter:
@@ -27,11 +26,8 @@ SpriteStudioAnimation.asset(
 )
 ```
 
-これで全部です。このウィジェットがプレイヤーを作り、アセットバンドルからバイト列を読み
-（reference テクスチャはキー自身のフォルダから解決。embedded も同じ）、パックの最初の
-アニメを選んでループ再生を始め、ウィジェットと一緒に破棄します。別のアニメを選ぶなら
-`animation:`、1 フレーム目で止めておくなら `autoPlay: false`、最初のフレームが描けるまでの
-表示は `placeholder:`、ロード失敗を受け取るなら `onError:` です。
+これで全部です。このウィジェットがプレイヤーを作り、アセットバンドルからバイト列を読み（reference テクスチャはキー自身のフォルダから解決。embedded も同じ）、パックの最初のアニメを選んでループ再生を始め、ウィジェットと一緒に破棄します。別のアニメを選ぶなら
+`animation:`、1 フレーム目で止めておくなら `autoPlay: false`、最初のフレームが描けるまでの表示は `placeholder:`、ロード失敗を受け取るなら `onError:` です。
 
 ## 渡せるもの
 
@@ -48,9 +44,7 @@ SpriteStudioAnimation.asset(
 
 ## プレイヤーを自分で持つ場合
 
-`SpriteStudioAnimation` がプレイヤーを作るのは、たいていの画面がそれを欲しがらないからです。
-欲しい場合 —— ステートマシンからアニメを差し替える、イベントを購読する、ウィジェットを
-パーツに貼り付ける、クロックを別から駆動する —— は
+`SpriteStudioAnimation` がプレイヤーを作るのは、たいていの画面がそれを欲しがらないからです。欲しい場合 —— ステートマシンからアニメを差し替える、イベントを購読する、ウィジェットをパーツに貼り付ける、クロックを別から駆動する —— は
 [`SpriteStudioPlayer`](playback.md) を自分で作って `SpriteStudioView` に渡してください。
 
 ```dart
@@ -81,13 +75,10 @@ class _MyState extends State<MyWidget> with SingleTickerProviderStateMixin {
 ```
 
 たまに props の外へ手を伸ばしたいだけなら、`SpriteStudioAnimation` が
-`onPlayerCreated:` で自分のプレイヤーを渡します。生成と破棄のタイミングまで握りたく
-なったら、そこからは `SpriteStudioView` の仕事です。
+`onPlayerCreated:` で自分のプレイヤーを渡します。生成と破棄のタイミングまで握りたくなったら、そこからは `SpriteStudioView` の仕事です。
 
 !!! tip "テクスチャ: embedded と reference"
-    どちらのモードも追加引数なしで解決します。**embedded** な `.ssab`（`ssconvert -e` で生成）は
-    画像を内包し、**reference** な `.ssab` は同じフォルダの画像ファイルを参照して `loadAsset` が
-    キー自身のフォルダから解決します。→ [アセットの準備](conversion.md)。
+    どちらのモードも追加引数なしで解決します。**embedded** な `.ssab`（`ssconvert -e` で生成）は画像を内包し、**reference** な `.ssab` は同じフォルダの画像ファイルを参照して `loadAsset` がキー自身のフォルダから解決します。→ [アセットの準備](conversion.md)。
 
 サブフレーム補間は**既定でオン**なので、フレームレートに関係なく滑らかに動きます。
 

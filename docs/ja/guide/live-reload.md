@@ -1,20 +1,15 @@
 # ♻️ ライブリロード
 
-ライブリロードは編集→実機のループを閉じます。**SpriteStudio で `.sspj` を保存すると、実行中の
-アプリが更新されます** —— 変更したプロジェクトだけが再変換され、プレイヤーは再生状態（現在の
-アニメとフレーム）を保ったまま再生を続けます。Flutter の開発ワークフローに相乗りするので、アニメ
-編集がコードのホットリロードと同じ手数で反映されます。
+ライブリロードは編集→実機のループを閉じます。**SpriteStudio で `.sspj` を保存すると、実行中のアプリが更新されます** —— 変更したプロジェクトだけが再変換され、プレイヤーは再生状態（現在のアニメとフレーム）を保ったまま再生を続けます。Flutter の開発ワークフローに相乗りするので、アニメ編集がコードのホットリロードと同じ手数で反映されます。
 
 !!! note "🚧 開発中 —— opt-in・未リリース"
-    これは開発時専用ツールで、活発に開発中です。**既定でオフ**で、リリースビルドには一切影響しません。
-    コマンドやフラグは最初のリリース前に変わる可能性があります。
+    これは開発時専用ツールで、活発に開発中です。**既定でオフ**で、リリースビルドには一切影響しません。コマンドやフラグは最初のリリース前に変わる可能性があります。
 
 ## これは何
 
 - [`ssgen_flutter`](https://github.com/cri-middleware/SSPlayerForFlutter/tree/main/packages/ssgen_flutter)
   開発ツールが提供します（[変換](conversion.md)を駆動する `ssgen_dart` の上に構築）。
-- プレイヤーのランタイム（`ssplayer_flutter`）は **converter を積みません** —— アプリに余分なものは
-  一切載りません。コンバータは開発ツールの中だけに存在します。
+- プレイヤーのランタイム（`ssplayer_flutter`）は **converter を積みません** —— アプリに余分なものは一切載りません。コンバータは開発ツールの中だけに存在します。
 
 ## 仕組み
 
@@ -23,23 +18,17 @@
 3. 新しいパックが実行中のアプリへ **VM Service 経由で直接 push** されます（キー操作不要・IDE
    デバッガと両立。デスクトップ／デバイス／Web で同じ仕組み）。
     - **デスクトップ** —— 再変換した `.ssab` をアプリがその場で読み込みます。
-    - **デバイス（iOS / Android）** —— テクスチャ内包の embedded `.ssab` をバイトで送ります
-      （端末はホストのパスを読めないため）。どのパックを送るかは規約で決まります ——
-      アプリの **`ssAssetDir` の末尾セグメント**が、変換元の `<stem>.sspj` を指します。
-      食い違うと `sswatch` が stderr で指摘し、一致するまで何も push されません。
+    - **デバイス（iOS / Android）** —— テクスチャ内包の embedded `.ssab` をバイトで送ります（端末はホストのパスを読めないため）。どのパックを送るかは規約で決まります ——
+      アプリの **`ssAssetDir` の末尾セグメント**が、変換元の `<stem>.sspj` を指します。食い違うと `sswatch` が stderr で指摘し、一致するまで何も push されません。
     - **Web（`flutter run -d chrome`・デバッグ）** —— デバイスと同じくテクスチャ内包の embedded
-      `.ssab` をバイトで送ります（VM Service 拡張は DWDS が中継）。デバッグの DDC のみ
-      （`--wasm` や `flutter build web` は不可）。
+      `.ssab` をバイトで送ります（VM Service 拡張は DWDS が中継）。デバッグの DDC のみ（`--wasm` や `flutter build web` は不可）。
 4. プレイヤーが `reload()` を呼び、再生状態を保ったままリソースを差し替えます。
-5. `--device` では push のあとに `assets/` も再変換します。バイト push は実行中の isolate に
-   しか届かないため、これが無いと次の hot restart で起動時に同梱した絵まで巻き戻ります。
-   保存ごとに変換が 1 回増えますが、デスクトップは再変換先が `assets/` なので不要です。
+5. `--device` では push のあとに `assets/` も再変換します。バイト push は実行中の isolate にしか届かないため、これが無いと次の hot restart で起動時に同梱した絵まで巻き戻ります。保存ごとに変換が 1 回増えますが、デスクトップは再変換先が `assets/` なので不要です。
 
 ## 有効化（レシピ）
 
 1. アプリの `pubspec.yaml` に `ssgen_flutter` を追加。
-2. `State` に `SsLiveReload` を mix-in し、プレイヤーと現在のパックを指定します（mixin は
-   プレイヤーを push チャネルに登録するだけです）。
+2. `State` に `SsLiveReload` を mix-in し、プレイヤーと現在のパックを指定します（mixin はプレイヤーを push チャネルに登録するだけです）。
 
     ```dart
     class _MyPageState extends State<MyPage>
@@ -51,8 +40,7 @@
     }
     ```
 
-3. `sswatch` を実行します。ツールも機構（VM Service push）も一つで、**起動の仕方だけ**選びます
-   （`SS_LIVE_RELOAD` define で opt-in。define なしの素の `flutter run` はアートを再変換しません）。
+3. `sswatch` を実行します。ツールも機構（VM Service push）も一つで、**起動の仕方だけ**選びます（`SS_LIVE_RELOAD` define で opt-in。define なしの素の `flutter run` はアートを再変換しません）。
 
     ```bash
     # 1コマンド（flutter run を内包し、define も自動注入）
@@ -67,12 +55,10 @@
 
     デバイスは端末で変換できないため、ホストで動く `sswatch` が embedded `.ssab` をバイトで送ります。
 
-ソースプロジェクトは `SpriteStudio_Source/<project>/` に置きます。実際の編集を保存してください
-（`touch` は同一バイトで見た目が変わらない上、watcher が拾わないこともあります）。
+ソースプロジェクトは `SpriteStudio_Source/<project>/` に置きます。実際の編集を保存してください（`touch` は同一バイトで見た目が変わらない上、watcher が拾わないこともあります）。
 
 !!! warning "macOS デスクトップ: App Sandbox が file push を止めます"
-    `file` push はコンテナ外のホストパスをアプリに渡すため、サンドボックス有効のデバッグ
-    ビルドでは読めず、エラーも出ないまま `reloaded 0 player(s)` になります。
+    `file` push はコンテナ外のホストパスをアプリに渡すため、サンドボックス有効のデバッグビルドでは読めず、エラーも出ないまま `reloaded 0 player(s)` になります。
     `macos/Runner/DebugProfile.entitlements` の `com.apple.security.app-sandbox` を
     `false` にしてください（デバッグのみ。Release はサンドボックス有効のまま）。
     `--device` はバイトを VM Service で送るので影響ありません。
@@ -87,11 +73,8 @@
 | Windows / Linux デスクトップ | VM Service push（file） | 見込みあり（OS 非依存）・未検証 |
 | Web（`-d chrome`・デバッグ） | VM Service push（embedded・DWDS 中継） | デバッグ DDC のみ（`--wasm`/`build web` 不可） |
 
-`--device` はターゲットの選択ではなく**ペイロードの選択**です。ホストのパスではなくバイトを送るだけ
-なので、どのターゲットでも受け取れます。つまり `sswatch --run -d macos --device` を実行すれば、
-デバイスを繋がずに embedded 経路まるごと —— ルーティング・転送・`reload()` —— を動かせます。
-push が壊れているのか、単にターゲットが繋がっていないだけなのかを切り分けるのに使えます。未検証の
-ままの行が意味するのもその差で、push 自体はどのターゲットでも同じコードです。
+`--device` はターゲットの選択ではなく**ペイロードの選択**です。ホストのパスではなくバイトを送るだけなので、どのターゲットでも受け取れます。つまり `sswatch --run -d macos --device` を実行すれば、デバイスを繋がずに embedded 経路まるごと —— ルーティング・転送・`reload()` —— を動かせます。
+push が壊れているのか、単にターゲットが繋がっていないだけなのかを切り分けるのに使えます。未検証のままの行が意味するのもその差で、push 自体はどのターゲットでも同じコードです。
 
 試すときは**実際の編集**を保存してください。`touch` は watcher に確実には届きません（macOS で確認:
 イベントが 1 つも出ませんでした）。これはファイル監視側の性質で、リロードの問題ではありません。
