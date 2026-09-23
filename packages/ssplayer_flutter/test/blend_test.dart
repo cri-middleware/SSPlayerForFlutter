@@ -1,4 +1,4 @@
-// Framebuffer blend mapping (§7B) tests — the `BlendType → ui.BlendMode` table
+// Framebuffer blend mapping tests — the `BlendType → ui.BlendMode` table
 // ported from ssplayer-webgl (`SSWebGLRenderer.applyBlend`). Pure and fast; no
 // Brain needed. The actual blended pixels can only be checked in the example
 // (overall/BlendMode), but this locks the reference mapping so it can't drift.

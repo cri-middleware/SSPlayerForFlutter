@@ -174,7 +174,7 @@ abstract interface class SsRuntime {
   int passedEventCount(SsContext context);
   int passedEventIndex(SsContext context, int index);
 
-  // --- Part overrides (§65 Override Layer) -------------------------------
+  // --- Part overrides (Override Layer) -----------------------------------
 
   /// Per-part overrides are applied by the Brain at the seam *after* the
   /// keyframe mix and *before* `FrameData` is composed, so they beat both the
@@ -230,7 +230,7 @@ abstract interface class SsRuntime {
   /// Clears every per-part override on [context] (all parts, all attributes).
   bool clearAllPartOverrides(SsContext context);
 
-  // --- Effect slots (§8) -------------------------------------------------
+  // --- Effect slots ------------------------------------------------------
 
   /// Creates a slot for [effectNameHash] against [resource], or null on bad
   /// effect data (the caller caches the null and does not retry).
@@ -254,7 +254,7 @@ abstract interface class SsRuntime {
     required int vertStride,
   });
 
-  // --- Instance slots (§8) -----------------------------------------------
+  // --- Instance slots ----------------------------------------------------
 
   SsInstanceSlot? createInstanceSlot();
   void resetInstanceSlot(SsInstanceSlot slot);
@@ -285,10 +285,10 @@ abstract class SsContext {}
 /// A parsed `.ssab` resource (Arc-refcounted in the Brain). Opaque.
 abstract class SsResource {}
 
-/// A live particle-effect slot (§8). Opaque.
+/// A live particle-effect slot. Opaque.
 abstract class SsEffectSlot {}
 
-/// A live instance slot (§8). Opaque.
+/// A live instance slot. Opaque.
 abstract class SsInstanceSlot {}
 
 // --- Value results (plain Dart PODs, populated by either backend) -----------

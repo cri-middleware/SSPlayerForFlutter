@@ -1,12 +1,12 @@
-// Mask replay **pixel** semantics (§3-1-4): `shaders/partcolor.frag` rebuilds
+// Mask replay **pixel** semantics: `shaders/partcolor.frag` rebuilds
 // the SS stencil per fragment out of the coverage bitmap, and this file
 // rasterises that decision instead of trusting the source to read right.
 //
 // The rule being pinned: `Invert` (mask_influence == 1) and `IncrementWrap`
 // (mask_influence == 0) are each their own inverse in isolation but do NOT
 // commute, so they may not share one accumulator. Replaying both into a single
-// 8-bit `stencil` — which this port did, and which the SDK guide's own sample
-// carried — makes coverage depend on the order the writers happen to be walked
+// 8-bit `stencil` — which this port did —
+// makes coverage depend on the order the writers happen to be walked
 // in: `incr then invert` lands on 254 (covered) where `invert then incr` wraps
 // back to 0 (not covered). Two planes and their union is the fix; a GPU stencil
 // gets there by splitting `WriteMask` per OP (which is what caps ForUnity's
@@ -17,7 +17,7 @@
 // SSPlayerForGodot first; the same change lands in `shaders/gpu/partcolor.frag`,
 // which headless tests cannot reach (see `_gpuNote` below).
 //
-// Scope (§2-1) is resolved on the CPU here — the shader receives the writers as
+// Scope is resolved on the CPU here — the shader receives the writers as
 // two disjoint 24-bit sets — so a test drives it exactly as the backend does:
 // hand it `bits` (what the coverage bitmap holds at this fragment) plus the
 // `increment` / `invert` sets, and read back whether the fragment survived.
@@ -35,10 +35,10 @@ import 'package:flutter_test/flutter_test.dart';
 const String _gpuNote = 'covered on-device by gpu_backend_test.dart';
 
 void main() {
-  // §2-4 polarity: with `visible_inside_mask == 0` a target draws OUTSIDE the
+  // Polarity: with `visible_inside_mask == 0` a target draws OUTSIDE the
   // mask, so a covered fragment is the one that gets discarded. That makes the
   // read-back a direct probe of "did the replay call this fragment covered".
-  group('the replay unions the parity and counter planes (§3-1-4)', () {
+  group('the replay unions the parity and counter planes', () {
     test('two invert writers cancel — parity, and the pair case', () async {
       expect(await _covered(bits: 0x3, invert: 0x3), isFalse);
     });
@@ -81,7 +81,7 @@ void main() {
     });
 
     test('a writer out of this target\'s scope is skipped', () async {
-      // §2-1 is resolved on the CPU: a writer that does not reach this target is
+      // Scope is resolved on the CPU: a writer that does not reach this target is
       // in neither set, so its coverage bit must not touch either plane.
       expect(await _covered(bits: 0x7, invert: 0x1), isTrue); // odd count of 1
       expect(await _covered(bits: 0x7, invert: 0x3), isFalse); // even count of 2
@@ -103,7 +103,7 @@ void main() {
     });
   });
 
-  group('polarity is the target\'s (§2-4)', () {
+  group('polarity is the target\'s', () {
     test('visible_inside_mask draws where the same fragments were discarded',
         () async {
       // Same replay, opposite side: everything covered above now draws, and
@@ -148,7 +148,7 @@ Future<bool> _drew({
   final shader = program.fragmentShader();
 
   // An opaque white texel, so a surviving fragment is unambiguously opaque: the
-  // PartColor formula collapses to a texel passthrough at rate 0 (§10).
+  // PartColor formula collapses to a texel passthrough at rate 0.
   final tex = await _rgbaPixel(255, 255, 255, 255);
   // The coverage bitmap this fragment samples. Bits live in RGB only — alpha is
   // the premultiplied-blend accumulator, so it stays opaque (mask.dart).

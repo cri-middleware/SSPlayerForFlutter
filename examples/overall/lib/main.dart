@@ -84,12 +84,12 @@ class _PlayerPageState extends State<PlayerPage>
   late final SpriteStudioPlayer _player;
   String _status = 'loading…';
 
-  // The most recent timeline event (§6C), shown under the status line so the
+  // The most recent timeline event, shown under the status line so the
   // UserData / Signal / Sound packs visibly demonstrate onUserData / onSignal /
   // onAudio.
   String _lastEvent = '';
 
-  // Audio playback lives in the app, not the player (audio-independent, §6C).
+  // Audio playback lives in the app, not the player (audio-independent).
   // Fire-and-forget: a throwaway player per trigger, so re-triggers (the anim
   // loops) and different sounds simply overlap — no channels, no playback-side
   // state. Tracked only to dispose them with the widget; each self-disposes when
@@ -116,7 +116,7 @@ class _PlayerPageState extends State<PlayerPage>
       'Basic',
       'BlendMode',
       'Interpolation',
-      // Carries timeline events (§6C): UserData / Signal markers and Audio
+      // Carries timeline events: UserData / Signal markers and Audio
       // triggers surfaced via onUserData / onSignal / onAudio (see _lastEvent).
       'UserData',
       'Signal',
@@ -205,7 +205,7 @@ class _PlayerPageState extends State<PlayerPage>
     // ignore: avoid_print
     print('[ssplayer] $_backendReport');
     _player = SpriteStudioPlayer(vsync: this, backend: _selectedBackend)
-      // Surface the decoded timeline events (§6C). Set once — the callbacks
+      // Surface the decoded timeline events. Set once — the callbacks
       // persist across loadAsset, so switching packs keeps them wired.
       ..onAudio = (a) {
         _showEvent('♪ audio: "${a.soundName}" ×${a.loopNum}');
@@ -227,7 +227,7 @@ class _PlayerPageState extends State<PlayerPage>
     if (mounted) setState(() => _lastEvent = text);
   }
 
-  // Play an audio trigger (§6C). The player only says WHAT to play; the app
+  // Play an audio trigger. The player only says WHAT to play; the app
   // decides HOW — here: fire it and forget it. Each trigger gets its own
   // throwaway player, so re-triggers (the anim loops) and different sounds just
   // overlap, with no channel bookkeeping and no "is it already playing" state.
@@ -235,7 +235,7 @@ class _PlayerPageState extends State<PlayerPage>
   // audioplayers has no "play N times", so replay on completion until spent,
   // then discard the player.
   //
-  // Spec note (SDK 90_audio): audio should only play on FORWARD playback — the
+  // Audio should only play on FORWARD playback — the
   // Brain also reports events when running in reverse, which audio backends
   // rarely support. This demo only ever plays forward, so it needs no guard;
   // an app that reverses would open with `if (!_player.isPlayingForward) return;`
@@ -601,7 +601,7 @@ class _PlayerPageState extends State<PlayerPage>
               child: Column(
                 children: [
                   Text(_status),
-                  // Latest timeline event (§6C) — non-empty for the UserData /
+                  // Latest timeline event — non-empty for the UserData /
                   // Signal / Sound packs. Reserve the row so layout is stable.
                   SizedBox(
                     height: 20,

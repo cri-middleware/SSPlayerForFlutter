@@ -3,7 +3,7 @@ import 'dart:ui' as ui;
 
 import '../ssab/ssab.g.dart' as ssab;
 
-/// Blend operation of a per-part colour override (§65-3-1). The four values are
+/// Blend operation of a per-part colour override. The four values are
 /// the same set the authored PartColor uses, and [value] is the wire encoding
 /// the C-API expects — anything ≥ 4 is *rejected* by the Brain rather than
 /// clamped to Mix (unlike the keyframe PartColor path, which clamps
@@ -21,7 +21,7 @@ enum SsBlendOp {
 }
 
 /// Keyframe-vs-override precedence for the two attributes that can conflict
-/// with the animation — colour and cell (§65-1-3).
+/// with the animation — colour and cell.
 ///
 /// Visibility has no priority mode: a force-hide always wins and is always
 /// cleared by `setAnimation` (i.e. it behaves like [holdUntilNextAnimation]).
@@ -63,7 +63,7 @@ enum SsOverridePriority {
 ///
 /// The Brain does all its colour maths in 8-bit sRGB integer space and applies
 /// no gamma/linear/PMA conversion, so this is a plain component pack — the same
-/// space as the authored PartColor (§65-3-1). It also pre-multiplies the part's
+/// space as the authored PartColor. It also pre-multiplies the part's
 /// composed alpha at the seam, so callers must NOT fold `PartState.alpha` in.
 int packRgba(ui.Color color) {
   int c(double v) => (v.clamp(0.0, 1.0) * 255.0 + 0.5).toInt();
@@ -74,7 +74,7 @@ int packRgba(ui.Color color) {
 /// part names ↔ indices, plus the static per-part skinned-mesh flag.
 ///
 /// Part indices are positional over the pack's parts and stable within one
-/// `.ssab` (§65-4), so a name is resolved once here and the index reused. This
+/// `.ssab`, so a name is resolved once here and the index reused. This
 /// mirrors the flagship players, which keep the same map (Godot's
 /// `_part_name_to_index`, Unity's `_partNameToIndex`); the Brain's own
 /// `find_part_index` covers the same space but only after `setAnimation`.

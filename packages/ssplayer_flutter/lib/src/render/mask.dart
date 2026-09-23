@@ -5,7 +5,7 @@ import '../ssab/ssab.g.dart' as ssab;
 import '../texture_registry.dart';
 import 'geometry_builder.dart';
 
-/// Maximum mask writers honoured in one frame (§3-2).
+/// Maximum mask writers honoured in one frame.
 ///
 /// Each writer owns one bit of the coverage bitmap, and the bits live in the
 /// RGB channels only (8 × 3 = 24) — alpha is reserved as the premultiplied-blend
@@ -14,7 +14,7 @@ import 'geometry_builder.dart';
 const int kMaxMaskWriters = 24;
 
 /// Sentinel [MaskWriter.partIndex] for a writer **carried up** from an instance
-/// child (§2-6 carry-over): it is not one of THIS player's parts, so its
+/// child (carry-over): it is not one of THIS player's parts, so its
 /// geometry cannot be baked from this player's SoA. The coverage pass skips it
 /// in the own-writer loop and bakes it from the parallel [MaskPlan.bubbled]
 /// entry (the child's own geometry, under the instance slot matrix) instead. It
@@ -22,16 +22,16 @@ const int kMaxMaskWriters = 24;
 const int kBubbledWriterPart = -2;
 
 /// [MaskWriter.threshold] for a writer that has no texel to cut out — a Shape
-/// (§2-5, the shape special case), whose whole polygon is the mask. Below every
+/// (the shape special case), whose whole polygon is the mask. Below every
 /// possible alpha, so nothing is ever thresholded away (the flagship's sentinel
 /// too).
 const double noCutoutThreshold = -1.0;
 
 /// The static, per-part mask flags — read **once** from the `.ssab` `PartData`
-/// and never re-read per frame (mask glossary: PartData is static, FrameData is
+/// and never re-read per frame (PartData is static, FrameData is
 /// animated).
 ///
-/// The three canonical role expressions (§1-2) are exposed as [isWriter] /
+/// The three canonical role expressions are exposed as [isWriter] /
 /// [isClipping] / [isTarget]; do not re-derive them at call sites.
 class MaskPartFlags {
   const MaskPartFlags({
@@ -58,24 +58,24 @@ class MaskPartFlags {
   /// Mesh / Text / Nines carry their own geometry, which the coverage pass
   /// cannot rasterise yet. Such a part is dropped as a *writer*
   /// ([MaskPlan.build]) rather than clipping its targets with the wrong shape:
-  /// per the SDK's role table a Mesh can never be a pure mask, but it CAN be a
+  /// a Mesh can never be a pure mask, but it CAN be a
   /// clipping writer, and rasterising its undeformed quad would clip to a
   /// rectangle instead of the deformed mesh. Not writing at all is the more
   /// predictable of the two wrongs until the geometry is wired up.
   final bool quadGeometry;
 
-  /// A Shape part (§11): its coverage is its **polygon**, taken from the shape
+  /// A Shape part: its coverage is its **polygon**, taken from the shape
   /// SoA rather than the sprite quad.
   ///
-  /// A shape writer also bypasses the alpha cutout (§2-5) entirely — it has no
+  /// A shape writer also bypasses the alpha cutout entirely — it has no
   /// cell and therefore no texel alpha to threshold, so the whole shape is the mask.
   /// That is why it is a separate flag rather than another [quadGeometry] case:
   /// the two differ in both geometry *and* thresholding.
   final bool shapeGeometry;
 
-  /// A Mesh part (§8): its coverage is its deformed triangle mesh, taken from the
-  /// mesh SoA (already world-space). Like a shape it bypasses the alpha cutout
-  /// (§2-5) — Flutter fragment shaders take no per-vertex UV varying, so the mesh
+  /// A Mesh part: its coverage is its deformed triangle mesh, taken from the
+  /// mesh SoA (already world-space). Like a shape it bypasses the alpha cutout —
+  /// Flutter fragment shaders take no per-vertex UV varying, so the mesh
   /// texel alpha cannot be thresholded per fragment; the triangle geometry *is*
   /// the mask. A slight over-cover versus a texel-cutout mesh, but a mesh
   /// clipping writer (e.g. `Mesh-WriteMask-True`) clips its targets using that
@@ -94,7 +94,7 @@ class MaskPartFlags {
   /// (a "clipping" writer).
   final bool maskWrite;
 
-  /// **Deliberately overloaded** (per the SDK glossary), never normalise it away:
+  /// **Deliberately overloaded**, never normalise it away:
   /// * on a writer → the stencil OP (`false` = increment, `true` = invert);
   /// * on a target → the opt-in flag (`false` = not affected by masks).
   ///
@@ -105,24 +105,24 @@ class MaskPartFlags {
   /// mask (`true`) or outside it (`false`). Lives on the target, not the writer.
   final bool visibleInsideMask;
 
-  /// §1-2: `is_writer = pure_mask || mask_write`.
+  /// `is_writer = pure_mask || mask_write`.
   bool get isWriter => pureMask || maskWrite;
 
-  /// §1-2: `is_clipping = mask_write && !pure_mask` — draws colour AND masks
+  /// `is_clipping = mask_write && !pure_mask` — draws colour AND masks
   /// the parts drawn *after* it (pure masks mask the ones *before*).
   bool get isClipping => maskWrite && !pureMask;
 
   /// Whether this part's own colour is subject to the mask test at all, judged
-  /// on its own flags — i.e. whether its `mask_influence` opts it in (§2-2).
+  /// on its own flags — i.e. whether its `mask_influence` opts it in.
   ///
-  /// `mask_write` does NOT force this (Rule_Mask.md §2-3/§3): a clipping writer
+  /// `mask_write` does NOT force this: a clipping writer
   /// draws its pixels first and only then writes its clip below ("pixels, then
   /// mask"), so its own write must not clip its own colour — it is still clipped
   /// by OTHER masks purely on its real `mask_influence`. A clipping writer with
   /// `mask_influence == 0` therefore draws unmasked.
   ///
   /// This is the top-level reading. Inside an instance sub-animation the
-  /// caller's settings compose with these (§2-6) — ask
+  /// caller's settings compose with these — ask
   /// [MaskComposition.targets] there, which reduces to this under
   /// [MaskComposition.identity].
   bool get isTarget => MaskComposition.identity.targets(this);
@@ -157,7 +157,7 @@ class MaskPartFlags {
   }
 }
 
-/// The mask settings an instance hierarchy has accumulated above a part (§2-6).
+/// The mask settings an instance hierarchy has accumulated above a part.
 ///
 /// A mask reaching an instance part applies to the whole sub-animation, but the
 /// calling part's settings do **not** replace the callee's — SpriteStudio
@@ -175,7 +175,7 @@ class MaskPartFlags {
 ///
 /// `mask_write` deliberately stays out: writing a mask is a local fact about one
 /// part, not something its descendants inherit — and it does NOT make the part
-/// itself a target either (Rule_Mask.md §2-3/§3); a clipping writer's own colour
+/// itself a target either; a clipping writer's own colour
 /// is clipped only on its real `mask_influence`, see [targets].
 class MaskComposition {
   const MaskComposition({this.influence = true, this.visibleInside = false});
@@ -195,10 +195,10 @@ class MaskComposition {
         visibleInside: visibleInside || flags.visibleInsideMask,
       );
 
-  /// §2-2 under this composition: is a part with [flags] subject to the mask
+  /// Under this composition: is a part with [flags] subject to the mask
   /// test at all? Target-ness is the composed `mask_influence` ALONE.
   ///
-  /// `mask_write` must NOT force it (Rule_Mask.md §2-3/§3): a clipping writer
+  /// `mask_write` must NOT force it: a clipping writer
   /// draws its colour first, then writes its clip below, so gating its own
   /// colour with its own `mask_write` made a `visible_inside_mask` writer with
   /// no covering mask vanish. A clipping writer's own colour is clipped by OTHER
@@ -206,12 +206,12 @@ class MaskComposition {
   /// draws unmasked.
   bool targets(MaskPartFlags flags) => influence && flags.maskInfluence;
 
-  /// §2-4 under this composition: which side of the mask a part draws on.
+  /// Under this composition: which side of the mask a part draws on.
   bool visibleInsideFor(MaskPartFlags flags) =>
       visibleInside || flags.visibleInsideMask;
 }
 
-/// One coverage-bitmap writer for the current frame (§3-2-1).
+/// One coverage-bitmap writer for the current frame.
 class MaskWriter {
   const MaskWriter({
     required this.partIndex,
@@ -225,7 +225,7 @@ class MaskWriter {
   /// The writing part (indexes the SoA buffers).
   final int partIndex;
 
-  /// Its position in `draw_order` — the scope pivot (§2-1).
+  /// Its position in `draw_order` — the scope pivot.
   final int drawRank;
 
   /// Coverage bit, `0..kMaxMaskWriters-1`. Assigned in ascending [drawRank]
@@ -233,13 +233,13 @@ class MaskWriter {
   /// depend on the order (see [MaskBits]).
   final int bit;
 
-  /// Stencil OP: `false` = increment, `true` = invert (§2-3).
+  /// Stencil OP: `false` = increment, `true` = invert.
   final bool opInvert;
 
-  /// Clipping writer — masks the parts drawn *after* it (§2-1).
+  /// Clipping writer — masks the parts drawn *after* it.
   final bool isClipping;
 
-  /// Cutout alpha threshold `(255 - mask) / 255` (§2-5): texels at or below it
+  /// Cutout alpha threshold `(255 - mask) / 255`: texels at or below it
   /// do not contribute coverage.
   final double threshold;
 }
@@ -248,12 +248,12 @@ class MaskWriter {
 /// polarity.
 ///
 /// [increment] / [invert] are 24-bit sets indexed by [MaskWriter.bit], already
-/// filtered to the writers whose scope (§2-1) reaches this target. Resolving
+/// filtered to the writers whose scope reaches this target. Resolving
 /// scope on the CPU is why the flagship's `mask_meta[]` array (4 floats per
 /// writer) is not needed here — only these two sets reach the shader. 24-bit
 /// integers are exactly representable in a float32 uniform.
 ///
-/// Splitting them by OP is also what §3-1-4 requires of the replay: `Invert` and
+/// Splitting them by OP is also what the replay requires: `Invert` and
 /// `IncrementWrap` do not commute, so each accumulates on its own plane and the
 /// shader takes the union. The two sets are therefore disjoint by construction —
 /// a writer's OP puts it in exactly one — and the replay is independent of the
@@ -265,13 +265,13 @@ class MaskBits {
     required this.visibleInside,
   });
 
-  /// Writers active for this target whose OP is increment (§2-3).
+  /// Writers active for this target whose OP is increment.
   final int increment;
 
-  /// Writers active for this target whose OP is invert (§2-3).
+  /// Writers active for this target whose OP is invert.
   final int invert;
 
-  /// The target's own polarity (§2-4): draw inside the mask, or outside it.
+  /// The target's own polarity: draw inside the mask, or outside it.
   final bool visibleInside;
 
   /// No writer reaches this target. With [visibleInside] the part draws
@@ -279,7 +279,7 @@ class MaskBits {
   bool get isEmpty => increment == 0 && invert == 0;
 }
 
-/// One instance child's clipping writer **carried up** (§2-6) into the owner's
+/// One instance child's clipping writer **carried up** into the owner's
 /// coverage so it clips the owner's parts drawn after the instance.
 ///
 /// It carries everything the coverage bake needs to rasterise the child writer
@@ -319,7 +319,7 @@ class BubbledWriter {
   /// Coverage bit in the OWNER's plan (continues after the owner's own writers).
   final int bit;
 
-  /// Cutout alpha threshold (§2-5); [noCutoutThreshold] for shape / mesh.
+  /// Cutout alpha threshold; [noCutoutThreshold] for shape / mesh.
   final double threshold;
 
   /// The child writer's cell-atlas texture hash, or null for a shape / mesh
@@ -332,7 +332,7 @@ class BubbledWriter {
 }
 
 /// The frame's mask plan: which parts write coverage, the player-local box the
-/// coverage bitmap spans, and the per-target scope resolution (§3-2).
+/// coverage bitmap spans, and the per-target scope resolution.
 ///
 /// Pure data + geometry — no `Canvas`, no FFI — so it is unit-testable without
 /// a GPU. The owning player rasterises [writers] into the bitmap and feeds
@@ -381,14 +381,14 @@ class MaskPlan {
   /// them for the owner's later parts; their geometry is baked from [bubbled].
   final List<MaskWriter> writers;
 
-  /// Instance children's clipping writers carried up into this coverage (§2-6),
+  /// Instance children's clipping writers carried up into this coverage,
   /// each parallel to a sentinel in [writers] by [BubbledWriter.bit]. Empty in
   /// the common case (no instance child writes a mask this frame).
   final List<BubbledWriter> bubbled;
 
   /// Union of the writers' world quads in **player-local** space. The coverage
   /// bitmap is stretched over exactly this box, so the local→UV map is
-  /// resolution-independent (§3-2-2).
+  /// resolution-independent.
   final ui.Rect bounds;
 
   /// Highest rank among pure-mask writers (-1 when none): every part below it
@@ -399,12 +399,12 @@ class MaskPlan {
   /// potentially masked.
   final int _minClipRank;
 
-  /// Collects the frame's writers by walking `draw_order` in rank order
-  /// (§3-2-1). Returns null when nothing writes coverage this frame — the
+  /// Collects the frame's writers by walking `draw_order` in rank order.
+  /// Returns null when nothing writes coverage this frame — the
   /// caller then skips the whole mask machinery.
   ///
   /// [flags] is indexed by part index ([MaskPartFlags.readAll]). Parts whose
-  /// animated `mask` attribute is 0 are skipped (§2-2 opt-out); `hide` needs no
+  /// animated `mask` attribute is 0 are skipped (opt-out); `hide` needs no
   /// check because the Brain already drops hidden parts from `draw_order`.
   /// Grow-only scratch for [build]'s per-writer world outlines.
   ///
@@ -430,8 +430,8 @@ class MaskPlan {
       // wrong-shaped stand-in.
       if (!f.drawableWriter) continue;
 
-      // §2-2: mask == 0 opts the writer out entirely. This is a rule of its own
-      // — the doc says `mask` also serves as the cutout threshold (0 disables the
+      // mask == 0 opts the writer out entirely. This is a rule of its own
+      // — `mask` also serves as the cutout threshold (0 disables the
       // writer), it *doubles as* the threshold — so it still applies to a shape, which has
       // no cutout at all.
       final mask = frame.partOf(p)?.mask ?? 0.0;
@@ -457,7 +457,7 @@ class MaskPlan {
         partIndex: p,
         drawRank: rank,
         bit: writers.length,
-        // §2-6 (writer side): the OP — and therefore which plane the bit lands
+        // Writer side: the OP — and therefore which plane the bit lands
         // on — follows the EFFECTIVE mask_influence, own AND the influence
         // inherited down the instance chain ([comp]). A writer inside a
         // mask_influence == 0 instance moves from the invert (parity) plane to
@@ -467,7 +467,7 @@ class MaskPlan {
         opInvert: f.maskInfluence && comp.influence,
         isClipping: f.isClipping,
         // A shape has no texel to threshold, so its whole polygon is the mask
-        // (§2-5, the shape special case); a mesh could threshold in principle but our
+        // (the shape special case); a mesh could threshold in principle but our
         // coverage pass can't sample its per-vertex UV (no shader varyings), so
         // it too falls back to geometry-as-mask. -1 is the flagship's "never cut
         // out" sentinel.
@@ -494,7 +494,7 @@ class MaskPlan {
     );
   }
 
-  /// Whether any writer's scope reaches a target at [rank] (§2-1) — the cheap
+  /// Whether any writer's scope reaches a target at [rank] — the cheap
   /// early-out the flagship calls `_part_in_mask_scope`.
   bool inScope(int rank) =>
       (_maxMaskRank >= 0 && rank < _maxMaskRank) ||
@@ -508,10 +508,10 @@ class MaskPlan {
   /// draws only inside a mask, so it must run the test even out of scope (where
   /// the empty writer set then correctly discards it).
   ///
-  /// Scope (§2-1): a pure mask applies to parts drawn *before* it
+  /// Scope: a pure mask applies to parts drawn *before* it
   /// (`rank < writer.drawRank`); a clipping writer to parts drawn *after* it.
   ///
-  /// [comp] is the instance hierarchy above this player (§2-6); it governs the
+  /// [comp] is the instance hierarchy above this player; it governs the
   /// opt-in and the polarity, so a caller that opted out disables even this
   /// player's own mask. [MaskComposition.identity] at the top level leaves the
   /// part's own flags deciding.
@@ -540,7 +540,7 @@ class MaskPlan {
     );
   }
 
-  /// The player-local → coverage-UV affine (§3-2-2), as the shader wants it:
+  /// The player-local → coverage-UV affine, as the shader wants it:
   /// `[m00, m01, m10, m11]` with the offset in [uvOffset]. The box maps onto the
   /// full `[0,1]²` texture, so this is independent of the bitmap's pixel size.
   /// Cached: it is read once per peeled target (and per masked instance child),

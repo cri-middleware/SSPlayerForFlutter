@@ -4,7 +4,7 @@ import 'package:flutter/services.dart' show AssetBundle, rootBundle;
 
 import 'render/instance.dart';
 
-/// The packs an animation's instance parts (§8) need, plus what went missing.
+/// The packs an animation's instance parts need, plus what went missing.
 class InstancePackLoadResult {
   const InstancePackLoadResult(this.packs, this.unresolved);
 

@@ -1,4 +1,4 @@
-// Framebuffer blend **pixel** parity (§7B): does the `ui.BlendMode` that
+// Framebuffer blend **pixel** parity: does the `ui.BlendMode` that
 // [blendModeFor] picks actually produce the SpriteStudio GL result?
 //
 // `blend_test.dart` pins the enum mapping; this file rasterises it. Each case
@@ -291,7 +291,7 @@ void main() {
     }
   });
 
-  // The effect blend byte (§8) is its own enum space; additive there is
+  // The effect blend byte is its own enum space; additive there is
   // `(ONE, ONE, ONE, ONE)` — alpha adds too, which `plus` does and `srcOver`
   // does not.
   test('effect additive adds all four channels', () async {

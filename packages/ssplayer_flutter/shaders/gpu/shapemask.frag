@@ -1,7 +1,7 @@
 #version 460 core
 
 // Flutter GPU masked-Shape fragment shader: gate a Shape's per-vertex colour by
-// the mask coverage (§3-2 replay), mirroring the Canvas `_drawMaskedShape` (which
+// the mask coverage, mirroring the Canvas `_drawMaskedShape` (which
 // runs partcolor.frag as a no-op-colour gate over the shape's drawVertices
 // gradient). The colour is already premultiplied by the Shape bake.
 

@@ -69,24 +69,24 @@ abstract class RenderBackend {
   /// coverage must outlive its instance children's drawing.
   void releaseCoverage();
 
-  /// Emits one Normal batch (§7/§9/§10), preserving draw order. Plain parts batch;
+  /// Emits one Normal batch, preserving draw order. Plain parts batch;
   /// parts with PartColor and/or a mask test are peeled (Canvas) or folded into
   /// per-vertex attributes (GPU).
   void emitNormal(ui.Canvas canvas, fbs.DrawBatch batch, DrawFrame frame,
       RenderHost host, MaskContext? maskCtx, InheritedMask? inheritedMask);
 
-  /// Emits one Shape batch (§11): per-vertex colour, mask targets peeled.
+  /// Emits one Shape batch: per-vertex colour, mask targets peeled.
   void emitShape(ui.Canvas canvas, fbs.DrawBatch batch, DrawFrame frame,
       RenderHost host, MaskContext? maskCtx, InheritedMask? inheritedMask);
 
-  /// Emits one Mesh batch (§8): world-space verts, one indexed draw. Parts
-  /// carrying PartColor (§10, *whole-only* — the `lt` corner tints the whole
-  /// part) and/or a mask test (§9) are peeled out of that draw, the same way
+  /// Emits one Mesh batch: world-space verts, one indexed draw. Parts
+  /// carrying PartColor (*whole-only* — the `lt` corner tints the whole
+  /// part) and/or a mask test are peeled out of that draw, the same way
   /// [emitNormal] peels its own.
   void emitMesh(ui.Canvas canvas, fbs.DrawBatch batch, DrawFrame frame,
       RenderHost host, MaskContext? maskCtx, InheritedMask? inheritedMask);
 
-  /// Emits one Effect batch (§8): the particle plans, grouped per cellmap+blend.
+  /// Emits one Effect batch: the particle plans, grouped per cellmap+blend.
   void emitEffect(
       ui.Canvas canvas, fbs.DrawBatch batch, DrawFrame frame, RenderHost host);
 
@@ -97,7 +97,7 @@ abstract class RenderBackend {
   MaskContext? renderCoverage(DrawFrame frame, RenderHost host, MaskPlan plan,
       Map<int, int> textureByRank);
 
-  /// Brackets an instance child's recursive draw (§8) with the child→parent
+  /// Brackets an instance child's recursive draw with the child→parent
   /// world transform ([world], column-major 2D affine from `world2dOf`). Canvas:
   /// `canvas.save()` + `canvas.transform`. GPU: composes [world] into the current
   /// projection so the child's local geometry lands in place. The child draws
@@ -107,9 +107,8 @@ abstract class RenderBackend {
 
   // There is deliberately NO group-tint hook here. An instance part's PartColor
   // does not reach its child subtree in any player of this family — Godot
-  // modulates the child with `Color(1, 1, 1, part_alpha)`, wgpu says "no player
-  // propagates an instance part's tint", and the SDK's PartColor part-type table
-  // (§1-2) stops at Normal / Mesh / Shape. Only alpha crosses, and it crosses as
+  // modulates the child with `Color(1, 1, 1, part_alpha)`, and wgpu says "no player
+  // propagates an instance part's tint". Only alpha crosses, and it crosses as
   // `DrawFrame.alphaScale`, folded per part.
   //
   // A `pushGroupTint`/`popGroupTint` pair used to live here (Canvas `saveLayer`,

@@ -1,5 +1,5 @@
-/// Frame-accurate timeline events surfaced from the `.ssab` while playing
-/// (design §6C). The Brain reports *which* events a frame crossed; the Body
+/// Frame-accurate timeline events surfaced from the `.ssab` while playing.
+/// The Brain reports *which* events a frame crossed; the Body
 /// decodes them from the pack and [SpriteStudioPlayer] dispatches each one to
 /// `onUserData` / `onSignal` / `onAudio`.
 ///
@@ -110,7 +110,7 @@ class SsSignalParam {
 /// An **Audio** trigger. SpriteStudio audio is *trigger-only*: this hands you
 /// the sound to play (by name and/or hash) plus its loop count, and your app
 /// plays it with whatever audio stack it likes — the player never produces
-/// sound itself (design §6C / §11).
+/// sound itself.
 @immutable
 class SsAudioEvent {
   const SsAudioEvent({
@@ -145,7 +145,7 @@ class SsAudioEvent {
 
   /// The **play count**: how many times to play the sound (`>= 1`).
   /// SpriteStudio audio has no infinite-loop concept — despite the name, this is
-  /// a repeat count, not a loop flag (SDK `40_components/90_audio`). Playback is
+  /// a repeat count, not a loop flag. Playback is
   /// the app's job; honour this count in your own audio stack.
   final int loopNum;
 

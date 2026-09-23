@@ -34,9 +34,9 @@ RenderBackend createFlutterGpuBackend() => FlutterGpuBackend();
 /// precisely what a `RenderPass` takes — so where the Canvas path has to rebuild
 /// Sub / Invert out of three stock passes, this backend just sets the state.
 ///
-/// Peeled parts (§9 mask replay / §10 PartColor tint) draw on the dedicated
+/// Peeled parts (mask replay / PartColor tint) draw on the dedicated
 /// PartColor pipeline, which carries every per-part value as a **per-vertex
-/// attribute** — the Godot/Web sibling design (§19). A per-vertex attribute
+/// attribute** — the Godot/Web sibling design. A per-vertex attribute
 /// avoids the dynamically-indexed uniform array Impeller/Metal miscompiles, so
 /// no UBO is bound.
 ///
@@ -58,7 +58,7 @@ class FlutterGpuBackend implements RenderBackend {
   /// confirmed on-device). `-1` assumes a Metal-style +Y-up NDC.
   static const double _kNdcYSign = -1.0;
 
-  // --- Framebuffer blend equations (§7B) -----------------------------------
+  // --- Framebuffer blend equations -----------------------------------------
   //
   // SpriteStudio realises EVERY blend as a fixed-function GPU blend state, so
   // this backend can reproduce the reference **exactly** rather than
@@ -192,7 +192,7 @@ class FlutterGpuBackend implements RenderBackend {
 
   /// The two pipelines, built once and shared across all players/backends. The
   /// sprite pipeline draws plain Normal/Mesh/Shape/Effect; the PartColor pipeline
-  /// draws peeled PartColor/mask parts (§9/§10). Each latches a load failure so a
+  /// draws peeled PartColor/mask parts. Each latches a load failure so a
   /// missing bundle is not retried every frame.
   static gpu.RenderPipeline? _spritePipeline;
   static bool _spritePipelineFailed = false;
@@ -373,13 +373,13 @@ class FlutterGpuBackend implements RenderBackend {
     pass.bindPipeline(pipeline);
   }
 
-  /// Longest edge, in pixels, of the mask coverage texture (§3-2) — a quality
+  /// Longest edge, in pixels, of the mask coverage texture — a quality
   /// knob; the Canvas backend and the flagship cap at the same 1024.
   static const double _kMaxCoverageDim = 1024.0;
 
-  /// This frame's mask coverage textures (§9) — one per player that masks —
+  /// This frame's mask coverage textures — one per player that masks —
   /// rendered by [renderCoverage]. Each is handed to its [MaskContext] as an
-  /// opaque `coverageHandle`, so an inherited mask (§3-2-2) samples the parent's
+  /// opaque `coverageHandle`, so an inherited mask samples the parent's
   /// coverage and an own mask the child's, with no shared mutable state. This list
   /// only keeps them alive until [finish] submits the frame.
   final List<gpu.Texture> _frameCoverages = <gpu.Texture>[];
@@ -453,7 +453,7 @@ class FlutterGpuBackend implements RenderBackend {
 
   /// The current player-local→NDC matrix's emplaced view — the top of the
   /// transform stack — re-bound to whichever pipeline's `FrameInfo` slot each draw
-  /// uses. Instance recursion pushes composed matrices onto the stacks (§8).
+  /// uses. Instance recursion pushes composed matrices onto the stacks.
   gpu.BufferView? _mvpView;
   final List<Float32List> _matStack = <Float32List>[];
   final List<gpu.BufferView> _viewStack = <gpu.BufferView>[];
@@ -658,7 +658,7 @@ class FlutterGpuBackend implements RenderBackend {
     final pcMasks = _pcMasksScratch..clear();
     // The coverage the current PartColor run samples. A masked part joins the run
     // only if it shares this handle — an own mask (this player's coverage) and an
-    // inherited mask (§3-2-2, the parent's coverage) therefore split into separate
+    // inherited mask (the parent's coverage) therefore split into separate
     // draws, each binding the right texture. Unmasked parts join any run.
     gpu.Texture? pcCoverage;
 
@@ -741,7 +741,7 @@ class FlutterGpuBackend implements RenderBackend {
   /// vertex limit. A longer run splits into multiple draws.
   static const int _kMaxPartColorRun = 4096;
 
-  /// Draws a RUN of peeled parts (PartColor §10 and/or mask §9) in ONE PartColor
+  /// Draws a RUN of peeled parts (PartColor and/or mask) in ONE PartColor
   /// pipeline call — the fan-out collapse. Each part's quad becomes 4 self-
   /// describing vertices (corner colour / rate / coef / mask replay all as
   /// per-vertex attributes; no UBO), so the whole run packs into one vertex
@@ -1198,11 +1198,11 @@ class FlutterGpuBackend implements RenderBackend {
     flushPc();
   }
 
-  /// Draws a RUN of peeled mesh parts (PartColor §10 and/or mask §9) in ONE
+  /// Draws a RUN of peeled mesh parts (PartColor and/or mask) in ONE
   /// PartColor-pipeline call.
   ///
   /// No mesh-specific shader is needed: the bake carries the `lt` corner's colour
-  /// + rate on every vertex — the §10 *whole-only* Mesh rule — and the mask
+  /// + rate on every vertex — the *whole-only* Mesh rule — and the mask
   /// replay samples the coverage through the player-local `v_local` varying,
   /// which a mesh vertex is in. So this is [_drawPartColorRun] with a different
   /// geometry source. Falls back to the plain textured draw when the pipeline is
@@ -1314,7 +1314,7 @@ class FlutterGpuBackend implements RenderBackend {
   /// Draws a batch of Shapes through the ShapeMask pipeline, whose fragment shader
   /// outputs the baked per-vertex colour (`frag_color = v_color`, premultiplied).
   ///
-  /// When [mask] is non-null the colour is gated by the mask coverage (§9) and
+  /// When [mask] is non-null the colour is gated by the mask coverage and
   /// [parts] is a single mask-target shape; when null the mask is disabled
   /// (`mask_bits.w = 0`, the shader passes the colour straight through) and [parts]
   /// is a run of plain shapes batched into one draw. Either way there is **no
@@ -1568,7 +1568,7 @@ class FlutterGpuBackend implements RenderBackend {
         wrote = true;
       }
 
-      // Carry-over (§2-6): each instance child's clipping writers, from the
+      // Carry-over: each instance child's clipping writers, from the
       // CHILD's geometry, projected through coverageMvp ∘ slot so the child-local
       // verts land in this player's coverage (the owner-local MVP folds the slot
       // in, where the Canvas path applies it on the canvas transform stack).
@@ -1656,7 +1656,7 @@ class FlutterGpuBackend implements RenderBackend {
   }
 
   /// Column-major 4×4 product `a · b` — the owner-local→NDC coverage matrix
-  /// composed with a carry-over writer's child-local→owner-local slot (§2-6), so
+  /// composed with a carry-over writer's child-local→owner-local slot, so
   /// the child geometry projects straight into the owner's coverage. Fresh list
   /// (not a scratch): each bubbled writer emplaces its own before the next.
   static Float32List _mul4Col(Float32List a, Float64List b) {
@@ -1728,7 +1728,7 @@ class FlutterGpuBackend implements RenderBackend {
   }
 
   /// One writer's bit as the `MaskBit` uniform: rgb = the bit in its owning R/G/B
-  /// channel (8 bits × 3 = 24 writers), a = the §2-5 cutout threshold.
+  /// channel (8 bits × 3 = 24 writers), a = the cutout threshold.
   /// Written into [_bitColorScratch] — the caller emplaces it (which copies)
   /// before the next writer refills it.
   Float32List _bitColor(int bit, double threshold) {

@@ -1,4 +1,4 @@
-// Mask (§9) tests. The pure pieces — role classification, writer collection,
+// Mask tests. The pure pieces — role classification, writer collection,
 // scope/polarity resolution and the coverage UV affine — run everywhere; the
 // PartData reader is exercised against real converter output from Mask.ssab and
 // skips when the example assets haven't been prepared.
@@ -16,7 +16,7 @@ import 'package:ssplayer_flutter/ssplayer_flutter.dart';
 import 'package:ssruntime_dart/framedata.dart' as fbs;
 
 void main() {
-  group('MaskPartFlags roles (§1-2)', () {
+  group('MaskPartFlags roles', () {
     test('pure mask writes coverage and is not clipping', () {
       const f = MaskPartFlags(
         pureMask: true,
@@ -51,7 +51,7 @@ void main() {
       expect(f.isWriter, isTrue);
       expect(f.isClipping, isTrue);
       // Its own colour is NOT clipped by masks: mask_write does not force
-      // target-ness (§2-3/§3); with mask_influence 0 the clipping writer draws
+      // target-ness; with mask_influence 0 the clipping writer draws
       // unmasked. It becomes a target once it also opts in with mask_influence 1.
       expect(f.isTarget, isFalse);
       const withInfluence = MaskPartFlags(
@@ -77,7 +77,7 @@ void main() {
     });
   });
 
-  group('MaskPlan scope (§2-1) and polarity (§2-4)', () {
+  group('MaskPlan scope and polarity', () {
     // One pure mask at rank 5, one clipping writer at rank 10.
     final plan = MaskPlan.fromWriters(
       writers: <MaskWriter>[
@@ -151,7 +151,7 @@ void main() {
       expect(bits.visibleInside, isTrue);
     });
 
-    test('the OP splits writers into the increment and invert sets (§2-3)', () {
+    test('the OP splits writers into the increment and invert sets', () {
       final inverting = MaskPlan.fromWriters(
         writers: <MaskWriter>[
           const MaskWriter(
@@ -179,7 +179,7 @@ void main() {
     });
   });
 
-  group('MaskPlan coverage UV (§3-2-2)', () {
+  group('MaskPlan coverage UV', () {
     test('the affine maps the bounds onto the unit square', () {
       final plan = MaskPlan.fromWriters(
         writers: <MaskWriter>[
@@ -277,7 +277,7 @@ void main() {
             greaterThan(plan.writers[i - 1].drawRank));
       }
     }
-    // §2-5: a collected writer always has a usable cutout threshold.
+    // A collected writer always has a usable cutout threshold.
     for (final w in plan.writers) {
       expect(w.threshold, inInclusiveRange(0.0, 1.0));
     }
@@ -285,7 +285,7 @@ void main() {
 
   test('a writer op follows the effective mask_influence (own AND inherited)',
       () async {
-    // §2-6 (writer side): MaskPlan.build composes each writer's OP with the
+    // Writer side: MaskPlan.build composes each writer's OP with the
     // influence inherited down the instance chain. Under a mask_influence == 0
     // instance every writer moves off the invert (parity) plane onto the
     // increment (union) plane; under an influence == 1 caller the ops are
@@ -360,7 +360,7 @@ void main() {
 
   test('a real Mask.ssab frame resolves a mask test for its Mesh parts',
       () async {
-    // Mesh mask targets (§11-A) used to fall through unmasked because the Mesh
+    // Mesh mask targets used to fall through unmasked because the Mesh
     // emit path never consulted the plan. Mask.ssab has mesh parts inside a
     // writer's scope, so this pins that the data really exercises the path —
     // without it the mesh gate could regress silently.

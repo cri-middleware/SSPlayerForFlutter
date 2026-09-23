@@ -1,7 +1,7 @@
 #version 460 core
 #include <flutter/runtime_effect.glsl>
 
-// Mask coverage writer for a single sprite quad (SpriteStudio mask §3-2-1).
+// Mask coverage writer for a single sprite quad.
 //
 // One writer = one bit of the coverage bitmap. The bit is pre-encoded on the CPU
 // into the R/G/B channel that owns it (8 bits x 3 = 24 writers; alpha is left as
@@ -35,7 +35,7 @@ void main() {
 
   vec2 uvpx = mix(mix(uUvA.xy, uUvA.zw, s), mix(uUvB.xy, uUvB.zw, s), t);
 
-  // §2-5 cutout: only texels above the threshold contribute coverage.
+  // Cutout: only texels above the threshold contribute coverage.
   // threshold = (255 - mask) / 255, so mask == 255 writes every non-transparent
   // texel and mask == 0 writes nothing (the writer is dropped on the CPU anyway).
   // A negative threshold means "no cutout" (a textureless Shape writer: the

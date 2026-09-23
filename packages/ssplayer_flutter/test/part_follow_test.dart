@@ -1,4 +1,4 @@
-// Part following — the read side of §65: pull a part's live world pose / hide
+// Part following — the read side of part overrides: pull a part's live world pose / hide
 // out so a follower (the SpriteStudioPartAnchor widget, a Flame component) can
 // track it. ForUnity's part tracker / ForGodot's part attachment, done the
 // Flutter way.

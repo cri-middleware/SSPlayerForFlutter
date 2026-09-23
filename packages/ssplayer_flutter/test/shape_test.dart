@@ -1,4 +1,4 @@
-// Shape (§11) tests. The SoA slicing and the fan/colour bake run everywhere;
+// Shape tests. The SoA slicing and the fan/colour bake run everywhere;
 // the ssab-driven cases use the real Shape.ssab (a drawn Rectangle that is also
 // a mask target, plus a draw_as_mask ShapeMask writer) and skip when the example
 // assets haven't been prepared.

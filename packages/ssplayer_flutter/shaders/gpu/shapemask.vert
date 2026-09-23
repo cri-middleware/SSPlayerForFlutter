@@ -1,6 +1,6 @@
 #version 460 core
 
-// Flutter GPU masked-Shape vertex shader (§9 target that is a §11 Shape). A Shape
+// Flutter GPU masked-Shape vertex shader (target that is a Shape). A Shape
 // carries its colour in its vertices (per-vertex gradient), so this only forwards
 // the colour and the player-local position (for the mask UV); the fragment gates
 // on the coverage.

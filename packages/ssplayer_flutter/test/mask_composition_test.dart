@@ -1,4 +1,4 @@
-// Mask settings compose across the instance hierarchy (§2-6).
+// Mask settings compose across the instance hierarchy.
 //
 // A mask reaching an instance part applies to the whole sub-animation, but the
 // calling part's settings do NOT replace the callee's: `mask_influence` chains
@@ -15,7 +15,7 @@
 //
 // Multi-level nesting chains by handing each level a composed value; that it
 // *chains* is covered below, but agreement with SS7.5 beyond one level is
-// unverified — as it is in the SDK guide and in the sibling ports.
+// unverified — as it is in the sibling ports.
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
@@ -31,7 +31,7 @@ const _plain = MaskPartFlags(
   visibleInsideMask: false,
 );
 
-/// The same, but drawing INSIDE the mask (§2-4).
+/// The same, but drawing INSIDE the mask.
 const _inside = MaskPartFlags(
   pureMask: false,
   maskWrite: false,
@@ -39,7 +39,7 @@ const _inside = MaskPartFlags(
   visibleInsideMask: true,
 );
 
-/// A part opting out of masking altogether (§2-2).
+/// A part opting out of masking altogether.
 const _optedOut = MaskPartFlags(
   pureMask: false,
   maskWrite: false,
@@ -48,7 +48,7 @@ const _optedOut = MaskPartFlags(
 );
 
 /// A clipping writer with `mask_influence == 0`: draws colour AND writes
-/// coverage, but its own colour is NOT clipped by masks (§2-3/§3 — its write OP
+/// coverage, but its own colour is NOT clipped by masks (its write OP
 /// bit is 0, which is not an opt-IN for being masked).
 const _clipping = MaskPartFlags(
   pureMask: false,
@@ -67,13 +67,13 @@ const _clippingInfluence = MaskPartFlags(
 );
 
 void main() {
-  group('MaskComposition (§2-6)', () {
+  group('MaskComposition', () {
     test('the identity leaves a part evaluating by its own flags', () {
       const id = MaskComposition.identity;
       expect(id.targets(_plain), isTrue);
       expect(id.targets(_optedOut), isFalse);
       // A clipping writer with mask_influence 0 is NOT a target of a mask (its
-      // write OP does not opt it in, §2-3/§3); one with mask_influence 1 is.
+      // write OP does not opt it in); one with mask_influence 1 is.
       expect(id.targets(_clipping), isFalse);
       expect(id.targets(_clippingInfluence), isTrue);
       expect(id.visibleInsideFor(_plain), isFalse);
@@ -121,7 +121,7 @@ void main() {
     test('mask_write does not compose, and does not make its part a target', () {
       final out = MaskComposition.identity.compose(_optedOut);
       // The clipping writer's own colour is clipped only on its real influence,
-      // not forced by mask_write (§2-3/§3): with influence 0 it is not a target,
+      // not forced by mask_write: with influence 0 it is not a target,
       // under any caller…
       expect(out.targets(_clipping), isFalse);
       expect(MaskComposition.identity.targets(_clipping), isFalse);
@@ -132,7 +132,7 @@ void main() {
   });
 
   group('MaskPlan.bitsFor under a composition', () {
-    // One pure-mask writer at rank 4, so ranks 0..3 are in its scope (§2-1).
+    // One pure-mask writer at rank 4, so ranks 0..3 are in its scope.
     final plan = MaskPlan.fromWriters(
       writers: const <MaskWriter>[
         MaskWriter(
@@ -189,7 +189,7 @@ void main() {
     test('a clipping writer with mask_influence 0 is not a target', () {
       final out = MaskComposition.identity.compose(_optedOut);
       // Rank 0 is in the pure mask's scope, but the clipping writer opted out of
-      // being masked (influence 0), so its own colour is not clipped (§2-3/§3) —
+      // being masked (influence 0), so its own colour is not clipped —
       // whether or not a caller opted out too.
       expect(plan.bitsFor(0, _clipping, comp: out), isNull);
       expect(plan.bitsFor(0, _clipping), isNull);
@@ -198,7 +198,7 @@ void main() {
     });
   });
 
-  group('InheritedMask resolves per child part (§3-2-2)', () {
+  group('InheritedMask resolves per child part', () {
     final source = MaskDraw(
       const MaskBits(increment: 0x2, invert: 0x1, visibleInside: false),
       null,
@@ -269,7 +269,7 @@ void main() {
   });
 
   test('the slot affine composes without disturbing the writer sets', () {
-    // §3-2-2 `M_child = M_parent · slot_xf`: re-basing the UV is orthogonal to
+    // `M_child = M_parent · slot_xf`: re-basing the UV is orthogonal to
     // the per-part composition, so the two can be applied in either order.
     final source = MaskDraw(
       const MaskBits(increment: 0x2, invert: 0x1, visibleInside: false),

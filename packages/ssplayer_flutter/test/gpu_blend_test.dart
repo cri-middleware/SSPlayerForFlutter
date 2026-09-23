@@ -1,4 +1,4 @@
-// flutter_gpu framebuffer blend table (§7B): does `blendEquationFor` reproduce
+// flutter_gpu framebuffer blend table: does `blendEquationFor` reproduce
 // ssplayer-webgl's `applyBlend` fixed-function state row for row?
 //
 // A `ColorBlendEquation` is a plain value object, so the whole table is checkable

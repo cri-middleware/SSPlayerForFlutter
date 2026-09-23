@@ -1,4 +1,4 @@
-// Instance (§8) tests. The ssab reads, pack resolution, the slot matrix and the
+// Instance tests. The ssab reads, pack resolution, the slot matrix and the
 // alpha plumbing run everywhere; the slot API + child playback are then driven
 // against real converter output from Instance.ssab (+ its Instance_SourceAnime
 // child pack) and skip when the example assets haven't been prepared.
@@ -142,7 +142,7 @@ void main() {
     test('PartColor.passthrough carries the alpha; identity does not', () {
       // The bug this guards: a part peeled onto the shader ONLY for a mask test
       // has no PartColor, and the shader has no PartState.alpha term of its own
-      // (§1-3 — on the PartColor path the Brain pre-folds it). Handing it the
+      // (on the PartColor path the Brain pre-folds it). Handing it the
       // shared alpha-1 identity renders it fully opaque.
       expect(PartColor.identity.lt.a, 1.0);
 
@@ -348,8 +348,8 @@ void main() {
         return;
       }
       // `loadPlayer` sets an animation up and stops there — no `play`, no
-      // `update`. That is the SDK's recommended "show the first frame posed"
-      // idle pose, and the instance children have to be part of it.
+      // `update`. That is the idle pose, and the instance children have to be
+      // part of it.
       final player = loadPlayer(a);
       addTearDown(player.dispose);
 

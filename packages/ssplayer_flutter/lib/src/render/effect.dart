@@ -5,7 +5,7 @@ import 'package:ssruntime_dart/ssruntime_dart.dart';
 
 import '../ssab/ssab.g.dart' as ssab;
 
-/// A part that hosts a particle effect (§8), as declared in the static `.ssab`.
+/// A part that hosts a particle effect, as declared in the static `.ssab`.
 ///
 /// Read once at load ([readAll]) — the effect binding never changes per frame.
 class EffectPart {
@@ -37,7 +37,7 @@ class EffectPart {
   }
 }
 
-/// Owns one `EffectSlot` per effect part (§8) and their per-frame draw plans.
+/// Owns one `EffectSlot` per effect part and their per-frame draw plans.
 ///
 /// Effects are the only kind whose geometry does **not** come from the Brain's
 /// per-frame SoA: each slot simulates independently and returns its own

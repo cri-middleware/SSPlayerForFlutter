@@ -15,7 +15,7 @@ class TextureLoadReport {
 }
 
 /// Loads a `.ssab`'s cellmap textures into a [TextureRegistry], supporting BOTH
-/// texture-supply modes (design §16C; like SSPlayerForWeb):
+/// texture-supply modes (like SSPlayerForWeb):
 ///
 ///  * **embedded** — the image bytes live in `SsAnimeBinary.embeddedAssets`
 ///    keyed by `cellmap.imagePathHash`. Self-contained, no missing-file risk.
@@ -38,7 +38,7 @@ class SsTextureLoader {
   /// embedded nor resolvable as an asset are collected in the returned report.
   ///
   /// A cellmap already in [registry] is skipped, so several packs sharing one
-  /// registry (a root and its instance children, §8, routinely name the same
+  /// registry (a root and its instance children routinely name the same
   /// atlas) decode it once. That only holds if the calls are *sequenced* — see
   /// the caller in `player.dart`; two concurrent calls would both find the
   /// registry empty.
@@ -58,7 +58,7 @@ class SsTextureLoader {
     final unresolved = <String>[];
 
     await Future.wait(cellmaps.map((cm) async {
-      // Already brought in by a pack loaded before this one (§8 instance children
+      // Already brought in by a pack loaded before this one (instance children
       // share their parent's registry, and a shared atlas is the normal case).
       // Skipping is both the cheaper path and the safe one — decoding again would
       // hand `register` a second image for the same hash, disposing the first
@@ -71,7 +71,7 @@ class SsTextureLoader {
       // here, referenced there) would be lost entirely. A missing atlas is
       // silent for a mask writer, which is dropped rather than drawn wrong.
       if (registry.contains(cm.nameHash)) return;
-      // Sampling is a cellmap property (design §7): honour its declared filter +
+      // Sampling is a cellmap property: honour its declared filter +
       // wrap so drawVertices doesn't fall back to nearest-neighbour (jaggy).
       final filterQuality = _filterQualityFor(cm);
       final tileMode = _tileModeFor(cm);
@@ -101,7 +101,7 @@ class SsTextureLoader {
     }));
 
     // Also load `external_textures()` — the SECOND hash space `texture_hash`
-    // spans (SDK §"Texture resolution"): a TextureChange (`TCHG`) binds the
+    // spans: a TextureChange (`TCHG`) binds the
     // texture FILE name's hash (`fnv1a("common.png")`), a different key from the
     // cellmap name's (`fnv1a("common")`). Both must be in the one map or a TCHG
     // frame — and any runtime replacement of that file — resolves to nothing.

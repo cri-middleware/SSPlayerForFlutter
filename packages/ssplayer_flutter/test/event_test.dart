@@ -1,4 +1,4 @@
-// Event decode (§6C). Pure — no host Brain: a synthetic `.ssab` is built with
+// Event decode. Pure — no host Brain: a synthetic `.ssab` is built with
 // the generated ObjectBuilders, wrapped in SsAnimeInfo, and decoded. This pins
 // the FlatBuffers → plain-Dart mapping (including the Signal param union and the
 // "inactive signal is dropped" rule) independently of the runtime.

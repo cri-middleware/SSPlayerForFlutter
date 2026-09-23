@@ -23,8 +23,8 @@ import 'ssab_identity.dart';
 /// the Brain — not until the next `update`, which is all [SsRuntime]'s lifetime
 /// contract requires — and Layer 2 legitimately holds buffers across calls: an
 /// effect's draw plan is cached during `updateMs` and read back during paint,
-/// and a parent's frame data stays live across an instance child's whole paint
-/// (§8), which re-enters the Brain. Copying on the way out makes the documented
+/// and a parent's frame data stays live across an instance child's whole paint,
+/// which re-enters the Brain. Copying on the way out makes the documented
 /// contract true here, at the cost of a per-frame memcpy that native does not
 /// pay. See [_f32] and friends.
 ///

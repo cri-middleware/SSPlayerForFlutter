@@ -9,7 +9,7 @@
 // plain masked path, as in both sibling ports).
 //
 // The four corner colours still ride on the four corner vertices so the
-// rasteriser interpolates the §10 PartColor gradient for free, with the blend
+// rasteriser interpolates the PartColor gradient for free, with the blend
 // rate in `a_coef.w` (it varies per corner too).
 //
 // vec4 vertex attributes MUST sit on a 16-byte boundary or Impeller misreads

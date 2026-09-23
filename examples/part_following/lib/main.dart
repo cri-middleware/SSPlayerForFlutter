@@ -28,7 +28,7 @@ import 'package:ssplayer_flutter/ssplayer_flutter.dart';
 /// coordinate space as the [SpriteStudioView] — here both sit inside one
 /// transformed [Stack], so any nudge/scale moves them together.
 ///
-/// API used (all on [SpriteStudioPlayer], read side of §65):
+/// API used (all on [SpriteStudioPlayer], read side of part overrides):
 /// ```
 ///   partTransform(name) -> Matrix4?   // the widget SpriteStudioPartAnchor drives
 ///   isPartHidden(name)      -> bool

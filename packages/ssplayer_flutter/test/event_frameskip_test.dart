@@ -1,4 +1,4 @@
-// Frame-skip and sub-frame behaviour of event dispatch (§6C), verified against
+// Frame-skip and sub-frame behaviour of event dispatch, verified against
 // the HOST-built Brain with Sound.ssab (audio triggers on frames 0, 10, 20).
 //
 // The division of labour is the Brain's, not the Body's: `ss_runtime_update`

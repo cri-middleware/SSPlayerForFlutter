@@ -16,7 +16,7 @@ import '../../texture_registry.dart';
 import 'render_backend.dart';
 import 'render_host.dart';
 
-/// Longest edge, in pixels, of the mask coverage bitmap (§3-2). The bitmap is
+/// Longest edge, in pixels, of the mask coverage bitmap. The bitmap is
 /// stretched over the writers' bounding box, so this is purely a quality knob;
 /// the flagship caps at the same 1024 (≤ 4 MiB RGBA8).
 const double _maxCoverageDim = 1024.0;
@@ -41,12 +41,12 @@ class CanvasBackend implements RenderBackend {
   @override
   void invalidateTexture(int textureHash) {}
 
-  /// PartColor (§10) + mask-replay (§3-2) fragment program — the shader every
+  /// PartColor + mask-replay fragment program — the shader every
   /// *peeled* part goes through. Compiled once, shared across players.
   static final _LazyProgram _partColorProgram =
       _LazyProgram('packages/ssplayer_flutter/shaders/partcolor.frag');
 
-  /// Mask coverage writer (§3-2-1). Only loaded once an animation actually has
+  /// Mask coverage writer. Only loaded once an animation actually has
   /// mask writers.
   static final _LazyProgram _maskWriteProgram =
       _LazyProgram('packages/ssplayer_flutter/shaders/mask_write.frag');
@@ -149,7 +149,7 @@ class CanvasBackend implements RenderBackend {
     return _dummyCoverage = image;
   }
 
-  /// A 1×1 opaque white image — the "shape pixel" a Shape (§11) is composited
+  /// A 1×1 opaque white image — the "shape pixel" a Shape is composited
   /// against when it goes through the shader as a mask target. Shared; never
   /// disposed.
   static ui.Image? _whitePixel;
@@ -166,7 +166,7 @@ class CanvasBackend implements RenderBackend {
   }
 
   /// This frame's coverage bitmaps — **one per masked player in the tree**, since
-  /// an instance child (§8) can mask independently of its parent and both sets of
+  /// an instance child can mask independently of its parent and both sets of
   /// draws are recorded into the same picture.
   ///
   /// Retained past the frame because the recorded picture rasterises later, so
@@ -219,8 +219,8 @@ class CanvasBackend implements RenderBackend {
   @override
   void popTransform(ui.Canvas canvas) => canvas.restore();
 
-  /// The last whole-part tint, memoised — used by the peeled Mesh path
-  /// (§1-2-3), which builds a 4×5 matrix per tinted part.
+  /// The last whole-part tint, memoised — used by the peeled Mesh path,
+  /// which builds a 4×5 matrix per tinted part.
   ///
   /// A `ColorFilter` is immutable, so a tinted part would otherwise build a fresh
   /// one every frame. Such a tint is usually *static* (it only changes when the
@@ -298,7 +298,7 @@ class CanvasBackend implements RenderBackend {
     return MaskContext(plan, coverage);
   }
 
-  /// Rasterises the writers' bits into an offscreen RGBA8 bitmap (§3-2, step 3).
+  /// Rasterises the writers' bits into an offscreen RGBA8 bitmap.
   ///
   /// The bitmap is stretched over exactly [MaskPlan.bounds], so the local→UV map
   /// is resolution-independent and the pixel size is purely a quality knob
@@ -326,7 +326,7 @@ class CanvasBackend implements RenderBackend {
     canvas.translate(-bounds.left, -bounds.top);
 
     var wrote = false;
-    // Own writers (§2-2), baked from this player's geometry — the canvas is
+    // Own writers, baked from this player's geometry — the canvas is
     // already this player's local space.
     for (final writer in plan.writers) {
       if (writer.partIndex < 0) continue; // carry-over sentinel — baked below
@@ -345,7 +345,7 @@ class CanvasBackend implements RenderBackend {
         wrote = true;
       }
     }
-    // Carry-over (§2-6): an instance child's clipping writers, baked from the
+    // Carry-over: an instance child's clipping writers, baked from the
     // CHILD's geometry under the instance slot matrix so they land in this
     // player's coverage. The slot maps child-local → owner-local; the canvas is
     // owner-local, so the transform places them exactly where the child draws.
@@ -379,10 +379,10 @@ class CanvasBackend implements RenderBackend {
   }
 
   /// Bakes one coverage writer into [canvas] under its [bit]: the bit colour over
-  /// a shape/mesh polygon (§2-5 shape special case — geometry *is* the mask), or
+  /// a shape/mesh polygon (shape special case — geometry *is* the mask), or
   /// the cutout shader over a textured quad. [geometry]/[textures]/[frame] are the
   /// writer's SOURCE — this player's for an own writer, an instance child's for a
-  /// carried-up one (§2-6) — so this path is source-agnostic. The caller places a
+  /// carried-up one — so this path is source-agnostic. The caller places a
   /// carried-up writer with a `canvas.transform`; the geometry itself is built in
   /// source-local space. Returns whether anything was drawn.
   ///
@@ -494,7 +494,7 @@ class CanvasBackend implements RenderBackend {
       final pc = part == null ? null : PartColor.read(partsColor, part);
       // This player's own mask wins per-part when a writer actually reaches the
       // part; when its own writers miss it, the mask inherited from the parent
-      // instance (§3-2-2) clips it instead of the part vanishing (see
+      // instance clips it instead of the part vanishing (see
       // [resolvePartMask]). The shader tests one coverage per fragment, so a part
       // reached by BOTH keeps only its own test (a nested-mask case that would
       // need a second sampler to fully combine).
@@ -578,7 +578,7 @@ class CanvasBackend implements RenderBackend {
   ///
   /// The gate is `partcolor.frag` configured to a no-op (rate 0 over a white
   /// texel) rather than a second program: the mask replay is intricate enough
-  /// (§2-1..§2-4 scope, polarity, invert/increment) that a copy of it would be a
+  /// (scope, polarity, invert/increment) that a copy of it would be a
   /// standing invitation to drift.
   void _drawMaskedShape(ui.Canvas canvas, int part, DrawFrame frame,
       RenderHost host, List<BlendPass> passes, MaskDraw mask) {
@@ -691,7 +691,7 @@ class CanvasBackend implements RenderBackend {
     flushRun();
   }
 
-  /// Draws one peeled Mesh part (§8): PartColor (§10) and/or a mask test (§9).
+  /// Draws one peeled Mesh part: PartColor and/or a mask test.
   ///
   /// Where a Normal part needs `partcolor.frag` — four corners, so the tint is
   /// per-fragment — a Mesh tint is **whole-only** and therefore one affine on
@@ -716,8 +716,8 @@ class CanvasBackend implements RenderBackend {
     List<BlendPass> passes,
     MaskDraw? mask,
   ) {
-    // With a tint the corner alpha already carries the hierarchical alpha
-    // (§1-3); only the instance chain's scale is still owed. Without one the
+    // With a tint the corner alpha already carries the hierarchical alpha;
+    // only the instance chain's scale is still owed. Without one the
     // part's own alpha applies as usual.
     final tinted = pc?.scaleAlpha(frame.alphaScale);
     final geometry = host.geometry.buildMeshGeometry(
@@ -876,7 +876,7 @@ class CanvasBackend implements RenderBackend {
   }
 
   /// Draws one peeled Normal part via `shaders/partcolor.frag` — the path for a
-  /// part carrying PartColor (§10), a mask test (§9), or both.
+  /// part carrying PartColor, a mask test, or both.
   ///
   /// The shader can take no per-vertex varyings, so the part is drawn on its own
   /// quad and the per-corner colour/rate/UV gradient is reconstructed inside the
@@ -912,13 +912,13 @@ class CanvasBackend implements RenderBackend {
       return;
     }
 
-    // Two different alpha contracts meet here (§1-3):
+    // Two different alpha contracts meet here:
     //  * WITH PartColor the Brain has already pre-folded the part's hierarchical
     //    alpha into the corner alphas, so re-multiplying it would double-apply.
     //    Only the instance chain's scale — which lives in the *parent's*
     //    FrameData and so cannot be pre-folded — is still owed.
     //  * WITHOUT PartColor there is no corner alpha to inherit, so the part's
-    //    own alpha must be supplied (§1-2-4's "vertex colour = white, alpha = hierarchical alpha");
+    //    own alpha must be supplied;
     //    `alphaOf` already includes the instance scale.
     // The shared α=1 `PartColor.identity` is deliberately not used: it renders a
     // masked part fully opaque.
@@ -978,7 +978,7 @@ class CanvasBackend implements RenderBackend {
   /// assume. Every effect but `ss-blur` then folds the PartColor formula as its
   /// output tail, which is why [pc] travels along: a part can carry both, and
   /// one without a PartColor still needs the passthrough corner so its
-  /// hierarchical alpha survives (§1-3, same contract as [_drawPeeledPart]).
+  /// hierarchical alpha survives (same contract as [_drawPeeledPart]).
   ///
   /// Falls back to the ordinary peeled path — effect dropped, colours intact —
   /// when the program is still compiling (or failed to) or the texture/quad is
@@ -1125,13 +1125,13 @@ class CanvasBackend implements RenderBackend {
     f(quad.uvB[2]);
     f(quad.uvB[3]);
 
-    // uMaskBits — the two 24-bit scope-resolved writer sets (§2-1/§2-3), the
-    // target's polarity (§2-4) and the enable flag.
+    // uMaskBits — the two 24-bit scope-resolved writer sets, the
+    // target's polarity and the enable flag.
     f(maskBits?.increment.toDouble() ?? 0.0);
     f(maskBits?.invert.toDouble() ?? 0.0);
     f(maskBits != null && maskBits.visibleInside ? 1.0 : 0.0);
     f(maskBits != null ? 1.0 : 0.0);
-    // uMaskUv / uMaskOff — local → coverage UV (§3-2-2). For an own mask this is
+    // uMaskUv / uMaskOff — local → coverage UV. For an own mask this is
     // `plan.uvBasis/uvOffset` (player-local → UV); for a mask inherited by an
     // instance child it is that affine pre-composed with the slot matrix
     // (child-local → UV), so the same shader serves both.
@@ -1244,7 +1244,7 @@ class CanvasBackend implements RenderBackend {
     f(quad.uvB[3]);
 
     // uBit — this writer's bit pre-encoded into the channel that owns it
-    // (8 bits × R/G/B = 24 writers), plus the §2-5 cutout threshold in alpha.
+    // (8 bits × R/G/B = 24 writers), plus the cutout threshold in alpha.
     final channel = bit ~/ 8;
     final value = (1 << (bit % 8)) / 255.0;
     f(channel == 0 ? value : 0.0);
@@ -1255,7 +1255,7 @@ class CanvasBackend implements RenderBackend {
 
   /// Configures the shared [_batchPaint] for one [pass] of a batch — the pass's
   /// framebuffer blend (`render/blend.dart`) plus the resolved texture's identity
-  /// [ui.ImageShader] (design §7B/§7C) — and returns it. The result aliases
+  /// [ui.ImageShader] — and returns it. The result aliases
   /// [_batchPaint]; a caller must consume it (draw) before the next
   /// [_paintForBatch] call, which every call site does within one pass's scope.
   ///
