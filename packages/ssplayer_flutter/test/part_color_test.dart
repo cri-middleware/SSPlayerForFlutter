@@ -1,10 +1,9 @@
 // PartColor (§10) tests. The pure pieces (coefficient table + the frag→(s,t)
 // affine in the geometry builder) run everywhere; the FrameData reader is
 // exercised against real converter output from PartsColor.ssab and skips when
-// the host Brain isn't built:
+// that pack is not deployed (scripts/deploy-examples.sh):
 //
-//   SSRUNTIME_LIBRARY_PATH=$PWD/native/libs/macos/libssruntime.framework/libssruntime \
-//     flutter test test/part_color_test.dart
+//   flutter test test/part_color_test.dart
 //
 // The actual shader output is NOT covered here — fragment programs don't execute
 // under headless `flutter test`; verify PartsColor.ssab visually in the example.

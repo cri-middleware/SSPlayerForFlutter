@@ -5,6 +5,8 @@
 //
 // The demo runs on a Ticker, so this never pumpAndSettle()s — it pumps fixed
 // durations, exactly as a human watching the app would judge it.
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ssplayer_flutter/ssplayer_flutter.dart';
@@ -14,9 +16,9 @@ import 'package:ssplayer_part_following_example/main.dart';
 void main() {
   testWidgets('loads Ringo and mounts a follower on the default part',
       (tester) async {
+    if (!_deployed()) return _skipUndeployed();
     await tester.pumpWidget(const PartFollowingApp());
-    final player = await _awaitLoad(tester);
-    if (player == null) return; // assets not deployed — skip cleanly
+    await _load(tester);
 
     // The anchor is present and its marker mounted over the view.
     expect(find.byType(SpriteStudioView), findsOneWidget);
@@ -31,9 +33,9 @@ void main() {
       (tester) async {
     // A rename in tests/Ringo would otherwise only show up as a demo whose
     // marker silently never appears; the skinned checks pin the teaching point.
+    if (!_deployed()) return _skipUndeployed();
     await tester.pumpWidget(const PartFollowingApp());
-    final player = await _awaitLoad(tester);
-    if (player == null) return;
+    final player = await _load(tester);
 
     expect(player.findPartIndex(kDefaultPart), greaterThanOrEqualTo(0),
         reason: '$kDefaultPart must resolve');
@@ -50,14 +52,32 @@ void main() {
   });
 }
 
+/// The pack `scripts/deploy-examples.sh` writes. It is gitignored, so a fresh
+/// clone has none: that is a skip, reported as one. A pack that is there and
+/// still does not load is a failure — see [_load].
+bool _deployed() =>
+    File('assets/spritestudio/$kPack/$kPack.ssab').existsSync();
+
+void _skipUndeployed() =>
+    markTestSkipped('$kPack.ssab not deployed — run scripts/deploy-examples.sh');
+
+/// The live player once the deployed pack has loaded and the follower mounted.
+Future<SpriteStudioPlayer> _load(WidgetTester tester) async {
+  final player = await _awaitLoad(tester);
+  if (player == null) {
+    fail('$kPack.ssab is deployed but never loaded: the follower did not mount');
+  }
+  return player;
+}
+
 Future<void> _teardown(WidgetTester tester) async {
   await tester.pumpWidget(const SizedBox.shrink());
   await tester.pump(const Duration(seconds: 1));
 }
 
 /// Waits for `loadAsset` to finish and the follower to mount, returning the live
-/// player, or null when the pack never loads (assets not deployed) so the caller
-/// can skip. `testWidgets` runs in a fake-async zone, so alternate
+/// player, or null when the pack never loads. `testWidgets` runs in a fake-async
+/// zone, so alternate
 /// [WidgetTester.runAsync] (real event loop, so the file I/O can progress) with a
 /// pumped frame (so the resulting setState is observable).
 Future<SpriteStudioPlayer?> _awaitLoad(WidgetTester tester) async {
