@@ -95,12 +95,16 @@ flutter analyze lib test
 flutter test          # Native Assets が hook/build.dart 経由で Brain を同梱。env 変数も framework も不要
 ```
 
-`ssruntime_dart` / `ssconverter_dart` は各パッケージで `dart test`。
+ほかのパッケージと example も、それぞれのディレクトリで自分のテストを実行します。使うコマンドは下の表のとおりです。
 
 | チェック | 場所 |
 |---|---|
 | Analyze + ユニット/描画テスト | `packages/ssplayer_flutter/` |
 | L1 バインディング smoke | `packages/ssruntime_dart/`（`dart test`） |
 | コンバータ smoke + CLI | `packages/ssconverter_dart/`（`dart test`） |
+| Flame アダプタ | `packages/ssplayer_flame/`（`flutter test`） |
+| 差分再変換 | `packages/ssgen_dart/`（`dart test`） |
+| ライブリロード | `packages/ssgen_flutter/`（`flutter test`） |
+| サンプルアプリ | `examples/overall/`・`examples/flame/`・`examples/part_following/`（`flutter test`） |
 | macOS 埋め込み確認 | `examples/overall/` → `flutter build macos` → `*.app/Contents/Frameworks/` に `ssruntime.framework` |
 4 つのレイヤーとそれぞれが持つものは [アーキテクチャ](architecture.md)、ネイティブライブラリの解決と同梱は [ネイティブランタイム](native-runtime.md) にあります。
