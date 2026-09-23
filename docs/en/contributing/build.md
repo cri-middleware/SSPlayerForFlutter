@@ -112,6 +112,5 @@ flutter test          # native assets bundles the Brain via hook/build.dart — 
 | Converter smoke + CLI | `packages/ssconverter_dart/` (`dart test`) |
 | macOS embedding | `examples/overall/` → `flutter build macos` → `ssruntime.framework` under `*.app/Contents/Frameworks/` |
 
-See [`AGENTS.md`](https://github.com/cri-middleware/SSPlayerForFlutter/blob/main/AGENTS.md) for the
-full implementation rules and hard-won gotchas (FFI pointer lifetime, the `updateFlag` trap, UV pixel
-coordinates, native-asset packaging).
+The four layers and what each owns are on [Architecture](architecture.md); how the native library is
+resolved and packaged is on [Native Runtime](native-runtime.md).

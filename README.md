@@ -154,8 +154,9 @@ scripts\deploy-examples.ps1
 cd examples\overall; flutter run
 ```
 
-See [AGENTS.md](./AGENTS.md) (implementation rules, gotchas, native-asset packaging) and
-[ROADMAP.md](./ROADMAP.md) (upcoming work) for the full developer guide.
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for building and testing from a checkout,
+[Native Runtime](./docs/en/contributing/native-runtime.md) for how the native library is packaged, and
+[ROADMAP.md](./ROADMAP.md) for upcoming work.
 
 ## 📦 Packages
 

@@ -139,7 +139,7 @@ scripts\deploy-examples.ps1
 cd examples\overall; flutter run
 ```
 
-実装規約・要注意点・Native Assets 同梱は [AGENTS.md](./AGENTS.md)、今後の作業は [ROADMAP.md](./ROADMAP.md) を参照してください。
+チェックアウトからのビルドとテストは [CONTRIBUTING.md](./CONTRIBUTING.md)、ネイティブライブラリの同梱は [ネイティブランタイム](./docs/ja/contributing/native-runtime.md)、今後の作業は [ROADMAP.md](./ROADMAP.md) を参照してください。
 
 ## 📦 パッケージ
 

@@ -57,6 +57,5 @@ matches the Brain's plan.
 
 ## Further reading
 
-Implementation rules, FFI-lifetime invariants, per-kind rendering rules, and the native-assets
-packaging notes are in
-[`AGENTS.md`](https://github.com/cri-middleware/SSPlayerForFlutter/blob/main/AGENTS.md).
+How the native library is resolved and packaged is on [Native Runtime](native-runtime.md), and how to
+build and test from a checkout on the [Build Guide](build.md).
