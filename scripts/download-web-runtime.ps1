@@ -21,6 +21,8 @@
 # probe expects. build-runtime.ps1 platform=web lays them out the same way.
 
 $ErrorActionPreference = "Stop"
+# Invoke-WebRequest's progress bar slows the download itself in Windows PowerShell 5.1.
+$ProgressPreference = "SilentlyContinue"
 
 $App = Split-Path -Leaf $PSCommandPath
 $RootDir = Split-Path -Parent (Split-Path -Parent $PSCommandPath)
@@ -124,7 +126,15 @@ In a working tree with cargo + wasm-pack,
     }
 
     $unpacked = Join-Path $tmp "unpacked"
-    Expand-Archive -LiteralPath $zip -DestinationPath $unpacked -Force
+    # Expand-Archive is a script-module function: run from a session, it reads the
+    # global progress preference rather than this script's.
+    $savedProgress = $global:ProgressPreference
+    $global:ProgressPreference = "SilentlyContinue"
+    try {
+        Expand-Archive -LiteralPath $zip -DestinationPath $unpacked -Force
+    } finally {
+        $global:ProgressPreference = $savedProgress
+    }
     foreach ($f in @("runtime-web/ssruntime.js", "runtime-web/ssruntime_bg.wasm", "runtime-web-nosimd/ssruntime_bg.wasm")) {
         if (-not (Test-Path (Join-Path $unpacked $f))) {
             Write-Error "$App`: $SdkWebZip has no $f -- the release layout may have changed"
