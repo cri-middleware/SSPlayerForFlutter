@@ -3,11 +3,9 @@
 [`ssplayer_flame`](https://github.com/cri-middleware/SSPlayerForFlutter/tree/main/packages/ssplayer_flame)
 パッケージは `SpriteStudioComponent` を追加します —— `FlameGame` の中で SpriteStudio アニメを再生する
 `PositionComponent` です。**外部クロック**の `SpriteStudioPlayer`（`Ticker` なし）を内部に持ち、Flame
-のゲームループが時間を駆動します（`update(dt)` → `advance`、`render` → paint）。コアが `flame` を
-巻き込まないよう別パッケージになっており、`ssplayer_flutter` の API 全体を re-export します。
+のゲームループが時間を駆動します（`update(dt)` → `advance`、`render` → paint）。コアが `flame` を巻き込まないよう別パッケージになっており、`ssplayer_flutter` の API 全体を re-export します。
 
-[Flame デモ](../../demo/flame/) は `examples/flame` を Web 向けにビルドしたものです —— このページの
-コードがそのまま動いています。
+[Flame デモ](../../demo/flame/) は `examples/flame` を Web 向けにビルドしたものです —— このページのコードがそのまま動いています。
 
 ## 依存を追加する
 
@@ -39,8 +37,7 @@ class RingoGame extends FlameGame {
 ```
 
 `SpriteStudioComponent.asset(path, …)` は `onLoad` でアセットバンドルから `.ssab` を読み込み、
-reference テクスチャをキー自身のフォルダから解決します。すでに手元にあるバイト列を再生する場合は、
-既定コンストラクタ `SpriteStudioComponent(ssab: myBytes)` を使います。
+reference テクスチャをキー自身のフォルダから解決します。すでに手元にあるバイト列を再生する場合は、既定コンストラクタ `SpriteStudioComponent(ssab: myBytes)` を使います。
 
 ## 主なコンストラクタ引数
 
@@ -53,8 +50,7 @@ reference テクスチャをキー自身のフォルダから解決します。�
 | `autoStart` | `true` | 読み込み完了と同時に再生（`false` で自分で駆動） |
 | `onEvents` / `onAnimationStarted` / `onAnimationFinished` / `onAnimationLooped` | `null` | プレイヤーのコールバックへ転送（[再生とイベント](playback.md)） |
 
-`PositionComponent` の標準フィールド（`position`・`size`・`scale`・`angle`・`anchor`・`priority`）も
-通常どおり使えます。
+`PositionComponent` の標準フィールド（`position`・`size`・`scale`・`angle`・`anchor`・`priority`）も通常どおり使えます。
 
 ## 再生を制御する
 

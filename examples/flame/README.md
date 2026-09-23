@@ -1,18 +1,13 @@
 # ssplayer_flame_example
 
-`ssplayer_flame` の検証用サンプル。`FlameGame` に `SpriteStudioComponent` を1つ
-載せ、SpriteStudio の **Ringo** アニメーションを再生する最小構成です。画面を
-**タップすると再生 / 一時停止** が切り替わります。
+`ssplayer_flame` の検証用サンプル。`FlameGame` に `SpriteStudioComponent` を1つ載せ、SpriteStudio の **Ringo** アニメーションを再生する最小構成です。画面を**タップすると再生 / 一時停止** が切り替わります。
 
-これは Layer‑4 の描画アダプタとして Flame を使う例です。ゲームループ（`update(dt)`）が
-プレイヤーの時計を回し、`render` が Widget 版（`SpriteStudioView`）と同じ Layer‑2 の
-描画パスに委譲します。
+これは Layer‑4 の描画アダプタとして Flame を使う例です。ゲームループ（`update(dt)`）がプレイヤーの時計を回し、`render` が Widget 版（`SpriteStudioView`）と同じ Layer‑2 の描画パスに委譲します。
 
 ## 前提
 
 - **Flutter / Dart** —— 下限は[インストール](../../docs/ja/guide/install.md)にあります（古いと `flutter pub get` が落ちます）。
-- ネイティブ Brain（`libssruntime`）。`hook/build.dart` がピン留めした SDK リリースから
-  プリビルドを自動DL・同梱するので、通常は事前配置不要（Rust 不要）。
+- ネイティブ Brain（`libssruntime`）。`hook/build.dart` がピン留めした SDK リリースからプリビルドを自動DL・同梱するので、通常は事前配置不要（Rust 不要）。
   - ソースからビルドする場合: `bash scripts/build-runtime.sh`（Rust 必要）
 - 例アセット（Ringo の `.ssab` + `Ringo.png`）を生成済みであること:
 
@@ -20,8 +15,7 @@
   bash scripts/deploy-examples.sh   # → examples/flame/assets/spritestudio/Ringo/ に Ringo をコピー
   ```
 
-  > overall 例の変換出力（`examples/overall/assets/.../Ringo`）を **コピー** して配置します
-  > （二重変換しません）。`examples/flame/assets/` は生成物なので `.gitignore` 済みです。
+  > overall 例の変換出力（`examples/overall/assets/.../Ringo`）を **コピー** して配置します（二重変換しません）。`examples/flame/assets/` は生成物なので `.gitignore` 済みです。
 
 > `libssruntime` は **Native Assets** で自動同梱されます。`SSRUNTIME_LIBRARY_PATH` の設定や
 > framework の手動配置は不要です（`flutter run`/`flutter build` が `hook/build.dart` を自動実行）。
@@ -29,8 +23,7 @@
 ## 実行 / ビルド（`examples/flame/` で）
 
 > ⚠️ **プラットフォーム runner はコミットされていません。** `examples/flame/{android,ios,macos,linux,windows,web}/`
-> はリポジトリの `.gitignore` 済みで、クローン毎に再生成する方針です（ルート `.gitignore` 参照）。
-> **初回、または `git clean` の後は必ず再生成**してください（これをしないと
+> はリポジトリの `.gitignore` 済みで、クローン毎に再生成する方針です（ルート `.gitignore` 参照）。**初回、または `git clean` の後は必ず再生成**してください（これをしないと
 > `No macOS desktop project configured.` になります）:
 >
 > ```sh
@@ -55,8 +48,7 @@ macOS ビルドでは overall 例と同様、`libssruntime` が
 
 ## ヘッドレス検証（アプリを起動せずに）
 
-Flame アダプタの実描画は、`ssplayer_flame` パッケージのテストが CI で検証します
-（実 `.ssab` をロード → ホストクロックで前進 → テクスチャ付き非空フレームを描画）:
+Flame アダプタの実描画は、`ssplayer_flame` パッケージのテストが CI で検証します（実 `.ssab` をロード → ホストクロックで前進 → テクスチャ付き非空フレームを描画）:
 
 ```sh
 cd packages/ssplayer_flame && flutter test

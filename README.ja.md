@@ -37,8 +37,7 @@
 
 ## 🚀 1. クイックスタート
 
-**アプリで使う場合**はこのまま下へ。依存を追加する → 自分の `.sspj` を変換する → 再生する。
-その先（イベント、パーツ単位の上書き、ライブリロード）も同じ道の続きで、[ドキュメント](docs/ja/index.md)にあります。
+**アプリで使う場合**はこのまま下へ。依存を追加する → 自分の `.sspj` を変換する → 再生する。その先（イベント、パーツ単位の上書き、ライブリロード）も同じ道の続きで、[ドキュメント](docs/ja/index.md)にあります。
 **Player 自体や、その下の Rust ランタイムを変更する場合**は [2 章](#-2-フル開発環境sdk--player-開発者)へ。
 
 ### セットアップ
@@ -54,8 +53,7 @@ dependencies:
     path: vendor/SSPlayerForFlutter/packages/ssplayer_flutter
 ```
 
-> 🚧 Releases からのダウンロードは最初のリリース公開後に有効になります。pub.dev 公開後は、
-> 通常の `ssplayer_flutter: ^x.y.z` に置き換わります。
+> 🚧 Releases からのダウンロードは最初のリリース公開後に有効になります。pub.dev 公開後は、通常の `ssplayer_flutter: ^x.y.z` に置き換わります。
 
 `.ssab` アニメを組み込む最小コードです（`.ssab` は事前に用意します —— [自分の `.sspj` を変換する](#自分の-sspj-を変換する)参照）:
 
@@ -67,14 +65,10 @@ SpriteStudioAnimation.asset(
 )
 ```
 
-これでバイト列を読み、reference テクスチャ（同じフォルダの PNG）をキー自身のフォルダから
-解決し（embedded も同じ）、パックの最初のアニメを選んでループ再生し、ウィジェットと一緒に
-すべて破棄します。別のアニメを選ぶなら `animation:`、最初のフレームが描けるまでの表示は
+これでバイト列を読み、reference テクスチャ（同じフォルダの PNG）をキー自身のフォルダから解決し（embedded も同じ）、パックの最初のアニメを選んでループ再生し、ウィジェットと一緒にすべて破棄します。別のアニメを選ぶなら `animation:`、最初のフレームが描けるまでの表示は
 `placeholder:` です。
 
-プレイヤーを自分で持ちたい場合 —— ステートマシンからアニメを差し替える、イベントを購読する、
-ウィジェットをパーツに貼り付ける —— は `SpriteStudioPlayer` を作って `SpriteStudioView` に
-渡してください。→ [クイックスタート](./docs/ja/guide/quickstart.md)
+プレイヤーを自分で持ちたい場合 —— ステートマシンからアニメを差し替える、イベントを購読する、ウィジェットをパーツに貼り付ける —— は `SpriteStudioPlayer` を作って `SpriteStudioView` に渡してください。→ [クイックスタート](./docs/ja/guide/quickstart.md)
 
 > ⚠️ ネイティブランタイム（`libssruntime`。各公式 Player が共通で使う Rust コア）が必要です。これは依存先 `ssruntime_dart` の
 > **Native Assets**（`hook/build.dart`）がアプリに自動同梱します（プラグイン／framework 配線は不要）。
@@ -83,12 +77,10 @@ SpriteStudioAnimation.asset(
 
 ### チェックアウトから動かしてみる
 
-> 🚧 pub.dev 公開までは、これが動いているところを見る方法です。上のインストール手順の一部では
-> なくチェックアウトなので、パッケージを使うだけなら不要です。
+> 🚧 pub.dev 公開までは、これが動いているところを見る方法です。上のインストール手順の一部ではなくチェックアウトなので、パッケージを使うだけなら不要です。
 
 同梱のサンプルを起動して動作を確認します。**Rust ツールチェーンは不要** —— 各パッケージの
-`hook/build.dart` が、ピン留めした SDK リリースからプリビルド（`libssruntime` / `libssconverter`）を
-自動ダウンロードして同梱します。
+`hook/build.dart` が、ピン留めした SDK リリースからプリビルド（`libssruntime` / `libssconverter`）を自動ダウンロードして同梱します。
 
 **macOS / Linux:**
 ```bash
@@ -111,8 +103,7 @@ cd examples\overall; flutter run
 ### 自分の `.sspj` を変換する
 
 対応するのは **SpriteStudio 7.5 以上**で作成されたプロジェクトです。`.sspj` + `.ssae` + 画像を **`SpriteStudio_Source/`** フォルダに入れ、
-`ssconverter_dart` の CLI で変換します（`-e` で自己完結の embedded `.ssab`。配布向け）。**Rust ツール
-チェーンは不要** —— `libssconverter` は自動ダウンロードされます:
+`ssconverter_dart` の CLI で変換します（`-e` で自己完結の embedded `.ssab`。配布向け）。**Rust ツールチェーンは不要** —— `libssconverter` は自動ダウンロードされます:
 
 ```bash
 # SpriteStudio_Source/MyChar/MyChar.sspj  →  assets/spritestudio/MyChar/<pack>.ssab
@@ -122,9 +113,7 @@ dart run ssconverter_dart:ssconvert -e -o assets/spritestudio/MyChar/ SpriteStud
 ```
 
 同じ `SpriteStudio_Source/` レイアウトが**ライブリロード**を駆動します。`flutter run` の隣で `sswatch`
-を回すと、SpriteStudio での保存が変更プロジェクトだけを再変換し、実行中アプリへ反映します
-（[ライブリロード](docs/ja/guide/live-reload.md)参照）。自前ビルドのネイティブライブラリを差し込む場合は、
-アプリの `pubspec.yaml` の `hooks.user_defines.<pkg>.lib<name>` で指定します。
+を回すと、SpriteStudio での保存が変更プロジェクトだけを再変換し、実行中アプリへ反映します（[ライブリロード](docs/ja/guide/live-reload.md)参照）。自前ビルドのネイティブライブラリを差し込む場合は、アプリの `pubspec.yaml` の `hooks.user_defines.<pkg>.lib<name>` で指定します。
 
 ## ⚙️ 2. フル開発環境（SDK / Player 開発者）
 
@@ -167,8 +156,7 @@ cd examples\overall; flutter run
 
 ## 🎬 サンプル
 
-[`examples/`](./examples/) にすぐ動かせるアプリがあります。先に `scripts/deploy-examples.*` を
-一度実行してください（SDK のテストプロジェクトを、各サンプルが読み込む `.ssab` へ変換します）。
+[`examples/`](./examples/) にすぐ動かせるアプリがあります。先に `scripts/deploy-examples.*` を一度実行してください（SDK のテストプロジェクトを、各サンプルが読み込む `.ssab` へ変換します）。
 
 - [overall](./examples/overall) — まず開くのはこちら。`tests/overall` を再生し、ドロップダウンでアニメを切り替えられます。
 - [flame](./examples/flame) — [`ssplayer_flame`](./packages/ssplayer_flame) アダプタのサンプル。`FlameGame` に `SpriteStudioComponent` を 1 つ載せて Ringo を再生し、タップで再生 / 一時停止を切り替えます。
@@ -182,6 +170,5 @@ cd examples\overall; flutter run
 
 ## 📄 ライセンス
 
-本プロジェクトは BSD-3-Clause ライセンスです（[`LICENSE.md`](./LICENSE.md)、参考訳 [`LICENSE.ja.md`](./LICENSE.ja.md)）。同梱するネイティブ
-ランタイムやその他のサードパーティコンポーネントの通知は
+本プロジェクトは BSD-3-Clause ライセンスです（[`LICENSE.md`](./LICENSE.md)、参考訳 [`LICENSE.ja.md`](./LICENSE.ja.md)）。同梱するネイティブランタイムやその他のサードパーティコンポーネントの通知は
 [`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md) を参照してください。
