@@ -11,10 +11,10 @@
 *   **Anything that exists twice changes twice** — a page and its translation, a `.sh` and its `.ps1`. A
     change that lands in one half is the defect this family produces most.
 *   **Never break a line between two Japanese characters**: Chrome draws that break as a visible space.
-*   **Finish by running this repository's checks**: `flutter analyze lib test` and `flutter test` in the
-    package you touched, after building the native libraries with `scripts/build-runtime.sh`. Read what a
-    run says it verified rather than its exit code — several checks here pass, or skip themselves, when a
-    prerequisite is missing.
+*   **Finish by running this repository's checks**: `flutter analyze lib test` and `flutter test` (`dart test`
+    in a pure Dart package) in each package or example you touched, after building the native libraries
+    with `scripts/build-runtime.sh`. Read what a run says it verified rather than its exit code — several
+    checks here pass, or skip themselves, when a prerequisite is missing.
 *   **Do not restate here what another file owns.** The table below says which file that is; a fact that
     belongs to none of them goes where it will be seen to go stale.
 *   **Never commit inside the `SpriteStudio-SDK` submodule.** A change the core needs is a pull request in

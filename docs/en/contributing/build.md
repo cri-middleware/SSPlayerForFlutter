@@ -103,13 +103,17 @@ flutter analyze lib test
 flutter test          # native assets bundles the Brain via hook/build.dart — no env vars, no framework
 ```
 
-`ssruntime_dart` and `ssconverter_dart` each run `dart test` in their own package.
+Every other package and example runs its own suite in its own directory; the table says which runner.
 
 | Check | Where |
 |---|---|
 | Analyze + unit/render tests | `packages/ssplayer_flutter/` |
 | L1 bindings smoke | `packages/ssruntime_dart/` (`dart test`) |
 | Converter smoke + CLI | `packages/ssconverter_dart/` (`dart test`) |
+| Flame adapter | `packages/ssplayer_flame/` (`flutter test`) |
+| Incremental reconversion | `packages/ssgen_dart/` (`dart test`) |
+| Live reload | `packages/ssgen_flutter/` (`flutter test`) |
+| Example apps | `examples/overall/`, `examples/flame/`, `examples/part_following/` (`flutter test`) |
 | macOS embedding | `examples/overall/` → `flutter build macos` → `ssruntime.framework` under `*.app/Contents/Frameworks/` |
 
 The four layers and what each owns are on [Architecture](architecture.md); how the native library is
