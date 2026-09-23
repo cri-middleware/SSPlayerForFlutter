@@ -2,7 +2,7 @@ import 'dart:ui' as ui;
 
 import 'package:ssruntime_dart/framedata.dart' as fbs;
 
-/// Framebuffer blend mapping (design §7B): the `Paint.blendMode` used for a
+/// Framebuffer blend mapping: the `Paint.blendMode` used for a
 /// batch's `drawVertices` / peeled `drawPath`.
 ///
 /// The ground truth is the **ssplayer-webgl** renderer (`SSWebGLRenderer.applyBlend`
@@ -52,7 +52,7 @@ import 'package:ssruntime_dart/framedata.dart' as fbs;
 /// Div2 / Overlay2 have no GL mapping in ssplayer-webgl either (its `default`
 /// clamps them to Mix), so they follow suit → `srcOver`.
 ///
-/// The 4-mode **PartColor** blend (§10) is a *shader-side* concern, unrelated to
+/// The 4-mode **PartColor** blend is a *shader-side* concern, unrelated to
 /// this framebuffer mapping; its coefficient table ([partColorCoef]) lives
 /// alongside this mapping (the `FragmentProgram` path — `render/part_color.dart`
 /// + `shaders/partcolor.frag`).
@@ -204,7 +204,7 @@ List<BlendPass> _planFor(fbs.BlendType type) {
   }
 }
 
-/// Framebuffer blend mapping for an `EffectDrawCommand.blend` (§8).
+/// Framebuffer blend mapping for an `EffectDrawCommand.blend`.
 ///
 /// **Not** the [fbs.BlendType] enum — an emitter's blend is the SS6-style raw
 /// byte `0 = Mix`, `1 = Add`, and anything else falls back to Mix (the runtime
@@ -218,14 +218,14 @@ List<BlendPass> _planFor(fbs.BlendType type) {
 ui.BlendMode effectBlendModeFor(int blend) =>
     blend == 1 ? ui.BlendMode.plus : ui.BlendMode.srcOver;
 
-/// Shader-side PartColor coefficient row for [type] (parts_color §1-4): the
+/// Shader-side PartColor coefficient row for [type]: the
 /// `_PartColorCoef` table `(fSrc, fDst, fDstSrc/mulFlag, 0)`. The `partcolor.frag`
 /// shader combines it with the per-fragment `rate` into
 /// `varg = (1 + fSrc·rate, fDst·rate, fDstSrc, pma)` and evaluates
 /// `pixel·varg.x + mix(1, pixel, varg.z)·color·varg.y`.
 ///
 /// Only **Mix / Mul / Add / Sub** are valid PartColor modes; every other
-/// `BlendType` (those are framebuffer-composite modes) clamps to **Mix** (§1-1).
+/// `BlendType` (those are framebuffer-composite modes) clamps to **Mix**.
 /// Passing this row as a per-part uniform keeps the shader branch- and
 /// index-free (no dynamic array lookup in GLSL).
 List<double> partColorCoef(fbs.BlendType type) {

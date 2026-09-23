@@ -1,5 +1,5 @@
 // A clipping mask written INSIDE an instance child must keep clipping the
-// parent animation's parts drawn after the instance (§2-6 carry-over / SS7.5
+// parent animation's parts drawn after the instance (carry-over / SS7.5
 // InstancePropagation). This Body had only *downward* mask propagation
 // (`InheritedMask`); the child's clipping writers never reached the parent's
 // coverage, so parts drawn after the instance were not clipped by masks written
@@ -115,7 +115,7 @@ void main() {
         expect(plan.bubbled.any((b) => b.bit == sentinel.bit), isTrue,
             reason: 'the sentinel must pair a BubbledWriter by bit');
 
-        // Its bit must reach a part drawn AFTER the instance (scope §2-1): a
+        // Its bit must reach a part drawn AFTER the instance (scope): a
         // clipping writer clips the parts ranked after it.
         final bits = plan.bitsFor(sentinel.drawRank + 1, _target);
         if (bits != null &&

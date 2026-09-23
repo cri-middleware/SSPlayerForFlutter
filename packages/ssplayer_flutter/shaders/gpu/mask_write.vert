@@ -1,12 +1,12 @@
 #version 460 core
 
-// Flutter GPU mask coverage-writer vertex shader (§3-2-1). Runs in the coverage
+// Flutter GPU mask coverage-writer vertex shader. Runs in the coverage
 // pre-pass, whose render target is sized to the writers' bbox; [mvp] maps
 // player-local space into that target's NDC (built from the same uvBasis/uvOffset
 // the main-pass shader samples the coverage with, so the two agree exactly).
 //
 // One vertex format for every writer kind: a Sprite writer passes its quad (with
-// UVs for the §2-5 texel cutout); a Shape/Mesh writer passes its polygon/mesh
+// UVs for the texel cutout); a Shape/Mesh writer passes its polygon/mesh
 // triangles (the geometry itself is the mask, so UV is unused — 0).
 in vec2 a_position;
 in vec2 a_uv;

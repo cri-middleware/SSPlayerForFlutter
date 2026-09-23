@@ -109,13 +109,13 @@ vec4 ssTex(vec2 uv) {
   return vec4(c.rgb / max(c.a, 0.0001), c.a);
 }
 
-// PartColor composite (parts_color §1-4) over the shader-computed `Pixel`, then
+// PartColor composite over the shader-computed `Pixel`, then
 // re-premultiply — the exact tail `shaders/partcolor.frag` applies, with the
 // sampled texel replaced by `Pixel`. Reused rather than re-derived so the two
 // paths cannot drift.
 //
 // `color.a` already carries the part's hierarchical alpha (pre-folded by the
-// Brain, §1-3), so `PartState.alpha` is NOT re-multiplied here.
+// Brain), so `PartState.alpha` is NOT re-multiplied here.
 vec4 ssBlend(vec4 Pixel, vec4 color, float rate) {
   // varg = (1 + fSrc*rate, fDst*rate, fDstSrc): one branch-free formula for
   // Mix / Mul / Add / Sub. rate == 0 collapses this to `Pixel` (passthrough).

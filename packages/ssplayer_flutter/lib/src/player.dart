@@ -16,7 +16,7 @@ import 'ssab_info.dart';
 import 'texture_loader.dart';
 import 'texture_registry.dart';
 
-/// Callback for frame-accurate events surfaced from the ssab (design §6C).
+/// Callback for frame-accurate events surfaced from the ssab.
 typedef SsEventCallback = void Function(List<int> passedEventIndices);
 
 /// Layer 3 — the user-facing controller (ports the SDK's `SSPlayer`).
@@ -153,14 +153,14 @@ class SpriteStudioPlayer extends ChangeNotifier {
   SsEventCallback? onEvents;
 
   /// Fired (on the UI isolate) for each **UserData** marker crossed this frame,
-  /// decoded from the pack for [currentAnimation] (design §6C).
+  /// decoded from the pack for [currentAnimation].
   SsUserDataCallback? onUserData;
 
-  /// Fired for each active **Signal** crossed this frame (§6C). Inactive
+  /// Fired for each active **Signal** crossed this frame. Inactive
   /// signals are not surfaced.
   SsSignalCallback? onSignal;
 
-  /// Fired for each **Audio** trigger crossed this frame (§6C). SpriteStudio
+  /// Fired for each **Audio** trigger crossed this frame. SpriteStudio
   /// audio is trigger-only: this hands you the sound to play, but the player
   /// never produces sound itself — play it with your own audio stack.
   SsAudioCallback? onAudio;
@@ -214,8 +214,8 @@ class SpriteStudioPlayer extends ChangeNotifier {
   //
   // Swap the bitmap a cellmap (or a TextureChange target file) samples, from
   // program code — costumes, dynamic expressions. Ports ForGodot's
-  // `set_cellmap_texture` (SDK 40_components/70_external_resources), and is NOT
-  // the §65 Override Layer: it is a texture-registry swap, not per-part state.
+  // `set_cellmap_texture`, and is NOT
+  // the Override Layer: it is a texture-registry swap, not per-part state.
   // Like the override calls it notifies listeners on success (a swap changes
   // pixels without changing the frame, so a paused player would not otherwise
   // repaint), no-ops before [load] / for an unknown name, and never throws.
@@ -239,8 +239,7 @@ class SpriteStudioPlayer extends ChangeNotifier {
   /// [image] stays **yours**: the player borrows it and never disposes it. Keep
   /// it alive while it is set, and dispose it after you clear the override (or
   /// replace it). Use a same-size, same-layout atlas as the original — the UVs
-  /// are in the original cellmap's pixel space (SDK §"The size of the replacement
-  /// texture").
+  /// are in the original cellmap's pixel space.
   ///
   /// **Applies tree-wide.** Because instance children share this player's texture
   /// registry, the swap reaches every part sampling that texture — root or child
@@ -270,7 +269,7 @@ class SpriteStudioPlayer extends ChangeNotifier {
   /// Resolves an [SsAudioEvent.soundNameHash] (from an [onAudio] trigger) to its
   /// pack-relative sound file path — e.g. `sound/foo.mp3` — or null before
   /// [load] / if unknown. Convenience over [SsAnimeInfo.soundFilePath] for
-  /// playing audio triggers; the player stays audio-independent (design §6C), so
+  /// playing audio triggers; the player stays audio-independent, so
   /// you feed the path to your own audio stack.
   String? soundFilePath(int soundNameHash) =>
       _animeInfo?.soundFilePath(soundNameHash);
@@ -298,7 +297,7 @@ class SpriteStudioPlayer extends ChangeNotifier {
   TextureLoadReport? get lastTextureReport => _lastTextureReport;
   TextureLoadReport? _lastTextureReport;
 
-  /// The instance packs (§8) fetched by the most recent [load], and any that
+  /// The instance packs fetched by the most recent [load], and any that
   /// could not be resolved — an instance part whose pack is missing silently
   /// never draws, so this is the way to notice.
   InstancePackLoadResult? get lastInstanceReport => _lastInstanceReport;
@@ -338,7 +337,7 @@ class SpriteStudioPlayer extends ChangeNotifier {
   }
 
   /// Loads a `.ssab`, prepares [animationName], and (by default) decodes its
-  /// cellmap textures — both embedded and reference modes (design §16C).
+  /// cellmap textures — both embedded and reference modes.
   ///
   /// Low-level primitive: takes the bytes directly, so it stays agnostic to
   /// their source (asset bundle, filesystem, network, device push). For
@@ -376,7 +375,7 @@ class SpriteStudioPlayer extends ChangeNotifier {
     _reportedMissingAnimation = null;
     _animeInfo = SsAnimeInfo(ssab);
 
-    // Instance children (§8) are built inside the sync `load` below — a child's
+    // Instance children are built inside the sync `load` below — a child's
     // Context must exist before the first step — so their packs must be fetched
     // first. Same-pack sub-animations need nothing here; this is only for
     // `external_instances`, and resolves to an empty map for the vast majority
@@ -507,7 +506,7 @@ class SpriteStudioPlayer extends ChangeNotifier {
     final frame = frameNo;
     final anim = _currentAnimation;
 
-    // Instance packs (§8) are re-fetched by `load`, so a live-reload picks up an
+    // Instance packs are re-fetched by `load`, so a live-reload picks up an
     // edited child `.ssab` too — the child pack is a separate file the watcher
     // may well have just reconverted.
     await load(
@@ -572,7 +571,7 @@ class SpriteStudioPlayer extends ChangeNotifier {
     return ok;
   }
 
-  /// Say which pack was asked for what (SDK: `20_design/40_api_conventions`, §7).
+  /// Say which pack was asked for what.
   ///
   /// The names that *would* have worked are deliberately absent: [animationNames]
   /// is public, so a caller who wants the list can print it, and a required list
@@ -626,7 +625,7 @@ class SpriteStudioPlayer extends ChangeNotifier {
   /// It used to fall back to [play] when nothing was playing, which made a
   /// `resume()` that hit a stopped player silently lose the playhead here and
   /// nowhere else in the family. The Brain publishes four distinct verbs and
-  /// asks Players not to fold them into three (`30_core/20_playback_control.md`);
+  /// asks Players not to fold them into three;
   /// mapping one button onto the four is [togglePlayPause]'s job, and it is the
   /// only place that knows a button exists.
   void resume() {
@@ -844,7 +843,7 @@ class SpriteStudioPlayer extends ChangeNotifier {
   ///
   /// **Gate audio on it.** SpriteStudio has no reverse audio, so a key crossed
   /// on a backward leg is not meant to sound. This player reports audio rather
-  /// than playing it (§6C), so it cannot apply that test for you — the players
+  /// than playing it, so it cannot apply that test for you — the players
   /// that own an audio backend apply it themselves, and here it is yours:
   ///
   /// ```dart
@@ -930,7 +929,7 @@ class SpriteStudioPlayer extends ChangeNotifier {
   }
 
   /// Decodes the raw [passed] event indices for [currentAnimation] and fires
-  /// the per-event callbacks (design §6C). Skips the decode entirely when no
+  /// the per-event callbacks. Skips the decode entirely when no
   /// decoded callback is registered, and when no animation is selected (the
   /// indices are relative to the current animation's `events()`).
   void _dispatchDecodedEvents(List<int> passed) {
@@ -958,13 +957,13 @@ class SpriteStudioPlayer extends ChangeNotifier {
     }
   }
 
-  // --- Part overrides (§65 Override Layer) ---------------------------------
+  // --- Part overrides (Override Layer) -------------------------------------
   //
   // Thin transport over Layer 2, plus the one thing this layer owes the caller:
   // a repaint. An override changes the pose WITHOUT changing the frame number,
   // so on a paused (or externally clocked, or simply idle) player nothing would
   // redraw and the API would look broken — the flagship players hit the same
-  // trap through their frame caches (§65-5-1). Every successful set/clear here
+  // trap through their frame caches. Every successful set/clear here
   // therefore notifies listeners; a rejected call does not (nothing changed).
   //
   // The Brain owns the override table and re-applies it itself, so these are
@@ -1079,7 +1078,7 @@ class SpriteStudioPlayer extends ChangeNotifier {
   /// see [SpriteStudioInternalPlayer.setPartColorOverride].
   ///
   /// The colour comes first and [blendOp] trails with a default, which is the
-  /// family's order (SDK: `20_design/40_api_conventions`) and lets the common
+  /// family's order and lets the common
   /// case read `setPartColorOverride('hat', Colors.red)`. The C ABI puts the
   /// blend first; this face deliberately does not.
   bool setPartColorOverride(String partName, ui.Color color,

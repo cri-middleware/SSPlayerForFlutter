@@ -1,12 +1,12 @@
 import 'package:ssruntime_dart/framedata.dart' as fbs;
 import 'blend.dart' show partColorCoef;
 
-/// One corner's PartColor sample (parts_color §1-3): a straight-alpha colour in
-/// 0..1 plus the blend `rate` (composite strength, §1-3).
+/// One corner's PartColor sample: a straight-alpha colour in
+/// 0..1 plus the blend `rate` (composite strength).
 ///
 /// The alpha channel already has the part's hierarchical opacity **pre-folded in
 /// by the Brain** — do NOT re-multiply `PartState.alpha` on the PartColor path
-/// (§1-3 / the sibling ports agree). It is the `texel.a × color.a` factor.
+/// (the sibling ports agree). It is the `texel.a × color.a` factor.
 class PartColorCorner {
   const PartColorCorner(this.r, this.g, this.b, this.a, this.rate);
 
@@ -21,7 +21,7 @@ class PartColorCorner {
   final double rate;
 }
 
-/// A part's resolved PartColor (parts_color §1): the shader-side blend
+/// A part's resolved PartColor: the shader-side blend
 /// [coef]ficient row plus the four corner colours (`lt,rt,lb,rb`).
 ///
 /// Read from `FrameData.parts_color[part.part_color]`; a part with no PartColor
@@ -32,8 +32,9 @@ class PartColorCorner {
 /// **Normal** parts use all four corners individually (a bilinear gradient
 /// across the quad); **Shape** bypasses the formula (rate forced to 1, baked
 /// straight into the vertex colour); **Mesh** is *whole-only* — the `lt` corner
-/// applies to every vertex, which is what [wholeTintMatrix] evaluates. The same
-/// whole-part reading tints an Instance part's child subtree (§8).
+/// applies to every vertex, which is what [wholeTintMatrix] evaluates. An
+/// Instance part's PartColor does not tint its child subtree; only its `lt`
+/// alpha crosses ([instanceAlpha]).
 class PartColor {
   const PartColor({
     required this.coef,
@@ -44,7 +45,7 @@ class PartColor {
   });
 
   /// The no-op PartColor: white corners at `rate` 0, which the shader's formula
-  /// collapses to a plain texel passthrough (§10: default white, rate 0 = passthrough).
+  /// collapses to a plain texel passthrough (default white, rate 0 = passthrough).
   ///
   /// Fully opaque — prefer [passthrough], which carries the part's alpha, unless
   /// you specifically want α = 1.
@@ -56,15 +57,15 @@ class PartColor {
     rb: _white,
   );
 
-  /// The no-op PartColor at [alpha] — §1-2-4's stated default for a part with no
+  /// The no-op PartColor at [alpha] — the default for a part with no
   /// PartColor: vertex colour = white (alpha = hierarchical alpha), rate = 0.
   ///
   /// Used when a part must go through the fragment shader for a reason other
-  /// than PartColor — a mask test (§9), or an instance child's alpha (§8) — so
+  /// than PartColor — a mask test, or an instance child's alpha — so
   /// that peeling it off the batched path does not change its colours. [alpha]
   /// must be supplied because the shader's `a = texel.a * col.a` has no
   /// `PartState.alpha` term of its own: on the *PartColor* path the Brain has
-  /// pre-folded the hierarchical alpha into `rgba.a` (§1-3 — never re-multiply
+  /// pre-folded the hierarchical alpha into `rgba.a` (never re-multiply
   /// it), but on this path there is no such value to inherit, so passing the
   /// shared α=1 [identity] here silently renders the part fully opaque.
   static PartColor passthrough(double alpha) => PartColor(
@@ -78,7 +79,7 @@ class PartColor {
   /// This PartColor with every corner's alpha scaled by [scale].
   ///
   /// The one legitimate reason to touch a Brain-supplied corner alpha: an
-  /// instance child (§8) is modulated by its instance part's alpha, which the
+  /// instance child is modulated by its instance part's alpha, which the
   /// Brain cannot know about because it lives in the *parent's* FrameData. RGB
   /// and `rate` are untouched, matching the flagship's alpha-only
   /// `Color(1, 1, 1, part_alpha)` modulate.
@@ -92,22 +93,21 @@ class PartColor {
           rb: rb.withAlpha(rb.a * scale),
         );
 
-  /// The alpha an Instance part (§8) hands down to its child sub-animation.
+  /// The alpha an Instance part hands down to its child sub-animation.
   ///
   /// Without a PartColor that is the part's own composed alpha ([partAlpha],
   /// which `DrawFrame.alphaOf` already folded the chain's [chainScale] into).
   /// **With** one it is the tint's `lt` alpha instead — the Brain pre-folds the
-  /// part's hierarchical alpha into the corner alphas (§1-3), so using both
+  /// part's hierarchical alpha into the corner alphas, so using both
   /// would apply it twice — times the chain scale, which lives in the *parent's*
   /// FrameData and so cannot have been pre-folded.
   static double instanceAlpha(PartColor? pc,
           {required double partAlpha, required double chainScale}) =>
       pc == null ? partAlpha : (pc.lt.a * chainScale).clamp(0.0, 1.0);
 
-  /// The §1-4 formula as a row-major 4×5 `ColorFilter.matrix`, evaluated from
-  /// the **`lt`** corner — the *Whole-only* rule a Mesh part follows (§8/§10:
-  /// Mesh = same value on every vertex) and the group tint an Instance part applies to its
-  /// child subtree (§8).
+  /// The formula as a row-major 4×5 `ColorFilter.matrix`, evaluated from
+  /// the **`lt`** corner — the *Whole-only* rule a Mesh part follows
+  /// (Mesh = same value on every vertex).
   ///
   /// Where a Normal part needs a fragment shader (four corners, so the tint
   /// varies per fragment), a whole-part tint is one affine on rgb — exactly what
@@ -124,7 +124,7 @@ class PartColor {
   /// exactly as `a = texel.a · col.a` does in the shader — folding it in here
   /// too would double-apply it.
   ///
-  /// Returns null when the tint is a no-op (`rate == 0`, i.e. the §10 default
+  /// Returns null when the tint is a no-op (`rate == 0`, i.e. the default
   /// passthrough) so the caller can stay on the plain, un-filtered path.
   ///
   /// One nuance vs `shaders/partcolor.frag`: the shader clamps the straight rgb
@@ -135,7 +135,7 @@ class PartColor {
   /// part's shader.
   List<double>? wholeTintMatrix() {
     final rate = lt.rate;
-    if (rate == 0.0) return null; // §10 default: white × rate 0 == passthrough
+    if (rate == 0.0) return null; // default: white × rate 0 == passthrough
     final vx = 1.0 + coef[0] * rate;
     final vy = coef[1] * rate;
     final mul = coef[2]; // 1 for Mul (the colour scales the pixel), else 0

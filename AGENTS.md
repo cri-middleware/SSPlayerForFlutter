@@ -21,6 +21,9 @@
     the SDK repository, followed by a submodule bump here.
 *   **Playback and rendering semantics are the SDK's** — see [its AGENTS.md](./SpriteStudio-SDK/AGENTS.md)
     and `SpriteStudio-SDK/libs/ssruntime/docs/`; do not reimplement the rules they own.
+*   **Code comments do not cite the SDK's porting guide** — no section numbers, page paths or quotes.
+    Its sections move as it is revised and nothing checks a citation inside a comment; say what breaks
+    if the code changes, and leave the rule to the guide.
 *   When a rendering or behaviour detail is unclear, the flagship
     [SSPlayerForGodot](https://github.com/cri-middleware/SSPlayerForGodot) is the closest reference, then
     that porting guide.

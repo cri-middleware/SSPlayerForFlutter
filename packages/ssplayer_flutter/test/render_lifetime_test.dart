@@ -3,7 +3,7 @@
 // The mask coverage pass recycles resources — the Canvas backend's coverage
 // bitmap, the shader pools — that stay live until the recorded picture
 // rasterises. Both `releaseCoverage()` and `rewindShaderPools()` MUST therefore
-// run once per top-level frame, NOT once per player: an instance child (§8)
+// run once per top-level frame, NOT once per player: an instance child
 // draws through its parent's backend into the same picture, so a child that
 // re-ran them would free/rebind what the parent's already-recorded mask draws
 // still point at — surfacing as "Image has been disposed" when the picture

@@ -1,7 +1,7 @@
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
-/// Texture store for the Player (design §7 / §11 / §16C): a `cellmap` texture
+/// Texture store for the Player: a `cellmap` texture
 /// hash → decoded [ui.Image] map, plus a cached identity [ui.ImageShader] per
 /// image for `drawVertices`. Mirrors the sibling ports' hash-keyed texture map
 /// (Godot `_textures`, Web `IResourceManager.getTexture`, Unity material map).
@@ -12,7 +12,7 @@ import 'dart:ui' as ui;
 /// Framebuffer blend selection and `Paint` construction are *render* concerns
 /// that live on the render side (`render/blend.dart` + the internal player), not
 /// here — this class only resolves textures. [SsTextureLoader] populates it
-/// (embedded + reference modes, §16C).
+/// (embedded + reference modes).
 class TextureRegistry {
   TextureRegistry();
 
@@ -20,8 +20,7 @@ class TextureRegistry {
   final Map<int, _Sampling> _sampling = {};
   final Map<int, ui.ImageShader> _shaders = {};
 
-  /// Runtime texture replacements ("Runtime texture replacement (a Player-side
-  /// override)" in the SDK's `70_external_resources`; ForGodot's
+  /// Runtime texture replacements (ForGodot's
   /// `setCellMapOverrideTexture`). Keyed by the same `texture_hash` as [_images];
   /// when present, the override WINS over the loaded original in every lookup.
   ///
@@ -41,7 +40,7 @@ class TextureRegistry {
   final List<ui.ImageShader> _retired = [];
 
   /// Registers (or replaces) the decoded image for a `cellmap` texture hash,
-  /// together with the cellmap's declared sampling (design §7): [filterQuality]
+  /// together with the cellmap's declared sampling: [filterQuality]
   /// maps the cellmap `filterMode` (Nearest → [ui.FilterQuality.none], Linear →
   /// [ui.FilterQuality.low] bilinear) and [tileMode] its `wrapMode`
   /// (Clamp/Repeat/Mirror). Baked into the [ui.ImageShader] so `drawVertices`
@@ -75,13 +74,13 @@ class TextureRegistry {
       _overrides[textureHash] ?? _images[textureHash];
 
   /// Whether a texture is already registered for [textureHash]. Lets a loader
-  /// skip re-decoding an atlas a sibling pack has already brought in (§8: a root
+  /// skip re-decoding an atlas a sibling pack has already brought in (a root
   /// and its instance children routinely share one cellmap).
   bool contains(int textureHash) => _images.containsKey(textureHash);
 
   /// The identity-matrix [ui.ImageShader] for a texture hash (cached), or null
   /// when no image is registered. `drawVertices` samples it in image-pixel
-  /// space, so the Brain's texture-pixel UVs are passed straight through (§7C).
+  /// space, so the Brain's texture-pixel UVs are passed straight through.
   /// Tile mode + filter quality come from the cellmap via [register].
   ui.ImageShader? shaderFor(int textureHash) {
     final cached = _shaders[textureHash];
@@ -108,8 +107,7 @@ class TextureRegistry {
   /// dispose it yourself once it is cleared or replaced.
   ///
   /// Sampling defaults to the original cellmap's ([filterQuality] / [tileMode]
-  /// override it), on the same-size/same-layout-atlas assumption the SDK spells
-  /// out for a texture replacement.
+  /// override it), on the same-size/same-layout-atlas assumption.
   void setOverride(
     int textureHash,
     ui.Image image, {

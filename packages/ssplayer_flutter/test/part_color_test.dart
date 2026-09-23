@@ -1,4 +1,4 @@
-// PartColor (§10) tests. The pure pieces (coefficient table + the frag→(s,t)
+// PartColor tests. The pure pieces (coefficient table + the frag→(s,t)
 // affine in the geometry builder) run everywhere; the FrameData reader is
 // exercised against real converter output from PartsColor.ssab and skips when
 // that pack is not deployed (scripts/deploy-examples.sh):
@@ -222,7 +222,7 @@ void main() {
   });
 
   group('PartColor.wholeTintMatrix', () {
-    // The Mesh (§8) / Instance-subtree (§10) tint is the shader formula reduced
+    // The Mesh / Instance-subtree tint is the shader formula reduced
     // to one affine on rgb, so the matrix is checked against that formula
     // directly: for a source pixel, `matrix(pixel)` must equal what
     // `shaders/partcolor.frag` computes from the same corner.
@@ -289,7 +289,7 @@ void main() {
     });
 
     test('leaves alpha alone — it travels with the geometry, not the tint', () {
-      // §1-3: the corner alpha already carries the hierarchical alpha and is
+      // The corner alpha already carries the hierarchical alpha and is
       // applied as the vertex colour / instance chain scale. Folding it in here
       // as well would double-apply it.
       final m = tint(fbs.BlendType.Mix, 1.0).wholeTintMatrix()!;
@@ -297,7 +297,7 @@ void main() {
     });
 
     test('rate 0 is a no-op and reports null', () {
-      // §10's default (white × rate 0) is a plain passthrough, so the caller
+      // The default (white × rate 0) is a plain passthrough, so the caller
       // must be able to stay on the un-filtered path.
       expect(tint(fbs.BlendType.Mix, 0.0).wholeTintMatrix(), isNull);
       expect(PartColor.identity.wholeTintMatrix(), isNull);
@@ -327,7 +327,7 @@ void main() {
     });
 
     test('with a tint the corner alpha replaces PartState.alpha', () {
-      // §1-3: the Brain pre-folded the hierarchical alpha into the corner, so
+      // The Brain pre-folded the hierarchical alpha into the corner, so
       // `partAlpha` must be dropped — multiplying the two would apply the
       // hierarchy twice (0.5 × 0.5 = 0.25 would be the bug).
       final pc = PartColor(

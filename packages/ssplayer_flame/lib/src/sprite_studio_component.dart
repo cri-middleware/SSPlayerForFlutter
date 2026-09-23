@@ -170,7 +170,7 @@ class SpriteStudioComponent extends PositionComponent {
   /// Animation to select on load; when null the pack's first animation plays.
   final String? animation;
 
-  /// Folder holding the sibling reference textures (design §16C) for the default
+  /// Folder holding the sibling reference textures for the default
   /// (bytes) ctor; null for embedded-texture packs. Mirrors
   /// [SpriteStudioPlayer.load]. The [SpriteStudioComponent.asset] ctor ignores
   /// this and derives the folder from the asset key.
@@ -211,7 +211,7 @@ class SpriteStudioComponent extends PositionComponent {
   /// transport surface (`pause`, `seek`, `setAnimation`, `animationNames`, …).
   /// The clock is Flame's, so do NOT expect a Ticker; state still lives here.
   ///
-  /// Part overrides (§65) are reached the same way — `player!.setPartColorOverride`
+  /// Part overrides are reached the same way — `player!.setPartColorOverride`
   /// and friends, with [SsBlendOp] / [SsOverridePriority] re-exported by this
   /// package. They are deliberately not mirrored onto the component: the Brain
   /// owns the override table, so there is no component-side state to keep in

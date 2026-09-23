@@ -1,4 +1,4 @@
-// Effect (§8) tests. The blend mapping and the plan→vertices bake run
+// Effect tests. The blend mapping and the plan→vertices bake run
 // everywhere; the slot API is then driven against real converter output from
 // Effect.ssab and skips when the example assets haven't been prepared.
 import 'dart:io';

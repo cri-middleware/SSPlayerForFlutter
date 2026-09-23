@@ -1,9 +1,9 @@
 #version 460 core
 
-// Flutter GPU PartColor (§10) blend + mask replay (§3-2) — the per-vertex
-// attribute design (§19). Everything comes from interpolated varyings: the
+// Flutter GPU PartColor blend + mask replay — the per-vertex
+// attribute design. Everything comes from interpolated varyings: the
 // corner colour + rate are pre-interpolated by the rasteriser (v_color /
-// v_coef.w), so this shader only applies the §10 formula and the §3-2 mask gate.
+// v_coef.w), so this shader only applies the formula and the mask gate.
 // The blend maths matches shaders/partcolor.frag (the Canvas reference); the
 // 4-corner gradient is the rasteriser's per-triangle interpolation (as the
 // Godot / Web siblings do), not a per-fragment bilinear reconstruction.
@@ -40,7 +40,7 @@ bool maskPasses() {
   int inc = int(v_mask_bits.x);
   int inv = int(v_mask_bits.y);
 
-  // §3-1-4: `Invert` and `IncrementWrap` do not commute, so one shared
+  // `Invert` and `IncrementWrap` do not commute, so one shared
   // accumulator would make coverage depend on the order the writers are walked
   // in. Keep a plane each — the shader has no bit budget to divide, so unlike a
   // real stencil the counter takes no overlap ceiling. See shaders/partcolor.frag.
@@ -50,13 +50,13 @@ bool maskPasses() {
     int bit = 1 << i;
     if ((bits & bit) != 0) {
       if ((inv & bit) != 0) {
-        parity ^= 1; // §2-3 invert (parity plane)
+        parity ^= 1; // invert (parity plane)
       } else if ((inc & bit) != 0) {
-        count += 1; // §2-3 increment (counter plane)
+        count += 1; // increment (counter plane)
       }
     }
   }
-  // The union of the two planes (§3-1-4).
+  // The union of the two planes.
   bool masked = (parity != 0) || (count != 0);
   return masked == visibleInside;
 }
@@ -70,7 +70,7 @@ void main() {
   vec4 tex = texture(u_texture, v_uv);
   vec3 pixel = tex.a > 0.0 ? tex.rgb / tex.a : tex.rgb;
 
-  // §10 formula (identical to shaders/partcolor.frag). coef = (fSrc, fDst,
+  // Formula (identical to shaders/partcolor.frag). coef = (fSrc, fDst,
   // mulFlag, 0) from render/blend.dart#partColorCoef; rate rides in v_coef.w.
   float rate = v_coef.w;
   float vx = 1.0 + v_coef.x * rate;

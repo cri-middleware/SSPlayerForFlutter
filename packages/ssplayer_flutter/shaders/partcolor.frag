@@ -1,8 +1,7 @@
 #version 460 core
 #include <flutter/runtime_effect.glsl>
 
-// PartColor blend + mask replay for a single Normal sprite quad (SpriteStudio
-// parts_color §1-4, mask §3-2).
+// PartColor blend + mask replay for a single Normal sprite quad.
 //
 // Flutter fragment shaders cannot declare custom per-vertex varyings, so the
 // per-vertex `CUSTOM0` packing the Godot/Web ports use does not port. Instead
@@ -17,7 +16,7 @@
 //
 // This is also the path for **masked** parts, PartColored or not: a part with no
 // PartColor passes white corners with rate 0, which the formula below collapses
-// to a plain texel passthrough (§10: default white, rate 0 = passthrough). Masking
+// to a plain texel passthrough (default white, rate 0 = passthrough). Masking
 // a part therefore costs it the batched drawVertices fast path — the same per-part
 // cliff the flagship has.
 //
@@ -51,12 +50,12 @@ float bitAt(float set, float p) {
   return floor(mod(set / p, 2.0));
 }
 
-// Mask replay (§3-2, step 5): rebuild the SS stencil for this fragment from the
+// Mask replay: rebuild the SS stencil for this fragment from the
 // coverage bitmap and decide whether the fragment survives.
 //
-// Unlike the flagship we do NOT carry a `mask_meta[]` array: scope (§2-1) is
+// Unlike the flagship we do NOT carry a `mask_meta[]` array: scope is
 // resolved on the CPU into two 24-bit sets — one per OP, which is exactly the
-// plane split §3-1-4 demands, handed to us for free.
+// plane split, handed to us for free.
 bool maskPasses(vec2 local) {
   if (uMaskBits.w < 0.5) return true; // not masked this frame
 
@@ -77,7 +76,7 @@ bool maskPasses(vec2 local) {
              + floor(cov.g * 255.0 + 0.5) * 256.0
              + floor(cov.b * 255.0 + 0.5) * 65536.0;
 
-  // §3-1-4: `Invert` and `IncrementWrap` are each their own inverse alone, but
+  // `Invert` and `IncrementWrap` are each their own inverse alone, but
   // they do NOT commute, so replaying both into one accumulator would make
   // coverage depend on the order the writers happen to be walked in (`incr then
   // invert` lands on 254 = covered where `invert then incr` wraps back to 0 =
@@ -92,9 +91,9 @@ bool maskPasses(vec2 local) {
     if (bitAt(bits, p) > 0.5) {
       // A writer in neither set is out of this target's scope — skip it.
       if (bitAt(uMaskBits.y, p) > 0.5) {
-        parity = 1.0 - parity; // §2-3 invert (parity plane)
+        parity = 1.0 - parity; // invert (parity plane)
       } else if (bitAt(uMaskBits.x, p) > 0.5) {
-        count += 1.0;          // §2-3 increment (counter plane)
+        count += 1.0;          // increment (counter plane)
       }
     }
     p *= 2.0;
@@ -103,7 +102,7 @@ bool maskPasses(vec2 local) {
   // The union of the two planes — what SpriteStudio specifies where writers of
   // differing mask_influence overlap.
   bool masked = parity > 0.5 || count > 0.5;
-  // §2-4: polarity is the target's, not the writer's.
+  // Polarity is the target's, not the writer's.
   return masked == visibleInside;
 }
 
@@ -112,7 +111,7 @@ void main() {
   vec2 frag = FlutterFragCoord().xy;
 
   // Runtime effects may not `discard`; a fully transparent fragment is the
-  // equivalent — it is a no-op under every blend mode we emit (§7 Mix / Add /
+  // equivalent — it is a no-op under every blend mode we emit (Mix / Add /
   // Mul / Sub all leave the destination untouched for a zero premultiplied src).
   if (!maskPasses(frag)) {
     fragColor = vec4(0.0);

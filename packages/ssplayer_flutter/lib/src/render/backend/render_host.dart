@@ -22,7 +22,7 @@ abstract class RenderHost {
   /// texture_hash → decoded image / shader (shared across an instance tree).
   TextureRegistry get textures;
 
-  /// Static per-part mask role (§1-2); [MaskPartFlags.none] past the part range.
+  /// Static per-part mask role; [MaskPartFlags.none] past the part range.
   MaskPartFlags flagsFor(int partIndex);
 
   /// The particle plan for effect part [partIndex], or null when its slot drew

@@ -1,4 +1,4 @@
-// Part overrides (§65 Override Layer) — the imperative "make this part this
+// Part overrides (Override Layer) — the imperative "make this part this
 // colour / cell / hidden now" layer that wins over both keyframes and blend.
 //
 // The pure pieces (RGBA packing, the part-name table) run everywhere. The rest
@@ -7,8 +7,8 @@
 //
 // What is deliberately NOT asserted here: that an override *changed pixels*.
 // The Brain applies it at a seam inside its own pipeline, so the observable
-// Body-side effects are the ones §65 documents — `draw_order` losing a
-// force-hidden part, `local_uvs` moving to the swapped cell — and those are
+// Body-side effects — `draw_order` losing a
+// force-hidden part, `local_uvs` moving to the swapped cell — are
 // what these tests check. Shader output is only verifiable in examples/overall.
 import 'dart:io';
 import 'dart:typed_data';
@@ -104,7 +104,7 @@ void main() {
       // (bind_resource empties it), so before that every index is out of range.
       // The name table is read from the pack, so it resolves either way — which
       // is precisely how a caller ends up holding a valid index and a failing
-      // set, and why this is asserted rather than left to §65.
+      // set, and why this is asserted.
       final apple = p.findPartIndex('apple');
       expect(apple, greaterThanOrEqualTo(0),
           reason: 'the name table does not depend on setup');
@@ -171,7 +171,7 @@ void main() {
       if (p == null) return;
       addTearDown(p.dispose);
 
-      // §65-1-2: the part-type guard runs when the override is APPLIED, so the
+      // The part-type guard runs when the override is APPLIED, so the
       // set call itself returns true. Callers must not read the return value as
       // "this will be visible". `root` is a Null part.
       final root = p.findPartIndex('root');
@@ -201,7 +201,7 @@ void main() {
       addTearDown(p.dispose);
       final apple = p.findPartIndex('apple');
 
-      // §65-3-2: resolution happens once, in `set`, so a bad name is caught
+      // Resolution happens once, in `set`, so a bad name is caught
       // immediately rather than costing a lookup every frame.
       expect(p.setPartCellOverrideByIndex(apple, 'Ringo', 'effect3'), isTrue);
       expect(p.setPartCellOverrideByIndex(apple, 'Ringo', 'no-such-cell'), isFalse);
@@ -216,7 +216,7 @@ void main() {
       addTearDown(p.dispose);
       final apple = p.findPartIndex('apple');
 
-      // Direct render mode does not put `cells` in FrameData (§65-5-2), so the
+      // Direct render mode does not put `cells` in FrameData, so the
       // observable proof of a cell swap is the UV SoA — read it before and
       // after. `getFrameData` must precede the SoA getters.
       p.setupAnimation(_animations().first);
@@ -270,7 +270,7 @@ void main() {
 
       // `head` has a subtree; `nose` sits under it. A cascading force-hide takes
       // the descendants with it — this propagation is the OVERRIDE's, not the
-      // keyframe `hide`'s, which stays strictly per-part (§65-3-3).
+      // keyframe `hide`'s, which stays strictly per-part.
       final head = p.findPartIndex('head');
       final nose = p.findPartIndex('nose');
       expect(head, greaterThanOrEqualTo(0));
@@ -338,7 +338,7 @@ void main() {
         return;
       }
 
-      // §65-4 lifecycle. A cell override is the one whose effect is directly
+      // A cell override is the one whose effect is directly
       // observable from the Body (the UVs), so it stands in for the pair.
       p.setupAnimation(anims[0]);
       p.update(const Duration(milliseconds: 16));
@@ -441,7 +441,7 @@ void main() {
       await player.load(bytes,
           animationName: _animations().first, loadTextures: false);
 
-      // §65-5-1's Flutter shape: an override changes the pose without changing
+      // An override changes the pose without changing
       // the frame number, so nothing would redraw unless L3 says so.
       var notifications = 0;
       player.addListener(() => notifications++);

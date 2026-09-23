@@ -1,24 +1,24 @@
 #version 460 core
 
-// Flutter GPU PartColor (§10) + mask-replay (§9) vertex shader — the per-vertex
-// attribute design shared with the Godot / Web siblings (§19). Every per-part
+// Flutter GPU PartColor + mask-replay vertex shader — the per-vertex
+// attribute design shared with the Godot / Web siblings. Every per-part
 // value (the four corner colours, the blend rate/coef, and the mask replay sets)
 // is a vertex attribute, so a whole RUN of peeled parts batches into ONE draw
 // (the fan-out collapse). A per-vertex attribute is also what keeps Impeller/
 // Metal correct here: there is no dynamically-indexed uniform array, the one
-// construct it miscompiles (`u[dynamicIndex + const]` reads 0; §19).
+// construct it miscompiles (`u[dynamicIndex + const]` reads 0).
 //
 // The four corner colours ride on the four corner vertices, so the rasteriser
-// interpolates the §10 gradient for free (no per-fragment bilinear); the blend
+// interpolates the gradient for free (no per-fragment bilinear); the blend
 // rate rides in `a_coef.w` (also interpolated: rate varies per corner). The mask
 // sets are constant across a part's 4 corners and are carried `flat`.
 //
 // vec4 vertex attributes MUST sit on a 16-byte boundary or Impeller misreads
-// them (the ShapeMask alignment trap, §5), so the layout is a 96-byte (24-float)
+// them (the ShapeMask alignment trap), so the layout is a 96-byte (24-float)
 // stride with every vec4 at a 16-aligned offset. `a_mask_off` is a vec4 (only
 // .xy used) so the stride stays a clean multiple of 16 and the alignment recurs
 // on every vertex; its .xy feeds the mask UV, so it is a *used* attribute and
-// impellerc keeps it (an unused one is stripped, breaking reflection — §5 trap 2).
+// impellerc keeps it (an unused one is stripped, breaking reflection).
 //   loc 0  a_position (vec2)  float 0   world-transformed corner XY (= v_local)
 //   loc 1  a_uv       (vec2)  float 2   normalised texture UV
 //   loc 2  a_color    (vec4)  float 4   this corner's straight RGBA

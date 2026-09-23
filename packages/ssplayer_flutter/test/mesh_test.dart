@@ -1,4 +1,4 @@
-// Mesh (§8) tests. The pure pieces — CSR slicing and the SoA→Vertices bake —
+// Mesh tests. The pure pieces — CSR slicing and the SoA→Vertices bake —
 // run everywhere; the SoA contract is then checked against real converter
 // output from Mesh.ssab and skips when the example assets haven't been prepared.
 import 'dart:io';
@@ -148,7 +148,7 @@ void main() {
     });
 
     test('alphaOverride replaces the per-part hierarchical alpha', () {
-      // The PartColor case (§1-3): with a tint the corner alpha already carries
+      // The PartColor case: with a tint the corner alpha already carries
       // the hierarchical alpha, so the caller passes `pc.lt.a` and the bake must
       // NOT multiply `PartState.alpha` on top.
       final g = GeometryBuilder().buildMeshGeometry(
@@ -183,7 +183,7 @@ void main() {
         );
 
     // A tint whose lt corner is the whole-only value; the other corners are
-    // deliberately different so the bake must ignore them (§10 「Mesh=全頂点同値」).
+    // deliberately different so the bake must ignore them (「Mesh=全頂点同値」).
     PartColor tint() => PartColor(
           coef: partColorCoef(fbs.BlendType.Mul),
           lt: const PartColorCorner(0.1, 0.2, 0.3, 0.9, 0.5),
@@ -196,7 +196,7 @@ void main() {
 
     test('every vertex carries the lt corner colour + rate — the whole-only rule',
         () {
-      // What makes the peeled mesh path need no shader of its own: the §10
+      // What makes the peeled mesh path need no shader of its own: the
       // gradient collapses to the lt corner on every vertex («全頂点同値»).
       final pc = tint();
       final g = GeometryBuilder().buildMeshPartColorInterleaved(<int>[0],

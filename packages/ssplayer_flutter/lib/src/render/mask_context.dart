@@ -10,7 +10,7 @@ import 'mask.dart';
 /// backend's `ui.Image` coverage bitmap; [coverageHandle] is the flutter_gpu
 /// backend's opaque `gpu.Texture` (kept as `Object?` so this file stays
 /// Widget/GPU-free). The coverage travels **with** the [MaskDraw] — so a mask
-/// inherited by an instance child (§3-2-2) carries the *parent's* coverage while
+/// inherited by an instance child carries the *parent's* coverage while
 /// the child's own mask carries the child's, without any shared mutable state.
 class MaskContext {
   MaskContext(this.plan, this.coverage,
@@ -20,7 +20,7 @@ class MaskContext {
   final ui.Image? coverage;
   final Object? coverageHandle;
 
-  /// The instance hierarchy above this player (§2-6), [MaskComposition.identity]
+  /// The instance hierarchy above this player, [MaskComposition.identity]
   /// at the top level. It governs this player's OWN mask too: a caller that
   /// opted out with `mask_influence == 0` settles "not masked" for everything
   /// below it, own writers included.
@@ -39,7 +39,7 @@ class MaskContext {
 /// Everything a peeled draw needs to run the mask replay: the resolved writer
 /// sets + polarity ([bits]), the coverage bitmap ([coverage] / [coverageHandle]),
 /// and the local→coverage-UV affine. Unifies an *own* mask (from the player's own
-/// [MaskPlan]) and a mask **inherited** by an instance child (§3-2-2), whose
+/// [MaskPlan]) and a mask **inherited** by an instance child, whose
 /// affine is the parent's pre-composed with the slot matrix. Either way this is
 /// ONE part's resolved test: a child subtree does not share one, it derives a
 /// polarity per part through [InheritedMask.drawFor].
@@ -59,10 +59,10 @@ class MaskDraw {
 
   /// The same coverage and writer set, tested on the other side of the mask.
   ///
-  /// Used to re-polarise an inherited mask per child part: scope (§2-1) was
+  /// Used to re-polarise an inherited mask per child part: scope was
   /// settled once by the instance part's rank, so the writer sets are shared by
-  /// the whole sub-animation, while the polarity (§2-4) is composed per part
-  /// (§2-6). Cheap — everything but the two-bool [MaskBits] header is shared.
+  /// the whole sub-animation, while the polarity is composed per part.
+  /// Cheap — everything but the two-bool [MaskBits] header is shared.
   MaskDraw withPolarity(bool visibleInside) => MaskDraw(
         MaskBits(
           increment: bits.increment,
@@ -77,8 +77,8 @@ class MaskDraw {
 
   /// Composes this player-local→UV mask with an instance slot matrix
   /// (`world2dOf`, child-local → parent-local, column-major), yielding the
-  /// child-local → UV affine the child's fragments need (§3-2-2's
-  /// `M_child = M_parent · slot_xf`). The coverage and the writer sets carry
+  /// child-local → UV affine the child's fragments need
+  /// (`M_child = M_parent · slot_xf`). The coverage and the writer sets carry
   /// over unchanged — the sub-animation sits at the instance part's rank, so
   /// scope is settled — while [bits]'s polarity is superseded per part by
   /// [InheritedMask.drawFor].
@@ -104,7 +104,7 @@ class MaskDraw {
   }
 }
 
-/// What an instance child inherits from the part that called it (§2-6 / §3-2-2).
+/// What an instance child inherits from the part that called it.
 ///
 /// Two things travel together, and they are independent:
 ///
@@ -145,14 +145,14 @@ class InheritedMask {
   ///
   /// Nesting therefore chains by handing each level a composed value, with no
   /// extra bookkeeping — which is also why multi-level nesting is untested here,
-  /// exactly as in the SDK guide and the sibling ports.
+  /// exactly as in the sibling ports.
   InheritedMask forChild(MaskPartFlags flags, MaskDraw? source) =>
       InheritedMask(comp: comp.compose(flags), source: source);
 }
 
 /// Resolves the mask test for one part at [rank] with [flags]: this player's OWN
 /// mask when the part is a target of it, otherwise the mask inherited from a
-/// parent instance (§2-6 / §3-2-2).
+/// parent instance.
 ///
 /// An instance sub-animation is parent-driven and passes [maskCtx] as null (it
 /// rasterises no own coverage — see `_paintTree`), so its parts resolve straight

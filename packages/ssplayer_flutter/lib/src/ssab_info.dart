@@ -6,7 +6,7 @@ import 'render/part_override.dart' show PartNameTable;
 import 'ssab/ssab.g.dart' as ssab;
 
 /// The UserData / Signal / Audio events crossed on one `advance`, decoded from
-/// the pack (design §6C). Returned by [SsAnimeInfo.decodePassedEvents] and
+/// the pack. Returned by [SsAnimeInfo.decodePassedEvents] and
 /// dispatched per-event by [SpriteStudioPlayer].
 typedef SsPassedEvents = ({
   List<SsUserData> userData,
@@ -20,7 +20,7 @@ typedef SsPassedEvents = ({
 /// Useful before/after loading: enumerate the animation names to feed
 /// [SpriteStudioPlayer.setAnimation], or list cellmaps to prepare textures.
 /// (The Brain returns only computed local attributes; structural metadata like
-/// names lives in the `.ssab`, per the porting guide.)
+/// names lives in the `.ssab`.)
 class SsAnimeInfo {
   SsAnimeInfo(Uint8List bytes) : _root = ssab.SsAnimeBinary(bytes);
 
@@ -125,7 +125,7 @@ class SsAnimeInfo {
           .toList(growable: false) ??
       const <String>[];
 
-  // --- Events (§6C) --------------------------------------------------------
+  // --- Events --------------------------------------------------------------
 
   // The passed-event indices the Brain reports are relative to the *current*
   // animation's `events()` list, so resolution is per animation. Cache the last
@@ -153,7 +153,7 @@ class SsAnimeInfo {
 
   /// Decodes the events at [indices] — the raw indices the Brain reported for
   /// [animationName] (see [SpriteStudioInternalPlayer.passedEventIndices]) — into
-  /// flat, per-event lists (design §6C). Unknown animations, out-of-range
+  /// flat, per-event lists. Unknown animations, out-of-range
   /// indices, and inactive signals are dropped. Returns empty lists when there
   /// is nothing to decode.
   SsPassedEvents decodePassedEvents(String animationName, List<int> indices,
@@ -262,7 +262,7 @@ class SsAnimeInfo {
     );
   }
 
-  // --- Sound resolution (§6C audio) ----------------------------------------
+  // --- Sound resolution ----------------------------------------------------
 
   Map<int, String>? _soundFilePaths;
 
@@ -270,7 +270,7 @@ class SsAnimeInfo {
   /// [SsAudioEvent.soundNameHash]) — e.g. `sound/foo.mp3` — resolved from the
   /// pack's `SoundList`s, or null if unknown. Lets an app turn an `onAudio`
   /// trigger into a playable file without re-parsing the `.ssab`; playback
-  /// itself remains the app's responsibility (design §6C).
+  /// itself remains the app's responsibility.
   String? soundFilePath(int soundNameHash) =>
       (_soundFilePaths ??= _buildSoundFilePaths())[soundNameHash];
 

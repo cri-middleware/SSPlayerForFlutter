@@ -76,12 +76,12 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   /// draws from its parent's and must never release it.
   final bool _ownsTextures;
 
-  /// Static per-part mask flags (§1-2), read once from the `.ssab` `PartData` at
+  /// Static per-part mask flags, read once from the `.ssab` `PartData` at
   /// load — they never change per frame. Empty when the pack has no parts, which
   /// disables the whole mask path.
   final List<MaskPartFlags> _maskFlags;
 
-  /// Static per-part mask role (§1-2); [MaskPartFlags.none] past the part range.
+  /// Static per-part mask role; [MaskPartFlags.none] past the part range.
   /// Public as part of [RenderHost] — the backend reads it to peel mask targets.
   @override
   MaskPartFlags flagsFor(int partIndex) => partIndex < _maskFlags.length
@@ -90,14 +90,14 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
 
   /// Pack-level part name → index table, read once from the `.ssab` `PartData`
   /// alongside [_maskFlags]. Backs the by-name part-override overloads; indices
-  /// are stable within one `.ssab` (§65-4).
+  /// are stable within one `.ssab`.
   final PartNameTable _partNames;
 
-  /// Per-part particle-effect slots (§8), stepped from [updateMs] because they
+  /// Per-part particle-effect slots, stepped from [updateMs] because they
   /// need a delta time. Empty when the pack hosts no effects.
   final EffectSlots _effects;
 
-  /// Per-part instance slots (§8) and the nested child players they drive,
+  /// Per-part instance slots and the nested child players they drive,
   /// stepped from [updateMs] alongside the effects. Empty when the pack hosts no
   /// instances. Assigned right after construction ([load]) because building the
   /// children needs the finished parent.
@@ -137,7 +137,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   /// frame number, giving smooth playback beyond the source FPS on high-refresh
   /// displays. Set false to snap to integer frames.
   ///
-  /// Propagates to instance children (§8): the SDK requires it, and a child left
+  /// Propagates to instance children: a child left
   /// on the other setting visibly stutters at integer frames while its parent
   /// runs smooth.
   bool get subFrameEnabled => _subFrame;
@@ -175,7 +175,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   // dart:ffi-free and compiles for the web. GC backstop is [SsRuntime.registerForGc].
 
   /// Loads `ssab` into a fresh Context, binds it, and recursively spawns any
-  /// instance children (§8).
+  /// instance children.
   ///
   /// Steps: parse the static Dart-side tables → create resource → create
   /// context → bind → set coordinate system. The Brain does NOT validate the
@@ -201,7 +201,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
     // Parse the static Dart-side tables first. These are pure, bounds-checked
     // FlatBuffers reads that throw on a corrupt pack — doing them BEFORE any
     // native allocation means a malformed pack fails here and leaks no Brain-side
-    // Context/Resource. Mask roles (§1-2) and part names (§65) live in the static
+    // Context/Resource. Mask roles and part names live in the static
     // `.ssab` PartData, the effect bindings in the effect block — all read once
     // here rather than per frame; the effect/instance slots themselves are lazy.
     final maskFlags = MaskPartFlags.readAll(ssab);
@@ -234,8 +234,8 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
         throw StateError('ss_runtime_bind_resource failed');
       }
       // Direct render mode (the default): the Brain fills the SoA buffers this
-      // Body reads and skips redundant FrameData vertices/cells/deforms
-      // (render_loop §2). The Godot flagship relies on the same default.
+      // Body reads and skips redundant FrameData vertices/cells/deforms.
+      // The Godot flagship relies on the same default.
       ssRuntime.setRenderMode(context, 0);
       // Coordinate system = 1 (Y-Down) like the flagship: the Brain applies the
       // flip once, so the Body must NOT flip again. Origin/unit are left at the
@@ -271,7 +271,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
       rethrow;
     }
 
-    // Instance children (§8). Unlike effect slots these cannot be lazy: each is
+    // Instance children. Unlike effect slots these cannot be lazy: each is
     // a whole nested player, and `ss_instance_slot_step` needs its Context from
     // the very first tick. `_instances` is assigned right after construction
     // because building the children needs the finished parent in scope.
@@ -313,7 +313,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
           child.dispose();
           return null;
         }
-        // The SDK requires this to propagate, and recursively: a child left on
+        // This must propagate, and recursively: a child left on
         // the other setting stutters at integer frames while its parent is
         // smooth.
         child.subFrameEnabled = player.subFrameEnabled;
@@ -350,8 +350,8 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
       // slot's "last started key" memory so the new animation fires its own.
       _resetSlots();
       // Then resolve them *at* the frame we just rewound to. `setupAnimation`
-      // poses the first frame without playing (the idle pose the SDK's player
-      // guidelines call for), and without this the instance children are
+      // poses the first frame without playing,
+      // and without this the instance children are
       // missing from that pose until something advances the clock. The flagship
       // ends its `_fetchAnimation` with the same re-resolve.
       _stepSlots(frameNo, 0.0, false);
@@ -422,7 +422,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   set loopCount(int count) => ssRuntime.setLoopCount(_context, count);
   set speedScale(double rate) => ssRuntime.setSpeedScale(_context, rate);
   set frameRate(int fps) => ssRuntime.setFrameRate(_context, fps);
-  /// Moves the playhead, then re-resolves the slot-based kinds (§8) *at the new
+  /// Moves the playhead, then re-resolves the slot-based kinds *at the new
   /// frame*. Without that second half an instance child keeps whatever
   /// visibility and child frame the last [updateMs] left it on, so a scrubbed or
   /// frozen frame can drop the children entirely.
@@ -465,8 +465,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
 
   /// Advances internal time. Returns the new (sub-frame) frame number.
   ///
-  /// The Brain's `ss_runtime_update` takes a delta whose unit the SDK docs
-  /// define (milliseconds per docs/30_core/20_playback_control). We pass the
+  /// The Brain's `ss_runtime_update` takes a delta in milliseconds. We pass the
   /// [delta] in milliseconds; use [updateMs] to control the raw value.
   double update(Duration delta) => updateMs(delta.inMicroseconds / 1000.0);
 
@@ -479,7 +478,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
     return frame;
   }
 
-  /// Drives the slot-based kinds (§8) one tick at [frame].
+  /// Drives the slot-based kinds one tick at [frame].
   ///
   /// Shared by [updateMs] (a root player, which has just advanced its own clock)
   /// and [instanceStepSlots] (an instance child, whose clock the parent's slot
@@ -552,7 +551,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   /// Per-part cell meta (parts × 6: pivot_x,pivot_y,w,h,rect_left,rect_top).
   Float32List cellMeta() => ssRuntime.cellMeta(_context);
 
-  // --- Mesh SoA (§8) -------------------------------------------------------
+  // --- Mesh SoA ------------------------------------------------------------
   //
   // Unlike the Normal path's `local_vertices`, mesh vertices arrive **already
   // world-transformed** — do NOT apply the world matrix again. All four data
@@ -581,7 +580,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   /// CSR prefix sum into [meshIndices].
   Uint32List meshIndexOffsets() => ssRuntime.meshIndexOffsets(_context);
 
-  // --- Shape SoA (§11) -----------------------------------------------------
+  // --- Shape SoA -----------------------------------------------------------
 
   /// Shape polygon vertices in **local** space, interleaved `[x,y,…]` at a fixed
   /// stride of 24 floats per part ([ShapeBuffers.stride]) — not CSR like the
@@ -597,7 +596,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   /// Shape batch's `vertex_count` / `index_count` are 0.
   Int32List shapeVertexCounts() => ssRuntime.shapeVertexCounts(_context);
 
-  // --- Effects (§8) --------------------------------------------------------
+  // --- Effects -------------------------------------------------------------
 
   /// The effect-hosting parts in this pack (empty when it has none).
   List<EffectPart> get effectParts => _effects.parts;
@@ -611,7 +610,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   efbs.EffectDrawPlan? effectPlanFor(int partIndex) =>
       _effects.planFor(partIndex);
 
-  // --- Instances (§8) ------------------------------------------------------
+  // --- Instances -----------------------------------------------------------
 
   /// The instance-hosting parts in this pack (empty when it has none).
   List<InstancePart> get instanceParts => _instances.parts;
@@ -636,7 +635,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
         count, (i) => ssRuntime.passedEventIndex(_context, i));
   }
 
-  // --- Part overrides (§65 Override Layer) ---------------------------------
+  // --- Part overrides (Override Layer) -------------------------------------
   //
   // An imperative "make this part this colour / cell / hidden now" that wins
   // over both the keyframes and the blend. The Brain applies them at a seam
@@ -655,9 +654,8 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   // **[setupAnimation] must have run first.** The Brain's override table is a
   // dense per-part array that only `setup_animation` sizes (`bind_resource`
   // empties it), so before an animation is selected EVERY index is out of range
-  // and every call here returns false. §65 does not spell this out — it only
-  // says `find_part_index` needs setup — but it applies to the setters just as
-  // much. [partNames] is read from the pack and so works either way, which is
+  // and every call here returns false.
+  // [partNames] is read from the pack and so works either way, which is
   // exactly how a caller ends up with a valid index and a failing set.
   //
   // Unlike the Unity player there is no frame cache to invalidate here: [paint]
@@ -665,7 +663,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   // paint. What a paused player DOES need is a repaint — L3
   // `SpriteStudioPlayer` notifies its listeners for exactly that reason.
 
-  /// Pack-level part names / name→index lookup (§65-4). Indices are stable
+  /// Pack-level part names / name→index lookup. Indices are stable
   /// within one `.ssab`; resolve once and reuse.
   PartNameTable get partNames => _partNames;
 
@@ -677,7 +675,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   ///
   /// Visibility has no priority mode — it always wins, and `setupAnimation`
   /// always clears it. Note the cascade only propagates override-driven hiding:
-  /// a keyframe `hide` stays per-part (§65-3-3), so do not add your own parent→
+  /// a keyframe `hide` stays per-part, so do not add your own parent→
   /// child propagation on top.
   ///
   /// An instance part's own force-hide does NOT reach into its child animation
@@ -888,7 +886,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   }
 
   /// Whether [partIndex] is hidden on the current frame — the keyframe `hide`
-  /// composed with any visibility override (§65), read from the same FrameData
+  /// composed with any visibility override, read from the same FrameData
   /// the draw path consumes. A part absent from this frame's `parts` reads as not
   /// hidden (its world matrix is still valid), matching the flagship followers.
   /// Out-of-range → false.
@@ -919,11 +917,10 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   // --- Runtime texture replacement -----------------------------------------
   //
   // Swap the bitmap a whole cellmap (or a TextureChange's target file) samples,
-  // from program code — costume changes, dynamic expressions. Ports the SDK's
-  // "Runtime texture replacement (a Player-side override)"
-  // (40_components/70_external_resources) and ForGodot's `set_cellmap_texture`.
+  // from program code — costume changes, dynamic expressions. Ports ForGodot's
+  // `set_cellmap_texture`.
   //
-  // It is NOT part of the §65 Override Layer (per-part colour/cell/visibility,
+  // It is NOT part of the Override Layer (per-part colour/cell/visibility,
   // owned by the Brain). This is a pure Body concern: [textures] maps
   // `texture_hash → image` and the draw loop already binds by
   // `DrawBatch.texture_hash`, so a swap "just draws" — for both backends (Canvas
@@ -938,7 +935,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   // from the parent's registry so a shared atlas decodes once), so an override
   // reaches every part in the tree that samples that hash — ROOT and INSTANCE
   // CHILD alike. That is the opposite of ForGodot, where each child owns its own
-  // `_textures` and the override does not propagate (memo §5-1); this port's
+  // `_textures` and the override does not propagate; this port's
   // shared-registry design makes it a tree-wide, hash-keyed swap instead.
   //
   // A part under a TextureChange binds the FILE-name hash on the frames it fires,
@@ -971,7 +968,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
 
   // --- Rendering -----------------------------------------------------------
 
-  /// Draws the current frame into [canvas] (design §7; ports the Godot flagship
+  /// Draws the current frame into [canvas] (ports the Godot flagship
   /// `_drawAnimation`). Gathers the FlatBuffers `FrameData` + SoA views into one
   /// [DrawFrame], hands frame placement to the [RenderBackend] (which centers the
   /// animation's world origin in [dst]), then dispatches each `DrawBatch` on its
@@ -1011,7 +1008,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
     _backend.beginFrame(canvas,
         dst: dst, sourceSize: sourceSize, root: rootTransform);
     // The whole tree draws through THIS player's backend — including instance
-    // children (§8), which share it so their geometry lands in the same target
+    // children, which share it so their geometry lands in the same target
     // (GPU) / on the same canvas (Canvas) under a pushed transform.
     _paintTree(canvas, _backend);
     _backend.finish();
@@ -1020,7 +1017,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   /// Draws this player's batches into the *already positioned* [canvas] — the
   /// recursive half of [paint].
   ///
-  /// Split out for Instance (§8): a child is drawn by calling this under the
+  /// Split out for Instance: a child is drawn by calling this under the
   /// instance part's world transform, so it must not re-apply [paint]'s origin
   /// placement. [frameOverride] is the child's Brain-owned clock, and
   /// [alphaScale] the instance chain's opacity.
@@ -1088,10 +1085,10 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
     );
     if (frame == null) return;
 
-    // Masking (§9) is a pre-pass: collect this frame's writers, rasterise their
+    // Masking is a pre-pass: collect this frame's writers, rasterise their
     // coverage bitmap, then let the batch loop test each target against it.
     //
-    // An instance sub-animation is **parent-driven** (§8): it does NOT rasterise
+    // An instance sub-animation is **parent-driven**: it does NOT rasterise
     // its own coverage — its own clipping / pure masks do NOT clip its own parts.
     // SpriteStudio 7.5 renders an instance's parts un-clipped by their siblings
     // (verified against the tool; the ForGodot and ForWGPU players are
@@ -1105,7 +1102,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
         : _buildMaskContext(backend, frame, batches,
             inheritedMask?.comp ?? MaskComposition.identity);
 
-    // A mask inherited from a parent instance (§3-2-2) reaches the child's
+    // A mask inherited from a parent instance reaches the child's
     // peel-maskable kinds — Normal, Shape and Mesh — resolved per part against
     // the composed settings. Effect is not peeled (its plan carries its own
     // colours), so it escapes the parent clip — the same kind an own-mask can't
@@ -1123,15 +1120,15 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
               canvas, backend, batch, frame, maskCtx, inheritedMask);
         case fbs.DrawBatchKind.Shape:
           backend.emitShape(canvas, batch, frame, this, maskCtx, inheritedMask);
-        case fbs.DrawBatchKind.Mask: // §9: coverage only, never colour
-        case fbs.DrawBatchKind.Nines: // §11 9-slice: not yet supported
+        case fbs.DrawBatchKind.Mask: // coverage only, never colour
+        case fbs.DrawBatchKind.Nines: // 9-slice: not yet supported
         case fbs.DrawBatchKind.Text: // no SDK render path
           break; // kinds not yet ported are skipped
       }
     }
   }
 
-  /// Emits one Instance batch (§8): draws each child animation in-place.
+  /// Emits one Instance batch: draws each child animation in-place.
   ///
   /// The child is a whole nested player whose clock the Brain advanced during
   /// [updateMs]; all that is left here is placement. Its parts are in *child*
@@ -1161,10 +1158,9 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
       final world = GeometryBuilder.world2dOf(part, frame, _world2dScratch);
       if (world == null) continue;
 
-      // The instance part's own PartColor (§10) tints the entire child. The SDK
-      // spec's part-type table (§1-2) covers Normal / Mesh / Shape only, but the
-      // runtime emits `part_color` for any part that carries the attribute, so
-      // an instance part can have one — read whole-only, like a Mesh.
+      // The instance part's own PartColor does not tint the child (see below);
+      // only its alpha is read. The runtime emits `part_color` for any part that
+      // carries the attribute, so an instance part can have one.
       final st = frame.partOf(part);
       final pc = st == null ? null : PartColor.read(frame.partsColor, st);
 
@@ -1175,7 +1171,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
           partAlpha: frame.alphaOf(part), chainScale: frame.alphaScale);
       if (alpha <= 0.0) continue;
 
-      // §2-6 / §3-2-2: a mask reaching this instance part applies to the whole
+      // A mask reaching this instance part applies to the whole
       // sub-animation, but the calling part's settings do NOT replace the
       // callee's — they compose (`mask_influence` AND, `visible_inside_mask` OR)
       // and each child part resolves its own test from the pair. So what goes
@@ -1185,7 +1181,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
       // (a fragment can test only one), else the one this player itself
       // inherited, forwarded another level. Only the UV affine is re-composed
       // with the slot matrix, so the child's local fragments sample it correctly.
-      // Scope (§2-1) is settled here, at the instance part's rank.
+      // Scope is settled here, at the instance part's rank.
       final flags = flagsFor(part);
       final source = resolvePartMask(maskCtx, inheritedMask, rank, flags);
       final inherited =
@@ -1200,9 +1196,8 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
       // family's rule, not a simplification here: SSPlayerForGodot modulates the
       // child's CanvasItem with `Color(1, 1, 1, part_alpha)`, and
       // SSPlayerForWgpu spells it out — "Colour deliberately does not cross the
-      // boundary — no player propagates an instance part's tint." The SDK's
-      // PartColor part-type table (§1-2) likewise covers Normal / Mesh / Shape
-      // and not Instance. The Editor agrees: a sub-animation under an instance
+      // boundary — no player propagates an instance part's tint."
+      // The Editor agrees: a sub-animation under an instance
       // part carrying a Mul PartColor renders untinted there.
       //
       // This Body used to tint the subtree with `wholeTintMatrix` through a
@@ -1222,7 +1217,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
         frameOverride: state.childFrame,
         alphaScale: alpha,
         inheritedMask: inherited,
-        parentDriven: true, // §8: the child never rasterises its own coverage
+        parentDriven: true, // the child never rasterises its own coverage
       );
       backend.popTransform(canvas);
     }
@@ -1233,21 +1228,21 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   /// mask path then costs one [MaskPlan.build] walk of `draw_order`).
   ///
   /// Two sources feed the coverage: this player's OWN writers, and the clipping
-  /// writers **carried up** from visible instance children (§2-6 carry-over), so
+  /// writers **carried up** from visible instance children (carry-over), so
   /// a mask written inside a sub-animation clips this player's parts drawn after
   /// the instance. The coverage runs when EITHER contributes — a player with no
   /// mask of its own still rasterises a child's bubbled writers.
   MaskContext? _buildMaskContext(RenderBackend backend, DrawFrame frame,
       List<fbs.DrawBatch> batches, MaskComposition comp) {
-    // Own writers (§2-2): null when this player writes no mask of its own. [comp]
-    // threads in so the own writers pick up the effective (composed) influence
-    // (§2-6/③). No early-out on `!comp.influence`: the AND-chain settles which
+    // Own writers: null when this player writes no mask of its own. [comp]
+    // threads in so the own writers pick up the effective (composed) influence.
+    // No early-out on `!comp.influence`: the AND-chain settles which
     // targets the coverage is tested against, not whether it is written.
     final own = _maskFlags.isEmpty
         ? null
         : MaskPlan.build(frame, _maskFlags, comp: comp);
 
-    // Carry-over (§2-6): an instance child's clipping writers bubble up into this
+    // Carry-over: an instance child's clipping writers bubble up into this
     // coverage. Runs even when this player owns no writer of its own.
     final bubbled = _collectBubbledWriters(frame, comp,
         startBit: own?.writers.length ?? 0);
@@ -1272,9 +1267,9 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
     if (ctx == null) return null;
     // The backend builds the MaskContext with the coverage it owns but the
     // identity composition; fold the inherited [comp] in so this player's OWN
-    // mask composes with the instance chain (§2-6) — the target opt-in (AND) and
+    // mask composes with the instance chain — the target opt-in (AND) and
     // the polarity (OR). Identity at the top level leaves it untouched.
-    // Fold the inherited composition into this player's OWN mask (§2-6), exactly
+    // Fold the inherited composition into this player's OWN mask, exactly
     // as the WebGL flagship does: a part is a target when its own mask_influence
     // survives the AND-chain (`comp.targets`), and its polarity ORs in the
     // chain's visible_inside (`comp.visibleInsideFor`) —
@@ -1287,14 +1282,14 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   }
 
   /// Collects the clipping writers of every visible instance child, mapped into
-  /// this player's coverage space (§2-6 carry-over). Bits continue from
+  /// this player's coverage space (carry-over). Bits continue from
   /// [startBit] (after this player's own writers) up to [kMaxMaskWriters].
   ///
   /// Only CLIPPING writers carry out — a pure mask closes within the child
   /// (masks its own earlier parts). Single-stage, matching the downward
   /// inheritance: a grandchild's writers are not re-bubbled here. Each child's
   /// own writers are (re)built under the composition that reaches it, so their OP
-  /// is already the effective `mask_influence` (§2-6/③).
+  /// is already the effective `mask_influence`.
   _BubbledWriters _collectBubbledWriters(DrawFrame frame, MaskComposition comp,
       {required int startBit}) {
     if (_instances.isEmpty) return _BubbledWriters.empty;
@@ -1413,8 +1408,8 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   }
 
   /// Builds this player's [DrawFrame] at [sampled] plus a `drawRank → texture
-  /// hash` map, for baking its (clipping) writers into a PARENT's coverage (§2-6
-  /// carry-over). A lighter mirror of [_paintTree]'s gather — alpha is
+  /// hash` map, for baking its (clipping) writers into a PARENT's coverage
+  /// (carry-over). A lighter mirror of [_paintTree]'s gather — alpha is
   /// irrelevant to a coverage bit, so it is left at 1.
   ({DrawFrame frame, Map<int, int> textureByRank})? _buildChildMaskFrame(
       double sampled) {
@@ -1466,7 +1461,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
     return (frame: frame, textureByRank: texByRank);
   }
 
-  // --- InstanceChild (§8): this player driven as another's instance child ---
+  // --- InstanceChild: this player driven as another's instance child --------
 
   @override
   SsContext get instanceContext => _context;
@@ -1530,8 +1525,8 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   }
 }
 
-/// The instance children's clipping writers carried up into a player's coverage
-/// (§2-6), gathered by [SpriteStudioInternalPlayer._collectBubbledWriters]:
+/// The instance children's clipping writers carried up into a player's coverage,
+/// gathered by [SpriteStudioInternalPlayer._collectBubbledWriters]:
 /// [sentinels] for [MaskPlan.writers] (scope resolution) and [bakes] for the
 /// coverage rasteriser, paired by [MaskWriter.bit] / [BubbledWriter.bit], plus
 /// their union [bounds] in owner-local space.

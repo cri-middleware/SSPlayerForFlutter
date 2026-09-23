@@ -1,7 +1,7 @@
 /// SpriteStudio player for Flutter.
 ///
 /// A dart:ffi "Body" over the SpriteStudio-SDK Rust "Brain" (libssruntime).
-/// Layering (design §2, top → bottom): [SpriteStudioView] (L4 adapter) →
+/// Layering (top → bottom): [SpriteStudioView] (L4 adapter) →
 /// [SpriteStudioPlayer] (L3 control) → [SpriteStudioInternalPlayer] (L2 draw
 /// engine) → [SsRuntimeBindings] (L1 dart:ffi).
 library;
@@ -72,7 +72,7 @@ export 'src/render/part_color.dart' show PartColor, PartColorCorner;
 // Integration shaders (`SHDR`) — the built-in `ss-*` effect catalog and the
 // per-part attribute reader. The programs themselves live in shaders/.
 export 'src/render/part_shader.dart' show PartShader, SsShaderId;
-// Part overrides (§65) — the enums and the part-name table the by-name
+// Part overrides — the enums and the part-name table the by-name
 // overrides resolve through. The calls themselves live on the L2/L3 players.
 export 'src/render/part_override.dart'
     show SsBlendOp, SsCornerColors, SsOverridePriority, PartNameTable, packRgba;

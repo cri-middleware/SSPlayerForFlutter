@@ -6,7 +6,7 @@ import 'package:ssruntime_dart/framedata.dart' as fbs;
 
 import 'part_color.dart';
 
-/// The Brain's shape SoA for one frame (§11), bundled for [DrawFrame].
+/// The Brain's shape SoA for one frame, bundled for [DrawFrame].
 ///
 /// Deliberately **not** CSR, unlike [MeshBuffers]: the Brain writes a fixed
 /// [stride] of 12 vertices per part and reports how many of them are live in
@@ -62,7 +62,7 @@ class ShapeBuffers {
   }
 }
 
-/// The Brain's mesh SoA for one frame (§8), bundled for [DrawFrame].
+/// The Brain's mesh SoA for one frame, bundled for [DrawFrame].
 ///
 /// Every buffer is concatenated across all parts and sliced by a **CSR prefix
 /// sum** (`length == parts + 1`): part `p` owns `[offsets[p], offsets[p + 1])`,
@@ -118,7 +118,7 @@ class MeshBuffers {
   }
 }
 
-/// Per-frame draw inputs bundled for the geometry builders (design §7).
+/// Per-frame draw inputs bundled for the geometry builders.
 ///
 /// Mirrors the Godot flagship `DrawFrame` struct and the Web port's raw frame
 /// views: it gathers the FlatBuffers `FrameData` root together with the Brain's
@@ -126,9 +126,9 @@ class MeshBuffers {
 /// consume within the frame) so the per-kind builders take one argument instead
 /// of a long parameter list.
 ///
-/// SoA strides (design §7 / §0-A): world = 16 floats/part, `local`/`uv` = 10
-/// floats/part (`lt,rt,lb,rb,center`). Cell meta (parts × 6) and the mesh (§8) /
-/// shape (§11) SoA travel alongside, one entry per part.
+/// SoA strides: world = 16 floats/part, `local`/`uv` = 10
+/// floats/part (`lt,rt,lb,rb,center`). Cell meta (parts × 6) and the mesh /
+/// shape SoA travel alongside, one entry per part.
 ///
 /// [partByIndex] maps a part index (as found in [drawOrder]) to its
 /// [fbs.PartState], materialized once per frame because the `parts` vector is
@@ -138,7 +138,7 @@ class MeshBuffers {
 /// read with no per-key hashing, and a single contiguous allocation per frame.
 /// Look parts up through [partOf], which bounds-checks (a `drawOrder` entry can
 /// name a part absent from this frame's `parts` vector); a slot is null for any
-/// index not present. This is the seam where the §7D raw-`ByteData` fast path —
+/// index not present. This is the seam where the raw-`ByteData` fast path —
 /// reading `PartState` / `parts_color` by byte offset instead of via the
 /// FlatBuffers accessors — will slot in when it matters.
 class DrawFrame {
@@ -238,15 +238,15 @@ class DrawFrame {
   final Float32List local; // parts × 10 (lt,rt,lb,rb,center)
   final Float32List uv; // parts × 10 (texture-pixel space)
 
-  /// The frame's mesh SoA (§8), or null when the animation has no Mesh batch.
+  /// The frame's mesh SoA, or null when the animation has no Mesh batch.
   final MeshBuffers? mesh;
 
-  /// The frame's shape SoA (§11), or null when the animation has no Shape part.
+  /// The frame's shape SoA, or null when the animation has no Shape part.
   final ShapeBuffers? shape;
 
   /// An extra opacity multiplier applied on top of every part's own alpha.
   ///
-  /// 1.0 for a root player. For an instance child (§8) it carries the product of
+  /// 1.0 for a root player. For an instance child it carries the product of
   /// the instance parts' alphas down the chain — that modulation lives in the
   /// *parent's* FrameData, so the Brain cannot fold it in the way it folds the
   /// hierarchical alpha within one pack.
@@ -299,7 +299,7 @@ class DrawFrame {
   ///
   /// The Brain has already resolved the parent chain *within* this pack, so this
   /// never walks it. Note the PartColor path does NOT go through here: there the
-  /// hierarchical alpha is pre-folded into the corner alphas (§1-3) and
+  /// hierarchical alpha is pre-folded into the corner alphas and
   /// re-multiplying it would double-apply.
   double alphaOf(int partIndex) =>
       (partOf(partIndex)?.alpha ?? 1.0).clamp(0.0, 1.0) * alphaScale;
@@ -321,7 +321,7 @@ class MeshGeometry {
 
   final Float32List positions;
 
-  /// Null for a kind that samples no texture — a Shape (§11) is coloured purely
+  /// Null for a kind that samples no texture — a Shape is coloured purely
   /// by [colors], so there is nothing to map. `Vertices.raw` requires this to be
   /// either absent or exactly as long as [positions].
   final Float32List? texCoords;
@@ -384,7 +384,7 @@ class InterleavedGeometry {
   final int indexCount;
 }
 
-/// Per-part quad + affine map for the PartColor shader path (parts_color §1).
+/// Per-part quad + affine map for the PartColor shader path.
 ///
 /// The four world-transformed corners drive a fill path; `origin` + `inv` map a
 /// fragment position back to quad-local `(s,t)` inside `shaders/partcolor.frag`
@@ -454,8 +454,7 @@ class PartColorQuad {
   }
 }
 
-/// Bakes the Brain's SoA buffers into `ui.Vertices` for `Canvas.drawVertices`
-/// (design §7C).
+/// Bakes the Brain's SoA buffers into `ui.Vertices` for `Canvas.drawVertices`.
 ///
 /// Pure geometry construction — no `Canvas`, no FFI — so it is unit-testable in
 /// isolation and reusable headless / from Flame / flutter_gpu, matching the
@@ -671,7 +670,7 @@ class GeometryBuilder {
 
   /// Floats per vertex in the peeled-PartColor bakes ([buildPartColorInterleaved]
   /// / [buildMeshPartColorInterleaved]) — 24 floats = 96 bytes, every `vec4`
-  /// attribute on a 16-byte boundary so Impeller reads them correctly (§5 / the
+  /// attribute on a 16-byte boundary so Impeller reads them correctly (the
   /// ShapeMask alignment trap). Layout matches `shaders/gpu/partcolor.vert`:
   /// `[pos.xy, uv.xy, color.rgba, coef.xyz+rate, mask_bits, mask_uv, mask_off.xy00]`.
   static const int partColorStride = 24;
@@ -682,7 +681,7 @@ class GeometryBuilder {
   /// never drift from the shader's `in` layout.
   ///
   /// [col] is the corner colour whose straight RGBA + [PartColorCorner.rate] this
-  /// vertex carries (the shader interpolates them into the §10 gradient), [coef]
+  /// vertex carries (the shader interpolates them into the gradient), [coef]
   /// is the part's blend coefficient row (constant across the quad), and [mask] is
   /// the flattened replay set `(inc, inv, visibleInside, enabled, m00,m01,m10,m11,
   /// ox,oy)` or null when the part is unmasked (→ `enabled = 0`). ALL 24 floats
@@ -800,7 +799,7 @@ class GeometryBuilder {
     );
   }
 
-  /// Interleaved flutter_gpu bake of mesh [parts] (§8) — the GPU sibling of
+  /// Interleaved flutter_gpu bake of mesh [parts] — the GPU sibling of
   /// [buildMeshGeometry]. Mesh verts are **already world-space** (no matrix);
   /// UVs are normalised by [texWidth]/[texHeight] and the colour is premultiplied
   /// white×alpha `(a,a,a,a)`. Part-local indices are rebased. Returns null when
@@ -863,13 +862,13 @@ class GeometryBuilder {
   }
 
   /// Interleaved flutter_gpu bake of *peeled* Normal [parts] carrying PartColor
-  /// (§10) and/or a mask test (§9) — the per-vertex-attribute feed for the
-  /// `PartColorVertex/Fragment` pipeline (§19).
+  /// and/or a mask test — the per-vertex-attribute feed for the
+  /// `PartColorVertex/Fragment` pipeline.
   ///
   /// Each vertex is self-describing ([partColorStride] floats), so a whole RUN
   /// batches into ONE draw with no uniform array. Each part's quad takes its four
   /// corner colours + rates straight from [pcs]`[i]` (the four corners land on the
-  /// four vertices, and the rasteriser interpolates the §10 gradient — no
+  /// four vertices, and the rasteriser interpolates the gradient — no
   /// per-fragment bilinear), and its flattened mask replay set from [masks]`[i]`
   /// (null = unmasked). [pcs] / [masks] are parallel to [parts]; a part whose
   /// quad is degenerate is dropped (its [pcs]/[masks] entry with it). Views alias
@@ -990,11 +989,11 @@ class GeometryBuilder {
   }
 
   /// Interleaved flutter_gpu bake of *peeled* mesh [parts] — the mesh sibling of
-  /// [buildPartColorInterleaved], for a mesh part carrying PartColor (§10) and/or
-  /// a mask test (§9). Feeds the **same** `PartColorVertex/Fragment` pipeline in
+  /// [buildPartColorInterleaved], for a mesh part carrying PartColor and/or
+  /// a mask test. Feeds the **same** `PartColorVertex/Fragment` pipeline in
   /// the same [partColorStride]-float layout, which needs no mesh-specific shader:
   ///
-  ///  * **Whole-only** (§10: Mesh = same value on every vertex): every vertex carries the `lt`
+  ///  * **Whole-only** (Mesh = same value on every vertex): every vertex carries the `lt`
   ///    corner's colour + rate, so there is no gradient to reconstruct.
   ///  * the mask replay samples the coverage through the `v_local` varying, and a
   ///    mesh vertex is already player-local world-space — the same space the
@@ -1057,7 +1056,7 @@ class GeometryBuilder {
     );
   }
 
-  /// Interleaved flutter_gpu bake of shape [parts] (§11) — the GPU sibling of
+  /// Interleaved flutter_gpu bake of shape [parts] — the GPU sibling of
   /// [buildShapeParts]. A Shape samples no texture, so UV is `(0,0)` (the caller
   /// binds a 1×1 white texel and the `texel * colour` shader collapses to the
   /// colour). Per-vertex colour is baked here — plain = premultiplied white×alpha,
@@ -1282,7 +1281,7 @@ class GeometryBuilder {
     );
   }
 
-  /// Bakes the given mesh [parts] into a single indexed [ui.Vertices] (§8).
+  /// Bakes the given mesh [parts] into a single indexed [ui.Vertices].
   ///
   /// Thin wrapper over [buildMeshGeometry] — see it for the contract. Returns
   /// null when nothing was emitted.
@@ -1290,7 +1289,7 @@ class GeometryBuilder {
       buildMeshGeometry(parts, frame)?.toVertices();
 
   /// Bakes the given mesh [parts] (part indices, already in draw order) into
-  /// raw vertex arrays (§8).
+  /// raw vertex arrays.
   ///
   /// Much simpler than the Normal path: the Brain hands over **world-space**
   /// vertices, so there is no matrix to apply — the SoA X/Y are interleaved into
@@ -1301,9 +1300,9 @@ class GeometryBuilder {
   /// batchable and may carry several parts, so the rebase is load-bearing.
   ///
   /// [alphaOverride] replaces that per-part hierarchical alpha for every vertex.
-  /// It is the PartColor (§10) case: with a tint the Brain has pre-folded the
+  /// It is the PartColor case: with a tint the Brain has pre-folded the
   /// hierarchical alpha into the corner alphas, so `PartState.alpha` must NOT be
-  /// used as well (§1-3 — the two multiplied would double-apply it); the caller
+  /// used as well (the two multiplied would double-apply it); the caller
   /// passes `pc.lt.a` instead. Mesh is whole-only, so one value covers the part.
   ///
   /// Returns null when nothing was emitted. Split out from [buildMeshParts] so
@@ -1377,7 +1376,7 @@ class GeometryBuilder {
     );
   }
 
-  /// Bakes one `EffectDrawCommand`'s particle quads into a vertex block (§8) —
+  /// Bakes one `EffectDrawCommand`'s particle quads into a vertex block —
   /// the single-command case of [buildEffectGroup]. Returns null when the
   /// command is empty or the plan's buffers are short.
   MeshGeometry? buildEffectCommand(
@@ -1392,9 +1391,9 @@ class GeometryBuilder {
           texWidth: texWidth, texHeight: texHeight);
 
   /// Bakes a run of adjacent `EffectDrawCommand`s that share cellmap + blend
-  /// into ONE vertex block (§8), so the caller draws the whole group with a
-  /// single `drawVertices` instead of one per command (the SDK's suggested
-  /// effect optimisation). [cmds] must be same-cellmap / same-blend and in draw
+  /// into ONE vertex block, so the caller draws the whole group with a
+  /// single `drawVertices` instead of one per command.
+  /// [cmds] must be same-cellmap / same-blend and in draw
   /// order; [SpriteStudioInternalPlayer] groups them, capping each group so its
   /// vertices stay within the 16-bit index limit.
   ///
@@ -1523,7 +1522,7 @@ class GeometryBuilder {
     );
   }
 
-  /// Interleaved flutter_gpu bake of an effect command group (§8) — the GPU
+  /// Interleaved flutter_gpu bake of an effect command group — the GPU
   /// sibling of [buildEffectGroup]. Reuses that bake (world transform, per-command
   /// index rebase, colour fold) and repacks its output: UVs back to **normalised**
   /// 0..1 (the Canvas path scales them to texture pixels for the identity
@@ -1610,7 +1609,7 @@ class GeometryBuilder {
     return _outlineView(corners, 8);
   }
 
-  /// Bakes Shape parts (§11) into one indexed vertex block, or null when none of
+  /// Bakes Shape parts into one indexed vertex block, or null when none of
   /// them has geometry this frame.
   ///
   /// A Shape is the Normal path's geometry rules with the Mesh path's batching:
@@ -1619,7 +1618,7 @@ class GeometryBuilder {
   /// rebased onto its vertex base.
   ///
   /// The colour is the whole story here, and it is the one place PartColor does
-  /// **not** go through the shader (§1-2-3: a shape bypasses the composite formula):
+  /// **not** go through the shader (a shape bypasses the composite formula):
   ///
   ///  * With PartColor, the vertex colour is `pc.rgba` *directly* — no blend
   ///    formula, forced Mix, rate pinned to 1 — bilinearly weighted per vertex by
@@ -1665,7 +1664,7 @@ class GeometryBuilder {
 
       final state = frame.partOf(p);
       final pc = state == null ? null : PartColor.read(partsColor, state);
-      // No PartColor → white at the part's alpha (§1-2-4's default), which also
+      // No PartColor → white at the part's alpha, which also
       // picks up the instance chain's scale. With PartColor the corner alphas
       // already hold the hierarchical alpha, so only the chain scale is applied.
       final plain = pc == null ? _argb(1.0, 1.0, 1.0, frame.alphaOf(p)) : 0;
@@ -1769,8 +1768,8 @@ class GeometryBuilder {
 
   /// Part [part]'s mesh vertices in world space, interleaved `[x,y,…]`, or null
   /// when it has no *drawable* mesh geometry this frame. Mesh SoA is already
-  /// world-space (§8) so this is a straight copy — used for the coverage bbox of
-  /// a mesh clipping writer (§9). Requires a triangle-bearing index range too, so
+  /// world-space so this is a straight copy — used for the coverage bbox of
+  /// a mesh clipping writer. Requires a triangle-bearing index range too, so
   /// the mask planner reserves a coverage bit only for a writer [_renderCoverage]
   /// can actually rasterise (else a vertex-only part would fold phantom verts
   /// into the bbox yet write nothing — an inert bit).
@@ -1802,7 +1801,7 @@ class GeometryBuilder {
   /// Part [part]'s world matrix as a `Canvas.transform` matrix, or null when the
   /// part is outside the SoA.
   ///
-  /// Used by Instance (§8) to place a child animation, which — unlike every
+  /// Used by Instance to place a child animation, which — unlike every
   /// other kind — is transformed by the *canvas* rather than by baking vertices.
   ///
   /// Only the 2D affine (`m0, m1, m4, m5, m12, m13`) is carried over, with an
@@ -1842,7 +1841,7 @@ class GeometryBuilder {
   }
 
   /// Builds the world quad + frag→`(s,t)` affine for part [part]'s PartColor
-  /// shader draw (parts_color §1). Transforms the four local corners
+  /// shader draw. Transforms the four local corners
   /// (`lt,rt,lb,rb`) by the world matrix, takes `du = rt-lt`, `dv = lb-lt`, and
   /// inverts `[du dv]` so the shader can recover quad-local coordinates from a
   /// fragment position.

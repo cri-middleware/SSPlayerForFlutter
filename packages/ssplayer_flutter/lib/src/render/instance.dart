@@ -4,7 +4,7 @@ import 'package:ssruntime_dart/ssruntime_dart.dart';
 
 import '../ssab/ssab.g.dart' as ssab;
 
-/// A part that plays another animation in-place (§8), as declared in the static
+/// A part that plays another animation in-place, as declared in the static
 /// `.ssab`.
 ///
 /// Read once at load ([readAll]) — the binding never changes per frame. The
@@ -182,7 +182,7 @@ class InstanceSlot<T extends InstanceChild> {
   bool get isIndependent => ssRuntime.instanceSlotIsIndependent(slot);
 }
 
-/// Owns one `InstanceSlot` + child player per instance part (§8).
+/// Owns one `InstanceSlot` + child player per instance part.
 ///
 /// The division of labour is unusually lopsided and worth stating: **every**
 /// playback attribute — start/end labels, loop count, speed, reverse, pingpong,

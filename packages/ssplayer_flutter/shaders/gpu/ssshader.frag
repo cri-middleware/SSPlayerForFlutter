@@ -64,7 +64,7 @@ vec4 ssTex(vec2 uv) {
   return vec4(c.rgb / max(c.a, 0.0001), c.a);
 }
 
-// PartColor composite (§10) over the shader-computed `Pixel`, then
+// PartColor composite over the shader-computed `Pixel`, then
 // re-premultiply. Identical maths to `shaders/gpu/partcolor.frag` and to the
 // Canvas `ssBlend`; `v_color.a` already carries the part's hierarchical alpha
 // (pre-folded by the Brain), so `PartState.alpha` is not re-multiplied.

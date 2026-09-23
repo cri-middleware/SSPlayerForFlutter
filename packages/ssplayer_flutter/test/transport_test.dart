@@ -5,9 +5,7 @@
 //
 // Also pins the four-verb contract itself: `resume` lifts a hold and does
 // NOTHING else. It used to head out through `play` when nothing was playing,
-// which is the one shape the SDK's porting guide asks Players not to take
-// (`30_core/20_playback_control.md`) -- and this was the only Player in the
-// family that took it.
+// and this was the only Player in the family that did.
 import 'dart:io';
 import 'dart:typed_data';
 

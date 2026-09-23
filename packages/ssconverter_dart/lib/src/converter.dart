@@ -33,7 +33,7 @@ class SsConverterException implements Exception {
 ///
 /// Lifetime: each [convert] owns its native `Context` for the duration of the
 /// call (create → convert → poll `is_finished` → get_result → destroy); no
-/// borrowed pointers escape the call (architecture §16B).
+/// borrowed pointers escape the call.
 class SsConverter {
   const SsConverter();
 

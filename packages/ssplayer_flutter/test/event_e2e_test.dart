@@ -1,4 +1,4 @@
-// End-to-end event dispatch (§6C) against the HOST-built Brain: drive a real
+// End-to-end event dispatch against the HOST-built Brain: drive a real
 // pack a frame at a time through the externally-clocked L3 path and assert the
 // decoded `onUserData` / `onSignal` callbacks fire. This exercises the whole
 // chain — `advance` → `passedEventIndices` → `SsAnimeInfo.decodePassedEvents`
