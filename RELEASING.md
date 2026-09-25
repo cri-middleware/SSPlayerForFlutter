@@ -137,7 +137,7 @@ scripts/build-release.sh packages=ssruntime_dart
 *   **private なパッケージはスキップせずプレビューします。** dry run の間だけ `publish_to: none` を外し、スクリプトがどう終了しても復元します。バックアップはパッケージの**外**に置きます（pub は未追跡ファイルも publish するため、隣に置いた `pubspec.yaml.bak` はアーカイブに入ってしまいます）。
 *   **`dart pub publish` は警告を致命エラーとして扱います。** `--ignore-warnings` を渡すのは `-f` でも再利用ワークフローでもありません。`LICENSE` ではなく `LICENSE.md` である、`CHANGELOG.md` が無い、だけで publish は中断します。
 *   **ピンした SDK リリースが存在している必要があります。** `packages/*/hook/build.dart` が
-    `_sdkVersion` のリリースから `libssruntime` / `libssconverter` を取得します。2 つの hook は**同じ**リリースを指す必要があります。SDK が未タグのうち `sdk=check` が失敗するのは正しい挙動です。
+    `_sdkVersion` のリリースから、Rust ツールチェインを持たないすべての利用者向けに `libssruntime` / `libssconverter` を取得します。2 つの hook は**同じ**リリースを指す必要があります。SDK が未タグのうち `sdk=check` が失敗するのは正しい挙動です。
 *   **Web の Brain は git 管理外のビルド生成物ですが、publish に含める必要があります。**
     `assets/runtime-web/{ssruntime.js,ssruntime_bg.wasm,ssruntime_bg.nosimd.wasm}` は
     `ssruntime_dart` の `web_runtime.dart` が名前で読み込むファイルで、pub は git が無視するものを
