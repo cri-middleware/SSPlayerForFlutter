@@ -107,4 +107,5 @@ flutter test          # Native Assets が hook/build.dart 経由で Brain を同
 | ライブリロード | `packages/ssgen_flutter/`（`flutter test`） |
 | サンプルアプリ | `examples/overall/`・`examples/flame/`・`examples/part_following/`（`flutter test`） |
 | macOS 埋め込み確認 | `examples/overall/` → `flutter build macos` → `*.app/Contents/Frameworks/` に `ssruntime.framework` |
+
 4 つのレイヤーとそれぞれが持つものは [アーキテクチャ](architecture.md)、ネイティブライブラリの解決と同梱は [ネイティブランタイム](native-runtime.md) にあります。

@@ -29,7 +29,7 @@ flowchart TD
 
 ## どこに何があるか
 
-- **L1** —— `ssruntime_dart`（純 Dart・非 Flutter）: `@Native` C-API バインディング + ランタイム
+- **L1** —— `ssruntime_dart`（純 Dart・非 Flutter）: `@Native` C-API バインディング（`lib/src/ssruntime_bindings.g.dart`）+ ランタイム
   FlatBuffers（`framedata` / `effect_draw_plan`）。ネイティブは `hook/build.dart` が同梱。
 - **L2–L4** —— `ssplayer_flutter`（公開 API のバレル。L1 は `ssruntime_dart` から直接 import）。
 - **Flame L4** —— `ssplayer_flame`（コアが `flame` を巻き込まないよう別パッケージ）。
