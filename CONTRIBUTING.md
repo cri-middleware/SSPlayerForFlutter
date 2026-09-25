@@ -168,4 +168,4 @@ flutter test          # Native Assets が hook/build.dart 経由で Brain を同
 - 生成コード（`*.g.dart`）は手編集せず、スクリプトで再生成してコミットしてください。
 
 ---
-本プロジェクトへの貢献は、プロジェクトの [LICENSE.md](./LICENSE.md) に同意したものとみなされます。
+本プロジェクトに貢献することで、あなたの貢献がプロジェクトの [LICENSE.md](./LICENSE.md) の下でライセンスされることに同意したものとみなされます。
