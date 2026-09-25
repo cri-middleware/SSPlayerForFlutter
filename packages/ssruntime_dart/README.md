@@ -37,7 +37,7 @@ import 'package:ssruntime_dart/ssruntime_dart.dart';
 // On the web the Brain is a wasm module fetched at runtime; a no-op on native.
 await loadSsRuntime();
 
-final resource = ssRuntime.createResourceCopy(bytes);   // verifies the .ssab
+final resource = ssRuntime.createResourceCopy(bytes);   // checks the "SSAB" identifier only
 ```
 
 `package:ssruntime_dart/framedata.dart` and `effect_draw_plan.dart` carry the
