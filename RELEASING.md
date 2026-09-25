@@ -16,8 +16,8 @@ sets `strict: true`; `zensical serve` validates nothing, `--strict` or not. `.ps
 
 `scripts/build-pages.sh` builds the published tree: those two locales, then both web demos —
 `examples/overall` at `site/demo/flutter/`, `examples/flame` at `site/demo/flame/`, with a chooser
-at `site/demo/`. `pages.yml`'s build job **is** this script with every option spelled out, so CI and
-a local run cannot drift.
+at `site/demo/`. `pages.yml`'s build job **is** this script, so CI builds exactly
+what a local run with the same options builds.
 
 ```bash
 scripts/build-pages.sh serve=yes          # -> http://localhost:8000/SSPlayerForFlutter/
@@ -58,7 +58,7 @@ scripts/build-release.sh checks=skip sdk=skip   # just the archives, offline
 scripts/build-release.sh packages=ssruntime_dart
 ```
 
-`release.yml`'s first job is that script with every option spelled out.
+`release.yml`'s first job is that script.
 
 *   **A private package is previewed, not skipped.** The script lifts `publish_to: none` for the
     length of the dry run and restores it however it exits, from a backup kept *outside* the package
@@ -99,7 +99,7 @@ scripts/build-docs.sh      # 英語 → 日本語の順に、どちらも --stri
 `key=value` オプションと `--help` を取ります。
 
 `scripts/build-pages.sh` が公開ツリーです。上記 2 ロケールに続けて Web デモ 2 本 — `examples/overall`
-を `site/demo/flutter/`、`examples/flame` を `site/demo/flame/`、選択ページを `site/demo/` に — を建てます。`pages.yml` のビルドジョブはこのスクリプトをすべてのオプションを明示して実行するので、CI と手元がずれません。
+を `site/demo/flutter/`、`examples/flame` を `site/demo/flame/`、選択ページを `site/demo/` に — を建てます。`pages.yml` のビルドジョブはこのスクリプトなので、CI が建てるものは、同じオプションで手元で建てたものと一致します。
 
 ```bash
 scripts/build-pages.sh serve=yes          # -> http://localhost:8000/SSPlayerForFlutter/
@@ -132,12 +132,12 @@ scripts/build-release.sh checks=skip sdk=skip   # アーカイブだけ、オフ
 scripts/build-release.sh packages=ssruntime_dart
 ```
 
-`release.yml` の最初のジョブがこのスクリプト（オプションはすべて明示）です。
+`release.yml` の最初のジョブがこのスクリプトです。
 
 *   **private なパッケージはスキップせずプレビューします。** dry run の間だけ `publish_to: none` を外し、スクリプトがどう終了しても復元します。バックアップはパッケージの**外**に置きます（pub は未追跡ファイルも publish するため、隣に置いた `pubspec.yaml.bak` はアーカイブに入ってしまいます）。
 *   **`dart pub publish` は警告を致命エラーとして扱います。** `--ignore-warnings` を渡すのは `-f` でも再利用ワークフローでもありません。`LICENSE` ではなく `LICENSE.md` である、`CHANGELOG.md` が無い、だけで publish は中断します。
 *   **ピンした SDK リリースが存在している必要があります。** `packages/*/hook/build.dart` が
-    `_sdkVersion` のリリースから `libssruntime` / `libssconverter` を取得します。2 つの hook は**同じ**リリースを指す必要があります。SDK が未タグのうち `sdk=check` が失敗するのは正しい挙動です。
+    `_sdkVersion` のリリースから、Rust ツールチェインを持たないすべての利用者向けに `libssruntime` / `libssconverter` を取得します。2 つの hook は**同じ**リリースを指す必要があります。SDK が未タグのうち `sdk=check` が失敗するのは正しい挙動です。
 *   **Web の Brain は git 管理外のビルド生成物ですが、publish に含める必要があります。**
     `assets/runtime-web/{ssruntime.js,ssruntime_bg.wasm,ssruntime_bg.nosimd.wasm}` は
     `ssruntime_dart` の `web_runtime.dart` が名前で読み込むファイルで、pub は git が無視するものを
