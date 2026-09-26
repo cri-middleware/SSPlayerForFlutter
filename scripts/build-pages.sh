@@ -415,7 +415,7 @@ write_demo_index () {
 <!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>SpriteStudioPlayer for Flutter — Web demos</title>
+<title>SpriteStudio Player for Flutter — Web demos</title>
 <style>
   :root { color-scheme: light dark; }
   body { margin: 0; min-height: 100vh; display: grid; place-items: center;
@@ -430,7 +430,7 @@ write_demo_index () {
   p { opacity: .75; font-size: .9rem; }
 </style>
 <main>
-  <h1>SpriteStudioPlayer for Flutter — Web demos / Web デモ</h1>
+  <h1>SpriteStudio Player for Flutter — Web demos / Web デモ</h1>
   <a class="demo" href="flutter/">
     <b>Flutter widget demo</b>
     <span>ssplayer_flutter — every draw kind, drawn to the Flutter Canvas.</span>

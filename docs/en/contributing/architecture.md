@@ -1,6 +1,6 @@
 # 🏗️ Architecture
 
-SpriteStudioPlayer for Flutter is the **Body** for the SpriteStudio-SDK **Brain**. The Brain
+SpriteStudio Player for Flutter is the **Body** for the SpriteStudio-SDK **Brain**. The Brain
 (`libssruntime`, Rust `no_std`) loads a `.ssab`, advances time, and emits per-frame **SoA buffers**
 (world matrices, local vertices / UVs) plus a FlatBuffers **`FrameData`** carrying a **`DrawBatch`**
 plan. The Body consumes them over `dart:ffi` and executes the plan through a pluggable render backend

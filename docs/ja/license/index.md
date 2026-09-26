@@ -1,6 +1,6 @@
 # ⚖️ ライセンス
 
-SpriteStudioPlayer for Flutter は、`SpriteStudio-SDK` のライセンスに従い **BSD-3-Clause** で配布されます。
+SpriteStudio Player for Flutter は、`SpriteStudio-SDK` のライセンスに従い **BSD-3-Clause** で配布されます。
 
 - 全文: [`LICENSE.md`](https://github.com/cri-middleware/SSPlayerForFlutter/blob/main/LICENSE.md)（参考訳: [`LICENSE.ja.md`](https://github.com/cri-middleware/SSPlayerForFlutter/blob/main/LICENSE.ja.md)）
 - Copyright © CRI Middleware Co., Ltd. All rights reserved.

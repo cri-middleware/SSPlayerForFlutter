@@ -1,6 +1,6 @@
 # Third-Party Notices
 
-This file contains the license notices for third-party components used in **SpriteStudioPlayer for
+This file contains the license notices for third-party components used in **SpriteStudio Player for
 Flutter**.
 
 We would like to thank the authors and contributors of these open-source projects.
