@@ -1467,9 +1467,6 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   SsContext get instanceContext => _context;
 
   @override
-  double get instanceFrameNo => frameNo;
-
-  @override
   void instancePlay() {
     if (_disposed) return;
     // Required, not a courtesy: `ss_instance_slot_step` configures this child
