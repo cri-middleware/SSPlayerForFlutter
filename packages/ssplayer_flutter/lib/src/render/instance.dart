@@ -119,18 +119,14 @@ abstract class InstanceChild {
   /// the `EventInstance` is resolved against the *parent's* context.
   SsContext get instanceContext;
 
-  /// The child's current frame, read back after [instancePlay] snaps it.
-  double get instanceFrameNo;
-
   /// Starts the child from its (just-configured) start frame — what the Brain
   /// requires on a transition edge.
   ///
   /// `ss_instance_slot_step` configures the child's section, direction and loop
-  /// count, but deliberately does **not** start it: on the transition tick it
-  /// returns the child's pre-existing frame and leaves the snap-to-start to this
-  /// call. Skip it and an independent child never plays at all — its per-tick
-  /// `Context::update` silently no-ops on a stopped controller, freezing the
-  /// child forever.
+  /// count — which already puts it on its first frame — but deliberately does
+  /// **not** start it. Skip this and an independent child never plays at all:
+  /// its per-tick `Context::update` silently no-ops on a stopped controller,
+  /// freezing the child forever.
   void instancePlay();
 
   /// Re-arms the child's own slot debounces (recursively), without touching its
@@ -263,19 +259,22 @@ class InstanceSlots<T extends InstanceChild> {
       // A transition means a new EventInstance edge. `step` has configured the
       // child's section/direction/loop but left it stopped, so starting it is
       // the host's job and is NOT optional — see [InstanceChild.instancePlay].
-      if (r.transitioned) state.child.instancePlay();
+      if (r.transitioned) {
+        state.child.instancePlay();
+        // play() snaps the clock to the section start. An independent child was
+        // already there; a synced one was at its parent-relative frame, and goes
+        // back to it so the child's clock and the frame drawn below agree.
+        if (!state.isIndependent) {
+          ssRuntime.seek(state.child.instanceContext, r.childFrameNo);
+        }
+      }
 
       state.visible = r.visible;
       if (!r.visible) continue;
 
-      // On a transition tick `step` returns the child's frame from *before*
-      // `play()` snapped it to the new start — it says so itself, and steps no
-      // further to avoid skipping the child's first frame. Taking that stale
-      // value would flash one frame of the previous playthrough, so re-read the
-      // clock we just snapped. Every other tick the returned value is the
-      // freshly stepped one.
-      final childFrame =
-          r.transitioned ? state.child.instanceFrameNo : r.childFrameNo;
+      // The step's frame, the transition tick included — the frame the child's
+      // clock was just put back on above.
+      final childFrame = r.childFrameNo;
       state.childFrame = childFrame;
       // The child's animation clock is the Brain's; its effects and nested
       // instances still need their own tick, at the frame it was just moved to.
