@@ -1,4 +1,4 @@
-# 📱 SpriteStudioPlayer for Flutter
+# 📱 SpriteStudio Player for Flutter
 
 Play **SpriteStudio** raster (sprite) animations (`.ssab`) natively in Flutter — rigged by
 an artist in a dedicated editor, drawn through Flutter's own renderer, with no animation code to

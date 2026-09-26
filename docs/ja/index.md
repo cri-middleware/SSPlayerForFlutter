@@ -1,4 +1,4 @@
-# 📱 SpriteStudioPlayer for Flutter
+# 📱 SpriteStudio Player for Flutter
 
 **SpriteStudio** のラスター（スプライト）アニメーション（`.ssab`）を Flutter でそのまま再生します。アーティストが専用エディタでリグを組み、Flutter 自身のレンダラで描画 —— 手書きのアニメーションコードは不要です。再生処理は
 [SpriteStudio-SDK](https://github.com/cri-middleware/SpriteStudio-SDK) が提供する `libssruntime`

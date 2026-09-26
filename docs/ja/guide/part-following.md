@@ -48,8 +48,8 @@ Stack(
 
 | 値 | 挙動 |
 |---|---|
-| `followAlways`（既定） | hide フラグに関係なく追従を継続し、子ウィジェットを表示し続ける（ForUnity の `FollowAlways`、ForGodot の `FOLLOW_ALWAYS`、ForWeb の `onHide: 'follow'` に相当） |
-| `hideChild` | パーツが hide の間は子ウィジェットを描画しない（ForUnity の `Deactivate`、ForGodot の `HIDE_TARGET`、ForWeb の `onHide: 'hide'` に相当） |
+| `followAlways`（既定） | hide フラグに関係なく追従を継続し、子ウィジェットを表示し続ける（Unity 版の `FollowAlways`、Godot 版の `FOLLOW_ALWAYS`、Web 版の `onHide: 'follow'` に相当） |
+| `hideChild` | パーツが hide の間は子ウィジェットを描画しない（Unity 版の `Deactivate`、Godot 版の `HIDE_TARGET`、Web 版の `onHide: 'hide'` に相当） |
 
 ここでいう hide は、キーフレームの `hide` と表示指定オーバーライドを合成した結果です（[パーツオーバーライド](part-overrides.md) が書き込むのと同じ値）。
 
@@ -74,8 +74,7 @@ SpriteStudioPartAnchor(
 ```
 
 !!! info "`cancel` は厳密で、ズレを残しません"
-    取り消しているのは、このライブラリ自身が掛けた ±1 の対角行列だけです。そのため位置は完全に正確なまま、余計な回転も残りません。姿勢を「回転 + スケール」に分解する ForUnity / ForGodot では、同等の設定（`Drive Scale` / `update_scale` を OFF）にすると水平反転時に 180 度のズレが残りますが、
-    ForFlutter では発生しません。
+    取り消しているのは、このライブラリ自身が掛けた ±1 の対角行列だけです。そのため位置は完全に正確なまま、余計な回転も残りません。姿勢を「回転 + スケール」に分解する Unity 版・Godot 版では、同等の設定（`Drive Scale` / `update_scale` を OFF）にすると水平反転時に 180 度のズレが残りますが、このライブラリでは発生しません。
 
     なお、**SpriteStudio 側でパーツ（やその親）に付けられた負のスケールは、どちらを選んでも子ウィジェットに届きます**。それはアニメーションの一部だからです。`cancel` が取り消すのはプレイヤーの
     `flipX` / `flipY` の分だけです。
@@ -138,9 +137,9 @@ Y-Down の反転は**ランタイム側で適用済み**です。呼び出し側
 2 つが重なると**打ち消し合って**行列式は正に戻ります。したがって「`flipX` したから鏡像」とも「反転させていないから鏡像ではない」とも言えません。符号が必要なときは、そのとき手にしている行列から
 `determinant()` で読み取ってください。
 
-!!! tip "ForFlutter は分解しないので、そのまま正確です"
+!!! tip "このライブラリは分解しないので、そのまま正確です"
     姿勢は `Matrix4` のまま `Transform` ウィジェットへ渡るため、鏡像も欠落なく運ばれます。姿勢を
-    `Quaternion` や `Transform2D` へ分解する ForUnity / ForGodot には鏡像固有の制約がありますが（`Matrix4x4.rotation` が未定義になる、水平反転で回転に 180 度の差が残る、など）、ForFlutter では発生しません。
+    `Quaternion` や `Transform2D` へ分解する Unity 版・Godot 版には鏡像固有の制約がありますが（`Matrix4x4.rotation` が未定義になる、水平反転で回転に 180 度の差が残る、など）、このライブラリでは発生しません。
 
     ただし**自分で分解する場合**は同じ制約を引き受けます。行列から回転角を取り出すようなコードを書くときは、先に `determinant()` の符号を確認してください。平行移動成分（`storage[12]` /
     `storage[13]`）は符号に関係なく常に正確です。

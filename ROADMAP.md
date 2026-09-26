@@ -1,4 +1,4 @@
-# SpriteStudioPlayer for Flutter — Player Roadmap
+# SpriteStudio Player for Flutter — Player Roadmap
 
 The **Flutter Player** roadmap. It tracks Flutter-specific work for capabilities
 the Rust runtime/converter exposes (`SpriteStudio-SDK/ROADMAP.md`). This file is

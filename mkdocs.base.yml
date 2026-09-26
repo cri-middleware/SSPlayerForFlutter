@@ -12,7 +12,7 @@
 # same with `extra.social` and the footer grows six icons. Mappings deep-merge in both
 # tools, so scalars like `theme.language` are safe to override.
 
-site_name: SpriteStudioPlayer for Flutter
+site_name: SpriteStudio Player for Flutter
 site_author: "CRI Middleware Co., Ltd."
 repo_name: "cri-middleware/SSPlayerForFlutter"
 repo_url: "https://github.com/cri-middleware/SSPlayerForFlutter"

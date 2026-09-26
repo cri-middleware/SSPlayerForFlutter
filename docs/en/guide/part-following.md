@@ -60,8 +60,8 @@ Stack(
 
 | Value | Behaviour |
 |---|---|
-| `followAlways` (default) | Keep following the part's pose regardless of its hide flag, so the child stays visible (ForUnity's `FollowAlways`, ForGodot's `FOLLOW_ALWAYS`, ForWeb's `onHide: 'follow'`) |
-| `hideChild` | Stop drawing the child while the part is hidden (ForUnity's `Deactivate`, ForGodot's `HIDE_TARGET`, ForWeb's `onHide: 'hide'`) |
+| `followAlways` (default) | Keep following the part's pose regardless of its hide flag, so the child stays visible (the Unity player's `FollowAlways`, the Godot player's `FOLLOW_ALWAYS`, the Web player's `onHide: 'follow'`) |
+| `hideChild` | Stop drawing the child while the part is hidden (the Unity player's `Deactivate`, the Godot player's `HIDE_TARGET`, the Web player's `onHide: 'hide'`) |
 
 "Hidden" here is the keyframe `hide` composed with any visibility override — the same value
 [Part Overrides](part-overrides.md) writes.
@@ -91,7 +91,7 @@ SpriteStudioPartAnchor(
 
 !!! info "`cancel` is exact, and leaves no residue"
     It undoes a ±1 diagonal this library applied itself, so the position stays exact and no stray
-    rotation is left behind. ForUnity and ForGodot carry the pose as rotation + scale, where the
+    rotation is left behind. The Unity and Godot players carry the pose as rotation + scale, where the
     equivalent setting (`Drive Scale` / `update_scale` off) leaves an extra 180° on a horizontal flip;
     that does not happen here.
 
@@ -166,7 +166,7 @@ matrix you are actually holding, with `determinant()`.
 
 !!! tip "This port never decomposes, so it stays exact"
     The pose reaches a `Transform` widget as a whole `Matrix4`, so a reflection rides along without
-    loss. ForUnity and ForGodot decompose into a `Quaternion` / `Transform2D` and inherit the caveats
+    loss. The Unity and Godot players decompose into a `Quaternion` / `Transform2D` and inherit the caveats
     that come with it (`Matrix4x4.rotation` is undefined on a mirrored matrix; a horizontal flip leaves
     an extra 180° in the extracted rotation) — none of which applies here.
 
