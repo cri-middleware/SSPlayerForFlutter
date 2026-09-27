@@ -183,6 +183,27 @@ List<String> withLiveReloadDefine(List<String> flutterArgs) {
       : [...flutterArgs, '--dart-define=$ssLiveReloadDefine=true'];
 }
 
+/// Why `flutter run` with [flutterArgs] can never take a live-reload, or null
+/// when it can. The push is a service extension, so it needs a debug build whose
+/// VM Service the watcher reaches; these three launch modes give it none, and
+/// waiting on one would only end in a timeout. Used by `--run`.
+String? noLiveReloadReason(List<String> flutterArgs) {
+  for (final arg in flutterArgs) {
+    switch (arg) {
+      case '--wasm':
+        return 'a --wasm web build exposes no VM Service (flutter run offers no '
+            'hot reload there either) — drop --wasm; the default web build '
+            'takes the push';
+      case '--release':
+        return 'a release build has no VM Service';
+      case '--profile':
+        return 'a profile build keeps the VM Service but not the push channel, '
+            'which the app registers in debug builds only';
+    }
+  }
+  return null;
+}
+
 /// Debounce + single-flight runner: coalesces a burst of [bump]s into one
 /// [onChange], never overlapping runs, and re-running once if events arrived
 /// while a run was in flight (so the last save always wins).
@@ -258,6 +279,12 @@ Future<void> runSsWatch(List<String> argv) async {
   }
 
   if (opts.run) {
+    final unreachable = noLiveReloadReason(opts.passthrough);
+    if (unreachable != null) {
+      stderr.writeln('[sswatch] nothing to push to: $unreachable.');
+      exitCode = 2;
+      return;
+    }
     final initial = await _safeReconvert(sync, projectRoot);
     if (initial != null && initial.converted.isNotEmpty) _logConverted(initial);
     final tmp = Directory.systemTemp.createTempSync('ssgen_sswatch');
@@ -269,16 +296,17 @@ Future<void> runSsWatch(List<String> argv) async {
       ...withLiveReloadDefine(opts.passthrough),
     ];
     stdout.writeln('[sswatch] flutter ${args.join(' ')}');
+    // `flutter run` gets this terminal itself, so its own keys (`r`, `R`, `q`)
+    // reach it: a piped stdin would leave them with this process, which never
+    // reads them.
     flutter = await Process.start('flutter', args,
-        runInShell: Platform.isWindows);
-    flutter.stdout.transform(utf8.decoder).listen(stdout.write);
-    flutter.stderr.transform(utf8.decoder).listen(stderr.write);
+        runInShell: Platform.isWindows, mode: ProcessStartMode.inheritStdio);
   }
 
   final String wsUri;
   try {
     wsUri = opts.run
-        ? normalizeVmServiceUri(await _pollFile(runUriFile!))
+        ? normalizeVmServiceUri(await _pollFile(runUriFile!, owner: flutter))
         : await _discoverUri(opts);
   } catch (e) {
     stderr.writeln('[sswatch] $e');
@@ -397,17 +425,28 @@ Future<String> _discoverUri(SsWatchOptions opts) async {
 }
 
 /// Polls [path] until it holds a non-empty line (the launcher writing the URI).
+///
+/// With [owner] — the `flutter run` this watcher spawned — there is no deadline:
+/// a first build can take minutes, and the URI only fails to come if that
+/// process exits first. Without one (attach mode) nothing says the launcher is
+/// still alive, so it gives up after [timeout].
 Future<String> _pollFile(
   String path, {
+  Process? owner,
   Duration timeout = const Duration(seconds: 120),
   Duration interval = const Duration(milliseconds: 200),
 }) async {
   final file = File(path);
   final deadline = DateTime.now().add(timeout);
-  while (DateTime.now().isBefore(deadline)) {
+  var ownerExited = false;
+  unawaited(owner?.exitCode.then((_) => ownerExited = true));
+  while (owner != null || DateTime.now().isBefore(deadline)) {
     if (file.existsSync()) {
       final s = (await file.readAsString()).trim();
       if (s.isNotEmpty) return s;
+    }
+    if (ownerExited) {
+      throw StateError('flutter run exited before publishing a VM Service URI');
     }
     await Future<void>.delayed(interval);
   }
@@ -519,6 +558,7 @@ Future<void> _pushEmbeddedBytes(
             'reloaded $n player(s)'
             '${n > 0 ? ' (animations=${json['animations']})' : ''}.',
           );
+          _reportReloadErrors(json);
         } else {
           stderr.writeln('[sswatch] app reported: ${json['error']}');
         }
@@ -676,6 +716,7 @@ Future<void> _pushConvertedDirs(
             '[sswatch] pushed $dir → reloaded $n player(s)'
             '${n > 0 ? ' (animations=${json['animations']})' : ''}.',
           );
+          _reportReloadErrors(json);
         } else {
           stderr.writeln('[sswatch] app reported: ${json['error']}');
         }
@@ -683,6 +724,18 @@ Future<void> _pushConvertedDirs(
         stderr.writeln('[sswatch] push failed for $dir: $e');
       }
     }
+  }
+}
+
+/// Prints each reload the app reported as having thrown. A push that reached a
+/// target whose `reload` failed still answers `ok` with `reloaded 0`, and the
+/// app's own error hook is empty by default — so without this the failure is
+/// visible nowhere.
+void _reportReloadErrors(Map<String, dynamic> json) {
+  final errors = json['errors'];
+  if (errors is! List) return;
+  for (final e in errors) {
+    stderr.writeln('[sswatch] reload failed in the app for $e');
   }
 }
 

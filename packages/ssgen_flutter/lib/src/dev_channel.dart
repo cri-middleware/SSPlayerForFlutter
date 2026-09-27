@@ -73,7 +73,8 @@ abstract interface class SsLiveReloadTarget {
 /// A `file` push reloads every enabled target whose current pack exists in
 /// `dir` — so the app reloads exactly what it is showing, and a reconvert that
 /// touched other packs is a no-op for it. Result: `{"ok":bool, "reloaded":int,
-/// "animations":int?}`.
+/// "animations":int?, "errors":[String]?}` — `errors` names each target whose
+/// reload threw, so the host can say why a push reloaded nothing.
 class SsDevChannel {
   SsDevChannel._();
 
@@ -147,6 +148,7 @@ class SsDevChannel {
 
       var reloaded = 0;
       int? animations;
+      final errors = <String>[];
       for (final target in _targets.toList()) {
         if (!target.ssLiveReloadEnabled) continue;
 
@@ -182,6 +184,7 @@ class SsDevChannel {
           target.ssOnLiveReloaded();
           reloaded++;
         } catch (e) {
+          errors.add('"${target.ssPack}": $e');
           target.ssOnLiveReloadError(e);
         }
       }
@@ -190,6 +193,7 @@ class SsDevChannel {
         'ok': true,
         'reloaded': reloaded,
         'animations': ?animations,
+        if (errors.isNotEmpty) 'errors': errors,
       }));
     } catch (e) {
       return developer.ServiceExtensionResponse.result(
