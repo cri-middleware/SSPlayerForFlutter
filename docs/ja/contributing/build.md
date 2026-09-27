@@ -25,12 +25,12 @@ git submodule update --init --recursive
 # ネイティブをビルド + C ヘッダを各バインディングパッケージの native/include/ へコピー
 scripts/build-runtime.sh              # 例: build-runtime.sh platform=macos build=release
 
-# アセット生成 → example 起動
-scripts/deploy-examples.sh
-cd examples/overall && flutter run    # [ssplayer] OK ＋ 画面にアニメーションが出れば成功
+# overall を起動（アセットとプラットフォームのランナーが無ければ生成）
+scripts/run-macos.sh                  # [ssplayer] OK ＋ 画面にアニメーションが出れば成功
 ```
 
-Windows は各スクリプトの `.ps1` を使います。android / ios のクロスビルドは
+`run-linux.sh`・`run-ios.sh`・`run-android.sh`・`run-web.sh` も同じことを各ターゲットで行い、`example=<name>`・`--gpu`・`--watch` と `flutter run` の引数を受け付けます（一覧は `scripts/run-example.sh` のヘッダー）。
+Windows は各スクリプトの `.ps1` を使います（起動は `run-windows.ps1`）。android / ios のクロスビルドは
 `SpriteStudio-SDK/scripts/release-*` に委譲します（`build-runtime` 自体はホストターゲットを直接ビルド）。
 
 ## Web（開発者プレビュー）
@@ -56,9 +56,8 @@ NW.js）。両者は **1つ**の wasm-bindgen JS グルー（`ssruntime.js`）�
 **実行:**
 
 ```bash
-cd examples/overall
-flutter run -d chrome          # 既定 CanvasKit レンダラ
-flutter run -d chrome --wasm   # Skwasm レンダラ（WebAssembly ビルドモード）
+scripts/run-web.sh             # 既定 CanvasKit レンダラ
+scripts/run-web.sh --wasm      # Skwasm レンダラ（WebAssembly ビルドモード）
 ```
 
 !!! warning "🚧 開発者プレビュー"

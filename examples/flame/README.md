@@ -22,6 +22,8 @@
 
 ## 実行 / ビルド（`examples/flame/` で）
 
+> リポジトリのルートで `bash scripts/run-<platform>.sh example=flame` を実行すれば、以下の手順（アセット生成・runner の再生成・端末の選択・起動）を 1 回で済ませられます。
+
 > ⚠️ **プラットフォーム runner はコミットされていません。** `examples/flame/{android,ios,macos,linux,windows,web}/`
 > はリポジトリの `.gitignore` 済みで、クローン毎に再生成する方針です（ルート `.gitignore` 参照）。**初回、または `git clean` の後は必ず再生成**してください（これをしないと
 > `No macOS desktop project configured.` になります）:

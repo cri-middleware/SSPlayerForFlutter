@@ -13,18 +13,12 @@ packages/ssconverter_dart/native
 examples/overall/assets/overall/
 
 # Example platform runners are generated per-clone: `cd example && flutter create --platforms=<p> .`
-examples/overall/android/
-examples/overall/ios/
-examples/overall/linux/
-examples/overall/macos/
-examples/overall/windows/
-examples/overall/web/
-examples/flame/android/
-examples/flame/ios/
-examples/flame/linux/
-examples/flame/macos/
-examples/flame/windows/
-examples/flame/web/
+examples/*/android/
+examples/*/ios/
+examples/*/linux/
+examples/*/macos/
+examples/*/windows/
+examples/*/web/
 
 # Scratch (PDF text extraction, etc.)
 scratchpad_design.txt

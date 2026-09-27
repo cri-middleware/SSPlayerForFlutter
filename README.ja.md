@@ -156,7 +156,13 @@ cd examples\overall; flutter run
 
 ## 🎬 サンプル
 
-[`examples/`](./examples/) にすぐ動かせるアプリがあります。先に `scripts/deploy-examples.*` を一度実行してください（SDK のテストプロジェクトを、各サンプルが読み込む `.ssab` へ変換します）。
+[`examples/`](./examples/) にすぐ動かせるアプリがあります。`scripts/run-<platform>.*` を 1 回実行すれば起動します。SDK のテストプロジェクトを各サンプルが読み込む `.ssab` へ変換し、プラットフォームのランナーを生成し、端末を選ぶところまで行います（起動中の端末が無ければエミュレータを起動します）。
+
+```bash
+scripts/run-macos.sh                   # overall。run-linux / run-ios / run-android / run-web も同様
+scripts/run-android.sh example=flame   # 別のサンプル
+scripts\run-windows.ps1                # Windows（run-android.ps1 / run-web.ps1 もあります）
+```
 
 - [overall](./examples/overall) — まず開くのはこちら。`tests/overall` を再生し、ドロップダウンでアニメを切り替えられます。
 - [flame](./examples/flame) — [`ssplayer_flame`](./packages/ssplayer_flame) アダプタのサンプル。`FlameGame` に `SpriteStudioComponent` を 1 つ載せて Ringo を再生し、タップで再生 / 一時停止を切り替えます。
