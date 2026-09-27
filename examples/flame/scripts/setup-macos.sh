@@ -7,4 +7,4 @@
 #
 # Run from anywhere:  bash examples/flame/scripts/setup-macos.sh
 set -euo pipefail
-exec bash "$(cd "$(dirname "$0")/../../scripts" && pwd)/setup-macos.sh" flame
+exec bash "$(cd "$(dirname "$0")/../../scripts" && pwd)/setup-macos.sh" flame "$@"

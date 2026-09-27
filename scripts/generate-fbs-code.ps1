@@ -18,24 +18,9 @@
 
 $ErrorActionPreference = "Stop"
 
-$HelpApp = Split-Path -Leaf $PSCommandPath
-function Show-Usage {
-    Write-Host "Usage: ${HelpApp} [--help]"
-    Write-Host "  flatc --dart over the SDK's .fbs schemas, routing each to the package that owns it:"
-    Write-Host "  ssab/ssqb -> ssplayer_flutter, framedata/effect_draw_plan -> ssruntime_dart."
-    Write-Host "  The write-side builders are split into ssplayer_flutter/test/support. Needs flatc and dart."
-    Write-Host "  The output is committed; run this only when a schema changes."
-}
-
-foreach ($arg in $args) {
-    switch -Regex ($arg) {
-        '^(-h|--help|help)$' { Show-Usage; exit 0 }
-        default {
-            [Console]::Error.WriteLine("${HelpApp}: unknown argument '$arg'")
-            Show-Usage
-            exit 2
-        }
-    }
+if ($args.Count -gt 0) {
+    [Console]::Error.WriteLine("$(Split-Path -Leaf $PSCommandPath): takes no arguments — what it does is in its header comment")
+    exit 2
 }
 
 $RootDir     = Split-Path -Parent (Split-Path -Parent $PSCommandPath)

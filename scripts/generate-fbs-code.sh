@@ -24,23 +24,10 @@
 # SDK location: $SSSDK, else ./SpriteStudio-SDK, else ../SpriteStudio-SDK.
 set -euo pipefail
 
-HELP_APP="$(basename "$0")"
-usage () {
-    cat <<USAGE
-Usage: ${HELP_APP} [--help]
-  flatc --dart over the SDK's .fbs schemas, routing each to the package that owns it:
-  ssab/ssqb -> ssplayer_flutter, framedata/effect_draw_plan -> ssruntime_dart.
-  The write-side builders are split into ssplayer_flutter/test/support. Needs flatc and dart.
-  The output is committed; run this only when a schema changes.
-USAGE
-}
-
-for arg in "$@"; do
-  case "$arg" in
-    -h|--help|help) usage; exit 0 ;;
-    *) echo "${HELP_APP}: unknown argument '${arg}'" >&2; usage >&2; exit 2 ;;
-  esac
-done
+if [ "$#" -gt 0 ]; then
+  echo "$(basename "$0"): takes no arguments — what it does is in its header comment" >&2
+  exit 2
+fi
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 SSAB_OUT_DIR="$ROOT_DIR/packages/ssplayer_flutter/lib/src/ssab"   # asset format (Player)

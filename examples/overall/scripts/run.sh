@@ -41,11 +41,13 @@ if [ "$GPU" = 1 ]; then
   GPU_ARGS=(--dart-define=SS_BACKEND=gpu --enable-impeller --enable-flutter-gpu)
 fi
 
+# `${a[@]+"${a[@]}"}`, not `"${a[@]}"`: under `set -u` the bash 3.2 macOS ships
+# calls an empty array unbound, which is every run without --gpu.
 cd "$EXAMPLE_DIR"
 if [ "$WATCH" = 1 ]; then
   set -x
-  exec dart run ssgen_flutter:sswatch --run "${PASSTHROUGH[@]}" "${GPU_ARGS[@]}"
+  exec dart run ssgen_flutter:sswatch --run ${PASSTHROUGH[@]+"${PASSTHROUGH[@]}"} ${GPU_ARGS[@]+"${GPU_ARGS[@]}"}
 else
   set -x
-  exec flutter run "${PASSTHROUGH[@]}" "${GPU_ARGS[@]}"
+  exec flutter run ${PASSTHROUGH[@]+"${PASSTHROUGH[@]}"} ${GPU_ARGS[@]+"${GPU_ARGS[@]}"}
 fi

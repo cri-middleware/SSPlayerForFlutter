@@ -20,12 +20,21 @@
 # the web, where the push carries bytes instead of a host path.
 #
 # Every other argument goes to `flutter run` (or to `sswatch --run`) untouched.
-param(
-    [switch]$Gpu,
-    [switch]$Watch,
-    [Parameter(ValueFromRemainingArguments = $true)][string[]]$Passthrough = @()
-)
 $ErrorActionPreference = 'Stop'
+
+# Parsed by hand, not by a param() block: [Parameter()] makes this an advanced
+# script, whose common -Debug takes a bare `-d` and drops it — `-d windows` would
+# reach flutter as `flutter run windows`.
+$Gpu = $false
+$Watch = $false
+$Passthrough = @()
+foreach ($arg in $args) {
+    switch -Regex ($arg) {
+        '^--?gpu$'   { $Gpu = $true }
+        '^--?watch$' { $Watch = $true }
+        default      { $Passthrough += $arg }
+    }
+}
 
 $ExampleDir = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 

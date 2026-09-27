@@ -30,14 +30,15 @@ workspace:
 #
 # The `cli_util` override is what lets Melos 8 coexist with ffigen in the shared
 # workspace resolution: Melos 8 needs `cli_util >=0.5.0` and ffigen 22 still pins
-# `^0.4.2`. ffigen uses one symbol from it — `Ansi`, which the 0.5 break (dropping
-# `applicationConfigHome`) does not touch — and regenerates byte-identical
-# bindings against 0.5.x. Drop the override once ffigen allows 0.5+.
+# `^0.4.2`. ffigen uses one symbol from it — `Ansi`, which neither the 0.5 break
+# (dropping `applicationConfigHome`) nor the 0.6 one (`sdkPath` turning nullable)
+# touches — and regenerates byte-identical bindings against 0.6.x. Drop the
+# override once ffigen allows 0.5+.
 dev_dependencies:
-  melos: ^8.8.0
+  melos: ^8.9.0
 
 dependency_overrides:
-  cli_util: ^0.5.1
+  cli_util: ^0.6.0
 
 # ── Melos: monorepo release automation ────────────────────────────────────────
 # Melos reads this `melos:` key of the workspace-root pubspec. Workspace members

@@ -1,6 +1,8 @@
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:flutter/foundation.dart' show isCanvasKit, kIsWeb;
+
 /// Texture store for the Player: a `cellmap` texture
 /// hash → decoded [ui.Image] map, plus a cached identity [ui.ImageShader] per
 /// image for `drawVertices`. Mirrors the sibling ports' hash-keyed texture map
@@ -91,7 +93,12 @@ class TextureRegistry {
         _sampling[textureHash] ??
         const _Sampling.defaults();
     return _shaders[textureHash] = ui.ImageShader(
-      image,
+      // CanvasKit's `ImageShader.dispose` disposes the image it was built from;
+      // native and Skwasm shaders only borrow it. Handing CanvasKit a clone keeps
+      // that to the shader's own handle — otherwise retiring a shader frees the
+      // loaded original (the registry's own `dispose` then disposes it a second
+      // time and asserts) or the caller's override image.
+      kIsWeb && isCanvasKit ? image.clone() : image,
       s.tileMode,
       s.tileMode,
       _identity4x4,

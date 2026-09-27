@@ -26,12 +26,14 @@ git submodule update --init --recursive
 # Build the native libs + copy the C headers into each binding package's native/include/
 scripts/build-runtime.sh              # e.g. build-runtime.sh platform=macos build=release
 
-# Generate example assets, then run
-scripts/deploy-examples.sh
-cd examples/overall && flutter run    # expect [ssplayer] OK + on-screen animation
+# Run the overall example; its assets and platform runner are generated if missing
+scripts/run-macos.sh                  # expect [ssplayer] OK + on-screen animation
 ```
 
-Windows uses the `.ps1` variant of each script. Cross-builds for android / ios are delegated to
+`run-linux.sh`, `run-ios.sh`, `run-android.sh` and `run-web.sh` do the same for their target, and
+take `example=<name>`, `--gpu`, `--watch` and any `flutter run` argument — the header of
+`scripts/run-example.sh` lists them. Windows uses the `.ps1` variant of each script
+(`run-windows.ps1` for the run). Cross-builds for android / ios are delegated to
 `SpriteStudio-SDK/scripts/release-*`; `build-runtime` itself builds the host target directly.
 
 ## Web (developer preview)
@@ -59,9 +61,8 @@ line above; a `git clean` removes it.
 **Run:**
 
 ```bash
-cd examples/overall
-flutter run -d chrome          # default CanvasKit renderer
-flutter run -d chrome --wasm   # Skwasm renderer (WebAssembly build mode)
+scripts/run-web.sh             # default CanvasKit renderer
+scripts/run-web.sh --wasm      # Skwasm renderer (WebAssembly build mode)
 ```
 
 !!! warning "🚧 Developer preview"

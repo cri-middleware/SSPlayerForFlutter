@@ -15,4 +15,4 @@
 # Run from anywhere:  bash examples/overall/scripts/setup-macos.sh
 set -euo pipefail
 exec bash "$(cd "$(dirname "$0")/../../scripts" && pwd)/setup-macos.sh" \
-  overall --drag-drop --dev-unsandbox
+  overall --drag-drop --dev-unsandbox "$@"

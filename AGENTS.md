@@ -45,7 +45,7 @@ the `SpriteStudio-SDK/` submodule — see its own [AGENTS.md](./SpriteStudio-SDK
 | How versions are computed and published | [Releasing](./docs/en/contributing/releasing.md) |
 | How the site is built and a release is cut | [RELEASING.md](./RELEASING.md), maintainers only |
 | What to build next, and what is out of scope | [ROADMAP.md](./ROADMAP.md) |
-| What each script does and takes | that script's `--help` |
+| What each script does and takes | that script's header comment |
 
 ## Invariants
 

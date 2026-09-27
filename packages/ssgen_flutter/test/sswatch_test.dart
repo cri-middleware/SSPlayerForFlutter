@@ -32,6 +32,20 @@ void main() {
     });
   });
 
+  group('noLiveReloadReason', () {
+    test('a debug launch can take a push, on any target', () {
+      expect(noLiveReloadReason(['-d', 'macos']), isNull);
+      expect(noLiveReloadReason(['-d', 'chrome', '--device']), isNull);
+    });
+
+    test('--wasm, --release and --profile are refused up front', () {
+      for (final mode in ['--wasm', '--release', '--profile']) {
+        expect(noLiveReloadReason(['-d', 'chrome', mode]), isNotNull,
+            reason: mode);
+      }
+    });
+  });
+
   group('ChangeRunner', () {
     test('coalesces a burst into a single run', () async {
       var runs = 0;

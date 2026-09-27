@@ -173,8 +173,15 @@ What this monorepo publishes to pub.dev 🚧 — you need only the first row to 
 
 ## 🎬 Samples
 
-Runnable apps under [`examples/`](./examples/). Run `scripts/deploy-examples.*` once first — it
-converts the SDK's test projects into the `.ssab` each one loads.
+Runnable apps under [`examples/`](./examples/). `scripts/run-<platform>.*` starts one in a single
+step: it converts the SDK's test projects into the `.ssab` the example loads, generates the platform
+runner, and picks a device (launching an emulator if none is running).
+
+```bash
+scripts/run-macos.sh                   # overall; also run-linux / run-ios / run-android / run-web
+scripts/run-android.sh example=flame   # another example
+scripts\run-windows.ps1                # Windows (run-android.ps1 / run-web.ps1 there too)
+```
 
 - [overall](./examples/overall) — The one to open. Plays `tests/overall`, with a dropdown to switch between its animations.
 - [flame](./examples/flame) — The [`ssplayer_flame`](./packages/ssplayer_flame) adapter: one `SpriteStudioComponent` in a `FlameGame` playing Ringo, tap to toggle play/pause.

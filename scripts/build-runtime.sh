@@ -222,9 +222,9 @@ case "$PLATFORM" in
     NOSIMD_OUT="$SDK_DIR/pkg/runtime-web-nosimd/$BUILD_MODE"
     # Primary build: inherits the SDK's repo-wide `+simd128` (its .cargo/config.toml)
     # — the fast path for modern browsers. NB: wasm-pack's --out-dir is relative to
-    # the CRATE dir (libs/ssruntime), so ../../ anchors it at the SDK-root pkg/
+    # the CRATE dir (libs/ssruntime-ffi), so ../../ anchors it at the SDK-root pkg/
     # (same as the SDK's own release-web.sh).
-    ( cd "$SDK_DIR" && wasm-pack build libs/ssruntime "$WP_MODE" --target web \
+    ( cd "$SDK_DIR" && wasm-pack build libs/ssruntime-ffi "$WP_MODE" --target web \
         --out-dir "../../pkg/runtime-web/$BUILD_MODE" -- --features web --no-default-features )
     # nosimd fallback: override `+simd128` with `-simd128`, for WASM engines
     # without stable SIMD (e.g. the NW.js bundled with RPG Maker MZ). Same source
@@ -232,7 +232,7 @@ case "$PLATFORM" in
     # — only the `_bg.wasm` differs, and loadSsRuntime() picks it at runtime via a
     # WebAssembly.validate(simd128) probe. We therefore ship one JS glue (simd's)
     # plus both binaries (simd as ssruntime_bg.wasm, nosimd as *.nosimd.wasm).
-    ( cd "$SDK_DIR" && RUSTFLAGS="-C target-feature=-simd128" wasm-pack build libs/ssruntime "$WP_MODE" \
+    ( cd "$SDK_DIR" && RUSTFLAGS="-C target-feature=-simd128" wasm-pack build libs/ssruntime-ffi "$WP_MODE" \
         --target web --out-dir "../../pkg/runtime-web-nosimd/$BUILD_MODE" -- --features web --no-default-features )
     ASSET_DIR="$PKG_DIR/assets/runtime-web"
     mkdir -p "$ASSET_DIR"

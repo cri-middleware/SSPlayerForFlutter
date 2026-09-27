@@ -16,6 +16,9 @@ idiomatic way; Flutter's is a Widget you drop into the tree.
 
 ## Run it
 
+From the repo root, `bash scripts/run-<platform>.sh example=part_following` does all of the
+below — assets, the platform runner, a device — in one step. By hand:
+
 ```sh
 # First time / after a pull: stage the Ringo assets (see "The assets" below).
 bash scripts/deploy-examples.sh          # from the repo root
