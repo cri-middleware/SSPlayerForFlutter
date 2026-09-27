@@ -19,6 +19,11 @@
 # Prerequisites: Dart/Flutter SDK (ffigen needs libclang; `dart pub get` first).
 set -euo pipefail
 
+if [ "$#" -gt 0 ]; then
+  echo "$(basename "$0"): takes no arguments — what it does is in its header comment" >&2
+  exit 2
+fi
+
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
 if ! command -v dart >/dev/null; then
