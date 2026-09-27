@@ -102,6 +102,12 @@ map.
 - 🕒 **Physical iOS device + `armeabi-v7a` runtime check** — verified on the iOS
   simulator and Android emulator; a code-signed `iphoneos` slice and the 32-bit
   ARM ABI at runtime are still unconfirmed.
+- 🕒 **Live reload on Windows / Linux desktop and on physical devices** — confirmed
+  on macOS, the Android emulator, the iOS simulator and the web (debug). The push
+  is the same code on every target, and `--device` only picks the payload, so what
+  these lack is a run on the target, not push logic: `sswatch --run -d macos
+  --device` exercises the whole byte path with nothing attached, which tells a
+  broken push from an unconnected target.
 
 ## Backlog (small / optional)
 

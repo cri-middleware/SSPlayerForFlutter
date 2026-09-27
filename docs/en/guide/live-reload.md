@@ -5,10 +5,6 @@ updates** — only the changed project is re-converted, and the player keeps its
 current animation and frame keep playing). It piggybacks on Flutter's development workflow, so
 animation editing gets the same fast iteration as a code hot reload.
 
-!!! note "🚧 Developing — opt-in, not yet in a release"
-    This is dev-only tooling under active development. It is **off by default** and never affects
-    release builds. Commands and flags may still change before the first release.
-
 ## What it is
 
 - Provided by the
@@ -16,6 +12,8 @@ animation editing gets the same fast iteration as a code hot reload.
   dev tooling (built on `ssgen_dart`, which drives [conversion](conversion.md)).
 - The player runtime (`ssplayer_flutter`) stays **converter-free** — nothing extra ships in your app.
   The converter lives only in the development tooling.
+- **Debug builds only, and off by default** — an app opts in with the `SS_LIVE_RELOAD` define
+  (below); a release build never carries the push channel.
 
 ## How it works
 
@@ -30,8 +28,10 @@ animation editing gets the same fast iteration as a code hot reload.
       names the `<stem>.sspj` it came from. `sswatch` says so on stderr when the two disagree —
       nothing is pushed until they match.
     - **Web (`flutter run -d chrome`, debug)** — like a device, a texture-embedded `.ssab` is sent as
-      bytes; the VM Service extension is routed by DWDS. Debug only (not `--wasm`, not `flutter build web`).
-4. The player calls `reload()`, swapping the resource while preserving playback state.
+      bytes; the VM Service extension is routed by DWDS. Debug builds only: `--wasm` and
+      `flutter build web` expose no VM Service, so `sswatch --run` refuses them up front.
+4. The player calls `reload()`, swapping the resource while preserving playback state. If it
+   throws, `sswatch` prints the app's error on stderr.
 5. On `--device`, `assets/` is re-converted too, after the push. A byte push only reaches the
    running isolate, so without this the next hot restart would drop back to the art bundled at
    launch. It costs a second conversion per save; desktop needs none, as its reconvert already
@@ -68,6 +68,8 @@ animation editing gets the same fast iteration as a code hot reload.
     ```
 
     A device can't convert on-device, so the host-side `sswatch` sends an embedded `.ssab` as bytes.
+    `--run` hands `flutter run` the terminal, so its own keys (`r`, `R`, `q`) keep working alongside
+    the watcher.
 
 Place your source projects under `SpriteStudio_Source/<project>/`. Save a real edit (a `touch` produces
 identical bytes — and may not even trip the watcher).
@@ -86,14 +88,13 @@ identical bytes — and may not even trip the watcher).
 | macOS desktop | VM Service push (file) | Verified end-to-end |
 | Android | VM Service push (embedded) | Verified end-to-end (emulator) |
 | iOS | VM Service push (embedded) | Verified end-to-end (simulator) |
-| Windows / Linux desktop | VM Service push (file) | Expected (OS-independent), not yet confirmed |
-| Web (`-d chrome`, debug) | VM Service push (embedded, via DWDS) | Debug DDC only — not `--wasm`/`build web` |
+| Web (`-d chrome`, debug) | VM Service push (embedded, via DWDS) | Verified end-to-end (headless Chrome) |
+| `--wasm`, `--release`, `--profile` | — | Not possible: the first two have no VM Service, and a profile build has no push channel. `sswatch --run` refuses them |
 
 `--device` is a choice of payload, not of target: it sends the pack as bytes instead of a host path,
 and any target accepts it. Running `sswatch --run -d macos --device` therefore exercises the whole
 embedded path — routing, transport, `reload()` — on a machine with no device attached, which is a
-quick way to tell a broken push from a target that simply is not connected. That distinction is what
-the remaining unconfirmed rows come down to: the push itself is the same code everywhere.
+quick way to tell a broken push from a target that simply is not connected.
 
 Save a **real** edit to test it. A `touch` does not reliably reach the watcher (confirmed on macOS:
 it produced no event at all), which is a property of the filesystem watch, not of the reload.

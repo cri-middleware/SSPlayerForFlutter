@@ -2,14 +2,12 @@
 
 ライブリロードは編集→実機のループを閉じます。**SpriteStudio で `.sspj` を保存すると、実行中のアプリが更新されます** —— 変更したプロジェクトだけが再変換され、プレイヤーは再生状態（現在のアニメとフレーム）を保ったまま再生を続けます。Flutter の開発ワークフローに相乗りするので、アニメ編集がコードのホットリロードと同じ手数で反映されます。
 
-!!! note "🚧 開発中 —— opt-in・未リリース"
-    これは開発時専用ツールで、活発に開発中です。**既定でオフ**で、リリースビルドには一切影響しません。コマンドやフラグは最初のリリース前に変わる可能性があります。
-
 ## これは何
 
 - [`ssgen_flutter`](https://github.com/cri-middleware/SSPlayerForFlutter/tree/main/packages/ssgen_flutter)
   開発ツールが提供します（[変換](conversion.md)を駆動する `ssgen_dart` の上に構築）。
 - プレイヤーのランタイム（`ssplayer_flutter`）は **converter を積みません** —— アプリに余分なものは一切載りません。コンバータは開発ツールの中だけに存在します。
+- **デバッグビルド専用で、既定はオフ**です。アプリは `SS_LIVE_RELOAD` define（後述）で opt-in し、リリースビルドには push チャネルが一切載りません。
 
 ## 仕組み
 
@@ -21,8 +19,8 @@
     - **デバイス（iOS / Android）** —— テクスチャ内包の embedded `.ssab` をバイトで送ります（端末はホストのパスを読めないため）。どのパックを送るかは規約で決まります ——
       アプリの **`ssAssetDir` の末尾セグメント**が、変換元の `<stem>.sspj` を指します。食い違うと `sswatch` が stderr で指摘し、一致するまで何も push されません。
     - **Web（`flutter run -d chrome`・デバッグ）** —— デバイスと同じくテクスチャ内包の embedded
-      `.ssab` をバイトで送ります（VM Service 拡張は DWDS が中継）。デバッグの DDC のみ（`--wasm` や `flutter build web` は不可）。
-4. プレイヤーが `reload()` を呼び、再生状態を保ったままリソースを差し替えます。
+      `.ssab` をバイトで送ります（VM Service 拡張は DWDS が中継）。デバッグビルドのみです。`--wasm` と `flutter build web` は VM Service を持たないので、`sswatch --run` は起動前に断ります。
+4. プレイヤーが `reload()` を呼び、再生状態を保ったままリソースを差し替えます。失敗した場合は、アプリ側の例外を `sswatch` が stderr に出します。
 5. `--device` では push のあとに `assets/` も再変換します。バイト push は実行中の isolate にしか届かないため、これが無いと次の hot restart で起動時に同梱した絵まで巻き戻ります。保存ごとに変換が 1 回増えますが、デスクトップは再変換先が `assets/` なので不要です。
 
 ## 有効化（レシピ）
@@ -54,6 +52,7 @@
     ```
 
     デバイスは端末で変換できないため、ホストで動く `sswatch` が embedded `.ssab` をバイトで送ります。
+    `--run` は端末をそのまま `flutter run` に渡すので、`r`・`R`・`q` もいつもどおり使えます。
 
 ソースプロジェクトは `SpriteStudio_Source/<project>/` に置きます。実際の編集を保存してください（`touch` は同一バイトで見た目が変わらない上、watcher が拾わないこともあります）。
 
@@ -70,11 +69,11 @@
 | macOS デスクトップ | VM Service push（file） | end-to-end 検証済み |
 | Android | VM Service push（embedded） | end-to-end 検証済み（emulator） |
 | iOS | VM Service push（embedded） | end-to-end 検証済み（シミュレータ） |
-| Windows / Linux デスクトップ | VM Service push（file） | 見込みあり（OS 非依存）・未検証 |
-| Web（`-d chrome`・デバッグ） | VM Service push（embedded・DWDS 中継） | デバッグ DDC のみ（`--wasm`/`build web` 不可） |
+| Web（`-d chrome`・デバッグ） | VM Service push（embedded・DWDS 中継） | end-to-end 検証済み（headless Chrome） |
+| `--wasm`・`--release`・`--profile` | — | 不可。前の 2 つは VM Service が無く、profile ビルドには push チャネルがありません。`sswatch --run` は起動前に断ります |
 
 `--device` はターゲットの選択ではなく**ペイロードの選択**です。ホストのパスではなくバイトを送るだけなので、どのターゲットでも受け取れます。つまり `sswatch --run -d macos --device` を実行すれば、デバイスを繋がずに embedded 経路まるごと —— ルーティング・転送・`reload()` —— を動かせます。
-push が壊れているのか、単にターゲットが繋がっていないだけなのかを切り分けるのに使えます。未検証のままの行が意味するのもその差で、push 自体はどのターゲットでも同じコードです。
+push が壊れているのか、単にターゲットが繋がっていないだけなのかを切り分けるのに使えます。
 
 試すときは**実際の編集**を保存してください。`touch` は watcher に確実には届きません（macOS で確認:
 イベントが 1 つも出ませんでした）。これはファイル監視側の性質で、リロードの問題ではありません。
