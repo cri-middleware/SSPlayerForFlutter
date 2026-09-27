@@ -278,9 +278,9 @@ switch ($PLATFORM) {
         try {
             # Primary build: inherits the SDK's repo-wide `+simd128` (its
             # .cargo/config.toml) — the fast path for modern browsers. NB:
-            # wasm-pack's --out-dir is relative to the CRATE dir (libs/ssruntime),
+            # wasm-pack's --out-dir is relative to the CRATE dir (libs/ssruntime-ffi),
             # so ../../ anchors it at the SDK-root pkg/ (as the SDK's release-web.sh).
-            & wasm-pack build libs/ssruntime $wpMode --target web `
+            & wasm-pack build libs/ssruntime-ffi $wpMode --target web `
                 --out-dir "../../pkg/runtime-web/$BUILD_MODE" -- --features web --no-default-features
             if ($LASTEXITCODE) { throw "wasm-pack build (simd) failed" }
             # nosimd fallback: override `+simd128` with `-simd128`, for engines
@@ -290,7 +290,7 @@ switch ($PLATFORM) {
             $savedRustflags = $env:RUSTFLAGS
             $env:RUSTFLAGS = "-C target-feature=-simd128"
             try {
-                & wasm-pack build libs/ssruntime $wpMode --target web `
+                & wasm-pack build libs/ssruntime-ffi $wpMode --target web `
                     --out-dir "../../pkg/runtime-web-nosimd/$BUILD_MODE" -- --features web --no-default-features
                 if ($LASTEXITCODE) { throw "wasm-pack build (nosimd) failed" }
             } finally {
