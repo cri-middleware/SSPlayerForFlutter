@@ -40,15 +40,29 @@ SpriteStudioAnimation.asset(
 | `speedScale` | 再生速度。オーサリング時のレートに対する倍率です。 |
 | `flipX` / `flipY` | 描画を左右／上下に反転します。 |
 | `placeholder` | 最初のフレームが描けるまでの表示。設定する価値があります —— それまで描くものは無く、空の箱は壊れたパックと同じ見た目だからです。 |
+| `onLoaded` | 最初のフレームが描けるようになったとき（パックを読み込み、アニメを選び、`playing` なら再生を始めた後）に呼ばれます。`onError` と対です。 |
 | `onError` | ロード失敗時に呼ばれます。設定しないと未処理の非同期エラーとしてゾーンへ流れます。 |
+| `onAnimationStarted` / `onAnimationFinished` / `onAnimationLooped` | 再生の開始／全ループの終了／ループの境目の通過。ロード後にウィジェットが始める再生も開始に数え、`onLoaded` より先に届きます。 |
+| `onUserData` / `onSignal` / `onAudio` | ユーザーデータ・シグナル・サウンドのキーの通過。音を鳴らすのはアプリの仕事です。→ [再生とイベント](playback.md) |
 | `onPlayerCreated` | 引数でカバーしていない API に手を伸ばすためにプレイヤーを渡します。破棄はウィジェットがやるので、呼び出し側でしないでください。 |
 | `bundle` / `backend` | 読み込む `AssetBundle` と、描画バックエンド。 |
 
-`assetKey`・`bundle`・`backend` を変えるとプレイヤーを作り直します。それ以外の引数は、値が変わったときだけプレイヤーに届きます。なので `onPlayerCreated` でプレイヤーに設定したものは、対応する引数が変わるまでそのまま残ります。
+`assetKey`・`bundle`・`backend` を変えるとプレイヤーを作り直します。それ以外の引数は、値が変わったときだけプレイヤーに届きます。なので `onPlayerCreated` でプレイヤーに設定したものは、対応する引数が変わるまでそのまま残ります。イベントの引数はそれぞれコールバックを 1 つだけ取り、渡すと `onPlayerCreated` がそのイベントに設定したものと置き換わります。
+
+これだけで、アニメを自分の状態から動かせます。1 回だけ再生してループに戻す演出なら、引数 2 つとコールバック 1 つです。
+
+```dart
+SpriteStudioAnimation.asset(
+  'assets/hero/Hero.ssab',
+  animation: _attacking ? 'attack' : 'idle',
+  loopCount: _attacking ? 1 : -1,
+  onAnimationFinished: () => setState(() => _attacking = false),
+)
+```
 
 ## プレイヤーを自分で持つ場合
 
-`SpriteStudioAnimation` がプレイヤーを作るのは、たいていの画面がそれを欲しがらないからです。欲しい場合 —— ステートマシンからアニメを差し替える、イベントを購読する、ウィジェットをパーツに貼り付ける、クロックを別から駆動する —— は
+`SpriteStudioAnimation` がプレイヤーを作るのは、たいていの画面がそれを欲しがらないからです。欲しい場合 —— ウィジェットをパーツに貼り付ける、クロックを別から駆動する —— は
 [`SpriteStudioPlayer`](playback.md) を自分で作って `SpriteStudioView` に渡してください。
 
 ```dart

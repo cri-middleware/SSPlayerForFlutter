@@ -269,6 +269,51 @@ void main() {
     expect(player.frameNo, running);
   });
 
+  testWidgets('a one-shot switch plays out and hands back, props alone',
+      (tester) async {
+    if (assetDir == null) {
+      markTestSkipped('overall assets missing');
+      return;
+    }
+    // The Quick Start's state-driven example: the one-shot's loop count and its
+    // name change in the same rebuild, and its finish flips the state back.
+    SpriteStudioPlayer? seen;
+    var names = const <String>[];
+    var oneShot = false;
+    final bundle = _DirBundle(assetDir);
+    late StateSetter setOuter;
+    await tester.pumpWidget(wrap(StatefulBuilder(builder: (context, setState) {
+      setOuter = setState;
+      return SpriteStudioAnimation.asset(
+        'assets/x/PartsColor.ssab',
+        animation: names.isEmpty ? null : (oneShot ? names[1] : names[0]),
+        loopCount: oneShot ? 1 : -1,
+        bundle: bundle,
+        onPlayerCreated: (p) => seen = p,
+        onAnimationFinished: () => setOuter(() => oneShot = false),
+      );
+    })));
+    await pumpUntil(tester, () => _drawing);
+    final player = seen!;
+    setOuter(() => names = player.animationNames);
+    await tester.pump();
+
+    setOuter(() => oneShot = true);
+    await tester.pump();
+    expect(player.currentAnimation, names[1]);
+    expect(player.loopCount, 1, reason: 'kept across the switch');
+    expect(player.isPlaying, isTrue);
+
+    for (var i = 0; i < 4000 && oneShot; i++) {
+      await pumpFrames(tester, 1);
+    }
+    expect(oneShot, isFalse, reason: 'the one-shot finished');
+    await tester.pump();
+    expect(player.currentAnimation, names[0]);
+    expect(player.loopCount, -1);
+    expect(player.isPlaying, isTrue);
+  });
+
   testWidgets('speedScale and the flips reach the player before the load',
       (tester) async {
     if (assetDir == null) {
@@ -308,6 +353,7 @@ void main() {
       return;
     }
     SpriteStudioPlayer? seen;
+    void mine() {}
     final bundle = _DirBundle(assetDir);
     Widget build({double speed = 1, Widget? placeholder}) =>
         wrap(SpriteStudioAnimation.asset(
@@ -317,19 +363,69 @@ void main() {
           bundle: bundle,
           onPlayerCreated: (p) {
             seen = p;
-            p.speedScale = 3;
+            p
+              ..speedScale = 3
+              ..onAnimationLooped = mine;
           },
         ));
     await tester.pumpWidget(build());
     await pumpUntil(tester, () => _drawing);
     expect(seen!.speedScale, 3, reason: 'the load did not put the prop back');
 
-    // A rebuild that does not change it leaves it alone.
+    // A rebuild that changes neither leaves both alone.
     await tester.pumpWidget(build(placeholder: const SizedBox()));
     expect(seen!.speedScale, 3);
+    expect(seen!.onAnimationLooped, same(mine),
+        reason: 'no onAnimationLooped parameter, so the slot is not ours');
 
     await tester.pumpWidget(build(speed: 1.5));
     expect(seen!.speedScale, 1.5);
+  });
+
+  testWidgets('the event parameters fire, and follow the closure they are '
+      'given', (tester) async {
+    if (assetDir == null) {
+      markTestSkipped('overall assets missing');
+      return;
+    }
+    SpriteStudioPlayer? seen;
+    final log = <String>[];
+    final bundle = _DirBundle(assetDir);
+    // Two cycles, so the keys are crossed again after the closure is swapped.
+    Widget build(String tag, {bool withUserData = true}) =>
+        wrap(SpriteStudioAnimation.asset(
+          'assets/x/UserData.ssab',
+          loopCount: 2,
+          bundle: bundle,
+          onPlayerCreated: (p) => seen = p,
+          onLoaded: (_) => log.add('loaded'),
+          onAnimationStarted: () => log.add('started'),
+          onAnimationLooped: () => log.add('looped'),
+          onAnimationFinished: () => log.add('finished'),
+          onUserData: withUserData ? (_) => log.add('userData:$tag') : null,
+        ));
+    await tester.pumpWidget(build('a'));
+    await pumpUntil(tester, () => _drawing);
+    expect(log.take(2), ['started', 'loaded'],
+        reason: 'the start the widget issues after the load is reported, '
+            'before onLoaded');
+
+    // A new closure on each build is what inline callbacks look like; the one
+    // given last is the one that fires.
+    log.clear();
+    await tester.pumpWidget(build('b'));
+    final player = seen!;
+    for (var i = 0; i < 4000 && !player.isFinished; i++) {
+      await pumpFrames(tester, 1);
+    }
+    expect(log, contains('looped'));
+    expect(log, contains('userData:b'));
+    expect(log, isNot(contains('userData:a')));
+    expect(log.last, 'finished');
+
+    // Dropping the parameter releases the player's slot.
+    await tester.pumpWidget(build('b', withUserData: false));
+    expect(player.onUserData, isNull);
   });
 
   testWidgets('a load failure reaches onError, not the zone', (tester) async {

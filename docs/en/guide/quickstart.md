@@ -46,19 +46,36 @@ failed.
 | `speedScale` | Playback rate as a multiple of the authored one. |
 | `flipX` / `flipY` | Mirror the drawn animation. |
 | `placeholder` | Shown until the first frame is drawable. Worth setting: until then there is nothing to draw, and an empty box looks exactly like a broken pack. |
+| `onLoaded` | Called once the first frame can be drawn — the pack loaded, the animation selected and, while `playing`, started. `onError`'s counterpart. |
 | `onError` | Called when the load fails, instead of the error reaching the zone unhandled. |
+| `onAnimationStarted` / `onAnimationFinished` / `onAnimationLooped` | Playback headed out / every loop has played / a loop boundary was crossed. The start the widget issues after the load counts, and comes before `onLoaded`. |
+| `onUserData` / `onSignal` / `onAudio` | A user-data, signal or audio key was crossed. Playing the sound is the app's job. See [Playback & Events](playback.md). |
 | `onPlayerCreated` | Hands you the player for the parts of the API the parameters do not cover. Do not dispose it — the widget does. |
 | `bundle` / `backend` | Which `AssetBundle` to read from, and which render backend to draw with. |
 
 Changing `assetKey`, `bundle` or `backend` builds a new player. Every other
 parameter reaches the player only when it changes, so what you set on the player
-through `onPlayerCreated` stands until the matching parameter changes.
+through `onPlayerCreated` stands until the matching parameter changes. Each event
+parameter takes one callback, and supplying one replaces what `onPlayerCreated`
+put on the player for that event.
+
+That is enough to drive the animation from your own state. A one-shot that hands
+back to a loop is two parameters and a callback:
+
+```dart
+SpriteStudioAnimation.asset(
+  'assets/hero/Hero.ssab',
+  animation: _attacking ? 'attack' : 'idle',
+  loopCount: _attacking ? 1 : -1,
+  onAnimationFinished: () => setState(() => _attacking = false),
+)
+```
 
 ## Owning the player yourself
 
 `SpriteStudioAnimation` builds a player because most screens do not want one.
-When yours does — to swap animations from a state machine, subscribe to events,
-stick a widget to a part, or drive the clock from somewhere else — build a
+When yours does — to stick a widget to a part, or to drive the clock from
+somewhere else — build a
 [`SpriteStudioPlayer`](playback.md) and hand it to `SpriteStudioView`:
 
 ```dart
