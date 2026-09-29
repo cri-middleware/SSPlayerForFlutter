@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/widgets.dart';
 
 import '../player.dart';
+import 'sprite_studio_animation.dart';
 
 /// What a [SpriteStudioPartAnchor] does with its child when the tracked part is
 /// hidden on the current frame (its keyframe `hide`, or a visibility override).
@@ -49,7 +50,21 @@ enum SpriteStudioAnchorMirror {
 /// scene-graph node, this drives a Widget: it reads the part's pose from
 /// [player] and wraps [child] in a [Transform].
 ///
-/// **Placement.** Put the anchor in the SAME coordinate space as the animation:
+/// **In a [SpriteStudioAnimation]**, put it in the widget's `children` and
+/// leave [player] out: it finds that widget's player, and `children` already
+/// cover the animation's exact box.
+///
+/// ```dart
+/// SpriteStudioAnimation.asset(
+///   'assets/spritestudio/Ringo/Ringo.ssab',
+///   children: [
+///     SpriteStudioPartAnchor(partName: 'apple', child: Icon(Icons.star)),
+///   ],
+/// )
+/// ```
+///
+/// **Over a [SpriteStudioView]**, pass the view's [player] and put the anchor
+/// in the SAME coordinate space as the animation:
 /// as a `Positioned.fill` sibling of the [SpriteStudioView] inside a [Stack], so
 /// it covers the view's exact box. The view centres the animation's world origin
 /// in that box, and the anchor applies the matching centring, so the child lands
@@ -91,7 +106,7 @@ enum SpriteStudioAnchorMirror {
 class SpriteStudioPartAnchor extends StatelessWidget {
   const SpriteStudioPartAnchor({
     super.key,
-    required this.player,
+    this.player,
     required this.partName,
     required this.child,
     this.position = true,
@@ -102,8 +117,9 @@ class SpriteStudioPartAnchor extends StatelessWidget {
     this.filterQuality,
   });
 
-  /// The player whose part poses this anchor follows.
-  final SpriteStudioPlayer player;
+  /// The player whose part poses this anchor follows, or null for the one of
+  /// the [SpriteStudioAnimation] it sits in.
+  final SpriteStudioPlayer? player;
 
   /// The `.ssab` part name to track. An unknown name (or one absent from the
   /// current animation) simply draws nothing until it resolves.
@@ -194,6 +210,15 @@ class SpriteStudioPartAnchor extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final player = this.player ?? SpriteStudioAnimation.playerOf(context);
+    if (player == null) {
+      throw FlutterError.fromParts(<DiagnosticsNode>[
+        ErrorSummary('SpriteStudioPartAnchor has no player to follow.'),
+        ErrorHint('Put it in the children of a SpriteStudioAnimation, which '
+            'hands its player down, or pass player: the one a '
+            'SpriteStudioView draws.'),
+      ]);
+    }
     return LayoutBuilder(
       builder: (context, constraints) {
         // The view centres the animation's world origin in its box, so the

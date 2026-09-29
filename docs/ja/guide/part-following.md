@@ -5,6 +5,19 @@ HP バーなど）を毎フレーム追従させる機能です。追従する�
 
 `SpriteStudioPartAnchor` がパーツの姿勢を読み取り、子ウィジェットを `Transform` で包みます。
 
+`SpriteStudioAnimation` の中なら、`children` に置いて `player` は省きます。アンカーがそのウィジェットのプレイヤーを見つけ、`children` はもともとアニメーションと同じボックスを覆います。
+
+```dart
+SpriteStudioAnimation.asset(
+  'assets/spritestudio/Ringo/Ringo.ssab',
+  children: [
+    SpriteStudioPartAnchor(partName: 'apple', child: const Icon(Icons.star)),
+  ],
+)
+```
+
+自分で組んだ `SpriteStudioView` に重ねる場合は、そのプレイヤーを渡し、ビューと同じボックスを覆います。
+
 ```dart
 Stack(
   fit: StackFit.expand,
@@ -34,7 +47,7 @@ Stack(
 
 | プロパティ | 説明 |
 |---|---|
-| **`player`** | 追従元となるプレイヤー（必須） |
+| **`player`** | 追従元となるプレイヤー。`SpriteStudioAnimation` の `children` の中では省略でき、そのウィジェットのプレイヤーを使います |
 | **`partName`** | 追従対象のパーツ名（`.ssab` の `PartData` 名）。存在しない名前や現在のアニメーションに無いパーツを指定した場合は、解決できるようになるまで何も描画しません |
 | **`child`** | パーツに貼り付けるウィジェット。その**左上**がパーツの原点に固定されます |
 | **`position`** | パーツの位置を駆動するか。既定 `true` |

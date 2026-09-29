@@ -64,6 +64,7 @@ class SpriteStudioAnimation extends StatefulWidget {
     this.onUserData,
     this.onSignal,
     this.onAudio,
+    this.children = const <Widget>[],
   });
 
   /// The `.ssab`'s key in the asset bundle. Reference textures resolve from the
@@ -193,6 +194,29 @@ class SpriteStudioAnimation extends StatefulWidget {
   /// Fired for each audio key the playhead crosses; playing the sound is the
   /// app's job. See [SpriteStudioPlayer.onAudio].
   final SsAudioCallback? onAudio;
+
+  /// Widgets laid over the animation, each covering exactly its box — where a
+  /// [SpriteStudioPartAnchor] goes to follow a part:
+  ///
+  /// ```dart
+  /// SpriteStudioAnimation.asset(
+  ///   'assets/spritestudio/Ringo/Ringo.ssab',
+  ///   children: [
+  ///     SpriteStudioPartAnchor(partName: 'apple', child: Icon(Icons.star)),
+  ///   ],
+  /// )
+  /// ```
+  ///
+  /// An anchor here needs no `player`: it finds this widget's, as ForGodot's
+  /// part attachment finds the player it sits under. Any other descendant can
+  /// too, through [playerOf]. They are built once the first frame can be
+  /// drawn, alongside it, and not while [placeholder] shows.
+  final List<Widget> children;
+
+  /// The player of the nearest [SpriteStudioAnimation] above [context] — what a
+  /// widget in its [children] reaches it by — or null when there is none.
+  static SpriteStudioPlayer? playerOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<_PlayerScope>()?.player;
 
   @override
   State<SpriteStudioAnimation> createState() => _SpriteStudioAnimationState();
@@ -361,7 +385,7 @@ class _SpriteStudioAnimationState extends State<SpriteStudioAnimation>
       return widget.placeholder ??
           SizedBox(width: widget.width, height: widget.height);
     }
-    return SpriteStudioView(
+    final view = SpriteStudioView(
       player: player,
       width: widget.width,
       height: widget.height,
@@ -369,5 +393,34 @@ class _SpriteStudioAnimationState extends State<SpriteStudioAnimation>
       alignment: widget.alignment,
       frame: widget.frame,
     );
+    final children = widget.children;
+    return _PlayerScope(
+      player: player,
+      child: children.isEmpty
+          ? view
+          : Stack(
+              // Passthrough, so the view is laid out under exactly the
+              // constraints it would have had alone; the stack then takes its
+              // size, and each child covers that box. A loose stack would let a
+              // view under tight constraints shrink to its canvas while the
+              // children kept the whole box, and an anchor centres on its own.
+              fit: StackFit.passthrough,
+              clipBehavior: Clip.none,
+              children: [
+                view,
+                for (final child in children) Positioned.fill(child: child),
+              ],
+            ),
+    );
   }
+}
+
+/// Hands the player down to [SpriteStudioAnimation.children].
+class _PlayerScope extends InheritedWidget {
+  const _PlayerScope({required this.player, required super.child});
+
+  final SpriteStudioPlayer player;
+
+  @override
+  bool updateShouldNotify(_PlayerScope old) => !identical(old.player, player);
 }

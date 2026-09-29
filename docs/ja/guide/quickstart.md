@@ -47,6 +47,7 @@ SpriteStudioAnimation.asset(
 | `onError` | ロード失敗時に呼ばれます。設定しないと未処理の非同期エラーとしてゾーンへ流れます。 |
 | `onAnimationStarted` / `onAnimationFinished` / `onAnimationLooped` | 再生の開始／全ループの終了／ループの境目の通過。ロード後にウィジェットが始める再生も開始に数え、`onLoaded` より先に届きます。 |
 | `onUserData` / `onSignal` / `onAudio` | ユーザーデータ・シグナル・サウンドのキーの通過。音を鳴らすのはアプリの仕事です。→ [再生とイベント](playback.md) |
+| `children` | アニメーションの上に重ねるウィジェット。それぞれアニメーションと同じ箱を覆います。ここに置いた `SpriteStudioPartAnchor` は `player` なしでパーツに追従し、どのウィジェットも `SpriteStudioAnimation.playerOf(context)` でプレイヤーを取れます。→ [パーツトラッキング](part-following.md) |
 | `onPlayerCreated` | 引数でカバーしていない API に手を伸ばすためにプレイヤーを渡します。破棄はウィジェットがやるので、呼び出し側でしないでください。 |
 | `bundle` / `backend` | 読み込む `AssetBundle` と、描画バックエンド。 |
 
@@ -65,7 +66,7 @@ SpriteStudioAnimation.asset(
 
 ## プレイヤーを自分で持つ場合
 
-`SpriteStudioAnimation` がプレイヤーを作るのは、たいていの画面がそれを欲しがらないからです。欲しい場合 —— ウィジェットをパーツに貼り付ける、クロックを別から駆動する —— は
+`SpriteStudioAnimation` がプレイヤーを作るのは、たいていの画面がそれを欲しがらないからです。欲しい場合 —— クロックを別から駆動する —— は
 [`SpriteStudioPlayer`](playback.md) を自分で作って `SpriteStudioView` に渡してください。
 
 ```dart
