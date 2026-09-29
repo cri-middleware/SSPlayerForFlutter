@@ -24,6 +24,10 @@ import 'sprite_studio_view.dart';
 /// and rebuilds it when [assetKey], [bundle] or [backend] change. Reach the
 /// player through [onPlayerCreated] when you need the rest of the L3 surface;
 /// graduate to [SpriteStudioView] when you want to own its lifetime instead.
+///
+/// **Every other parameter reaches the player only when it changes.** A call
+/// made on the player through [onPlayerCreated] therefore stands until the
+/// matching parameter changes, rather than being put back on the next rebuild.
 class SpriteStudioAnimation extends StatefulWidget {
   /// Plays [assetKey] from the asset bundle.
   ///
@@ -39,6 +43,9 @@ class SpriteStudioAnimation extends StatefulWidget {
     this.height,
     this.loopCount = -1,
     this.playing = true,
+    this.speedScale = 1.0,
+    this.flipX = false,
+    this.flipY = false,
     this.bundle,
     this.backend = SpriteStudioBackend.auto,
     this.placeholder,
@@ -82,6 +89,16 @@ class SpriteStudioAnimation extends StatefulWidget {
   /// shows a poster, or one whose loops have all played.
   final bool playing;
 
+  /// Playback rate as a multiple of the authored one. See
+  /// [SpriteStudioPlayer.speedScale].
+  final double speedScale;
+
+  /// Mirrors the drawn animation horizontally. See [SpriteStudioPlayer.flipX].
+  final bool flipX;
+
+  /// Mirrors the drawn animation vertically. See [SpriteStudioPlayer.flipY].
+  final bool flipY;
+
   /// Which bundle to read [assetKey] from. Null is `rootBundle`.
   final AssetBundle? bundle;
 
@@ -112,6 +129,9 @@ class SpriteStudioAnimation extends StatefulWidget {
   /// Handed the player as soon as it exists, before the load — for the parts of
   /// the L3 surface this widget does not wrap (events, part overrides, an
   /// anchor). Do not dispose it; this widget does.
+  ///
+  /// Called after the other parameters are applied, so what it sets on the
+  /// player stands until the matching parameter changes.
   final void Function(SpriteStudioPlayer player)? onPlayerCreated;
 
   @override
@@ -144,8 +164,17 @@ class _SpriteStudioAnimationState extends State<SpriteStudioAnimation>
       return;
     }
     final player = _player;
-    if (player == null || !_ready) return;
+    if (player == null) return;
+    // The player caches these ahead of a load, so they go on at once.
     if (old.loopCount != widget.loopCount) player.loopCount = widget.loopCount;
+    if (old.speedScale != widget.speedScale) {
+      player.speedScale = widget.speedScale;
+    }
+    if (old.flipX != widget.flipX) player.flipX = widget.flipX;
+    if (old.flipY != widget.flipY) player.flipY = widget.flipY;
+    // Selecting and starting need the pack. A change made while it loads is not
+    // lost: [_load] reads both off the widget as it stands when the load lands.
+    if (!_ready) return;
     if (old.animation != widget.animation) _switch(player);
     if (old.playing != widget.playing) _applyPlaying(player);
   }
@@ -153,6 +182,13 @@ class _SpriteStudioAnimationState extends State<SpriteStudioAnimation>
   void _build() {
     final player = SpriteStudioPlayer(vsync: this, backend: widget.backend);
     _player = player;
+    // Before the load, so the first frame is already drawn with them, and before
+    // [onPlayerCreated], so what that sets stands until the parameter changes.
+    player
+      ..loopCount = widget.loopCount
+      ..speedScale = widget.speedScale
+      ..flipX = widget.flipX
+      ..flipY = widget.flipY;
     widget.onPlayerCreated?.call(player);
     _load(player);
   }
@@ -170,7 +206,6 @@ class _SpriteStudioAnimationState extends State<SpriteStudioAnimation>
       return;
     }
     if (!mounted || !identical(_player, player)) return;
-    player.loopCount = widget.loopCount;
     _select(player);
     if (widget.playing) player.play();
     setState(() => _ready = true);

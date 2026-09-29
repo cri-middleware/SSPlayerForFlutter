@@ -43,10 +43,16 @@ failed.
 | `width` / `height` | The box to draw in. Omit them to take the incoming constraints. |
 | `loopCount` | `-1` loops forever; `n > 0` plays *n* times. See [Playback & Events](playback.md). |
 | `playing` | On by default. A state, not a start-up flag: off holds the playhead where it stands, and on carries on from there. Off from the first build leaves the first frame posed, the way a `<video>` without `autoplay` shows a poster. |
+| `speedScale` | Playback rate as a multiple of the authored one. |
+| `flipX` / `flipY` | Mirror the drawn animation. |
 | `placeholder` | Shown until the first frame is drawable. Worth setting: until then there is nothing to draw, and an empty box looks exactly like a broken pack. |
 | `onError` | Called when the load fails, instead of the error reaching the zone unhandled. |
 | `onPlayerCreated` | Hands you the player for the parts of the API the parameters do not cover. Do not dispose it — the widget does. |
 | `bundle` / `backend` | Which `AssetBundle` to read from, and which render backend to draw with. |
+
+Changing `assetKey`, `bundle` or `backend` builds a new player. Every other
+parameter reaches the player only when it changes, so what you set on the player
+through `onPlayerCreated` stands until the matching parameter changes.
 
 ## Owning the player yourself
 

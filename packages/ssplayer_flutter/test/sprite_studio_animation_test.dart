@@ -269,6 +269,69 @@ void main() {
     expect(player.frameNo, running);
   });
 
+  testWidgets('speedScale and the flips reach the player before the load',
+      (tester) async {
+    if (assetDir == null) {
+      markTestSkipped('overall assets missing');
+      return;
+    }
+    SpriteStudioPlayer? seen;
+    final bundle = _DirBundle(assetDir);
+    Widget build({double speed = 2, bool flipY = false}) =>
+        wrap(SpriteStudioAnimation.asset(
+          'assets/x/Basic.ssab',
+          speedScale: speed,
+          flipX: true,
+          flipY: flipY,
+          bundle: bundle,
+          onPlayerCreated: (p) {
+            seen = p;
+            // Before the load, and already carrying the parameters.
+            expect(p.speedScale, 2);
+            expect(p.flipX, isTrue);
+          },
+        ));
+    await tester.pumpWidget(build());
+    await pumpUntil(tester, () => _drawing);
+    expect(seen!.speedScale, 2, reason: 'the load keeps what was cached');
+    expect(seen!.flipX, isTrue);
+
+    await tester.pumpWidget(build(speed: 0.5, flipY: true));
+    expect(seen!.speedScale, 0.5);
+    expect(seen!.flipY, isTrue);
+  });
+
+  testWidgets('a call made through onPlayerCreated stands until its '
+      'parameter changes', (tester) async {
+    if (assetDir == null) {
+      markTestSkipped('overall assets missing');
+      return;
+    }
+    SpriteStudioPlayer? seen;
+    final bundle = _DirBundle(assetDir);
+    Widget build({double speed = 1, Widget? placeholder}) =>
+        wrap(SpriteStudioAnimation.asset(
+          'assets/x/Basic.ssab',
+          speedScale: speed,
+          placeholder: placeholder,
+          bundle: bundle,
+          onPlayerCreated: (p) {
+            seen = p;
+            p.speedScale = 3;
+          },
+        ));
+    await tester.pumpWidget(build());
+    await pumpUntil(tester, () => _drawing);
+    expect(seen!.speedScale, 3, reason: 'the load did not put the prop back');
+
+    // A rebuild that does not change it leaves it alone.
+    await tester.pumpWidget(build(placeholder: const SizedBox()));
+    expect(seen!.speedScale, 3);
+
+    await tester.pumpWidget(build(speed: 1.5));
+    expect(seen!.speedScale, 1.5);
+  });
+
   testWidgets('a load failure reaches onError, not the zone', (tester) async {
     Object? reported;
     await tester.pumpWidget(wrap(SpriteStudioAnimation.asset(
