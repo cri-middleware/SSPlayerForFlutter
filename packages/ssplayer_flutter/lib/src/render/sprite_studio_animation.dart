@@ -58,6 +58,10 @@ class SpriteStudioAnimation extends StatefulWidget {
   /// a pack that failed to load. ForGodot and ForReactNative default the same
   /// way. [SpriteStudioPlayer.load] does not — it is the primitive, and a
   /// caller who passes no name there has said so deliberately.
+  ///
+  /// Changing it switches on the same player, and while [playing] the new
+  /// animation starts from its first frame — [SpriteStudioPlayer.setAnimation]
+  /// alone selects and poses, which would leave a state-driven switch frozen.
   final String? animation;
 
   /// Passed to [SpriteStudioView]. Null takes the incoming constraints.
@@ -142,7 +146,7 @@ class _SpriteStudioAnimationState extends State<SpriteStudioAnimation>
     final player = _player;
     if (player == null || !_ready) return;
     if (old.loopCount != widget.loopCount) player.loopCount = widget.loopCount;
-    if (old.animation != widget.animation) _select(player);
+    if (old.animation != widget.animation) _switch(player);
     if (old.playing != widget.playing) _applyPlaying(player);
   }
 
@@ -179,6 +183,15 @@ class _SpriteStudioAnimationState extends State<SpriteStudioAnimation>
     final name = widget.animation ??
         (player.animationNames.isEmpty ? null : player.animationNames.first);
     if (name != null) player.setAnimation(name);
+  }
+
+  /// Heads out into the new animation only if the selection actually moved:
+  /// naming the one already selected — the pack's first, made explicit — must
+  /// not rewind it, and a name the pack lacks leaves the old one playing.
+  void _switch(SpriteStudioPlayer player) {
+    final before = player.currentAnimation;
+    _select(player);
+    if (widget.playing && player.currentAnimation != before) player.play();
   }
 
   /// Maps the boolean onto the player's verbs. Off holds in place; on carries

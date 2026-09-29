@@ -204,16 +204,69 @@ void main() {
     await pumpUntil(tester, () => _drawing);
     final names = created.single.animationNames;
     expect(names, isNotEmpty);
+    await pumpFrames(tester, 10);
+    final before = created.single.frameNo;
+    expect(before, greaterThan(0));
 
     // Naming what was already selected implicitly: the animation prop changed,
     // so `didUpdateWidget` takes its animation branch — but the pack did not.
-    await tester.pumpWidget(build(names.last));
+    await tester.pumpWidget(build(names.first));
     await tester.pump();
 
     // One player for the life of the asset key. Re-reading the pack to change
     // which animation is selected would throw away its textures and its clock.
     expect(created, hasLength(1));
-    expect(created.single.currentAnimation, names.last);
+    expect(created.single.currentAnimation, names.first);
+    // And the selection did not move, so nothing heads out: no rewind.
+    expect(created.single.isPlaying, isTrue);
+    expect(created.single.frameNo, greaterThanOrEqualTo(before));
+  });
+
+  testWidgets('switching the animation starts the new one while playing',
+      (tester) async {
+    if (assetDir == null) {
+      markTestSkipped('overall assets missing');
+      return;
+    }
+    SpriteStudioPlayer? seen;
+    final bundle = _DirBundle(assetDir);
+    Widget build(String? animation, {bool playing = true}) =>
+        wrap(SpriteStudioAnimation.asset(
+          'assets/x/PartsColor.ssab',
+          animation: animation,
+          playing: playing,
+          bundle: bundle,
+          onPlayerCreated: (p) => seen = p,
+        ));
+    await tester.pumpWidget(build(null));
+    await pumpUntil(tester, () => _drawing);
+    final player = seen!;
+    final names = player.animationNames;
+    expect(names, hasLength(greaterThanOrEqualTo(2)));
+
+    // A state-driven switch, the declarative widget's reason to exist.
+    // `setAnimation` alone selects and poses; this one has to keep moving.
+    await tester.pumpWidget(build(names[1]));
+    expect(player.currentAnimation, names[1]);
+    expect(player.isPlaying, isTrue);
+    await pumpFrames(tester, 10);
+    expect(player.frameNo, greaterThan(0));
+
+    // Not playing: the switch poses the new animation and leaves it there.
+    await tester.pumpWidget(build(names[1], playing: false));
+    await tester.pumpWidget(build(names[0], playing: false));
+    expect(player.currentAnimation, names[0]);
+    expect(player.isPlaying, isFalse);
+
+    // A name the pack lacks selects nothing, so nothing heads out either.
+    await tester.pumpWidget(build(names[0]));
+    expect(player.isPlaying, isTrue);
+    await pumpFrames(tester, 10);
+    final running = player.frameNo;
+    await tester.pumpWidget(build('no_such_animation'));
+    expect(player.currentAnimation, names[0]);
+    expect(player.isPlaying, isTrue);
+    expect(player.frameNo, running);
   });
 
   testWidgets('a load failure reaches onError, not the zone', (tester) async {
