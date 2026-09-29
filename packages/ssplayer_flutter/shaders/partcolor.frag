@@ -35,9 +35,11 @@ uniform vec4 uColLB;    // 7  : LB straight-alpha rgba
 uniform vec4 uColRB;    // 8  : RB straight-alpha rgba
 uniform vec4 uUvA;      // 9  : (LT.uv, RT.uv) in texture pixels
 uniform vec4 uUvB;      // 10 : (LB.uv, RB.uv) in texture pixels
-uniform vec4 uMaskBits; // 11 : (incrementSet, invertSet, visibleInside, enabled)
+uniform vec4 uMaskBits; // 11 : (visibleInside, enabled, tilesX, tilesY)
 uniform vec4 uMaskUv;   // 12 : player-local -> coverage UV basis [m00,m01,m10,m11]
 uniform vec2 uMaskOff;  // 13 : offset half of that affine
+uniform vec4 uMaskInc;  // 14 : increment set of coverage tiles 0..3
+uniform vec4 uMaskInv;  // 15 : invert set of coverage tiles 0..3
 uniform sampler2D uTex;      // sampler 0
 uniform sampler2D uCoverage; // sampler 1 (1x1 transparent dummy when unmasked)
 
@@ -50,18 +52,49 @@ float bitAt(float set, float p) {
   return floor(mod(set / p, 2.0));
 }
 
+// One coverage tile's bits at `muv`. Past 24 writers the bitmap is split into
+// tiles (2 side by side, then 2x2), each holding the whole writer box at a lower
+// resolution; the nudge keeps a uv of exactly 1 inside its own tile.
+float tileBits(vec2 muv, float tile) {
+  vec2 tiles = max(uMaskBits.zw, vec2(1.0));
+  vec2 cell = vec2(mod(tile, tiles.x), floor(tile / tiles.x));
+  vec4 cov = texture(uCoverage, (clamp(muv, 0.0, 0.9999) + cell) / tiles);
+  // Decode the three bit-carrying channels into one exact 24-bit value.
+  return floor(cov.r * 255.0 + 0.5)
+       + floor(cov.g * 255.0 + 0.5) * 256.0
+       + floor(cov.b * 255.0 + 0.5) * 65536.0;
+}
+
+// Replays one tile's writers: x = parity flips (invert), y = overlaps
+// (increment). A writer in neither set is out of this target's scope.
+vec2 replayTile(float bits, float inc, float inv) {
+  vec2 acc = vec2(0.0);
+  float p = 1.0; // 2^i
+  for (int i = 0; i < 24; i++) {
+    if (bitAt(bits, p) > 0.5) {
+      if (bitAt(inv, p) > 0.5) {
+        acc.x += 1.0; // invert (parity plane)
+      } else if (bitAt(inc, p) > 0.5) {
+        acc.y += 1.0; // increment (counter plane)
+      }
+    }
+    p *= 2.0;
+  }
+  return acc;
+}
+
 // Mask replay: rebuild the SS stencil for this fragment from the
 // coverage bitmap and decide whether the fragment survives.
 //
 // Unlike the flagship we do NOT carry a `mask_meta[]` array: scope is
-// resolved on the CPU into two 24-bit sets — one per OP, which is exactly the
-// plane split, handed to us for free.
+// resolved on the CPU into two 24-bit sets per tile — one per OP, which is
+// exactly the plane split, handed to us for free.
 bool maskPasses(vec2 local) {
-  if (uMaskBits.w < 0.5) return true; // not masked this frame
+  if (uMaskBits.y < 0.5) return true; // not masked this frame
 
   vec2 muv = vec2(uMaskUv.x * local.x + uMaskUv.y * local.y,
                   uMaskUv.z * local.x + uMaskUv.w * local.y) + uMaskOff;
-  bool visibleInside = uMaskBits.z > 0.5;
+  bool visibleInside = uMaskBits.x > 0.5;
 
   // The bitmap only spans the writers' bbox; a fragment outside it is covered by
   // no writer. Bailing here also avoids the edge-clamp smearing an edge writer's
@@ -69,12 +102,6 @@ bool maskPasses(vec2 local) {
   if (muv.x < 0.0 || muv.x > 1.0 || muv.y < 0.0 || muv.y > 1.0) {
     return !visibleInside;
   }
-
-  // Decode the three bit-carrying channels into one exact 24-bit value.
-  vec4 cov = texture(uCoverage, muv);
-  float bits = floor(cov.r * 255.0 + 0.5)
-             + floor(cov.g * 255.0 + 0.5) * 256.0
-             + floor(cov.b * 255.0 + 0.5) * 65536.0;
 
   // `Invert` and `IncrementWrap` are each their own inverse alone, but
   // they do NOT commute, so replaying both into one accumulator would make
@@ -84,24 +111,18 @@ bool maskPasses(vec2 local) {
   // WriteMask; replaying in a shader, separate accumulators do the same job with
   // no bit budget to divide — so the counter has no overlap ceiling here (it is
   // 7 for ForUnity under URP).
-  float parity = 0.0; // invert writers: covered where an ODD number overlap
-  float count = 0.0;  // increment writers: covered where ANY overlap
-  float p = 1.0; // 2^i
-  for (int i = 0; i < 24; i++) {
-    if (bitAt(bits, p) > 0.5) {
-      // A writer in neither set is out of this target's scope — skip it.
-      if (bitAt(uMaskBits.y, p) > 0.5) {
-        parity = 1.0 - parity; // invert (parity plane)
-      } else if (bitAt(uMaskBits.x, p) > 0.5) {
-        count += 1.0;          // increment (counter plane)
-      }
-    }
-    p *= 2.0;
-  }
+  //
+  // Unrolled per tile: a runtime effect cannot index a vec4 by a loop variable.
+  float tileCount = max(uMaskBits.z, 1.0) * max(uMaskBits.w, 1.0);
+  vec2 acc = replayTile(tileBits(muv, 0.0), uMaskInc.x, uMaskInv.x);
+  if (tileCount > 1.5) acc += replayTile(tileBits(muv, 1.0), uMaskInc.y, uMaskInv.y);
+  if (tileCount > 2.5) acc += replayTile(tileBits(muv, 2.0), uMaskInc.z, uMaskInv.z);
+  if (tileCount > 3.5) acc += replayTile(tileBits(muv, 3.0), uMaskInc.w, uMaskInv.w);
 
   // The union of the two planes — what SpriteStudio specifies where writers of
-  // differing mask_influence overlap.
-  bool masked = parity > 0.5 || count > 0.5;
+  // differing mask_influence overlap. Parity: covered where an ODD number of
+  // invert writers overlap.
+  bool masked = mod(acc.x, 2.0) > 0.5 || acc.y > 0.5;
   // Polarity is the target's, not the writer's.
   return masked == visibleInside;
 }

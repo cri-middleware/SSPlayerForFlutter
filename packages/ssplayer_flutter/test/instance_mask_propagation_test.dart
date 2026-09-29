@@ -1,19 +1,17 @@
 // A clipping mask written INSIDE an instance child must keep clipping the
-// parent animation's parts drawn after the instance (carry-over / SS7.5
-// InstancePropagation). This Body had only *downward* mask propagation
-// (`InheritedMask`); the child's clipping writers never reached the parent's
-// coverage, so parts drawn after the instance were not clipped by masks written
-// inside the sub-animation. The fix bubbles each visible instance child's
-// clipping writers up into the owner's coverage, transformed by the slot matrix
-// and ranked at the instance part.
+// parent animation's parts drawn after the instance (SS7.5
+// InstancePropagation). The top-level player bakes every writer of the
+// instance tree into one coverage, transformed by the chain of slot matrices,
+// and places each on its interval of the tree sequence: a clipping writer's
+// runs from itself to the end of the tree.
 //
-// The reference behaviour is ForUnity's `fix(mask): carry an instance-internal
-// mask past the instance boundary` and ForGodot's `carry instance-internal
-// masks out to the parent's later parts`. Shaders don't execute headless, so
-// this drives a spy backend and asserts on the plan the coverage pass builds —
-// that a carried-up (bubbled) clipping writer appears and reaches the owner's
-// later parts. A parallel pass renders the same frames through the real
-// CanvasBackend to exercise the bubbled coverage bake without throwing.
+// The reference behaviour is ForGodot's `fix(mask): an instance part's mask
+// flags reach one level, always` and the tree sequence it introduced. Shaders
+// don't execute headless, so this drives a spy backend and asserts on the plan
+// the coverage pass builds — that a descendant's clipping writer appears and
+// reaches the owner's later parts. A parallel pass renders the same frames
+// through the real CanvasBackend to exercise the descendant bake without
+// throwing.
 //
 // The fixtures in test/fixtures/instprop are the SDK's "overall"
 // InstancePropagation animation and its Source01 sub-animation, committed here
@@ -28,7 +26,7 @@ import 'package:ssplayer_flutter/ssplayer_flutter.dart';
 import 'package:ssplayer_flutter/src/render/backend/render_backend.dart';
 import 'package:ssplayer_flutter/src/render/backend/render_host.dart';
 import 'package:ssplayer_flutter/src/render/mask.dart'
-    show kBubbledWriterPart;
+    show kBubbledWriterPart, kMaskSeqEnd;
 import 'package:ssplayer_flutter/src/render/mask_context.dart';
 import 'package:ssruntime_dart/framedata.dart' as fbs;
 
@@ -104,23 +102,20 @@ void main() {
         if (plan.bubbled.isEmpty) continue;
         sawBubbled = true;
 
-        // The bubbled writer is a foreign, clipping sentinel in `writers`.
-        final sentinel = plan.writers.firstWhere(
-          (w) => w.partIndex == kBubbledWriterPart,
-          orElse: () => throw StateError(
-              'plan.bubbled is non-empty but carries no sentinel writer'),
-        );
-        expect(sentinel.isClipping, isTrue,
-            reason: 'only clipping writers carry out of a sub-animation');
-        expect(plan.bubbled.any((b) => b.bit == sentinel.bit), isTrue,
-            reason: 'the sentinel must pair a BubbledWriter by bit');
-
-        // Its bit must reach a part drawn AFTER the instance (scope): a
-        // clipping writer clips the parts ranked after it.
-        final bits = plan.bitsFor(sentinel.drawRank + 1, _target);
-        if (bits != null &&
-            (bits.increment | bits.invert) & (1 << sentinel.bit) != 0) {
-          sawBitReachLaterPart = true;
+        // A descendant's writer is a sentinel in `writers`, paired with its
+        // bake by bit.
+        for (final w in plan.writers) {
+          if (w.partIndex != kBubbledWriterPart) continue;
+          expect(plan.bubbled.any((b) => b.bit == w.bit), isTrue,
+              reason: 'the sentinel must pair a BubbledWriter by bit');
+          if (!w.isClipping) continue;
+          // A clipping writer's interval runs to the end of the tree, so its
+          // bit reaches whatever the caller draws after the instance.
+          expect(w.close, kMaskSeqEnd);
+          final bits = plan.bitsFor(w.open + 1, _target);
+          if (bits != null && bits.has(w.bit)) {
+            sawBitReachLaterPart = true;
+          }
         }
       }
     }
@@ -185,15 +180,15 @@ class _CoveragePlanSpy implements RenderBackend {
 
   @override
   void emitNormal(ui.Canvas canvas, fbs.DrawBatch batch, DrawFrame frame,
-      RenderHost host, MaskContext? maskCtx, InheritedMask? inheritedMask) {}
+      RenderHost host, PlayerMask masking) {}
 
   @override
   void emitShape(ui.Canvas canvas, fbs.DrawBatch batch, DrawFrame frame,
-      RenderHost host, MaskContext? maskCtx, InheritedMask? inheritedMask) {}
+      RenderHost host, PlayerMask masking) {}
 
   @override
   void emitMesh(ui.Canvas canvas, fbs.DrawBatch batch, DrawFrame frame,
-      RenderHost host, MaskContext? maskCtx, InheritedMask? inheritedMask) {}
+      RenderHost host, PlayerMask masking) {}
 
   @override
   void emitEffect(

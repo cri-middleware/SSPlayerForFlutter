@@ -2,7 +2,8 @@
 
 // Flutter GPU mask coverage writer — the GPU sibling of
 // shaders/mask_write.frag. One writer = one bit, pre-encoded on the CPU into the
-// R/G/B channel that owns it (8 bits x 3 = 24 writers; alpha is the accumulator).
+// R/G/B channel that owns it (8 bits x 3 = 24 writers per coverage tile; alpha
+// is the accumulator). The tile is chosen by the MVP the writer is drawn with.
 // The pass draws with additive blend, so the disjoint per-writer bits OR together
 // losslessly.
 

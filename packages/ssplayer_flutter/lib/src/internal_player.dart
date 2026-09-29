@@ -1,7 +1,7 @@
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
-import 'package:flutter/foundation.dart' show visibleForTesting;
+import 'package:flutter/foundation.dart' show debugPrint, visibleForTesting;
 import 'package:vector_math/vector_math_64.dart' show Matrix4;
 
 import 'package:ssruntime_dart/effect_draw_plan.dart' as efbs;
@@ -107,9 +107,19 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   /// backends draw from. Exposed to the backend as [geometry] ([RenderHost]).
   final GeometryBuilder _geometry = GeometryBuilder();
 
-  /// drawRank → texture hash for [_buildMaskContext]. Rebuilt each frame and
+  /// drawRank → texture hash for [_buildTreeMask]. Rebuilt each frame and
   /// consumed inside `renderCoverage`, which never retains it.
   final Map<int, int> _textureByRankScratch = <int, int>{};
+
+  /// This player's draw ranks on the instance tree's sequence, numbered by the
+  /// top-level player's [_buildTreeMask] each frame something in the tree
+  /// writes a mask (see [MaskWriter.open]). Read only while that frame draws.
+  Int32List _maskSeq = Int32List(0);
+
+  /// Whether any of this pack's parts can write coverage at all. Static: the
+  /// flags are read once at load.
+  late final bool _hasWriterParts =
+      _maskFlags.any((f) => f.isWriter && f.drawableWriter);
 
   /// The instance part's world matrix in [_emitInstanceBatch]. One per player,
   /// not per part: an instance child recurses with its OWN player (and so its
@@ -1026,8 +1036,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
     RenderBackend backend, {
     double? frameOverride,
     double alphaScale = 1.0,
-    InheritedMask? inheritedMask,
-    bool parentDriven = false,
+    PlayerMask? masking,
   }) {
     // Sub-frame ON (default): sample the fractional frame for smooth playback;
     // OFF: snap to the integer frame. This is the ONLY place a frame gets
@@ -1088,38 +1097,32 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
     // Masking is a pre-pass: collect this frame's writers, rasterise their
     // coverage bitmap, then let the batch loop test each target against it.
     //
-    // An instance sub-animation is **parent-driven**: it does NOT rasterise
-    // its own coverage — its own clipping / pure masks do NOT clip its own parts.
-    // SpriteStudio 7.5 renders an instance's parts un-clipped by their siblings
-    // (verified against the tool; the ForGodot and ForWGPU players are
-    // parent-driven the same way — `ss_internal_player.cpp` gates
-    // `_render_mask_coverage` on `!_parent_driven`). The child gets ONLY the outer
-    // mask it inherited, composed per part (via [inheritedMask]); its clipping
-    // writers still carry OUT to the parent ([_collectBubbledWriters], run by the
-    // owner). So the own-coverage pass runs at the top-level player scope only.
-    final maskCtx = parentDriven
-        ? null
-        : _buildMaskContext(backend, frame, batches,
-            inheritedMask?.comp ?? MaskComposition.identity);
+    // ONE coverage serves the whole instance tree, and the top-level player
+    // ([masking] == null) builds it: every writer of the tree, however deeply
+    // nested, is baked into it and placed on one sequence numbering the tree's
+    // parts in draw order. That is how SpriteStudio 7.5 scopes them — a mask
+    // inside an instance clips the sub-animation's own parts, a clipping mask
+    // keeps clipping the caller's later parts, and an outer mask reaches every
+    // level below. An instance child receives its view of it ([PlayerMask])
+    // from the part that calls it and builds nothing.
+    final mask = masking ?? _buildTreeMask(backend, frame, batches);
 
-    // A mask inherited from a parent instance reaches the child's
-    // peel-maskable kinds — Normal, Shape and Mesh — resolved per part against
-    // the composed settings. Effect is not peeled (its plan carries its own
-    // colours), so it escapes the parent clip — the same kind an own-mask can't
-    // gate either. A nested Instance forwards it another level down.
+    // A mask reaches the peel-maskable kinds — Normal, Shape and Mesh —
+    // resolved per part. Effect is not peeled (its plan carries its own
+    // colours), so no mask gates it. A nested Instance hands its view another
+    // level down.
     for (final batch in batches) {
       switch (batch.kind) {
         case fbs.DrawBatchKind.Normal:
-          backend.emitNormal(canvas, batch, frame, this, maskCtx, inheritedMask);
+          backend.emitNormal(canvas, batch, frame, this, mask);
         case fbs.DrawBatchKind.Mesh:
-          backend.emitMesh(canvas, batch, frame, this, maskCtx, inheritedMask);
+          backend.emitMesh(canvas, batch, frame, this, mask);
         case fbs.DrawBatchKind.Effect:
           backend.emitEffect(canvas, batch, frame, this);
         case fbs.DrawBatchKind.Instance:
-          _emitInstanceBatch(
-              canvas, backend, batch, frame, maskCtx, inheritedMask);
+          _emitInstanceBatch(canvas, backend, batch, frame, mask);
         case fbs.DrawBatchKind.Shape:
-          backend.emitShape(canvas, batch, frame, this, maskCtx, inheritedMask);
+          backend.emitShape(canvas, batch, frame, this, mask);
         case fbs.DrawBatchKind.Mask: // coverage only, never colour
         case fbs.DrawBatchKind.Nines: // 9-slice: not yet supported
         case fbs.DrawBatchKind.Text: // no SDK render path
@@ -1144,8 +1147,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
       RenderBackend backend,
       fbs.DrawBatch batch,
       DrawFrame frame,
-      MaskContext? maskCtx,
-      InheritedMask? inheritedMask) {
+      PlayerMask masking) {
     for (var k = 0; k < batch.count; k++) {
       final rank = batch.startRank + k;
       if (rank >= frame.drawOrder.length) break;
@@ -1171,22 +1173,13 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
           partAlpha: frame.alphaOf(part), chainScale: frame.alphaScale);
       if (alpha <= 0.0) continue;
 
-      // A mask reaching this instance part applies to the whole
-      // sub-animation, but the calling part's settings do NOT replace the
-      // callee's — they compose (`mask_influence` AND, `visible_inside_mask` OR)
-      // and each child part resolves its own test from the pair. So what goes
-      // down is the composed context, not a finished test.
-      //
-      // The coverage that reaches the child is this player's own if it has one
-      // (a fragment can test only one), else the one this player itself
-      // inherited, forwarded another level. Only the UV affine is re-composed
-      // with the slot matrix, so the child's local fragments sample it correctly.
-      // Scope is settled here, at the instance part's rank.
-      final flags = flagsFor(part);
-      final source = resolvePartMask(maskCtx, inheritedMask, rank, flags);
-      final inherited =
-          (inheritedMask ?? const InheritedMask(comp: MaskComposition.identity))
-              .forChild(flags, source?.composeSlot(world));
+      // The child tests its parts against the tree's one coverage, through
+      // the UV affine re-composed with the slot matrix and on the ranks the
+      // tree walk numbered for it. The instance part's `mask_influence` /
+      // `visible_inside_mask` compose with each child part's own — one level
+      // only, and whether or not anything masks here.
+      final childMask = masking.forInstance(flagsFor(part), world,
+          masking.tree == null ? null : state.child._maskSeq);
 
       // The child draws through THIS player's [backend] (shared across the
       // recursion) under the composed transform — Canvas: save+transform; GPU:
@@ -1216,43 +1209,113 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
         backend,
         frameOverride: state.childFrame,
         alphaScale: alpha,
-        inheritedMask: inherited,
-        parentDriven: true, // the child never rasterises its own coverage
+        masking: childMask,
       );
       backend.popTransform(canvas);
     }
   }
 
-  /// Builds this frame's mask plan and rasterises its coverage bitmap, or null
-  /// when nothing masks this frame (the overwhelmingly common case — the whole
-  /// mask path then costs one [MaskPlan.build] walk of `draw_order`).
+  /// Builds the instance tree's mask plan for this frame and rasterises its
+  /// coverage, returning the top-level player's view of it — or
+  /// [PlayerMask.none] when nothing in the tree writes a mask (the
+  /// overwhelmingly common case, decided from the static flags alone).
   ///
-  /// Two sources feed the coverage: this player's OWN writers, and the clipping
-  /// writers **carried up** from visible instance children (carry-over), so
-  /// a mask written inside a sub-animation clips this player's parts drawn after
-  /// the instance. The coverage runs when EITHER contributes — a player with no
-  /// mask of its own still rasterises a child's bubbled writers.
-  MaskContext? _buildMaskContext(RenderBackend backend, DrawFrame frame,
-      List<fbs.DrawBatch> batches, MaskComposition comp) {
-    // Own writers: null when this player writes no mask of its own. [comp]
-    // threads in so the own writers pick up the effective (composed) influence.
-    // No early-out on `!comp.influence`: the AND-chain settles which
-    // targets the coverage is tested against, not whether it is written.
-    final own = _maskFlags.isEmpty
-        ? null
-        : MaskPlan.build(frame, _maskFlags, comp: comp);
+  /// Three steps, after the ForGodot flagship: number every part of the tree
+  /// on one sequence ([_numberMaskTree]), collect every writer of every
+  /// visible player into one plan, each on its interval of that sequence
+  /// ([MaskPlan.collect]), then bake them all into one bitmap in this player's
+  /// local space — a descendant's through the chain of instance matrices.
+  PlayerMask _buildTreeMask(
+      RenderBackend backend, DrawFrame frame, List<fbs.DrawBatch> batches) {
+    if (!_treeCanWriteMask()) return PlayerMask.none;
 
-    // Carry-over: an instance child's clipping writers bubble up into this
-    // coverage. Runs even when this player owns no writer of its own.
-    final bubbled = _collectBubbledWriters(frame, comp,
-        startBit: own?.writers.length ?? 0);
+    final nodes = <_MaskTreeNode>[];
+    _numberMaskTree(frame, 0, null, nodes);
 
-    if (own == null && bubbled.bakes.isEmpty) return null;
-    final plan = _combineMaskPlan(own, bubbled);
-    if (plan == null) return null;
+    final writers = <MaskWriter>[];
+    final bakes = <BubbledWriter>[];
+    var left = double.infinity, top = double.infinity;
+    var right = double.negativeInfinity, bottom = double.negativeInfinity;
+    void fold(Float32List outline, Float64List? m) {
+      for (var c = 0; c * 2 + 1 < outline.length; c++) {
+        var x = outline[c * 2], y = outline[c * 2 + 1];
+        if (m != null) {
+          // Column-major: x' = m0·x + m4·y + m12.
+          final ox = x;
+          x = m[0] * ox + m[4] * y + m[12];
+          y = m[1] * ox + m[5] * y + m[13];
+        }
+        if (x < left) left = x;
+        if (x > right) right = x;
+        if (y < top) top = y;
+        if (y > bottom) bottom = y;
+      }
+    }
 
-    // Own writers take their texel from the batch that owns each rank (bubbled
-    // writers carry their child texture hash themselves).
+    var dropped = false;
+    if (_hasWriterParts) {
+      dropped = MaskPlan.collect(frame, _maskFlags, seq: _maskSeq,
+          add: (w, outline) {
+        writers.add(w);
+        fold(outline, null);
+      });
+    }
+    for (final n in nodes) {
+      if (dropped) break;
+      final child = n.player;
+      if (!child._hasWriterParts) continue;
+      dropped = MaskPlan.collect(
+        n.frame,
+        child._maskFlags,
+        comp: n.comp,
+        seq: child._maskSeq,
+        startSeq: n.startSeq,
+        firstBit: writers.length,
+        add: (w, outline) {
+          // Scope, bit and op are the writer's own; only its geometry lives
+          // elsewhere — in the descendant, placed by [n.toRoot].
+          writers.add(MaskWriter(
+            partIndex: kBubbledWriterPart,
+            drawRank: w.drawRank,
+            bit: w.bit,
+            opInvert: w.opInvert,
+            isClipping: w.isClipping,
+            threshold: w.threshold,
+            open: w.open,
+            close: w.close,
+          ));
+          bakes.add(BubbledWriter(
+            geometry: child.geometry,
+            textures: child.textures,
+            frame: n.frame,
+            flags: child.flagsFor(w.partIndex),
+            childPartIndex: w.partIndex,
+            bit: w.bit,
+            threshold: w.threshold,
+            textureHash: n.textureByRank[w.drawRank],
+            slot: n.toRoot,
+          ));
+          fold(outline, n.toRoot);
+        },
+      );
+    }
+
+    if (dropped && !_warnedMaskCap) {
+      _warnedMaskCap = true;
+      debugPrint('[ssplayer] an animation masks with more than '
+          '$kMaxMaskWriters mask parts at once (instances count each time '
+          'they are placed); the rest are ignored.');
+    }
+    if (writers.isEmpty) return PlayerMask.none;
+    if (!(right > left) || !(bottom > top)) return PlayerMask.none;
+    final plan = MaskPlan.fromWriters(
+      writers: writers,
+      bounds: ui.Rect.fromLTRB(left, top, right, bottom),
+      bubbled: bakes,
+    );
+
+    // This player's writers take their texel from the batch that owns each
+    // rank (a descendant's carry their texture hash themselves).
     final textureByRank = _textureByRankScratch..clear();
     for (final batch in batches) {
       for (var k = 0; k < batch.count; k++) {
@@ -1261,156 +1324,80 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
     }
 
     // The backend rasterises the coverage (Canvas: an offscreen bitmap; GPU: a
-    // render-target texture) and owns its lifetime. Null when the mask program is
-    // still compiling or no writer contributed — draw unmasked.
+    // render-target texture) and owns its lifetime. Null when the mask program
+    // is still compiling.
     final ctx = backend.renderCoverage(frame, this, plan, textureByRank);
-    if (ctx == null) return null;
-    // The backend builds the MaskContext with the coverage it owns but the
-    // identity composition; fold the inherited [comp] in so this player's OWN
-    // mask composes with the instance chain — the target opt-in (AND) and
-    // the polarity (OR). Identity at the top level leaves it untouched.
-    // Fold the inherited composition into this player's OWN mask, exactly
-    // as the WebGL flagship does: a part is a target when its own mask_influence
-    // survives the AND-chain (`comp.targets`), and its polarity ORs in the
-    // chain's visible_inside (`comp.visibleInsideFor`) —
-    // `composeVisibleInside(ctxVisibleInside, part)` in ssplayer-webgl. Identity
-    // at the top level leaves the backend's context as built.
-    return identical(comp, MaskComposition.identity)
-        ? ctx
-        : MaskContext(ctx.plan, ctx.coverage,
-            coverageHandle: ctx.coverageHandle, comp: comp);
+    return PlayerMask.root(ctx, seq: _maskSeq);
   }
 
-  /// Collects the clipping writers of every visible instance child, mapped into
-  /// this player's coverage space (carry-over). Bits continue from
-  /// [startBit] (after this player's own writers) up to [kMaxMaskWriters].
-  ///
-  /// Only CLIPPING writers carry out — a pure mask closes within the child
-  /// (masks its own earlier parts). Single-stage, matching the downward
-  /// inheritance: a grandchild's writers are not re-bubbled here. Each child's
-  /// own writers are (re)built under the composition that reaches it, so their OP
-  /// is already the effective `mask_influence`.
-  _BubbledWriters _collectBubbledWriters(DrawFrame frame, MaskComposition comp,
-      {required int startBit}) {
-    if (_instances.isEmpty) return _BubbledWriters.empty;
-    final drawOrder = frame.drawOrder;
-    var bit = startBit;
-    final sentinels = <MaskWriter>[];
-    final bakes = <BubbledWriter>[];
-    var left = double.infinity, top = double.infinity;
-    var right = double.negativeInfinity, bottom = double.negativeInfinity;
+  /// Whether this player, or any instance under it at any depth, has a part
+  /// that can write a mask. The whole mask pre-pass is skipped when not.
+  /// Static — the instance children are fixed at load — so it is decided once.
+  bool _treeCanWriteMask() => _treeCanWriteMaskCache ??= _hasWriterParts ||
+      _instances.slots.any((s) => s.child._treeCanWriteMask());
+  bool? _treeCanWriteMaskCache;
 
-    for (var rank = 0; rank < drawOrder.length && bit < kMaxMaskWriters; rank++) {
-      final part = drawOrder[rank];
+  /// The mask-cap warning has been printed for this player.
+  bool _warnedMaskCap = false;
+
+  /// Numbers this player's ranks on the tree sequence from [counter] into
+  /// [_maskSeq], each visible instance's sub-animation taking the numbers right
+  /// after its instance part, and appends every descendant reached to [out]
+  /// with what its writers need: its frame, its placement in the top-level
+  /// player's space and where its animation starts on the sequence. Returns the
+  /// next free number.
+  ///
+  /// The children's frames are fetched at the clock they will be drawn at, so
+  /// the draw orders numbered here are the ones [_paintTree] then walks.
+  int _numberMaskTree(DrawFrame frame, int counter, Float64List? toRoot,
+      List<_MaskTreeNode> out) {
+    final order = frame.drawOrder;
+    if (_maskSeq.length != order.length) _maskSeq = Int32List(order.length);
+    for (var rank = 0; rank < order.length; rank++) {
+      final seq = counter++;
+      _maskSeq[rank] = seq;
+      if (_instances.isEmpty) continue;
+      final part = order[rank];
       final state = _instances.slotFor(part);
       if (state == null || !state.visible) continue;
-      final child = state.child;
-      if (child._maskFlags.isEmpty) continue;
-
-      // The composition reaching the child (as in [_emitInstanceBatch]): this
-      // player's inherited [comp] folded with the instance part's own flags.
-      final childComp = comp.compose(flagsFor(part));
-
-      final built = child._buildChildMaskFrame(state.childFrame);
-      if (built == null) continue;
-      final childFrame = built.frame;
-      final childPlan =
-          MaskPlan.build(childFrame, child._maskFlags, comp: childComp);
-      if (childPlan == null) continue;
-
-      // The instance slot matrix (child-local → this player's local), the same
-      // transform [_emitInstanceBatch] draws the child under.
       final slot = GeometryBuilder.world2dOf(part, frame);
       if (slot == null) continue;
+      final child = state.child;
+      final built = child._buildChildMaskFrame(state.childFrame);
+      if (built == null) continue;
+      final placed = toRoot == null ? slot : _mulCol4(toRoot, slot);
+      out.add(_MaskTreeNode(
+        player: child,
+        frame: built.frame,
+        textureByRank: built.textureByRank,
+        toRoot: placed,
+        startSeq: seq,
+        comp: MaskComposition.ofInstancePart(flagsFor(part)),
+      ));
+      counter = child._numberMaskTree(built.frame, counter, placed, out);
+    }
+    return counter;
+  }
 
-      for (final cw in childPlan.writers) {
-        if (!cw.isClipping) continue;
-        if (bit >= kMaxMaskWriters) break;
-        final cflags = child.flagsFor(cw.partIndex);
-        final outline = _childWriterOutline(cw.partIndex, cflags, childFrame);
-        if (outline == null) continue;
-        // Fold the child outline, mapped into this player's local space by the
-        // slot matrix (column-major: x' = m0·x + m4·y + m12), into the bounds.
-        for (var c = 0; c * 2 + 1 < outline.length; c++) {
-          final ox = outline[c * 2], oy = outline[c * 2 + 1];
-          final x = slot[0] * ox + slot[4] * oy + slot[12];
-          final y = slot[1] * ox + slot[5] * oy + slot[13];
-          if (x < left) left = x;
-          if (x > right) right = x;
-          if (y < top) top = y;
-          if (y > bottom) bottom = y;
+  /// Column-major 4×4 product `a · b`.
+  static Float64List _mulCol4(Float64List a, Float64List b) {
+    final out = Float64List(16);
+    for (var c = 0; c < 4; c++) {
+      for (var r = 0; r < 4; r++) {
+        var v = 0.0;
+        for (var k = 0; k < 4; k++) {
+          v += a[k * 4 + r] * b[c * 4 + k];
         }
-        sentinels.add(MaskWriter(
-          partIndex: kBubbledWriterPart,
-          drawRank: rank, // the instance part's rank — clips the parts after it
-          bit: bit,
-          opInvert: cw.opInvert, // effective op (built with childComp)
-          isClipping: true,
-          threshold: cw.threshold,
-        ));
-        bakes.add(BubbledWriter(
-          geometry: child.geometry,
-          textures: child.textures,
-          frame: childFrame,
-          flags: cflags,
-          childPartIndex: cw.partIndex,
-          bit: bit,
-          threshold: cw.threshold,
-          textureHash: built.textureByRank[cw.drawRank],
-          slot: slot,
-        ));
-        bit++;
+        out[c * 4 + r] = v;
       }
     }
-
-    if (bakes.isEmpty) return _BubbledWriters.empty;
-    final bounds = (right > left && bottom > top)
-        ? ui.Rect.fromLTRB(left, top, right, bottom)
-        : null;
-    return _BubbledWriters(sentinels, bakes, bounds);
-  }
-
-  /// The world-space outline of a child writer, per its geometry kind, for
-  /// folding into the carry-over coverage bounds (mirrors [MaskPlan.build]).
-  Float32List? _childWriterOutline(
-      int childPartIndex, MaskPartFlags flags, DrawFrame childFrame) {
-    if (flags.shapeGeometry) {
-      return GeometryBuilder.shapeWorldOutlineOf(childPartIndex, childFrame);
-    }
-    if (flags.meshGeometry) {
-      return GeometryBuilder.meshWorldOutlineOf(childPartIndex, childFrame);
-    }
-    return GeometryBuilder.worldCornersOf(childPartIndex, childFrame);
-  }
-
-  /// Merges the owner's own [own] plan with the [bubbled] carry-over into one
-  /// plan (writers + coverage bounds + bake descriptors). Returns [own]
-  /// unchanged when nothing bubbled, and null only when there is no geometry to
-  /// cover at all.
-  MaskPlan? _combineMaskPlan(MaskPlan? own, _BubbledWriters bubbled) {
-    if (bubbled.bakes.isEmpty) return own;
-    final bb = bubbled.bounds;
-    final ui.Rect bounds;
-    if (own != null && bb != null) {
-      bounds = own.bounds.expandToInclude(bb);
-    } else if (bb != null) {
-      bounds = bb;
-    } else if (own != null) {
-      bounds = own.bounds;
-    } else {
-      return null; // bubbled geometry degenerate and no own writers
-    }
-    return MaskPlan.fromWriters(
-      writers: <MaskWriter>[...?own?.writers, ...bubbled.sentinels],
-      bounds: bounds,
-      bubbled: bubbled.bakes,
-    );
+    return out;
   }
 
   /// Builds this player's [DrawFrame] at [sampled] plus a `drawRank → texture
-  /// hash` map, for baking its (clipping) writers into a PARENT's coverage
-  /// (carry-over). A lighter mirror of [_paintTree]'s gather — alpha is
-  /// irrelevant to a coverage bit, so it is left at 1.
+  /// hash` map, for numbering it on the tree sequence and baking its writers
+  /// into the top-level player's coverage. A lighter mirror of [_paintTree]'s
+  /// gather — alpha is irrelevant to a coverage bit, so it is left at 1.
   ({DrawFrame frame, Map<int, int> textureByRank})? _buildChildMaskFrame(
       double sampled) {
     final fd = getFrameData(subFrameEnabled ? sampled : sampled.floorToDouble());
@@ -1522,18 +1509,31 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   }
 }
 
-/// The instance children's clipping writers carried up into a player's coverage,
-/// gathered by [SpriteStudioInternalPlayer._collectBubbledWriters]:
-/// [sentinels] for [MaskPlan.writers] (scope resolution) and [bakes] for the
-/// coverage rasteriser, paired by [MaskWriter.bit] / [BubbledWriter.bit], plus
-/// their union [bounds] in owner-local space.
-class _BubbledWriters {
-  const _BubbledWriters(this.sentinels, this.bakes, this.bounds);
+/// One instance descendant reached by [SpriteStudioInternalPlayer._numberMaskTree]:
+/// what collecting its writers into the top-level player's coverage needs.
+class _MaskTreeNode {
+  const _MaskTreeNode({
+    required this.player,
+    required this.frame,
+    required this.textureByRank,
+    required this.toRoot,
+    required this.startSeq,
+    required this.comp,
+  });
 
-  static const _BubbledWriters empty =
-      _BubbledWriters(<MaskWriter>[], <BubbledWriter>[], null);
+  final SpriteStudioInternalPlayer player;
 
-  final List<MaskWriter> sentinels;
-  final List<BubbledWriter> bakes;
-  final ui.Rect? bounds;
+  /// Its frame at the clock it is drawn at.
+  final DrawFrame frame;
+  final Map<int, int> textureByRank;
+
+  /// Its local → the top-level player's local (column-major 4×4).
+  final Float64List toRoot;
+
+  /// Its instance part's number on the tree sequence: where its pure masks
+  /// start to count.
+  final int startSeq;
+
+  /// What its instance part hands down.
+  final MaskComposition comp;
 }

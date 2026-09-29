@@ -1,21 +1,19 @@
-// Mask settings compose across the instance hierarchy.
+// Mask settings compose across ONE instance level.
 //
-// A mask reaching an instance part applies to the whole sub-animation, but the
-// calling part's settings do NOT replace the callee's: `mask_influence` chains
-// with AND, `visible_inside_mask` accumulates with OR. This port resolved both
-// from the instance part alone and stamped one finished test over every part of
-// the child, so the sub-animation's own flags never entered the decision — and
-// it disagreed with SS7.5 in both directions:
+// A part's own `mask_influence` / `visible_inside_mask` compose with those of
+// the instance part directly above it — `mask_influence` with AND,
+// `visible_inside_mask` with OR — and with nothing further up. That is what
+// SpriteStudio 7.5 draws (InstancePropagationTired3 and the S01_Overlap /
+// OV_Top data behind the ForGodot fix): under an instance part with
+// `mask_influence == 0` the instance's own parts go unmasked, but a
+// grandchild whose own instance part opts in is masked again. This port used
+// to chain both flags down the whole hierarchy, so one opted-out caller
+// unmasked its entire subtree.
 //
-//   * a callee opting out with `mask_influence == 0` was masked anyway;
-//   * a callee's `visible_inside_mask` was flattened to the caller's.
-//
-// The identity (influence = true, visible_inside = false) is what keeps unnested
-// playback unchanged, so it is pinned here too.
-//
-// Multi-level nesting chains by handing each level a composed value; that it
-// *chains* is covered below, but agreement with SS7.5 beyond one level is
-// unverified — as it is in the sibling ports.
+// The composition applies whether or not anything masks the caller, and the
+// same one level decides a writer's OP. The identity (influence = true,
+// visible_inside = false) is what keeps unnested playback unchanged, so it is
+// pinned here too.
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
@@ -90,44 +88,56 @@ void main() {
       }
     });
 
-    test('mask_influence chains with AND and never comes back', () {
-      const id = MaskComposition.identity;
-      expect(id.compose(_plain).influence, isTrue);
-      // One caller opting out settles it…
-      final out = id.compose(_optedOut);
+    test('an instance part hands down its own flags, not what it inherited',
+        () {
+      expect(MaskComposition.ofInstancePart(_plain), MaskComposition.identity);
+      final out = MaskComposition.ofInstancePart(_optedOut);
       expect(out.influence, isFalse);
-      // …for every level below, whatever they ask for.
-      expect(out.compose(_plain).influence, isFalse);
-      expect(out.compose(_plain).compose(_plain).influence, isFalse);
-    });
-
-    test('visible_inside_mask accumulates with OR', () {
-      const id = MaskComposition.identity;
-      expect(id.compose(_plain).visibleInside, isFalse);
-      final inside = id.compose(_inside);
+      expect(out.visibleInside, isFalse);
+      final inside = MaskComposition.ofInstancePart(_inside);
+      expect(inside.influence, isTrue);
       expect(inside.visibleInside, isTrue);
-      // Once inside, a plain callee below stays inside.
-      expect(inside.compose(_plain).visibleInside, isTrue);
-      // And a callee asking for inside puts itself there under a plain caller.
-      expect(id.compose(_plain).visibleInsideFor(_inside), isTrue);
+      // There is nothing to chain: the value depends on the instance part
+      // alone, so a grandchild under an opted-in instance part is back to the
+      // identity however its grandparent was set.
+      expect(MaskComposition.ofInstancePart(_plain).targets(_plain), isTrue);
     });
 
-    test('a callee opted out by the chain is not a target', () {
-      final out = MaskComposition.identity.compose(_optedOut);
+    test('mask_influence composes with AND, visible_inside_mask with OR', () {
+      final out = MaskComposition.ofInstancePart(_optedOut);
       expect(out.targets(_plain), isFalse,
-          reason: 'the caller settled "not masked" for the subtree');
+          reason: 'the instance part opted its sub-animation out');
+      final inside = MaskComposition.ofInstancePart(_inside);
+      expect(inside.visibleInsideFor(_plain), isTrue);
+      // And a callee asking for inside puts itself there under a plain caller.
+      expect(MaskComposition.identity.visibleInsideFor(_inside), isTrue);
+    });
+
+    test('a writer OP takes the same one level', () {
+      // Own mask_influence AND the instance part's: under an opted-out
+      // instance a writer moves to the increment plane…
+      expect(
+          MaskComposition.ofInstancePart(_optedOut)
+              .opInvertFor(_clippingInfluence),
+          isFalse);
+      // …and under an opted-in one it keeps its own OP.
+      expect(
+          MaskComposition.ofInstancePart(_plain)
+              .opInvertFor(_clippingInfluence),
+          isTrue);
+      expect(MaskComposition.identity.opInvertFor(_clipping), isFalse);
     });
 
     test('mask_write does not compose, and does not make its part a target', () {
-      final out = MaskComposition.identity.compose(_optedOut);
+      final out = MaskComposition.ofInstancePart(_optedOut);
       // The clipping writer's own colour is clipped only on its real influence,
       // not forced by mask_write: with influence 0 it is not a target,
       // under any caller…
       expect(out.targets(_clipping), isFalse);
       expect(MaskComposition.identity.targets(_clipping), isFalse);
       // …while writing a mask is a local fact that descendants do not inherit:
-      // the chain below a clipping writer is decided by its mask_influence.
-      expect(MaskComposition.identity.compose(_clipping).influence, isFalse);
+      // what an instance part hands down is decided by its mask_influence.
+      expect(MaskComposition.ofInstancePart(_clipping).influence, isFalse);
     });
   });
 
@@ -150,26 +160,26 @@ void main() {
     test('the identity reproduces the pre-composition behaviour', () {
       final bits = plan.bitsFor(0, _plain);
       expect(bits, isNotNull);
-      expect(bits!.invert, 0x1);
+      expect(bits!.invertOf(0), 0x1);
       expect(bits.visibleInside, isFalse);
       expect(plan.bitsFor(0, _optedOut), isNull);
     });
 
     test('an opted-out caller unmasks a target the plan would otherwise claim',
         () {
-      final out = MaskComposition.identity.compose(_optedOut);
+      final out = MaskComposition.ofInstancePart(_optedOut);
       expect(plan.bitsFor(0, _plain, comp: out), isNull);
     });
 
     test('the caller\'s polarity reaches a part that did not ask for it', () {
-      final inside = MaskComposition.identity.compose(_inside);
+      final inside = MaskComposition.ofInstancePart(_inside);
       expect(plan.bitsFor(0, _plain, comp: inside)!.visibleInside, isTrue);
     });
 
     test('a part keeps its own polarity under a plain caller', () {
       // The flattening bug in the other direction: the callee asked to draw
       // inside, the caller did not, and the caller used to win.
-      final plainCaller = MaskComposition.identity.compose(_plain);
+      final plainCaller = MaskComposition.ofInstancePart(_plain);
       expect(plan.bitsFor(0, _inside, comp: plainCaller)!.visibleInside, isTrue);
     });
 
@@ -177,7 +187,7 @@ void main() {
       // Rank 9 is past the writer, so no scope — but a part that may only appear
       // inside a mask must still run the test (and be discarded by the empty
       // set). That has to hold when the polarity came from the caller, too.
-      final inside = MaskComposition.identity.compose(_inside);
+      final inside = MaskComposition.ofInstancePart(_inside);
       final bits = plan.bitsFor(9, _plain, comp: inside);
       expect(bits, isNotNull);
       expect(bits!.isEmpty, isTrue);
@@ -187,96 +197,109 @@ void main() {
     });
 
     test('a clipping writer with mask_influence 0 is not a target', () {
-      final out = MaskComposition.identity.compose(_optedOut);
+      final out = MaskComposition.ofInstancePart(_optedOut);
       // Rank 0 is in the pure mask's scope, but the clipping writer opted out of
       // being masked (influence 0), so its own colour is not clipped —
       // whether or not a caller opted out too.
       expect(plan.bitsFor(0, _clipping, comp: out), isNull);
       expect(plan.bitsFor(0, _clipping), isNull);
       // With mask_influence 1 it IS a target and picks up the writer's bit.
-      expect(plan.bitsFor(0, _clippingInfluence)!.invert, 0x1);
+      expect(plan.bitsFor(0, _clippingInfluence)!.invertOf(0), 0x1);
     });
   });
 
-  group('InheritedMask resolves per child part', () {
-    final source = MaskDraw(
-      const MaskBits(increment: 0x2, invert: 0x1, visibleInside: false),
-      null,
-      Float32List.fromList(<double>[1, 0, 0, 1]),
-      Float32List.fromList(<double>[0, 0]),
+  group('PlayerMask resolves per part on the tree sequence', () {
+    // Seq 0..9: a pure mask at 4 inside the child animation (which starts
+    // after its instance part at seq 2), and a clipping writer at 6.
+    final plan = MaskPlan.fromWriters(
+      writers: const <MaskWriter>[
+        MaskWriter(
+          partIndex: -2,
+          drawRank: 1,
+          bit: 0,
+          opInvert: true,
+          isClipping: false,
+          threshold: 0.0,
+          open: 2,
+          close: 4,
+        ),
+        MaskWriter(
+          partIndex: -2,
+          drawRank: 3,
+          bit: 1,
+          opInvert: false,
+          isClipping: true,
+          threshold: 0.0,
+          open: 6,
+        ),
+      ],
+      bounds: const ui.Rect.fromLTRB(0, 0, 10, 10),
     );
+    final root = PlayerMask.root(MaskContext(plan, null),
+        seq: <int>[0, 1, 2, 7, 8]); // the child's parts took 3..6
+    final slot = Float64List(16)
+      ..[0] = 1
+      ..[5] = 1
+      ..[10] = 1
+      ..[15] = 1;
 
-    test('every child part shares the writer sets — scope was settled above',
-        () {
-      final inh = const InheritedMask(comp: MaskComposition.identity)
-          .forChild(_plain, source);
-      final a = inh.drawFor(_plain)!;
-      final b = inh.drawFor(_inside)!;
-      expect(a.bits.increment, 0x2);
-      expect(a.bits.invert, 0x1);
-      expect(b.bits.increment, 0x2);
-      expect(b.bits.invert, 0x1);
+    test('a pure mask inside an instance reaches only its own animation', () {
+      final child = root.forInstance(_plain, slot, <int>[3, 4, 5, 6]);
+      expect(child.drawFor(0, _plain)!.bits.invertOf(0), 0x1,
+          reason: 'drawn before the pure mask, in the same animation');
+      // The caller's parts before the instance are outside its interval.
+      expect(root.drawFor(1, _plain), isNull);
     });
 
-    test('…but each derives its own polarity', () {
-      final inh = const InheritedMask(comp: MaskComposition.identity)
-          .forChild(_plain, source);
-      expect(inh.drawFor(_plain)!.bits.visibleInside, isFalse);
-      expect(inh.drawFor(_inside)!.bits.visibleInside, isTrue,
-          reason: "the callee's own visible_inside_mask must survive");
+    test('a clipping mask inside an instance clips the caller after it', () {
+      expect(root.drawFor(3, _plain)!.bits.incrementOf(0), 0x2);
+      expect(root.drawFor(4, _plain)!.bits.incrementOf(0), 0x2);
     });
 
-    test('a caller drawing inside puts the whole child inside', () {
-      final inh = const InheritedMask(comp: MaskComposition.identity)
-          .forChild(_inside, source);
-      expect(inh.drawFor(_plain)!.bits.visibleInside, isTrue);
-      expect(inh.drawFor(_inside)!.bits.visibleInside, isTrue);
+    test('an opted-out instance part leaves only its own parts unmasked', () {
+      final child = root.forInstance(_optedOut, slot, <int>[3, 4, 5, 6]);
+      expect(child.drawFor(0, _plain), isNull);
+      // A grandchild under an opted-in instance part is masked again.
+      final grand = child.forInstance(_plain, slot, <int>[3]);
+      expect(grand.drawFor(0, _plain)!.bits.invertOf(0), 0x1);
     });
 
-    test('a child part that opts out is not masked by the caller', () {
-      final inh = const InheritedMask(comp: MaskComposition.identity)
-          .forChild(_plain, source);
-      expect(inh.drawFor(_optedOut), isNull,
-          reason: 'the blanket stamp used to mask it anyway');
+    test('a part drawing inside with no mask anywhere draws nothing', () {
+      expect(PlayerMask.none.drawFor(0, _inside)!.drawsNothing, isTrue);
+      expect(PlayerMask.none.drawFor(0, _plain), isNull);
+      // The same under an instance part that asks for inside, coverage or not.
+      final child =
+          PlayerMask.none.forInstance(_inside, slot, null);
+      expect(child.drawFor(0, _plain)!.drawsNothing, isTrue);
+      // …but not when the instance part opted out of masking.
+      expect(PlayerMask.none.forInstance(_optedOut, slot, null)
+          .drawFor(0, _inside), isNull);
     });
 
-    test('an opted-out caller unmasks the entire child', () {
-      // The instance part itself is not a target, so nothing reaches the child.
-      final inh = const InheritedMask(comp: MaskComposition.identity)
-          .forChild(_optedOut, null);
-      expect(inh.comp.influence, isFalse);
-      expect(inh.drawFor(_plain), isNull);
-      expect(inh.drawFor(_inside), isNull);
-    });
-
-    test('no ancestor coverage means no inherited test, chain or not', () {
-      final inh = const InheritedMask(comp: MaskComposition.identity)
-          .forChild(_plain, null);
-      expect(inh.comp.influence, isTrue, reason: 'the chain still propagates');
-      expect(inh.drawFor(_plain), isNull);
-    });
-
-    test('the chain reaches a second level', () {
-      final first = const InheritedMask(comp: MaskComposition.identity)
-          .forChild(_inside, source);
-      final second = first.forChild(_plain, first.drawFor(_plain));
-      // OR carried down two levels…
-      expect(second.drawFor(_plain)!.bits.visibleInside, isTrue);
-      // …and AND settles at whichever level opts out.
-      final blocked = first.forChild(_optedOut, null);
-      expect(blocked.drawFor(_plain), isNull);
+    test('a part drawing inside that no writer reaches draws nothing', () {
+      expect(root.drawFor(1, _inside)!.drawsNothing, isTrue);
+      expect(root.drawFor(4, _inside)!.drawsNothing, isFalse);
     });
   });
 
   test('the slot affine composes without disturbing the writer sets', () {
-    // `M_child = M_parent · slot_xf`: re-basing the UV is orthogonal to
-    // the per-part composition, so the two can be applied in either order.
-    final source = MaskDraw(
-      const MaskBits(increment: 0x2, invert: 0x1, visibleInside: false),
-      null,
-      Float32List.fromList(<double>[0.5, 0, 0, 0.25]),
-      Float32List.fromList(<double>[0.1, 0.2]),
+    // `M_child = M_parent · slot_xf`: re-basing the UV is orthogonal to the
+    // per-part composition.
+    final plan = MaskPlan.fromWriters(
+      writers: const <MaskWriter>[
+        MaskWriter(
+          partIndex: 0,
+          drawRank: 0,
+          bit: 0,
+          opInvert: false,
+          isClipping: true,
+          threshold: 0.0,
+        ),
+      ],
+      bounds: const ui.Rect.fromLTRB(-0.2, -0.8, 1.8, 3.2),
     );
+    final root = PlayerMask.root(MaskContext(plan, null));
+    // uvBasis = [0.5, 0, 0, 0.25], uvOffset = [0.1, 0.2].
     // A slot that scales by 2 and translates by (4, 8), column-major 4x4.
     final slot = Float64List(16);
     slot[0] = 2;
@@ -285,18 +308,12 @@ void main() {
     slot[13] = 8;
 
     // Tolerance is float32's — the affine is carried in a Float32List uniform.
-    final composed = source.composeSlot(slot);
-    expect(composed.uvBasis[0], closeTo(1.0, 1e-6)); // 0.5 * 2
-    expect(composed.uvBasis[3], closeTo(0.5, 1e-6)); // 0.25 * 2
-    expect(composed.uvOffset[0], closeTo(0.5 * 4 + 0.1, 1e-6));
-    expect(composed.uvOffset[1], closeTo(0.25 * 8 + 0.2, 1e-6));
-
-    // Re-polarising afterwards leaves the affine alone.
-    final repolarised = composed.withPolarity(true);
-    expect(repolarised.uvBasis, composed.uvBasis);
-    expect(repolarised.uvOffset, composed.uvOffset);
-    expect(repolarised.bits.increment, 0x2);
-    expect(repolarised.bits.invert, 0x1);
-    expect(repolarised.bits.visibleInside, isTrue);
+    final child = root.forInstance(_plain, slot, <int>[1]);
+    final d = child.drawFor(0, _plain)!;
+    expect(d.uvBasis[0], closeTo(1.0, 1e-6)); // 0.5 * 2
+    expect(d.uvBasis[3], closeTo(0.5, 1e-6)); // 0.25 * 2
+    expect(d.uvOffset[0], closeTo(0.5 * 4 + 0.1, 1e-6));
+    expect(d.uvOffset[1], closeTo(0.25 * 8 + 0.2, 1e-6));
+    expect(d.bits.incrementOf(0), 0x1);
   });
 }

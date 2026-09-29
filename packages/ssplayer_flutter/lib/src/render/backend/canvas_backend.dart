@@ -326,18 +326,33 @@ class CanvasBackend implements RenderBackend {
     if (longEdge * scale > _maxCoverageDim) scale = _maxCoverageDim / longEdge;
     final pw = (bounds.width * scale).ceil().clamp(1, _maxCoverageDim.toInt());
     final ph = (bounds.height * scale).ceil().clamp(1, _maxCoverageDim.toInt());
+    // Past 24 writers the bitmap splits into tiles rather than growing: each
+    // tile holds the whole box at a fraction of the resolution.
+    final cols = plan.tilesX, rows = plan.tilesY;
+    final tw = (pw / cols).ceil(), th = (ph / rows).ceil();
 
     final recorder = ui.PictureRecorder();
     final canvas = ui.Canvas(recorder);
-    canvas.scale(pw / bounds.width, ph / bounds.height);
-    canvas.translate(-bounds.left, -bounds.top);
+
+    // Places the canvas so this player's local space maps the box onto the
+    // tile holding [bit]. The clip keeps a writer strictly inside its tile.
+    void enterTile(int bit) {
+      final tile = bit ~/ kMaskTileBits;
+      final ox = (tile % cols) * tw.toDouble(), oy = (tile ~/ cols) * th.toDouble();
+      canvas.save();
+      canvas.clipRect(ui.Rect.fromLTWH(ox, oy, tw.toDouble(), th.toDouble()));
+      canvas.translate(ox, oy);
+      canvas.scale(tw / bounds.width, th / bounds.height);
+      canvas.translate(-bounds.left, -bounds.top);
+    }
 
     var wrote = false;
     // Own writers, baked from this player's geometry — the canvas is
     // already this player's local space.
     for (final writer in plan.writers) {
-      if (writer.partIndex < 0) continue; // carry-over sentinel — baked below
-      if (_bakeCoverageWriter(
+      if (writer.partIndex < 0) continue; // a descendant's — baked below
+      enterTile(writer.bit);
+      final ok = _bakeCoverageWriter(
         canvas,
         program,
         geometry: host.geometry,
@@ -348,16 +363,17 @@ class CanvasBackend implements RenderBackend {
         bit: writer.bit,
         threshold: writer.threshold,
         textureHash: textureByRank[writer.drawRank],
-      )) {
-        wrote = true;
-      }
+      );
+      canvas.restore();
+      if (ok) wrote = true;
     }
-    // Carry-over: an instance child's clipping writers, baked from the
-    // CHILD's geometry under the instance slot matrix so they land in this
-    // player's coverage. The slot maps child-local → owner-local; the canvas is
-    // owner-local, so the transform places them exactly where the child draws.
+    // Instance descendants' writers, at any depth, baked from THEIR geometry
+    // under the chain of instance matrices so they land in this (the top-level)
+    // player's coverage. The slot maps descendant-local → owner-local; the
+    // canvas is owner-local, so the transform places them exactly where the
+    // descendant draws.
     for (final bw in plan.bubbled) {
-      canvas.save();
+      enterTile(bw.bit);
       canvas.transform(bw.slot);
       final ok = _bakeCoverageWriter(
         canvas,
@@ -380,7 +396,7 @@ class CanvasBackend implements RenderBackend {
     }
 
     final picture = recorder.endRecording();
-    final image = picture.toImageSync(pw, ph);
+    final image = picture.toImageSync(tw * cols, th * rows);
     picture.dispose();
     return image;
   }
@@ -463,7 +479,7 @@ class CanvasBackend implements RenderBackend {
 
   @override
   void emitNormal(ui.Canvas canvas, fbs.DrawBatch batch, DrawFrame frame,
-      RenderHost host, MaskContext? maskCtx, InheritedMask? inheritedMask) {
+      RenderHost host, PlayerMask masking) {
     assert(_noEmitInFlight);
     final start = batch.startRank;
     final count = batch.count;
@@ -499,13 +515,12 @@ class CanvasBackend implements RenderBackend {
       if (flags.pureMask) continue;
       final part = frame.partOf(p);
       final pc = part == null ? null : PartColor.read(partsColor, part);
-      // This player's own mask wins per-part when a writer actually reaches the
-      // part; when its own writers miss it, the mask inherited from the parent
-      // instance clips it instead of the part vanishing (see
-      // [resolvePartMask]). The shader tests one coverage per fragment, so a part
-      // reached by BOTH keeps only its own test (a nested-mask case that would
-      // need a second sampler to fully combine).
-      final mask = resolvePartMask(maskCtx, inheritedMask, rank, flags);
+      // One coverage serves the whole instance tree, so every writer that
+      // reaches this part — its own animation's, an enclosing one's, a nested
+      // one's — is in this single test.
+      final mask = masking.drawFor(rank, flags);
+      // Draws only inside a mask, and none reaches it: nowhere at all.
+      if (mask != null && mask.drawsNothing) continue;
       // Integration shader (`SHDR`). NOT combined with a mask test: the
       // peeled shader binds no coverage sampler, so a masked shader part keeps
       // the plain masked path and drops its effect — the v1 limitation both
@@ -532,7 +547,7 @@ class CanvasBackend implements RenderBackend {
 
   @override
   void emitShape(ui.Canvas canvas, fbs.DrawBatch batch, DrawFrame frame,
-      RenderHost host, MaskContext? maskCtx, InheritedMask? inheritedMask) {
+      RenderHost host, PlayerMask masking) {
     assert(_noEmitInFlight);
     if (batch.count == 0 || frame.shape == null) return;
     final passes = blendPassesFor(batch.blendType);
@@ -563,7 +578,9 @@ class CanvasBackend implements RenderBackend {
       final p = frame.drawOrder[rank];
       final flags = host.flagsFor(p);
       if (flags.pureMask) continue; // coverage only, never colour
-      final mask = resolvePartMask(maskCtx, inheritedMask, rank, flags);
+      final mask = masking.drawFor(rank, flags);
+      // Draws only inside a mask, and none reaches it: nowhere at all.
+      if (mask != null && mask.drawsNothing) continue;
       if (mask == null) {
         run.add(p);
         if (passes.length > 1) flushRun(); // see [emitNormal]
@@ -618,7 +635,9 @@ class CanvasBackend implements RenderBackend {
         texHeight: 1.0,
         maskBits: mask.bits,
         maskUvBasis: mask.uvBasis,
-        maskUvOffset: mask.uvOffset);
+        maskUvOffset: mask.uvOffset,
+        maskTilesX: mask.tilesX,
+        maskTilesY: mask.tilesY);
     shader.setImageSampler(0, _ensureWhitePixel());
     // The Canvas backend always provides a ui.Image coverage (only the GPU
     // backend passes null, and it never runs this path).
@@ -655,7 +674,7 @@ class CanvasBackend implements RenderBackend {
 
   @override
   void emitMesh(ui.Canvas canvas, fbs.DrawBatch batch, DrawFrame frame,
-      RenderHost host, MaskContext? maskCtx, InheritedMask? inheritedMask) {
+      RenderHost host, PlayerMask masking) {
     assert(_noEmitInFlight);
     final count = batch.count;
     if (count == 0) return;
@@ -686,7 +705,9 @@ class CanvasBackend implements RenderBackend {
       if (flags.pureMask) continue; // coverage-only: never draws colour
       final state = frame.partOf(p);
       final pc = state == null ? null : PartColor.read(partsColor, state);
-      final mask = resolvePartMask(maskCtx, inheritedMask, rank, flags);
+      final mask = masking.drawFor(rank, flags);
+      // Draws only inside a mask, and none reaches it: nowhere at all.
+      if (mask != null && mask.drawsNothing) continue;
       if (pc == null && mask == null) {
         run.add(p);
         if (passes.length > 1) flushRun(); // see [emitNormal]
@@ -767,7 +788,9 @@ class CanvasBackend implements RenderBackend {
         texHeight: 1.0,
         maskBits: mask.bits,
         maskUvBasis: mask.uvBasis,
-        maskUvOffset: mask.uvOffset);
+        maskUvOffset: mask.uvOffset,
+        maskTilesX: mask.tilesX,
+        maskTilesY: mask.tilesY);
     shader.setImageSampler(0, _ensureWhitePixel());
     shader.setImageSampler(1, mask.coverage!);
 
@@ -939,7 +962,9 @@ class CanvasBackend implements RenderBackend {
         texHeight: image.height.toDouble(),
         maskBits: mask?.bits,
         maskUvBasis: mask?.uvBasis,
-        maskUvOffset: mask?.uvOffset);
+        maskUvOffset: mask?.uvOffset,
+        maskTilesX: mask?.tilesX ?? 1,
+        maskTilesY: mask?.tilesY ?? 1);
     // The part's own texture wants bilinear like the batched ImageShader path —
     // the peeled shader's sampler defaults to nearest (jaggy) otherwise. The
     // coverage sampler (1) must stay nearest: its texels are bit fields, so any
@@ -1060,6 +1085,7 @@ class CanvasBackend implements RenderBackend {
   /// coverage shader uses (8 bits × R/G/B) — alpha 1 because `BlendMode.plus` is
   /// premultiplied and would otherwise scale the bit away.
   static ui.Color _bitColor(int bit) {
+    bit %= kMaskTileBits; // the tile is chosen by where it is drawn
     final value = 1 << (bit % 8);
     return switch (bit ~/ 8) {
       0 => ui.Color.fromARGB(255, value, 0, 0),
@@ -1093,6 +1119,8 @@ class CanvasBackend implements RenderBackend {
     MaskBits? maskBits,
     Float32List? maskUvBasis,
     Float32List? maskUvOffset,
+    int maskTilesX = 1,
+    int maskTilesY = 1,
   }) {
     var i = 0;
     void f(double v) => shader.setFloat(i++, v);
@@ -1132,22 +1160,30 @@ class CanvasBackend implements RenderBackend {
     f(quad.uvB[2]);
     f(quad.uvB[3]);
 
-    // uMaskBits — the two 24-bit scope-resolved writer sets, the
-    // target's polarity and the enable flag.
-    f(maskBits?.increment.toDouble() ?? 0.0);
-    f(maskBits?.invert.toDouble() ?? 0.0);
+    // uMaskBits — the target's polarity, the enable flag and the coverage
+    // tile grid.
     f(maskBits != null && maskBits.visibleInside ? 1.0 : 0.0);
     f(maskBits != null ? 1.0 : 0.0);
-    // uMaskUv / uMaskOff — local → coverage UV. For an own mask this is
-    // `plan.uvBasis/uvOffset` (player-local → UV); for a mask inherited by an
-    // instance child it is that affine pre-composed with the slot matrix
-    // (child-local → UV), so the same shader serves both.
+    f(maskTilesX.toDouble());
+    f(maskTilesY.toDouble());
+    // uMaskUv / uMaskOff — local → coverage UV. At the top-level player this is
+    // `plan.uvBasis/uvOffset` (player-local → UV); for an instance child it is
+    // that affine pre-composed with the slot matrices (child-local → UV), so
+    // the same shader serves both.
     f(maskUvBasis?[0] ?? 0.0);
     f(maskUvBasis?[1] ?? 0.0);
     f(maskUvBasis?[2] ?? 0.0);
     f(maskUvBasis?[3] ?? 0.0);
     f(maskUvOffset?[0] ?? 0.0);
     f(maskUvOffset?[1] ?? 0.0);
+    // uMaskInc / uMaskInv — the scope-resolved writer sets, one 24-bit set per
+    // coverage tile and OP.
+    for (var t = 0; t < kMaskMaxTiles; t++) {
+      f(maskBits?.incrementOf(t).toDouble() ?? 0.0);
+    }
+    for (var t = 0; t < kMaskMaxTiles; t++) {
+      f(maskBits?.invertOf(t).toDouble() ?? 0.0);
+    }
   }
 
   /// Writes the integration-shader uniforms in the declaration order of
@@ -1251,7 +1287,9 @@ class CanvasBackend implements RenderBackend {
     f(quad.uvB[3]);
 
     // uBit — this writer's bit pre-encoded into the channel that owns it
-    // (8 bits × R/G/B = 24 writers), plus the cutout threshold in alpha.
+    // (8 bits × R/G/B = 24 writers per tile), plus the cutout threshold in
+    // alpha. The tile is chosen by where it is drawn.
+    bit %= kMaskTileBits;
     final channel = bit ~/ 8;
     final value = (1 << (bit % 8)) / 255.0;
     f(channel == 0 ? value : 0.0);

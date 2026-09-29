@@ -93,13 +93,37 @@ void main() {
     });
 
     test('the topmost writer bit decodes (24 bits across R,G,B)', () async {
-      // kMaxMaskWriters == 24: bit 23 is the high bit of the blue channel, and
+      // kMaskTileBits == 24: bit 23 is the high bit of the blue channel, and
       // the Canvas replay tests it with float arithmetic (runtime effects forbid
       // integer bitwise ops), so it is the one most likely to fall off.
       expect(await _covered(bits: 1 << 23, increment: 1 << 23), isTrue);
       expect(await _covered(bits: 1 << 23, invert: 1 << 23), isTrue);
       expect(await _covered(bits: 1 << 16, increment: 1 << 16), isTrue);
       expect(await _covered(bits: 1 << 8, increment: 1 << 8), isTrue);
+    });
+  });
+
+  // Past 24 writers the coverage splits into tiles, each the same box at a
+  // lower resolution; writer bit `b` lives in tile `b ~/ 24`. Two tiles side by
+  // side here: the left texel is tile 0, the right one tile 1.
+  group('a second coverage tile replays like the first', () {
+    test('a writer in tile 1 covers on its own', () async {
+      expect(await _covered(bits: 0, tile1: (0x1, 0x1, 0)), isTrue);
+      expect(await _covered(bits: 0, tile1: (0x1, 0, 0x1)), isTrue);
+    });
+
+    test('tile 1 is read from its own texel, not tile 0\'s', () async {
+      // Bit 0 set in tile 0 only: a tile-1 writer holding bit 0 must not see it.
+      expect(await _covered(bits: 0x1, tile1: (0, 0x1, 0)), isFalse);
+    });
+
+    test('the planes union across tiles, parity included', () async {
+      // An invert writer in each tile: two overlaps, an even count — cancelled.
+      expect(await _covered(bits: 0x1, invert: 0x1, tile1: (0x1, 0, 0x1)),
+          isFalse);
+      // Plus an increment writer in tile 1: the counter plane covers.
+      expect(await _covered(bits: 0x1, invert: 0x1, tile1: (0x3, 0x2, 0x1)),
+          isTrue);
     });
   });
 
@@ -129,15 +153,24 @@ Future<bool> _covered({
   required int bits,
   int increment = 0,
   int invert = 0,
+  (int, int, int)? tile1,
 }) async =>
     !await _drew(
-        bits: bits, increment: increment, invert: invert, visibleInside: false);
+        bits: bits,
+        increment: increment,
+        invert: invert,
+        tile1: tile1,
+        visibleInside: false);
 
 /// Whether the fragment survived the mask test — the raw read-back.
+///
+/// [tile1] — `(bits, increment, invert)` of a second coverage tile — splits the
+/// coverage into two tiles side by side.
 Future<bool> _drew({
   required int bits,
   int increment = 0,
   int invert = 0,
+  (int, int, int)? tile1,
   required bool visibleInside,
 }) async {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -152,8 +185,11 @@ Future<bool> _drew({
   final tex = await _rgbaPixel(255, 255, 255, 255);
   // The coverage bitmap this fragment samples. Bits live in RGB only — alpha is
   // the premultiplied-blend accumulator, so it stays opaque (mask.dart).
-  final cov = await _rgbaPixel(
-      bits & 0xFF, (bits >> 8) & 0xFF, (bits >> 16) & 0xFF, 255);
+  List<int> texel(int b) =>
+      <int>[b & 0xFF, (b >> 8) & 0xFF, (b >> 16) & 0xFF, 255];
+  final cov = await _rgbaPixels(
+      <int>[...texel(bits), if (tile1 != null) ...texel(tile1.$1)],
+      tile1 == null ? 1 : 2);
 
   // Declaration order of shaders/partcolor.frag, mirroring
   // CanvasBackend._setPartColorUniforms.
@@ -184,16 +220,23 @@ Future<bool> _drew({
   for (var c = 0; c < 8; c++) {
     f(0.5); // uUvA / uUvB — the middle of the single texel
   }
-  f(increment.toDouble()); // uMaskBits
-  f(invert.toDouble());
-  f(visibleInside ? 1.0 : 0.0);
+  f(visibleInside ? 1.0 : 0.0); // uMaskBits
   f(1.0); // masking on
+  f(tile1 == null ? 1.0 : 2.0); // the tile grid
+  f(1.0);
   f(1 / _size); // uMaskUv — local -> coverage UV over the same box…
   f(0);
   f(0);
   f(1 / _size);
   f(0); // uMaskOff — …with no offset, so every fragment is inside the bitmap
   f(0);
+  // uMaskInc / uMaskInv — one set per tile.
+  for (final v in <int>[increment, tile1?.$2 ?? 0, 0, 0]) {
+    f(v.toDouble());
+  }
+  for (final v in <int>[invert, tile1?.$3 ?? 0, 0, 0]) {
+    f(v.toDouble());
+  }
   shader.setImageSampler(0, tex);
   shader.setImageSampler(1, cov);
 
@@ -221,10 +264,13 @@ Future<bool> _drew({
 /// here, since the coverage bitmap is a single texel.
 const double _size = 4;
 
-Future<ui.Image> _rgbaPixel(int r, int g, int b, int a) {
+Future<ui.Image> _rgbaPixel(int r, int g, int b, int a) =>
+    _rgbaPixels(<int>[r, g, b, a], 1);
+
+/// A [width]×1 RGBA image from [rgba].
+Future<ui.Image> _rgbaPixels(List<int> rgba, int width) {
   final c = Completer<ui.Image>();
-  ui.decodeImageFromPixels(
-      Uint8List.fromList(<int>[r, g, b, a]), 1, 1, ui.PixelFormat.rgba8888,
-      c.complete);
+  ui.decodeImageFromPixels(Uint8List.fromList(rgba), width, 1,
+      ui.PixelFormat.rgba8888, c.complete);
   return c.future;
 }

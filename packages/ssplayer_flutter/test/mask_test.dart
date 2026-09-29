@@ -112,15 +112,15 @@ void main() {
       // rank 3 < 5 → in the mask's scope; bit 0 only.
       final bits = plan.bitsFor(3, target);
       expect(bits, isNotNull);
-      expect(bits!.increment, 0x1);
-      expect(bits.invert, 0);
+      expect(bits!.incrementOf(0), 0x1);
+      expect(bits.invertOf(0), 0);
     });
 
     test('a clipping writer applies to the parts drawn after it', () {
       // rank 12 > 10 → in the clipping scope; bit 1 only.
       final bits = plan.bitsFor(12, target);
       expect(bits, isNotNull);
-      expect(bits!.increment, 0x2);
+      expect(bits!.incrementOf(0), 0x2);
     });
 
     test('a part between the two writers is in neither scope', () {
@@ -174,8 +174,8 @@ void main() {
         bounds: const ui.Rect.fromLTRB(0, 0, 10, 10),
       );
       final bits = inverting.bitsFor(0, target)!;
-      expect(bits.increment, 0x1);
-      expect(bits.invert, 0x2);
+      expect(bits.incrementOf(0), 0x1);
+      expect(bits.invertOf(0), 0x2);
     });
   });
 
@@ -321,8 +321,8 @@ void main() {
       maskInfluence: true,
       visibleInsideMask: false,
     );
-    final optedOut = MaskComposition.identity.compose(optOutPart); // influence 0
-    final optedIn = MaskComposition.identity.compose(optInPart); // influence 1
+    final optedOut = MaskComposition.ofInstancePart(optOutPart); // influence 0
+    final optedIn = MaskComposition.ofInstancePart(optInPart); // influence 1
 
     var checked = false;
     for (var i = 0; i < 60 && !checked; i++) {
