@@ -113,7 +113,7 @@ Every other package and example runs its own suite in its own directory; the tab
 | Converter smoke + CLI | `packages/ssconverter_dart/` (`dart test`) |
 | Flame adapter | `packages/ssplayer_flame/` (`flutter test`) |
 | Incremental reconversion | `packages/ssgen_dart/` (`dart test`) |
-| Live reload | `packages/ssgen_flutter/` (`flutter test`) |
+| Live reload | `packages/ssgen_flutter/` (the watcher, `flutter test`); the in-app end is in `packages/ssplayer_flutter/` |
 | Example apps | `examples/overall/`, `examples/flame/`, `examples/part_following/` (`flutter test`) |
 | macOS embedding | `examples/overall/` → `flutter build macos` → `ssruntime.framework` under `*.app/Contents/Frameworks/` |
 

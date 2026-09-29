@@ -103,7 +103,7 @@ flutter test          # Native Assets が hook/build.dart 経由で Brain を同
 | コンバータ smoke + CLI | `packages/ssconverter_dart/`（`dart test`） |
 | Flame アダプタ | `packages/ssplayer_flame/`（`flutter test`） |
 | 差分再変換 | `packages/ssgen_dart/`（`dart test`） |
-| ライブリロード | `packages/ssgen_flutter/`（`flutter test`） |
+| ライブリロード | `packages/ssgen_flutter/`（監視側、`flutter test`）。アプリ側は `packages/ssplayer_flutter/` |
 | サンプルアプリ | `examples/overall/`・`examples/flame/`・`examples/part_following/`（`flutter test`） |
 | macOS 埋め込み確認 | `examples/overall/` → `flutter build macos` → `*.app/Contents/Frameworks/` に `ssruntime.framework` |
 

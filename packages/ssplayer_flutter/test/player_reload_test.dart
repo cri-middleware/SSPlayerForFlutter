@@ -4,8 +4,9 @@
 // ("save in the editor → the preview updates in place").
 // The native Brain is bundled by ssruntime_dart's native-assets hook.
 import 'dart:io';
-import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ssplayer_flutter/ssplayer_flutter.dart';
 
@@ -106,6 +107,43 @@ void main() {
     expect(player.isPausing, isTrue, reason: 'a paused preview was resumed');
     expect(player.frameNo, closeTo(3, 1e-6));
   });
+
+  // The bytes a reload brings are new, but the pack is the one the key named,
+  // so a report after a live reload still says which pack it is about.
+  testWidgets('reload keeps the asset key the pack came from', (tester) async {
+    if (ssabPath == null) {
+      markTestSkipped('Basic.ssab missing — run deploy-examples.sh');
+      return;
+    }
+    final bytes = Uint8List.fromList(File(ssabPath).readAsBytesSync());
+    const key = 'assets/spritestudio/overall/Basic.ssab';
+
+    final player = SpriteStudioPlayer();
+    addTearDown(player.dispose);
+    await tester.runAsync(() => player.loadAsset(key,
+        bundle: _OneFileBundle(bytes), loadTextures: false));
+
+    await tester.runAsync(() => player.reload(bytes, loadTextures: false));
+
+    final said = <String>[];
+    final print = debugPrint;
+    debugPrint = (message, {wrapWidth}) => said.add(message ?? '');
+    try {
+      player.setAnimation('no_such_animation');
+    } finally {
+      debugPrint = print; // the binding checks it is back before tearDown
+    }
+    expect(said.single, contains(key));
+  });
+}
+
+/// Serves [bytes] for any key.
+class _OneFileBundle extends CachingAssetBundle {
+  _OneFileBundle(this.bytes);
+  final Uint8List bytes;
+
+  @override
+  Future<ByteData> load(String key) async => ByteData.sublistView(bytes);
 }
 
 String? _firstExisting(List<String> paths) {

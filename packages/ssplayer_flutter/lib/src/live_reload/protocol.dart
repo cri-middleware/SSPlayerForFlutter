@@ -1,8 +1,8 @@
 /// The `--dart-define` key that opts an app into SpriteStudio `.ssab`
-/// live-reload. `sswatch --run` injects `=true`; [SsLiveReload]'s default
-/// `ssLiveReloadEnabled` gates on it, so a plain `flutter run` does normal Dart
-/// hot reload without touching the art. Shared by `sswatch` (the injector) and
-/// the mixin (the reader) so the key can't drift.
+/// live-reload. `sswatch --run` injects `=true`; the in-app channel
+/// ([SsDevChannel]) comes up only in a debug build that carries it, so a plain
+/// `flutter run` does normal Dart hot reload without touching the art. Shared by
+/// `sswatch` (the injector) and the channel (the reader) so the key can't drift.
 const ssLiveReloadDefine = 'SS_LIVE_RELOAD';
 
 /// The `dart:developer` service-extension method the in-app dev push channel

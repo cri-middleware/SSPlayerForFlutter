@@ -8,6 +8,7 @@ import 'package:vector_math/vector_math_64.dart' show Matrix4;
 import 'event.dart';
 import 'instance_loader.dart';
 import 'internal_player.dart';
+import 'live_reload/channel.dart';
 import 'playback.dart';
 import 'render/backend/backend_kind.dart';
 import 'render/part_override.dart';
@@ -69,8 +70,10 @@ class SpriteStudioPlayer extends ChangeNotifier {
   // `subFrame` above is the pre-existing precedent for this pattern.
   String? _currentAnimation;
 
-  /// What the pack is called, for a report about it. `null` for bytes handed to
-  /// [load] directly — a network download or a device push has no name to give.
+  /// The asset key the pack came from, for a report about it and for the
+  /// live-reload channel to name it by. `null` for bytes handed to [load]
+  /// directly — a network download has no name to give. A [reload] keeps it: the
+  /// bytes are new, the pack is the same one.
   String? _sourceLabel;
 
   /// Carried from [loadAsset] into the [load] it delegates to, so that a report
@@ -441,6 +444,17 @@ class SpriteStudioPlayer extends ChangeNotifier {
     _lastTextureReport = null;
     _sourceLabel = _pendingSourceLabel;
     _pendingSourceLabel = null;
+    // A pack loaded by asset key is one `sswatch` can name, so the player joins
+    // the live-reload channel by itself; bytes no key describes take it back
+    // out. Compiled out of any build that does not take pushes.
+    if (ssLiveReloadActive) {
+      final key = _sourceLabel;
+      if (key != null) {
+        SsDevChannel.instance.registerAsset(this, key);
+      } else {
+        SsDevChannel.instance.unregisterAsset(this);
+      }
+    }
     _reportedMissingAnimation = null;
     _animeInfo = SsAnimeInfo(ssab);
     _canvasRect = null;
@@ -533,6 +547,7 @@ class SpriteStudioPlayer extends ChangeNotifier {
     bnd.evict(assetKey);
     final data = await bnd.load(assetKey);
     final bytes = data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
+    _pendingSourceLabel = assetKey;
     await reload(
       bytes,
       textures: textures,
@@ -577,6 +592,8 @@ class SpriteStudioPlayer extends ChangeNotifier {
     final frame = frameNo;
     final anim = _currentAnimation;
     final boxAnimation = _canvasAnimation;
+    // The same pack, so the same name — [reloadAsset] has already set a new one.
+    _pendingSourceLabel ??= _sourceLabel;
 
     // Instance packs are re-fetched by `load`, so a live-reload picks up an
     // edited child `.ssab` too — the child pack is a separate file the watcher
@@ -1252,6 +1269,7 @@ class SpriteStudioPlayer extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    if (ssLiveReloadActive) SsDevChannel.instance.unregisterAsset(this);
     _ticker?.dispose();
     _internal?.dispose();
     _internal = null;

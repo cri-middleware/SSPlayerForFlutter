@@ -21,8 +21,10 @@
 //     off disk; device gets an embedded `.ssab` as bytes), decoupled from
 //     Flutter's own hot reload / DevFS.
 //
-// Deliberately Flutter-free (`dart:*`, `ssgen_dart`, `vm_service`, `watcher`) so
-// it runs under the plain Dart VM and the pure pieces are unit-testable.
+// Deliberately Flutter-free (`dart:*`, `ssgen_dart`, `vm_service`, `watcher`,
+// and the protocol names from `ssplayer_flutter`'s Flutter-free
+// `live_reload_protocol.dart`) so it runs under the plain Dart VM and the pure
+// pieces are unit-testable.
 library;
 
 import 'dart:async';
@@ -30,12 +32,11 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:ssgen_dart/ssgen_dart.dart';
+import 'package:ssplayer_flutter/live_reload_protocol.dart';
 import 'package:vm_service/utils.dart' show convertToWebSocketUrl;
 import 'package:vm_service/vm_service.dart';
 import 'package:vm_service/vm_service_io.dart' show vmServiceConnectUri;
 import 'package:watcher/watcher.dart';
-
-import 'ss_defines.dart';
 
 /// Parsed `sswatch` invocation.
 class SsWatchOptions {
@@ -174,8 +175,8 @@ String normalizeVmServiceUri(String raw) {
 }
 
 /// Ensures `flutter run` is launched with the SpriteStudio live-reload define so
-/// [SsLiveReload] activates. No-op if the caller already passed one (any value —
-/// lets you launch disabled with `=false`). Used by `--run`.
+/// the app's push channel comes up. No-op if the caller already passed one (any
+/// value — lets you launch disabled with `=false`). Used by `--run`.
 List<String> withLiveReloadDefine(List<String> flutterArgs) {
   final present = flutterArgs.any((a) => a.contains('$ssLiveReloadDefine='));
   return present
@@ -516,8 +517,9 @@ Future<void> _pushEmbeddedBytes(
   if (isolateIds.isEmpty) {
     stderr.writeln(
       '[sswatch] app exposes no $ssReloadExtensionMethod isolate yet — is it '
-      'launched with --dart-define=$ssLiveReloadDefine=true and using the '
-      'SsLiveReload mixin?',
+      'launched with --dart-define=$ssLiveReloadDefine=true, and has it loaded '
+      'a pack by asset key (SpriteStudioAnimation does) or registered an '
+      'SsLiveReloadTarget?',
     );
     return;
   }
@@ -695,8 +697,9 @@ Future<void> _pushConvertedDirs(
   if (isolateIds.isEmpty) {
     stderr.writeln(
       '[sswatch] app exposes no $ssReloadExtensionMethod isolate yet — is it '
-      'launched with --dart-define=$ssLiveReloadDefine=true and using the '
-      'SsLiveReload mixin?',
+      'launched with --dart-define=$ssLiveReloadDefine=true, and has it loaded '
+      'a pack by asset key (SpriteStudioAnimation does) or registered an '
+      'SsLiveReloadTarget?',
     );
     return;
   }
