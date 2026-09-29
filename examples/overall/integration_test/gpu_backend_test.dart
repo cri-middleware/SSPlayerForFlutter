@@ -31,22 +31,23 @@ import 'package:ssplayer_flutter/src/render/backend/gpu_capability.dart'
 // For each pack it renders the SAME frame through both backends and checks that
 // the GPU round-trip produces non-blank output that matches the Canvas reference
 // (coverage, orientation and colour) — the things a headless build can't confirm.
-// Four colour checks fail today, on PartColor tint not reaching the GPU:
-// Shape, PartsColor, BlendMode, and PartsColor after a reload. The coverage
-// checks (gpuOpaque, matchDirect) are the ones a draw-path change must keep.
+// Four colour checks fail today — Shape, PartsColor, BlendMode, and PartsColor
+// after a reload — where the two backends draw different colours: a
+// four-corner PartColor gradient (the GPU interpolates it per triangle, Canvas
+// bilinearly per fragment), the gradient inside a Shape, and BlendMode's Mul,
+// Sub, Mulalpha and Invert parts. Which backend is right is not established.
+// The coverage checks (gpuOpaque, matchDirect) are the ones a draw-path change
+// must keep.
 
 const int _w = 256;
 const int _h = 256;
 
-// Packs exercising the kinds implemented on the GPU backend so far. Each should
-// reach pixel parity with Canvas; a kind not yet on GPU (Effect/Instance) or a
-// peeled part (PartColor/mask Normal) would diverge and is kept out of these.
-// Packs that must be byte-exact vs Canvas. BlendMode exercises the SS blend
-// modes — Mix/Mul/Add/Sub/Mulalpha/Screen/Exclusion/Invert, each over the pack's
-// own opaque BG group. Both backends are exact against the reference GL state
-// there (the GPU sets it directly; Canvas maps the stock modes and rebuilds
-// Sub/Invert from three passes), so the two must agree. They would part company
-// only over a transparent destination, which this pack never has.
+// A pack for every kind the GPU backend draws, each meant to match Canvas.
+// BlendMode exercises the SS blend modes — Mix/Mul/Add/Sub/Mulalpha/Screen/
+// Exclusion/Invert, each over the pack's own opaque BG group — where the GPU
+// sets the reference GL state directly and Canvas maps the stock modes,
+// rebuilding Sub/Invert from three passes. The two are meant to agree there;
+// measured, Mix/Add/Screen/Exclusion do and Mul/Sub/Mulalpha/Invert do not.
 const List<String> _packs = <String>[
   'Basic',
   'Mesh',
