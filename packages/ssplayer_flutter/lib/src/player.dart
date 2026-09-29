@@ -133,8 +133,14 @@ class SpriteStudioPlayer extends ChangeNotifier {
   set offset(ui.Offset value) =>
       _setRootTransform(rootTransform.copyWith(offset: value));
 
-  /// [flipX], [flipY] and [offset] as the one value both the drawing path and
-  /// the part poses read. Assign it to change several at once (one repaint).
+  /// Scale the drawn animation about its origin.
+  double get scale => rootTransform.scale;
+  set scale(double value) =>
+      _setRootTransform(rootTransform.copyWith(scale: value));
+
+  /// [flipX], [flipY], [offset] and [scale] as the one value both the drawing
+  /// path and the part poses read. Assign it to change several at once (one
+  /// repaint).
   SsRootTransform get rootTransform => _internal?.rootTransform ?? _root;
   set rootTransform(SsRootTransform value) => _setRootTransform(value);
 
