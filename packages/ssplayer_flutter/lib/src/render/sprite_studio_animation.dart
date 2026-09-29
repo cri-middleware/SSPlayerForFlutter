@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 
+import '../event.dart';
 import '../player.dart';
 import 'backend/backend_kind.dart';
 import 'sprite_studio_view.dart';
@@ -24,6 +25,10 @@ import 'sprite_studio_view.dart';
 /// and rebuilds it when [assetKey], [bundle] or [backend] change. Reach the
 /// player through [onPlayerCreated] when you need the rest of the L3 surface;
 /// graduate to [SpriteStudioView] when you want to own its lifetime instead.
+///
+/// **Every other parameter reaches the player only when it changes.** A call
+/// made on the player through [onPlayerCreated] therefore stands until the
+/// matching parameter changes, rather than being put back on the next rebuild.
 class SpriteStudioAnimation extends StatefulWidget {
   /// Plays [assetKey] from the asset bundle.
   ///
@@ -38,13 +43,22 @@ class SpriteStudioAnimation extends StatefulWidget {
     this.width,
     this.height,
     this.loopCount = -1,
-    this.autoPlay = true,
+    this.playing = true,
+    this.speedScale = 1.0,
+    this.flipX = false,
+    this.flipY = false,
     this.bundle,
     this.backend = SpriteStudioBackend.auto,
     this.placeholder,
     this.onLoaded,
     this.onError,
     this.onPlayerCreated,
+    this.onAnimationStarted,
+    this.onAnimationFinished,
+    this.onAnimationLooped,
+    this.onUserData,
+    this.onSignal,
+    this.onAudio,
   });
 
   /// The `.ssab`'s key in the asset bundle. Reference textures resolve from the
@@ -58,6 +72,10 @@ class SpriteStudioAnimation extends StatefulWidget {
   /// a pack that failed to load. ForGodot and ForReactNative default the same
   /// way. [SpriteStudioPlayer.load] does not — it is the primitive, and a
   /// caller who passes no name there has said so deliberately.
+  ///
+  /// Changing it switches on the same player, and while [playing] the new
+  /// animation starts from its first frame — [SpriteStudioPlayer.setAnimation]
+  /// alone selects and poses, which would leave a state-driven switch frozen.
   final String? animation;
 
   /// Passed to [SpriteStudioView]. Null takes the incoming constraints.
@@ -69,9 +87,24 @@ class SpriteStudioAnimation extends StatefulWidget {
   /// `-1` loops forever, `n > 0` plays n times. Applied before playback starts.
   final int loopCount;
 
-  /// Whether to start playing once the pack is loaded. Off leaves the first
-  /// frame posed, the way a `<video>` without `autoplay` shows a poster.
-  final bool autoPlay;
+  /// Whether the animation advances. On by default.
+  ///
+  /// A state, not a start-up flag: turning it off holds the playhead where it
+  /// stands, and turning it back on carries on from there. Only a player that is
+  /// not running at all heads out from the start — one built with this off,
+  /// which leaves the first frame posed the way a `<video>` without `autoplay`
+  /// shows a poster, or one whose loops have all played.
+  final bool playing;
+
+  /// Playback rate as a multiple of the authored one. See
+  /// [SpriteStudioPlayer.speedScale].
+  final double speedScale;
+
+  /// Mirrors the drawn animation horizontally. See [SpriteStudioPlayer.flipX].
+  final bool flipX;
+
+  /// Mirrors the drawn animation vertically. See [SpriteStudioPlayer.flipY].
+  final bool flipY;
 
   /// Which bundle to read [assetKey] from. Null is `rootBundle`.
   final AssetBundle? bundle;
@@ -88,8 +121,9 @@ class SpriteStudioAnimation extends StatefulWidget {
   /// for a load fast enough not to be seen.
   final Widget? placeholder;
 
-  /// Called once the pack is loaded, the animation selected and playback
-  /// started — the moment [placeholder] gives way to the first drawable frame.
+  /// Called once the pack is loaded, the animation selected and, while
+  /// [playing], playback started — the moment [placeholder] gives way to the
+  /// first drawable frame.
   ///
   /// The counterpart of [onError]: between the two, a caller always learns how
   /// the load ended without polling for it.
@@ -100,9 +134,41 @@ class SpriteStudioAnimation extends StatefulWidget {
   final void Function(Object error, StackTrace stackTrace)? onError;
 
   /// Handed the player as soon as it exists, before the load — for the parts of
-  /// the L3 surface this widget does not wrap (events, part overrides, an
-  /// anchor). Do not dispose it; this widget does.
+  /// the L3 surface this widget does not wrap (part overrides, an anchor). Do
+  /// not dispose it; this widget does.
+  ///
+  /// Called after the other parameters are applied, so what it sets on the
+  /// player stands until the matching parameter changes.
   final void Function(SpriteStudioPlayer player)? onPlayerCreated;
+
+  /// Fired when playback heads out — including the start this widget issues
+  /// once the pack loads, which comes before [onLoaded]. See
+  /// [SpriteStudioPlayer.onAnimationStarted].
+  ///
+  /// This and the five event parameters below each take one callback. Supplying
+  /// one claims that callback on the player, replacing what [onPlayerCreated]
+  /// put there; leaving it null leaves the player's own alone.
+  final VoidCallback? onAnimationStarted;
+
+  /// Fired once every configured loop has played. See
+  /// [SpriteStudioPlayer.onAnimationFinished].
+  final VoidCallback? onAnimationFinished;
+
+  /// Fired each time playback crosses a loop boundary. See
+  /// [SpriteStudioPlayer.onAnimationLooped].
+  final VoidCallback? onAnimationLooped;
+
+  /// Fired for each user-data key the playhead crosses. See
+  /// [SpriteStudioPlayer.onUserData].
+  final SsUserDataCallback? onUserData;
+
+  /// Fired for each active signal the playhead crosses. See
+  /// [SpriteStudioPlayer.onSignal].
+  final SsSignalCallback? onSignal;
+
+  /// Fired for each audio key the playhead crosses; playing the sound is the
+  /// app's job. See [SpriteStudioPlayer.onAudio].
+  final SsAudioCallback? onAudio;
 
   @override
   State<SpriteStudioAnimation> createState() => _SpriteStudioAnimationState();
@@ -134,17 +200,77 @@ class _SpriteStudioAnimationState extends State<SpriteStudioAnimation>
       return;
     }
     final player = _player;
-    if (player == null || !_ready) return;
+    if (player == null) return;
+    // The player caches these ahead of a load, so they go on at once.
     if (old.loopCount != widget.loopCount) player.loopCount = widget.loopCount;
-    if (old.animation != widget.animation) _select(player);
+    if (old.speedScale != widget.speedScale) {
+      player.speedScale = widget.speedScale;
+    }
+    if (old.flipX != widget.flipX) player.flipX = widget.flipX;
+    if (old.flipY != widget.flipY) player.flipY = widget.flipY;
+    _wireEvents(player, old);
+    // Selecting and starting need the pack. A change made while it loads is not
+    // lost: [_load] reads both off the widget as it stands when the load lands.
+    if (!_ready) return;
+    if (old.animation != widget.animation) _switch(player);
+    if (old.playing != widget.playing) _applyPlaying(player);
   }
 
   void _build() {
     final player = SpriteStudioPlayer(vsync: this, backend: widget.backend);
     _player = player;
+    // Before the load, so the first frame is already drawn with them, and before
+    // [onPlayerCreated], so what that sets stands until the parameter changes.
+    player
+      ..loopCount = widget.loopCount
+      ..speedScale = widget.speedScale
+      ..flipX = widget.flipX
+      ..flipY = widget.flipY;
+    _wireEvents(player, null);
     widget.onPlayerCreated?.call(player);
     _load(player);
   }
+
+  /// Claims a callback on the player while its parameter is supplied, and
+  /// releases it when the parameter goes away. One whose parameter was never
+  /// supplied is left alone, so what [SpriteStudioAnimation.onPlayerCreated]
+  /// installed stays.
+  ///
+  /// For the three decoded events it also saves work: the player skips decoding
+  /// a frame's events when it has no decoded callback, and a forwarder installed
+  /// for good would pay that decode on every event frame to reach a null. The
+  /// forwarders read [widget] when they fire, so a closure that changes on each
+  /// build needs no rewiring.
+  void _wireEvents(SpriteStudioPlayer player, SpriteStudioAnimation? old) {
+    bool moved(Object? was, Object? now) => (was == null) != (now == null);
+    final w = widget;
+    if (moved(old?.onAnimationStarted, w.onAnimationStarted)) {
+      player.onAnimationStarted = w.onAnimationStarted == null ? null : _started;
+    }
+    if (moved(old?.onAnimationFinished, w.onAnimationFinished)) {
+      player.onAnimationFinished =
+          w.onAnimationFinished == null ? null : _finished;
+    }
+    if (moved(old?.onAnimationLooped, w.onAnimationLooped)) {
+      player.onAnimationLooped = w.onAnimationLooped == null ? null : _looped;
+    }
+    if (moved(old?.onUserData, w.onUserData)) {
+      player.onUserData = w.onUserData == null ? null : _userData;
+    }
+    if (moved(old?.onSignal, w.onSignal)) {
+      player.onSignal = w.onSignal == null ? null : _signal;
+    }
+    if (moved(old?.onAudio, w.onAudio)) {
+      player.onAudio = w.onAudio == null ? null : _audio;
+    }
+  }
+
+  void _started() => widget.onAnimationStarted?.call();
+  void _finished() => widget.onAnimationFinished?.call();
+  void _looped() => widget.onAnimationLooped?.call();
+  void _userData(SsUserData event) => widget.onUserData?.call(event);
+  void _signal(SsSignal event) => widget.onSignal?.call(event);
+  void _audio(SsAudioEvent event) => widget.onAudio?.call(event);
 
   Future<void> _load(SpriteStudioPlayer player) async {
     try {
@@ -159,9 +285,8 @@ class _SpriteStudioAnimationState extends State<SpriteStudioAnimation>
       return;
     }
     if (!mounted || !identical(_player, player)) return;
-    player.loopCount = widget.loopCount;
     _select(player);
-    if (widget.autoPlay) player.play();
+    if (widget.playing) player.play();
     setState(() => _ready = true);
     widget.onLoaded?.call(player);
   }
@@ -172,6 +297,27 @@ class _SpriteStudioAnimationState extends State<SpriteStudioAnimation>
     final name = widget.animation ??
         (player.animationNames.isEmpty ? null : player.animationNames.first);
     if (name != null) player.setAnimation(name);
+  }
+
+  /// Heads out into the new animation only if the selection actually moved:
+  /// naming the one already selected — the pack's first, made explicit — must
+  /// not rewind it, and a name the pack lacks leaves the old one playing.
+  void _switch(SpriteStudioPlayer player) {
+    final before = player.currentAnimation;
+    _select(player);
+    if (widget.playing && player.currentAnimation != before) player.play();
+  }
+
+  /// Maps the boolean onto the player's verbs. Off holds in place; on carries
+  /// on from a hold, and heads out only when nothing is running at all.
+  void _applyPlaying(SpriteStudioPlayer player) {
+    if (!widget.playing) {
+      player.pause();
+    } else if (player.isPlaying) {
+      player.resume();
+    } else {
+      player.play();
+    }
   }
 
   @override
