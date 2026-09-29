@@ -82,8 +82,6 @@ the following scope.
   correctly. Shared by every official player — the same `libssruntime` behaviour.
 - **Transform only, not draw order.** The following widget paints above the whole animation — it
   cannot be interleaved between the character's own parts.
-- **Assumes the view draws unscaled.** Scale / `BoxFit` placement is not implemented on
-  `SpriteStudioView` yet; the anchor will need the same fit once it is.
 - The anchor must cover the **same box as the view** (a `Positioned.fill` sibling in one `Stack`),
   since both derive their centring from their own constraints.
 

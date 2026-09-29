@@ -79,9 +79,9 @@ the `SpriteStudio-SDK/` submodule — see its own [AGENTS.md](./SpriteStudio-SDK
     alpha crosses into its child; its colour does not** — the family's rule, held by every sibling and by
     the Editor. `RenderBackend` has no group-tint hook: a tint that needs an isolating layer breaks every
     framebuffer blend inside the subtree.
-*   **Flip and offset live in `SsRootTransform`, and both consumers must read it** — the backends'
-    `beginFrame` and `partWorldMatrix`. Put it in the geometry bake alone and every `SpriteStudioPartAnchor`
-    detaches the moment a player flips. Instance children inherit it.
+*   **Flip, offset, scale and the view's fit live in `SsRootTransform`, and both consumers must read it**
+    — the backends' `beginFrame` and `partWorldMatrix`. Put any of them in the geometry bake alone and every
+    `SpriteStudioPartAnchor` detaches the moment a player flips or a view fits. Instance children inherit it.
 *   **Mask roles come from the static `.ssab` `PartData`**, read once at load — there is no C-API for them,
     so ignore `FrameData.mask_indices` — and **PartColor alpha is pre-folded by the Brain**, so never
     re-multiply `PartState.alpha`.

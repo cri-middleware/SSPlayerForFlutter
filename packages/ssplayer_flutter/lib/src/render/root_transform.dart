@@ -2,8 +2,8 @@ import 'dart:ui' as ui;
 
 import 'package:vector_math/vector_math_64.dart' show Matrix4;
 
-/// The player-level flip / offset — what a player draws, mirrored and shifted,
-/// with nothing else moved.
+/// The player-level flip / offset / scale — what a player draws, mirrored,
+/// scaled and shifted, with nothing else moved.
 ///
 /// The sibling ports exist because negating a node's scale to mirror a character
 /// drags its children along: ForUnity's `FlipX` / `FlipY` / `Offset` and
@@ -20,13 +20,19 @@ import 'package:vector_math/vector_math_64.dart' show Matrix4;
 /// exactly what happens if the flip goes into the geometry alone.
 ///
 /// The transform is `drawn = offset + scale · local`: the flip is a ±1 per-axis
-/// scale about the animation's own origin, and [offset] shifts the result and is
-/// therefore **not** itself mirrored (both siblings agree on this order).
+/// sign on [scale] about the animation's own origin, and [offset] shifts the
+/// result and is therefore **not** itself mirrored or scaled (both siblings
+/// agree on this order).
+///
+/// A view that fits the animation into its box solves one of these from the
+/// caller's and hands it down, so the fit reaches the part poses by the same
+/// road the flip does.
 class SsRootTransform {
   const SsRootTransform({
     this.flipX = false,
     this.flipY = false,
     this.offset = ui.Offset.zero,
+    this.scale = 1.0,
   });
 
   /// Draw as authored — what a player has until something sets otherwise.
@@ -39,21 +45,24 @@ class SsRootTransform {
   /// Mirror it vertically.
   final bool flipY;
 
-  /// Shift the drawn animation by this many player-local (logical) pixels,
-  /// applied after the flip. There is no pixels-per-unit step in this port — the
-  /// view draws the animation unscaled — so this is in the same units as the
-  /// animation's own coordinates.
+  /// Shift the drawn animation by this many logical pixels, applied after the
+  /// flip and the [scale] — so it is not scaled with the animation.
   final ui.Offset offset;
 
-  /// The horizontal half of the flip as a scale factor (−1 when [flipX]).
-  double get scaleX => flipX ? -1.0 : 1.0;
+  /// Uniform scale about the animation's own origin. A fitted view's scale lands
+  /// here; the flips are signs on it, applied by [scaleX] / [scaleY].
+  final double scale;
 
-  /// The vertical half (−1 when [flipY]).
-  double get scaleY => flipY ? -1.0 : 1.0;
+  /// The horizontal scale factor: [scale], negated when [flipX].
+  double get scaleX => flipX ? -scale : scale;
+
+  /// The vertical scale factor: [scale], negated when [flipY].
+  double get scaleY => flipY ? -scale : scale;
 
   /// Whether this draws the animation exactly as authored, letting both backends
   /// skip the transform entirely.
-  bool get isIdentity => !flipX && !flipY && offset == ui.Offset.zero;
+  bool get isIdentity =>
+      !flipX && !flipY && offset == ui.Offset.zero && scale == 1.0;
 
   /// Whether this transform is a **reflection** — an odd number of mirrored axes.
   ///
@@ -65,11 +74,13 @@ class SsRootTransform {
   bool get isMirrored => flipX != flipY;
 
   /// This transform with the given fields replaced.
-  SsRootTransform copyWith({bool? flipX, bool? flipY, ui.Offset? offset}) =>
+  SsRootTransform copyWith(
+          {bool? flipX, bool? flipY, ui.Offset? offset, double? scale}) =>
       SsRootTransform(
         flipX: flipX ?? this.flipX,
         flipY: flipY ?? this.flipY,
         offset: offset ?? this.offset,
+        scale: scale ?? this.scale,
       );
 
   /// [partWorld] with this root transform folded in — the same pose the geometry
@@ -98,8 +109,10 @@ class SsRootTransform {
   /// dropping it leaves a stray 180° on the horizontal flip). Nothing is guessed
   /// from the determinant either — this undoes a transform we applied ourselves,
   /// so mirroring the artist authored on the part passes through untouched, as it
-  /// should: that one is part of the animation.
-  Matrix4 get mirrorCancel => Matrix4.diagonal3Values(scaleX, scaleY, 1.0);
+  /// should: that one is part of the animation. The [scale] is left in: it is
+  /// the size the follower asked to be drawn at, not a mirror.
+  Matrix4 get mirrorCancel =>
+      Matrix4.diagonal3Values(flipX ? -1.0 : 1.0, flipY ? -1.0 : 1.0, 1.0);
 
   @override
   bool operator ==(Object other) =>
@@ -107,12 +120,13 @@ class SsRootTransform {
       other is SsRootTransform &&
           other.flipX == flipX &&
           other.flipY == flipY &&
-          other.offset == offset;
+          other.offset == offset &&
+          other.scale == scale;
 
   @override
-  int get hashCode => Object.hash(flipX, flipY, offset);
+  int get hashCode => Object.hash(flipX, flipY, offset, scale);
 
   @override
-  String toString() =>
-      'SsRootTransform(flipX: $flipX, flipY: $flipY, offset: $offset)';
+  String toString() => 'SsRootTransform(flipX: $flipX, flipY: $flipY, '
+      'offset: $offset, scale: $scale)';
 }

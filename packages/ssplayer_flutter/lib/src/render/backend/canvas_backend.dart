@@ -178,6 +178,11 @@ class CanvasBackend implements RenderBackend {
   /// [beginFrame]'s save.
   ui.Canvas? _frameCanvas;
 
+  /// Coverage pixels per player-local pixel this frame: the root's scale when it
+  /// enlarges, so a mask on a view fitted larger than its canvas keeps its edge
+  /// instead of being stretched from a bitmap at authored size.
+  double _coverageScale = 1.0;
+
   @override
   void beginFrame(ui.Canvas canvas,
       {ui.Rect? dst,
@@ -188,15 +193,16 @@ class CanvasBackend implements RenderBackend {
         ui.Offset((sourceSize?.width ?? 0) / 2, (sourceSize?.height ?? 0) / 2);
     canvas.save();
     canvas.translate(origin.dx, origin.dy);
-    // The player's flip / offset, on top of the centring and below everything
-    // else: `drawn = offset + scale · local`, so the translate precedes the
-    // scale. Everything under it — including the coverage pass and the
+    // The player's flip / offset / scale, on top of the centring and below
+    // everything else: `drawn = offset + scale · local`, so the translate
+    // precedes the scale. Everything under it — including the coverage pass and the
     // runtime-effect shaders, which read player-local coordinates — is unaware
     // this happened, which is the point of putting it here.
     if (!root.isIdentity) {
       canvas.translate(root.offset.dx, root.offset.dy);
       canvas.scale(root.scaleX, root.scaleY);
     }
+    _coverageScale = math.max(1.0, root.scale.abs());
     _frameCanvas = canvas;
   }
 
@@ -301,8 +307,9 @@ class CanvasBackend implements RenderBackend {
   /// Rasterises the writers' bits into an offscreen RGBA8 bitmap.
   ///
   /// The bitmap is stretched over exactly [MaskPlan.bounds], so the local→UV map
-  /// is resolution-independent and the pixel size is purely a quality knob
-  /// (capped at [_maxCoverageDim] on the long edge — the flagship's cap too).
+  /// is resolution-independent and the pixel size is purely a quality knob: the
+  /// frame's enlargement ([_coverageScale]), capped at [_maxCoverageDim] on the
+  /// long edge — the flagship's cap too.
   /// The canvas transform keeps the canvas-local space *player-local*, so the
   /// writer quads and their shader affines are the same values the colour pass
   /// uses.
@@ -314,9 +321,9 @@ class CanvasBackend implements RenderBackend {
     Map<int, int> textureByRank,
   ) {
     final bounds = plan.bounds;
-    var scale = 1.0;
+    var scale = _coverageScale;
     final longEdge = math.max(bounds.width, bounds.height);
-    if (longEdge > _maxCoverageDim) scale = _maxCoverageDim / longEdge;
+    if (longEdge * scale > _maxCoverageDim) scale = _maxCoverageDim / longEdge;
     final pw = (bounds.width * scale).ceil().clamp(1, _maxCoverageDim.toInt());
     final ph = (bounds.height * scale).ceil().clamp(1, _maxCoverageDim.toInt());
 

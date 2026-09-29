@@ -587,10 +587,13 @@ class _PlayerPageState extends State<PlayerPage>
                     // infinity.
                     constrained: viewBox == null,
                     boundaryMargin: const EdgeInsets.all(double.infinity),
+                    // Unfitted: the 2x box is sized around an origin at its
+                    // centre, and the art is drawn at 1:1 inside it.
                     child: SpriteStudioView(
                       player: _player,
                       width: viewBox?.width,
                       height: viewBox?.height,
+                      fit: BoxFit.none,
                     ),
                   );
                 }),

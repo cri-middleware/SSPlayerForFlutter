@@ -37,30 +37,22 @@ Legend: ☐ **Ready** (Player-only, can start now) · ⛔ **Blocked on SDK** (ne
   ship the gate in `examples/overall`'s `_playAudio`, so the path people copy is
   the correct one. (c) — an opt-in audio backend on the Player — is a much larger
   item and is not on the table yet. Settle (a) vs (b) first.
-- ☐ **`Nines` / `Text` kinds + `BoxFit` / alignment** — the remaining Phase-2 draw
-  kinds, plus fitting the animation's design bounds into the destination box.
-  Unimplemented on both render backends.
+- ☐ **`Nines` / `Text` kinds** — the remaining Phase-2 draw kinds. Unimplemented
+  on both render backends.
 
 ## UI integration (widget-side)
 
-Behaving like a Flutter widget, not merely painting inside one. `Nines` / `Text` /
-`BoxFit` above is the drawing half of this; these are the parts of a widget the
-view does not implement yet. The vocabulary is shared with the sibling Players:
-`fit` / `align` for placement, a part rect read-out for hit areas, and a UI-state
-map.
+Behaving like a Flutter widget, not merely painting inside one. The view sizes
+from the authored canvas, fits it into its box and answers hits over the whole
+box, as an `Image` does; these are the parts of a widget it does not implement
+yet. The vocabulary is shared with the sibling Players: a part rect read-out for
+hit areas, and a UI-state map.
 
-- ☐ **Intrinsic sizing** — `SpriteStudioRenderBox` has no intrinsic dimensions and
-  `computeDryLayout` constrains `width ?? infinity`, so the view collapses or
-  overflows wherever the constraints are unbounded (a `Row`, a `ListView`, an
-  `IntrinsicHeight`) and a caller must hand it explicit numbers. Report the
-  animation's content box through `computeMinIntrinsicWidth` and friends, from the
-  same measurement `BoxFit` needs, so `Row` / `Wrap` / `FittedBox` can size it.
-- ☐ **Per-part hit testing** — `hitTestSelf` is not overridden, so the box is
-  transparent to pointers and a `GestureDetector` around it answers for the whole
-  rectangle. Add `partRectOf(part)` (built from the `PartState` fields the runtime
-  already delivers every frame — `size_x` / `size_y`, `anchor`, `pivot` — and the
-  part transform), then `hitTestPart(Offset)`, and answer `hitTestSelf` from it so
-  an irregular button stops eating taps around its artwork.
+- ☐ **Per-part hit testing** — the view answers a hit anywhere in its box, so an
+  irregular button takes taps around its artwork too. Add `partRectOf(part)`
+  (built from the `PartState` fields the runtime already delivers every frame —
+  `size_x` / `size_y`, `anchor`, `pivot` — and the part transform), then
+  `hitTestPart(Offset)`, and answer `hitTestSelf` from it.
 - ☐ **UI state binding** — a widget that drives the player from
   `WidgetStatesController` (`hovered` / `pressed` / `disabled` / `focused`), each
   state mapped to an animation or a label, so a player drops into an `InkWell` or a
@@ -68,9 +60,6 @@ map.
 - ☐ **Semantics** — the view contributes no `SemanticsNode`, so a player used as a
   control is invisible to screen readers and to widget tests that look up by label.
   Take a `semanticsLabel` and mark a decorative player as excluded.
-- ☐ **Carry the fit into `SpriteStudioPartAnchor`** — the anchor documents that it
-  assumes the view draws unscaled. It has to apply the same fit transform the day
-  `BoxFit` lands, or every follower comes off its part on a fitted view.
 
 ## SDK-integration features (⛔ blocked on the SDK)
 

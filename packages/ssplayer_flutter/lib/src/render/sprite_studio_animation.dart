@@ -42,11 +42,16 @@ class SpriteStudioAnimation extends StatefulWidget {
     this.animation,
     this.width,
     this.height,
+    this.fit = BoxFit.contain,
+    this.alignment = Alignment.center,
+    this.frame,
     this.loopCount = -1,
     this.playing = true,
     this.speedScale = 1.0,
     this.flipX = false,
     this.flipY = false,
+    this.offset = Offset.zero,
+    this.scale = 1.0,
     this.bundle,
     this.backend = SpriteStudioBackend.auto,
     this.placeholder,
@@ -78,11 +83,24 @@ class SpriteStudioAnimation extends StatefulWidget {
   /// alone selects and poses, which would leave a state-driven switch frozen.
   final String? animation;
 
-  /// Passed to [SpriteStudioView]. Null takes the incoming constraints.
+  /// Passed to [SpriteStudioView]. Null takes it from the authored canvas, as
+  /// `Image` does from its picture.
   final double? width;
 
-  /// Passed to [SpriteStudioView]. Null takes the incoming constraints.
+  /// Passed to [SpriteStudioView]. Null takes it from the authored canvas.
   final double? height;
+
+  /// How the canvas is scaled into the box — `contain` (the default), `cover`
+  /// or `none`. Passed to [SpriteStudioView].
+  final BoxFit fit;
+
+  /// Which point of the canvas lands on the matching point of the box. Passed
+  /// to [SpriteStudioView].
+  final AlignmentGeometry alignment;
+
+  /// A box to fit instead of the authored canvas, in player-local pixels.
+  /// Passed to [SpriteStudioView].
+  final Rect? frame;
 
   /// `-1` loops forever, `n > 0` plays n times. Applied before playback starts.
   final int loopCount;
@@ -105,6 +123,12 @@ class SpriteStudioAnimation extends StatefulWidget {
 
   /// Mirrors the drawn animation vertically. See [SpriteStudioPlayer.flipY].
   final bool flipY;
+
+  /// Shifts the drawn animation after the fit. See [SpriteStudioPlayer.offset].
+  final Offset offset;
+
+  /// Multiplies the fit's scale. See [SpriteStudioPlayer.scale].
+  final double scale;
 
   /// Which bundle to read [assetKey] from. Null is `rootBundle`.
   final AssetBundle? bundle;
@@ -208,6 +232,8 @@ class _SpriteStudioAnimationState extends State<SpriteStudioAnimation>
     }
     if (old.flipX != widget.flipX) player.flipX = widget.flipX;
     if (old.flipY != widget.flipY) player.flipY = widget.flipY;
+    if (old.offset != widget.offset) player.offset = widget.offset;
+    if (old.scale != widget.scale) player.scale = widget.scale;
     _wireEvents(player, old);
     // Selecting and starting need the pack. A change made while it loads is not
     // lost: [_load] reads both off the widget as it stands when the load lands.
@@ -225,7 +251,9 @@ class _SpriteStudioAnimationState extends State<SpriteStudioAnimation>
       ..loopCount = widget.loopCount
       ..speedScale = widget.speedScale
       ..flipX = widget.flipX
-      ..flipY = widget.flipY;
+      ..flipY = widget.flipY
+      ..offset = widget.offset
+      ..scale = widget.scale;
     _wireEvents(player, null);
     widget.onPlayerCreated?.call(player);
     _load(player);
@@ -337,6 +365,9 @@ class _SpriteStudioAnimationState extends State<SpriteStudioAnimation>
       player: player,
       width: widget.width,
       height: widget.height,
+      fit: widget.fit,
+      alignment: widget.alignment,
+      frame: widget.frame,
     );
   }
 }

@@ -40,11 +40,14 @@ failed.
 | Parameter | Purpose |
 |---|---|
 | `animation` | Which animation to select. Omit it for the pack's first — an unselected pack draws an empty box, which is what a failed load looks like too. Change it and the same player switches; while `playing`, the new animation starts from its first frame. |
-| `width` / `height` | The box to draw in. Omit them to take the incoming constraints. |
+| `width` / `height` | The box to draw in. Omit them and it takes the animation's authored canvas as its size, shrunk to the constraints with its aspect kept — the way `Image` sizes from its picture. |
+| `fit` / `alignment` | How the canvas is fitted into the box, and which point of it lands where: `BoxFit.contain` (the default), `cover` or `none`, and an `Alignment`. `none` draws at 1:1 with the origin at the box centre. |
+| `frame` | A box to fit instead of the authored canvas, in player-local pixels — for an animation that runs off its canvas. |
 | `loopCount` | `-1` loops forever; `n > 0` plays *n* times. See [Playback & Events](playback.md). |
 | `playing` | On by default. A state, not a start-up flag: off holds the playhead where it stands, and on carries on from there. Off from the first build leaves the first frame posed, the way a `<video>` without `autoplay` shows a poster. |
 | `speedScale` | Playback rate as a multiple of the authored one. |
 | `flipX` / `flipY` | Mirror the drawn animation. |
+| `offset` / `scale` | Shift the drawn animation after the fit, and multiply the fit's scale. |
 | `placeholder` | Shown until the first frame is drawable. Worth setting: until then there is nothing to draw, and an empty box looks exactly like a broken pack. |
 | `onLoaded` | Called once the first frame can be drawn — the pack loaded, the animation selected and, while `playing`, started. `onError`'s counterpart. |
 | `onError` | Called when the load fails, instead of the error reaching the zone unhandled. |
