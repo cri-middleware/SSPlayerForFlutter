@@ -4,15 +4,35 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:ssplayer_flutter/ssplayer_flutter.dart';
+// Past the barrel for the same reason the app reaches for it: a render that
+// fell back to Canvas is indistinguishable from one that did not.
+// ignore: implementation_imports
+import 'package:ssplayer_flutter/src/render/backend/gpu_capability.dart'
+    show isFlutterGpuAvailable;
 
 // On-device pixel verification of the flutter_gpu render backend. The headless
-// flutter_tester has no Impeller context, so this can only run on a real target:
+// flutter_tester has no Impeller context, so this can only run on a real target
+// — and only with flutter_gpu switched on. Without it every case reports
+// skipped: the GPU half would silently fall back to Canvas and score a perfect
+// match that proves nothing. `flutter test -d macos` takes no flag for it, so
+// put the two keys in the (gitignored) runner's Info.plist first:
 //
-//   cd examples/overall && flutter test integration_test/gpu_backend_test.dart -d macos
+//   cd examples/overall
+//   /usr/libexec/PlistBuddy -c "Add :FLTEnableImpeller bool true" \
+//     -c "Add :FLTEnableFlutterGPU bool true" macos/Runner/Info.plist
+//   flutter test integration_test/gpu_backend_test.dart -d macos
+//
+// On a checkout that has never built ssplayer_flutter, build this example (or
+// run the package's `flutter test`) once before that: the shader bundle is that
+// package's build-hook output, and this command looks for it before any hook
+// runs, failing with "No file or variants found for asset ... shaderbundle".
 //
 // For each pack it renders the SAME frame through both backends and checks that
 // the GPU round-trip produces non-blank output that matches the Canvas reference
 // (coverage, orientation and colour) — the things a headless build can't confirm.
+// Four colour checks fail today, on PartColor tint not reaching the GPU:
+// Shape, PartsColor, BlendMode, and PartsColor after a reload. The coverage
+// checks (gpuOpaque, matchDirect) are the ones a draw-path change must keep.
 
 const int _w = 256;
 const int _h = 256;
@@ -57,6 +77,7 @@ void main() {
   for (final pack in _packs) {
     testWidgets('flutter_gpu parity vs Canvas: $pack', (tester) async {
       await loadSsRuntime();
+      if (_gpuOff()) return;
       await _gate(tester, pack);
     });
   }
@@ -69,6 +90,7 @@ void main() {
   for (final pack in _reloadPacks) {
     testWidgets('flutter_gpu survives reload: $pack', (tester) async {
       await loadSsRuntime();
+      if (_gpuOff()) return;
       final key = 'assets/spritestudio/overall/$pack.ssab';
       final canvasPx =
           await _rgba(await _render(SpriteStudioBackend.canvas, key));
@@ -86,6 +108,15 @@ void main() {
               'backend teardown/rebuild lost state');
     });
   }
+}
+
+/// Skips a case where flutter_gpu is off, rather than letting a second Canvas
+/// render pass for a GPU one.
+bool _gpuOff() {
+  if (isFlutterGpuAvailable()) return false;
+  markTestSkipped('flutter_gpu is off — add the Info.plist keys at the top of '
+      'this file');
+  return true;
 }
 
 Future<void> _gate(WidgetTester tester, String pack) async {
