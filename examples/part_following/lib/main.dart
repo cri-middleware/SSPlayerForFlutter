@@ -161,7 +161,9 @@ class _PartFollowingPageState extends State<PartFollowingPage>
             )
           : Stack(
               children: [
-                Positioned.fill(child: _stage()),
+                // Clear of the readout above and the controls below, so the
+                // fitted canvas lands between them.
+                Positioned.fill(top: 140, bottom: 90, child: _stage()),
                 _statusReadout(),
                 if (_loaded) _picker(),
                 if (_loaded) _controls(),
@@ -171,33 +173,24 @@ class _PartFollowingPageState extends State<PartFollowingPage>
   }
 
   /// The animation and the follower share ONE coordinate space: both are
-  /// children of the same [Stack], which is nudged as a whole so they stay
-  /// aligned. `StackFit.expand` makes the view fill; the anchor covers the same
-  /// box via `Positioned.fill`.
-  Widget _stage() => Transform.translate(
-        // A fixed nudge down so Ringo's へた (the apple stalk) clears the top
-        // edge, on top of the proportional centring below. Applied to the whole
-        // Stack, so the view and the anchor move together and stay aligned.
-        offset: const Offset(0, 50),
-        child: FractionalTranslation(
-          translation: const Offset(0, 0.25),
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              SpriteStudioView(player: _player),
-            if (_loaded && _attached)
-              Positioned.fill(
-                child: SpriteStudioPartAnchor(
-                  player: _player,
-                  partName: _followPart,
-                  scale: _driveScale,
-                  onHidden: _onHide,
-                  child: const _FollowMarker(),
-                ),
+  /// children of the same [Stack]. `StackFit.expand` makes the view fill, and
+  /// it fits Ringo's canvas into that box; the anchor covers the same box via
+  /// `Positioned.fill`, so it follows the part at the fitted size.
+  Widget _stage() => Stack(
+        fit: StackFit.expand,
+        children: [
+          SpriteStudioView(player: _player),
+          if (_loaded && _attached)
+            Positioned.fill(
+              child: SpriteStudioPartAnchor(
+                player: _player,
+                partName: _followPart,
+                scale: _driveScale,
+                onHidden: _onHide,
+                child: const _FollowMarker(),
               ),
-          ],
-          ),
-        ),
+            ),
+        ],
       );
 
   // --- Status (top-left): what we are doing + the equivalent call + a live pull

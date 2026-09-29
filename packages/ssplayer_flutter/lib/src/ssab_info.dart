@@ -46,6 +46,25 @@ class SsAnimeInfo {
     return ui.Size(c.v1, c.v2);
   }
 
+  /// The authored canvas of animation [name] placed around its origin, in
+  /// player-local (Y-Down) pixels, or null when the animation is unknown or
+  /// carries no canvas.
+  ///
+  /// The origin need not be the canvas centre: the pivot says where in the canvas
+  /// it sits, normalized from the centre in editor space (Y-Up). A character
+  /// standing on the ground is authored with pivot `(0, -0.5)`, the canvas's
+  /// bottom edge, which puts this rect entirely above the origin. The runtime
+  /// does not apply the pivot and its metadata does not carry it, so it is read
+  /// here.
+  ui.Rect? canvasRect(String name) {
+    final anim = _animationByName(name);
+    final c = anim?.canvasSize;
+    if (c == null) return null;
+    final w = c.v1, h = c.v2;
+    final px = anim?.pivot?.v1 ?? 0.0, py = anim?.pivot?.v2 ?? 0.0;
+    return ui.Rect.fromLTWH(-px * w - w / 2, py * h - h / 2, w, h);
+  }
+
   /// Names of the cellmaps referenced by this pack.
   List<String> get cellmapNames =>
       _root.cellmaps

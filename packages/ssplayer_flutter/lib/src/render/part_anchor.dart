@@ -81,10 +81,13 @@ enum SpriteStudioAnchorMirror {
 /// anchor with them, so a character can turn around without its followers coming
 /// off their parts; [onMirrored] decides whether the child is mirrored too.
 ///
+/// **Fits.** The view hands its fit to the player, and the pose read here
+/// carries it, so a view that scales the animation into its box scales where
+/// the follower goes with it. That holds only over the view's own box, which
+/// is one more reason for the `Positioned.fill` above.
+///
 /// **v1 limits.** Tracks top-level parts only — a part nested inside an Instance
-/// part lives in a child player and is not addressable here yet. Assumes the
-/// view draws unscaled (BoxFit placement is not implemented on the view yet); if
-/// that lands, the anchor will need the same fit applied.
+/// part lives in a child player and is not addressable here yet.
 class SpriteStudioPartAnchor extends StatelessWidget {
   const SpriteStudioPartAnchor({
     super.key,

@@ -24,7 +24,7 @@ Stack(
 ```
 
 !!! warning "Put the anchor in the same coordinate space as the view"
-    The view centres the animation's world origin inside **its own box**, and the anchor applies the matching centring from **its own constraints**.
+    The view fits the animation into **its own box**, measured from that box's centre, and the pose the anchor reads carries the fit; the anchor applies the matching centring from **its own constraints**.
     The two agree only when the anchor covers the view's exact box.
     So make it a `Positioned.fill` sibling of the `SpriteStudioView` inside one `Stack`, and apply any nudge or scale to that `Stack` as a whole so both move together.
     Given a different box, the child lands off the part by exactly half the difference. On an
@@ -212,8 +212,6 @@ guard.
   re-registration** — the anchor picks the part up again as soon as the name resolves.
 - Following transfers the **spatial transform only, not draw order**. The child paints above the
   whole animation; it cannot be interleaved between the character's own parts.
-- The anchor assumes the view **draws unscaled**. Scale/`BoxFit` placement is not implemented on the
-  view yet; when it lands, the anchor will need the same fit applied.
 - **Ownership is yours.** The anchor never creates or disposes the child or the player — it only
   reads a pose and applies it.
 

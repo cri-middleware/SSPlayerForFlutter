@@ -976,8 +976,8 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   ///
   /// The batch loop, mask pre-pass planning and instance recursion stay here
   /// (backend-agnostic control flow); only the pixel operations go to the
-  /// backend. Nines / Text are pre-cut seams and not drawn; BoxFit / scale
-  /// placement into [dst] is likewise not supported.
+  /// backend. Nines / Text are pre-cut seams and not drawn. Fitting into [dst]
+  /// is not done here: it arrives already solved, in [rootTransform].
   ///
   /// **Call this at most once per frame per player.** The hooks below recycle
   /// resources that stay live until the recorded picture rasterises, and this is

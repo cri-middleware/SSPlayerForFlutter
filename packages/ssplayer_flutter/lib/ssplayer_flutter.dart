@@ -40,10 +40,13 @@ export 'src/event.dart'
 
 // Layer 2 — Widget-agnostic draw engine (reusable headless / Flame / GPU).
 export 'src/internal_player.dart' show SpriteStudioInternalPlayer;
-// The player-level flip / offset, resolved in one place and read by both the
-// drawing path and the part poses (SpriteStudioPlayer.flipX / flipY / offset are
-// the shorthand most callers want).
+// The player-level flip / offset / scale, resolved in one place and read by
+// both the drawing path and the part poses (SpriteStudioPlayer.flipX / flipY /
+// offset / scale are the shorthand most callers want).
 export 'src/render/root_transform.dart' show SsRootTransform;
+// Fit and align: what SpriteStudioView hands the player
+// (SpriteStudioPlayer.place), so the part poses carry the fit as well.
+export 'src/render/placement.dart' show SsPlacement;
 export 'src/texture_registry.dart' show TextureRegistry;
 export 'src/texture_loader.dart' show SsTextureLoader, TextureLoadReport;
 export 'src/instance_loader.dart' show SsInstanceLoader, InstancePackLoadResult;

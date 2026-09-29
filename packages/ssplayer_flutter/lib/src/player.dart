@@ -11,6 +11,7 @@ import 'internal_player.dart';
 import 'playback.dart';
 import 'render/backend/backend_kind.dart';
 import 'render/part_override.dart';
+import 'render/placement.dart';
 import 'render/root_transform.dart';
 import 'ssab_info.dart';
 import 'texture_loader.dart';
@@ -133,25 +134,63 @@ class SpriteStudioPlayer extends ChangeNotifier {
   set offset(ui.Offset value) =>
       _setRootTransform(rootTransform.copyWith(offset: value));
 
-  /// Scale the drawn animation about its origin.
+  /// Scale the drawn animation about its origin. Under a fitted view it
+  /// multiplies the fit's scale rather than replacing it.
   double get scale => rootTransform.scale;
   set scale(double value) =>
       _setRootTransform(rootTransform.copyWith(scale: value));
 
-  /// [flipX], [flipY], [offset] and [scale] as the one value both the drawing
-  /// path and the part poses read. Assign it to change several at once (one
-  /// repaint).
-  SsRootTransform get rootTransform => _internal?.rootTransform ?? _root;
+  /// [flipX], [flipY], [offset] and [scale] as one value. Assign it to change
+  /// several at once (one repaint).
+  ///
+  /// This is what the caller asked for. What is drawn, and what the part poses
+  /// carry, is this fitted into the view's box by [place] — so it reads back as
+  /// set, whatever the view did with it.
+  SsRootTransform get rootTransform => _root;
   set rootTransform(SsRootTransform value) => _setRootTransform(value);
 
   SsRootTransform _root = SsRootTransform.identity;
 
   void _setRootTransform(SsRootTransform value) {
-    if (value == rootTransform) return;
+    if (value == _root) return;
     _root = value;
-    _internal?.rootTransform = value;
+    _applyRoot();
     notifyListeners();
   }
+
+  /// The view's box and how to fit into it, from the last [place]. Null until a
+  /// view places the player, and for good under an adapter that never does.
+  ui.Size? _placeView;
+  SsPlacement? _placement;
+
+  /// Fits the animation into a [view]-sized box by [placement], on top of
+  /// [rootTransform] — what [SpriteStudioView] does from its layout. Null
+  /// [placement] draws unfitted, with the origin at the box centre and the
+  /// caller's scale. That is the default, and what an adapter that never calls
+  /// this — the Flame component — draws with.
+  ///
+  /// Held here rather than in the view so that the part poses carry the fit as
+  /// they carry the flip: [partTransform] is the pose as drawn, and a
+  /// [SpriteStudioPartAnchor] over the view lands on the part without knowing
+  /// the view fitted anything. It does not notify: the view calling it is
+  /// laying out, and paints next.
+  void place(ui.Size view, SsPlacement? placement) {
+    if (view == _placeView && placement == _placement) return;
+    _placeView = view;
+    _placement = placement;
+    _applyRoot();
+  }
+
+  /// [rootTransform] fitted by the last [place] — what the backends draw with.
+  SsRootTransform get _placedRoot {
+    final placement = _placement, view = _placeView;
+    if (placement == null || view == null) return _root;
+    return placement.resolve(view, _canvasRect, _root);
+  }
+
+  /// Pushed on every change to what [_placedRoot] reads, so L2 always holds the
+  /// transform the next paint and part pose use.
+  void _applyRoot() => _internal?.rootTransform = _placedRoot;
 
   /// Invoked (on the UI isolate) with the raw event indices passed each frame.
   /// Low-level escape hatch; most callers want the decoded [onUserData] /
@@ -299,6 +338,30 @@ class SpriteStudioPlayer extends ChangeNotifier {
     return name == null ? null : _animeInfo?.canvasSize(name);
   }
 
+  /// The authored canvas a view fits, placed around the origin by its pivot, in
+  /// player-local pixels — or null until an animation is selected, or when the
+  /// pack carries no canvas.
+  ///
+  /// It is the canvas of the **first animation selected since the pack was
+  /// loaded**, and stays put when the animation changes. Canvases differ between
+  /// the animations of one pack — Ringo's `dead` is 1300 wide where the rest are
+  /// 800 — and following each would re-lay a view out on every switch and shrink
+  /// the character the moment it dies. To fit something else, give the view a
+  /// `frame`.
+  ui.Rect? get canvasRect => _canvasRect;
+  ui.Rect? _canvasRect;
+
+  /// The animation [canvasRect] came from, so a [reload] can take the box from
+  /// the same one rather than from whichever is playing.
+  String? _canvasAnimation;
+
+  /// Takes the box from the first animation set up since the load.
+  void _latchCanvas(String name) {
+    if (_canvasRect != null) return;
+    _canvasRect = _animeInfo?.canvasRect(name);
+    if (_canvasRect != null) _canvasAnimation = name;
+  }
+
   /// The unresolved textures from the most recent [load] (empty on success).
   TextureLoadReport? get lastTextureReport => _lastTextureReport;
   TextureLoadReport? _lastTextureReport;
@@ -380,6 +443,7 @@ class SpriteStudioPlayer extends ChangeNotifier {
     _pendingSourceLabel = null;
     _reportedMissingAnimation = null;
     _animeInfo = SsAnimeInfo(ssab);
+    _canvasRect = null;
 
     // Instance children are built inside the sync `load` below — a child's
     // Context must exist before the first step — so their packs must be fetched
@@ -409,7 +473,6 @@ class SpriteStudioPlayer extends ChangeNotifier {
       if (!_disposed && identical(_internal, internal)) notifyListeners();
     };
     internal.subFrameEnabled = _subFrame;
-    internal.rootTransform = _root;
     // Assigned from the result, not ahead of it. Assigning first left
     // `currentAnimation` naming an animation that was never set up — and, worse,
     // made [setAnimation] return `true` for that same name without doing
@@ -419,7 +482,9 @@ class SpriteStudioPlayer extends ChangeNotifier {
       _currentAnimation = null;
     } else {
       _currentAnimation = animationName;
+      if (animationName != null) _latchCanvas(animationName);
     }
+    _applyRoot();
     // Push the cached settings AFTER setupAnimation: the loop count is reset
     // there, so setting it any earlier would be clobbered.
     _applyTransportSettings(internal);
@@ -511,6 +576,7 @@ class SpriteStudioPlayer extends ChangeNotifier {
     final wasPaused = isPausing;
     final frame = frameNo;
     final anim = _currentAnimation;
+    final boxAnimation = _canvasAnimation;
 
     // Instance packs are re-fetched by `load`, so a live-reload picks up an
     // edited child `.ssab` too — the child pack is a separate file the watcher
@@ -526,6 +592,12 @@ class SpriteStudioPlayer extends ChangeNotifier {
     if (_disposed || _internal == null) return;
 
     final names = animationNames;
+    // The box comes back from the animation it came from, re-read so an edit to
+    // that canvas shows, and not from the one playing: reloading on Ringo's
+    // `dead` must not refit the view to `dead`'s wider canvas.
+    if (boxAnimation != null && names.contains(boxAnimation)) {
+      _latchCanvas(boxAnimation);
+    }
     final target = (anim != null && names.contains(anim))
         ? anim
         : (names.isEmpty ? null : names.first);
@@ -568,6 +640,8 @@ class SpriteStudioPlayer extends ChangeNotifier {
     } else {
       _currentAnimation = name;
       _reportedMissingAnimation = null;
+      _latchCanvas(name);
+      _applyRoot();
       // The Brain reset the loop count; restore the cached settings so a
       // mid-session animation switch (or [reload]) keeps the caller's loop count
       // instead of silently reverting to infinite looping.
@@ -1007,8 +1081,10 @@ class SpriteStudioPlayer extends ChangeNotifier {
 
   /// The current-frame world transform of the part named [partName] as a
   /// [Matrix4] in player-local space, or null before [load] / for an unknown
-  /// part. See [SpriteStudioInternalPlayer.partWorldMatrix] for the affine
-  /// contract (2D affine, Y-flip already baked in — pass straight to a
+  /// part. It is the pose as drawn: the flip, the offset and, under a view
+  /// that fits, the fit ([place]) are folded in, measured from the centre of
+  /// the view's box. See [SpriteStudioInternalPlayer.partWorldMatrix] for the
+  /// affine contract (2D affine, Y-flip already baked in — pass straight to a
   /// `Transform` widget) and the same-frame sampling.
   Matrix4? partTransform(String partName) {
     final internal = _internal;
