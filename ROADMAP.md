@@ -57,9 +57,6 @@ hit areas, and a UI-state map.
   `WidgetStatesController` (`hovered` / `pressed` / `disabled` / `focused`), each
   state mapped to an animation or a label, so a player drops into an `InkWell` or a
   `ButtonStyleButton` and reacts like the rest of the button does.
-- ☐ **Semantics** — the view contributes no `SemanticsNode`, so a player used as a
-  control is invisible to screen readers and to widget tests that look up by label.
-  Take a `semanticsLabel` and mark a decorative player as excluded.
 
 ## SDK-integration features (⛔ blocked on the SDK)
 
