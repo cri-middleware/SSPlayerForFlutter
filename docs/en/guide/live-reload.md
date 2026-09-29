@@ -7,13 +7,14 @@ animation editing gets the same fast iteration as a code hot reload.
 
 ## What it is
 
-- Provided by the
+- The watcher is `sswatch`, from the
   [`ssgen_flutter`](https://github.com/cri-middleware/SSPlayerForFlutter/tree/main/packages/ssgen_flutter)
-  dev tooling (built on `ssgen_dart`, which drives [conversion](conversion.md)).
-- The player runtime (`ssplayer_flutter`) stays **converter-free** — nothing extra ships in your app.
-  The converter lives only in the development tooling.
-- **Debug builds only, and off by default** — an app opts in with the `SS_LIVE_RELOAD` define
-  (below); a release build never carries the push channel.
+  dev tooling (built on `ssgen_dart`, which drives [conversion](conversion.md)). It is a **dev
+  dependency**: your app never imports it.
+- The player runtime (`ssplayer_flutter`) stays **converter-free**. The converter lives only in the
+  watcher; what the app holds is the end that receives the push.
+- **Debug builds only, and off by default** — that end comes up only in a debug build launched with
+  the `SS_LIVE_RELOAD` define (below). Any other build, a release build included, compiles it out.
 
 ## How it works
 
@@ -24,8 +25,8 @@ animation editing gets the same fast iteration as a code hot reload.
    alongside an IDE debugger — the same mechanism on desktop, device and the web).
     - **Desktop** — the app reads the re-converted `.ssab` off disk.
     - **Device (iOS / Android)** — a texture-embedded `.ssab` is sent as bytes (a device can't read a
-      host path). The pack is routed by convention: the **last segment of the app's `ssAssetDir`**
-      names the `<stem>.sspj` it came from. `sswatch` says so on stderr when the two disagree —
+      host path). The pack is routed by convention: the **last folder of the pack's asset key**
+      (`assets/spritestudio/Ringo/Ringo.ssab` → `Ringo`) names the `<stem>.sspj` it came from. `sswatch` says so on stderr when the two disagree —
       nothing is pushed until they match.
     - **Web (`flutter run -d chrome`, debug)** — like a device, a texture-embedded `.ssab` is sent as
       bytes; the VM Service extension is routed by DWDS. Debug builds only: `--wasm` and
@@ -39,20 +40,9 @@ animation editing gets the same fast iteration as a code hot reload.
 
 ## Enabling it (recipe)
 
-1. Add `ssgen_flutter` to your app's `pubspec.yaml`.
-2. Mix `SsLiveReload` into your `State` and point it at your player and current pack (the mixin only
-   registers the player on the push channel):
-
-    ```dart
-    class _MyPageState extends State<MyPage>
-        with SingleTickerProviderStateMixin, SsLiveReload<MyPage> {
-      @override SpriteStudioPlayer get ssPlayer => _player;
-      @override String get ssAssetDir => 'assets/spritestudio/overall'; // current pack's output dir
-      @override String get ssPack => _pack;                             // current pack (.ssab stem)
-      @override void ssOnLiveReloaded() => setState(() {});             // optional UI refresh
-    }
-    ```
-
+1. Add `ssgen_flutter` to your app's `dev_dependencies`.
+2. Nothing in the app. A player that loads its pack by asset key — every `SpriteStudioAnimation`, and
+   any `SpriteStudioPlayer` you `loadAsset` — takes the push by itself.
 3. Run `sswatch`. One tool, one mechanism (VM Service push) — you only choose **how you launch**
    (opt in with the `SS_LIVE_RELOAD` define; a plain `flutter run` does **not** re-convert art).
 
@@ -73,6 +63,22 @@ animation editing gets the same fast iteration as a code hot reload.
 
 Place your source projects under `SpriteStudio_Source/<project>/`. Save a real edit (a `touch` produces
 identical bytes — and may not even trip the watcher).
+
+!!! tip "A player loaded from bytes, or a screen that reacts to the reload"
+    A player that loaded bytes — a download, a file picked at runtime — has no asset key to be found
+    by. Mix `SsLiveReload` into the `State` that owns it and name the pack. The same mixin lets a
+    screen react to a reload, and turn it off while it shows something the watcher does not own.
+    Where it names a player that also joined by itself, the mixin is the one used.
+
+    ```dart
+    class _MyPageState extends State<MyPage>
+        with SingleTickerProviderStateMixin, SsLiveReload<MyPage> {
+      @override SpriteStudioPlayer get ssPlayer => _player;
+      @override String get ssAssetDir => 'assets/spritestudio/overall'; // current pack's output dir
+      @override String get ssPack => _pack;                             // current pack (.ssab stem)
+      @override void ssOnLiveReloaded() => setState(() {});             // optional UI refresh
+    }
+    ```
 
 !!! warning "macOS desktop: the App Sandbox blocks the file push"
     A `file` push hands the app a host path outside its container, so a sandboxed debug build

@@ -9,7 +9,6 @@ import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'
     show AssetBundle, CachingAssetBundle, rootBundle;
-import 'package:ssgen_flutter/ssgen_flutter.dart';
 import 'package:ssplayer_flutter/ssplayer_flutter.dart';
 // The capability probe is not on the public barrel, and asking for `gpu` falls
 // back to Canvas SILENTLY — so a `SS_BACKEND=gpu` run that quietly stayed on
@@ -387,9 +386,10 @@ class _PlayerPageState extends State<PlayerPage>
 
   // --- Dev live-reload (the SsLiveReload mixin) --------------------------
   // Hot-swaps the SpriteStudio art in place, playhead preserved — no `r`. The
-  // mixin just registers this player with the VM-Service push channel; run the
-  // `sswatch` host runner alongside the app (opt-in via the SS_LIVE_RELOAD
-  // define, injected by --run):
+  // player loads by asset key, so it takes the push without this; the mixin is
+  // here for the status line below, and to stand the player down while a
+  // dropped file is shown. Run the `sswatch` host runner alongside the app
+  // (opt-in via the SS_LIVE_RELOAD define, injected by --run):
   //   Desktop (file push):    dart run ssgen_flutter:sswatch --run -d macos
   //   Device  (embedded push): dart run ssgen_flutter:sswatch --run -d <emu> --device
   //   Web     (embedded push): dart run ssgen_flutter:sswatch --run -d chrome --device

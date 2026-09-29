@@ -1,9 +1,7 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
-import 'package:ssplayer_flutter/ssplayer_flutter.dart';
 
-import 'dev_channel.dart';
-import 'ss_defines.dart';
+import '../player.dart';
+import 'channel.dart';
 
 /// Wires SpriteStudio dev live-reload into a [State]: registers this player's
 /// current pack with the VM-Service dev push channel ([SsDevChannel]) so the
@@ -11,6 +9,12 @@ import 'ss_defines.dart';
 /// state preserved ([SpriteStudioPlayer.reload]) — on desktop, device and (in
 /// `flutter run -d chrome` debug, via DWDS) the web alike, with no `r` and the
 /// IDE debugger left attached.
+///
+/// **A player loaded with [SpriteStudioPlayer.loadAsset] does not need this** —
+/// it joins the channel by itself, and so does every [SpriteStudioAnimation].
+/// Mix it in for a player whose bytes no asset key describes, or to react to a
+/// reload ([ssOnLiveReloaded]); for its player it then stands in for the one
+/// that joined by itself.
 ///
 /// Run the watcher alongside the app:
 /// ```
@@ -61,8 +65,7 @@ mixin SsLiveReload<T extends StatefulWidget> on State<T>
   /// while a drag-dropped source is shown); override to `kDebugMode` to always
   /// accept a live-reload.
   @override
-  bool get ssLiveReloadEnabled =>
-      kDebugMode && const bool.fromEnvironment(ssLiveReloadDefine);
+  bool get ssLiveReloadEnabled => ssLiveReloadActive;
 
   /// Called after a successful live-reload — e.g. `setState(() {})`.
   @override

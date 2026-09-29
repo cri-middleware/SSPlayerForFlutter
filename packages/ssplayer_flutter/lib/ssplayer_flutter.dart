@@ -89,6 +89,14 @@ export 'src/render/mask.dart'
         kMaxMaskWriters,
         noCutoutThreshold;
 
+// Live reload: the in-app end of `sswatch`'s push channel. A player that loads
+// by asset key joins by itself; the mixin and the target interface are for a
+// player no key describes, or a screen that reacts to the reload. The define is
+// the opt-in `sswatch --run` injects.
+export 'src/live_reload/channel.dart' show SsDevChannel, SsLiveReloadTarget;
+export 'src/live_reload/mixin.dart' show SsLiveReload;
+export 'src/live_reload/protocol.dart' show ssLiveReloadDefine;
+
 // Layer 1 — the raw dart:ffi C-API (the "escape hatch") lives in the pure-Dart
 // `ssruntime_dart` package as native-assets `@Native` functions. Import it
 // directly for low-level access: `package:ssruntime_dart/ssruntime_dart.dart`.
