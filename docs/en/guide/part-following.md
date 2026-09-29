@@ -7,6 +7,20 @@ child's lifecycle exactly as you own any other widget in your tree.
 
 `SpriteStudioPartAnchor` reads the part's pose and wraps its child in a `Transform`.
 
+In a `SpriteStudioAnimation`, put it in `children` and leave `player` out. The anchor finds that
+widget's player, and `children` already cover the animation's exact box:
+
+```dart
+SpriteStudioAnimation.asset(
+  'assets/spritestudio/Ringo/Ringo.ssab',
+  children: [
+    SpriteStudioPartAnchor(partName: 'apple', child: const Icon(Icons.star)),
+  ],
+)
+```
+
+Over a `SpriteStudioView` you build yourself, pass its player and cover the view's box:
+
 ```dart
 Stack(
   fit: StackFit.expand,
@@ -46,7 +60,7 @@ Stack(
 
 | Property | Description |
 |---|---|
-| **`player`** | The player whose part poses this anchor follows (required) |
+| **`player`** | The player whose part poses this anchor follows. Omit it in a `SpriteStudioAnimation`'s `children`, where the anchor finds that widget's |
 | **`partName`** | The name of the part to follow (the `PartData` name in the `.ssab`). An unknown name — or one absent from the current animation — simply draws nothing until it resolves |
 | **`child`** | The widget stuck to the part. Its **top-left origin** is pinned to the part's origin |
 | **`position`** | Drive the child's position from the part. Default `true` |

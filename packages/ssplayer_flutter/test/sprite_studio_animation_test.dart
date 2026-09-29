@@ -428,6 +428,111 @@ void main() {
     expect(player.onUserData, isNull);
   });
 
+  group('children', () {
+    // Basic's first part below the root, found from the pack rather than named
+    // here, so the test follows whatever the fixture calls it.
+    Future<String> aPart(WidgetTester tester, AssetBundle bundle) async {
+      SpriteStudioPlayer? seen;
+      await tester.pumpWidget(wrap(SpriteStudioAnimation.asset(
+        'assets/x/Basic.ssab',
+        bundle: bundle,
+        onPlayerCreated: (p) => seen = p,
+      )));
+      await pumpUntil(tester, () => _drawing);
+      return seen!.partNames.names
+          .firstWhere((n) => seen!.partTransform(n) != null && n != 'root');
+    }
+
+    testWidgets('an anchor in them follows a part with no player of its own',
+        (tester) async {
+      if (assetDir == null) {
+        markTestSkipped('overall assets missing');
+        return;
+      }
+      final bundle = _DirBundle(assetDir);
+      final part = await aPart(tester, bundle);
+      final marker = GlobalKey();
+      SpriteStudioPlayer? seen;
+      // Tight constraints, which a view alone fills: the children must cover
+      // that same box, or the anchor centres on a different one.
+      await tester.pumpWidget(wrap(Center(
+        child: SizedBox(
+          width: 300,
+          height: 200,
+          child: SpriteStudioAnimation.asset(
+            'assets/x/Basic.ssab',
+            bundle: bundle,
+            onPlayerCreated: (p) => seen = p,
+            children: [
+              SpriteStudioPartAnchor(
+                partName: part,
+                child: SizedBox(key: marker, width: 1, height: 1),
+              ),
+            ],
+          ),
+        ),
+      )));
+      await pumpUntil(tester, () => find.byKey(marker).evaluate().isNotEmpty);
+
+      final view = tester.getRect(find.byType(SpriteStudioView));
+      expect(view.size, const Size(300, 200));
+      final t = seen!.partTransform(part)!.getTranslation();
+      final at = tester.getTopLeft(find.byKey(marker));
+      expect(at.dx, closeTo(view.center.dx + t.x, 1e-6));
+      expect(at.dy, closeTo(view.center.dy + t.y, 1e-6));
+    });
+
+    testWidgets('are built with the first frame, not over the placeholder',
+        (tester) async {
+      if (assetDir == null) {
+        markTestSkipped('overall assets missing');
+        return;
+      }
+      await tester.pumpWidget(wrap(SpriteStudioAnimation.asset(
+        'assets/x/Basic.ssab',
+        bundle: _DirBundle(assetDir),
+        placeholder: const Text('loading'),
+        children: const [Text('over')],
+      )));
+      expect(find.text('loading'), findsOneWidget);
+      expect(find.text('over'), findsNothing);
+      await pumpUntil(tester, () => _drawing);
+      expect(find.text('over'), findsOneWidget);
+    });
+
+    testWidgets('reach the player through playerOf', (tester) async {
+      if (assetDir == null) {
+        markTestSkipped('overall assets missing');
+        return;
+      }
+      SpriteStudioPlayer? created, reached;
+      await tester.pumpWidget(wrap(SpriteStudioAnimation.asset(
+        'assets/x/Basic.ssab',
+        bundle: _DirBundle(assetDir),
+        onPlayerCreated: (p) => created = p,
+        children: [
+          Builder(builder: (context) {
+            reached = SpriteStudioAnimation.playerOf(context);
+            return const SizedBox();
+          }),
+        ],
+      )));
+      await pumpUntil(tester, () => reached != null);
+      expect(reached, same(created));
+    });
+  });
+
+  testWidgets('an anchor with no player and none above it says so',
+      (tester) async {
+    await tester.pumpWidget(wrap(const SpriteStudioPartAnchor(
+      partName: 'apple',
+      child: SizedBox(),
+    )));
+    final error = tester.takeException();
+    expect(error, isA<FlutterError>());
+    expect('$error', contains('no player to follow'));
+  });
+
   testWidgets('a load failure reaches onError, not the zone', (tester) async {
     Object? reported;
     await tester.pumpWidget(wrap(SpriteStudioAnimation.asset(

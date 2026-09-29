@@ -53,6 +53,7 @@ failed.
 | `onError` | Called when the load fails, instead of the error reaching the zone unhandled. |
 | `onAnimationStarted` / `onAnimationFinished` / `onAnimationLooped` | Playback headed out / every loop has played / a loop boundary was crossed. The start the widget issues after the load counts, and comes before `onLoaded`. |
 | `onUserData` / `onSignal` / `onAudio` | A user-data, signal or audio key was crossed. Playing the sound is the app's job. See [Playback & Events](playback.md). |
+| `children` | Widgets laid over the animation, each covering its box. A `SpriteStudioPartAnchor` here follows a part with no `player`, and any widget reaches the player through `SpriteStudioAnimation.playerOf(context)`. See [Part Following](part-following.md). |
 | `onPlayerCreated` | Hands you the player for the parts of the API the parameters do not cover. Do not dispose it — the widget does. |
 | `bundle` / `backend` | Which `AssetBundle` to read from, and which render backend to draw with. |
 
@@ -77,8 +78,7 @@ SpriteStudioAnimation.asset(
 ## Owning the player yourself
 
 `SpriteStudioAnimation` builds a player because most screens do not want one.
-When yours does — to stick a widget to a part, or to drive the clock from
-somewhere else — build a
+When yours does — to drive the clock from somewhere else — build a
 [`SpriteStudioPlayer`](playback.md) and hand it to `SpriteStudioView`:
 
 ```dart
