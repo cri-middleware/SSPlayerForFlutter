@@ -1,18 +1,39 @@
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/painting.dart' show Alignment, BoxFit;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:ssplayer_flutter/ssplayer_flutter.dart';
+// Past the barrel for the same reason the app reaches for it: a render that
+// fell back to Canvas is indistinguishable from one that did not.
+// ignore: implementation_imports
+import 'package:ssplayer_flutter/src/render/backend/gpu_capability.dart'
+    show isFlutterGpuAvailable;
 
 // On-device pixel verification of the flutter_gpu render backend. The headless
-// flutter_tester has no Impeller context, so this can only run on a real target:
+// flutter_tester has no Impeller context, so this can only run on a real target
+// — and only with flutter_gpu switched on. Without it every case reports
+// skipped: the GPU half would silently fall back to Canvas and score a perfect
+// match that proves nothing. `flutter test -d macos` takes no flag for it, so
+// put the two keys in the (gitignored) runner's Info.plist first:
 //
-//   cd examples/overall && flutter test integration_test/gpu_backend_test.dart -d macos
+//   cd examples/overall
+//   /usr/libexec/PlistBuddy -c "Add :FLTEnableImpeller bool true" \
+//     -c "Add :FLTEnableFlutterGPU bool true" macos/Runner/Info.plist
+//   flutter test integration_test/gpu_backend_test.dart -d macos
+//
+// On a checkout that has never built ssplayer_flutter, build this example (or
+// run the package's `flutter test`) once before that: the shader bundle is that
+// package's build-hook output, and this command looks for it before any hook
+// runs, failing with "No file or variants found for asset ... shaderbundle".
 //
 // For each pack it renders the SAME frame through both backends and checks that
 // the GPU round-trip produces non-blank output that matches the Canvas reference
 // (coverage, orientation and colour) — the things a headless build can't confirm.
+// Four colour checks fail today, on PartColor tint not reaching the GPU:
+// Shape, PartsColor, BlendMode, and PartsColor after a reload. The coverage
+// checks (gpuOpaque, matchDirect) are the ones a draw-path change must keep.
 
 const int _w = 256;
 const int _h = 256;
@@ -51,12 +72,35 @@ const List<String> _packs = <String>[
 // live-reload's dispose→recreate without re-running the whole matrix.
 const List<String> _reloadPacks = <String>['Basic', 'PartsColor'];
 
+// A view's fit reaches the GPU backend through the same SsRootTransform its
+// ortho projection already folds the flip into, and the Canvas backend applies
+// it as a canvas transform. These place the player as a view would and compare
+// what the two draw: scaled down to an edge, scaled up (where the Canvas
+// backend re-bakes mask coverage at the enlargement), and flipped against an
+// edge, which moves the origin as well as mirroring.
+const List<_Fit> _fits = <_Fit>[
+  _Fit('Ringo/Ringo', SsPlacement(alignment: Alignment.bottomCenter)),
+  _Fit('overall/Mask', SsPlacement(fit: BoxFit.cover), scale: 2),
+  _Fit('overall/Basic', SsPlacement(alignment: Alignment.centerLeft),
+      flipX: true),
+];
+
+class _Fit {
+  const _Fit(this.pack, this.placement, {this.scale = 1, this.flipX = false});
+  final String pack;
+  final SsPlacement placement;
+  final double scale;
+  final bool flipX;
+  String get key => 'assets/spritestudio/$pack.ssab';
+}
+
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
   for (final pack in _packs) {
     testWidgets('flutter_gpu parity vs Canvas: $pack', (tester) async {
       await loadSsRuntime();
+      if (_gpuOff()) return;
       await _gate(tester, pack);
     });
   }
@@ -69,6 +113,7 @@ void main() {
   for (final pack in _reloadPacks) {
     testWidgets('flutter_gpu survives reload: $pack', (tester) async {
       await loadSsRuntime();
+      if (_gpuOff()) return;
       final key = 'assets/spritestudio/overall/$pack.ssab';
       final canvasPx =
           await _rgba(await _render(SpriteStudioBackend.canvas, key));
@@ -86,6 +131,60 @@ void main() {
               'backend teardown/rebuild lost state');
     });
   }
+
+  for (final fit in _fits) {
+    testWidgets('flutter_gpu fit vs Canvas: ${fit.pack}', (tester) async {
+      await loadSsRuntime();
+      if (_gpuOff()) return;
+      await _fitGate(tester, fit);
+    });
+  }
+}
+
+/// Skips a case where flutter_gpu is off, rather than letting a second Canvas
+/// render pass for a GPU one.
+bool _gpuOff() {
+  if (isFlutterGpuAvailable()) return false;
+  markTestSkipped('flutter_gpu is off — add the Info.plist keys at the top of '
+      'this file');
+  return true;
+}
+
+/// Geometry parity under a placement. Colour is printed, not gated: the packs'
+/// own colour parity is [_gate]'s, with its known divergences, and a fit moves
+/// pixels without touching their colour.
+Future<void> _fitGate(WidgetTester tester, _Fit fit) async {
+  final canvasPx =
+      await _rgba(await _renderFitted(SpriteStudioBackend.canvas, fit));
+  final gpuPx = await _rgba(await _renderFitted(SpriteStudioBackend.gpu, fit));
+  final plainPx =
+      await _rgba(await _render(SpriteStudioBackend.canvas, fit.key));
+
+  final canvasOpaque = _opaqueCount(canvasPx);
+  final gpuOpaque = _opaqueCount(gpuPx);
+  final matchDirect = _alphaMatch(gpuPx, canvasPx, flip: false);
+  final matchFlip = _alphaMatch(gpuPx, canvasPx, flip: true);
+  final matchPlain = _alphaMatch(canvasPx, plainPx, flip: false);
+  final rgbDiff = _rgbMeanDiff(gpuPx, canvasPx);
+
+  debugPrint('[gpu-fit:${fit.pack}] canvasOpaque=$canvasOpaque '
+      'gpuOpaque=$gpuOpaque matchDirect=${matchDirect.toStringAsFixed(3)} '
+      'matchFlip=${matchFlip.toStringAsFixed(3)} '
+      'vsUnfitted=${matchPlain.toStringAsFixed(3)} '
+      'rgbMeanDiff=${rgbDiff.toStringAsFixed(2)}');
+
+  expect(canvasOpaque, greaterThan(200),
+      reason: '[${fit.pack}] Canvas reference is (near) blank under the fit');
+  // Otherwise the case compares two unfitted frames and proves nothing.
+  expect(matchPlain, lessThan(0.99),
+      reason: '[${fit.pack}] the placement left the frame as it was');
+  expect(gpuOpaque, greaterThan(200),
+      reason: '[${fit.pack}] flutter_gpu produced a (near) blank fitted frame');
+  expect(matchDirect, greaterThanOrEqualTo(matchFlip),
+      reason: '[${fit.pack}] the fitted GPU frame looks vertically flipped');
+  expect(matchDirect, greaterThan(0.95),
+      reason: '[${fit.pack}] GPU/Canvas coverage disagrees under the fit — '
+          'the two backends placed the animation differently');
 }
 
 Future<void> _gate(WidgetTester tester, String pack) async {
@@ -129,6 +228,20 @@ Future<ui.Image> _render(SpriteStudioBackend backend, String assetKey) async {
   final player = SpriteStudioPlayer(backend: backend);
   await player.loadAsset(assetKey);
   _home(player);
+  final img = await _captureLooping(player);
+  player.dispose();
+  return img;
+}
+
+/// Like [_render], placed into the capture box as a view with [fit] would
+/// place it.
+Future<ui.Image> _renderFitted(SpriteStudioBackend backend, _Fit fit) async {
+  final player = SpriteStudioPlayer(backend: backend)
+    ..flipX = fit.flipX
+    ..scale = fit.scale;
+  await player.loadAsset(fit.key);
+  _home(player);
+  player.place(const ui.Size(_w * 1.0, _h * 1.0), fit.placement);
   final img = await _captureLooping(player);
   player.dispose();
   return img;
