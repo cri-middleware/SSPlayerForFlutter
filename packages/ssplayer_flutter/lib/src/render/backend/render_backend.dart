@@ -73,18 +73,18 @@ abstract class RenderBackend {
   /// parts with PartColor and/or a mask test are peeled (Canvas) or folded into
   /// per-vertex attributes (GPU).
   void emitNormal(ui.Canvas canvas, fbs.DrawBatch batch, DrawFrame frame,
-      RenderHost host, MaskContext? maskCtx, InheritedMask? inheritedMask);
+      RenderHost host, PlayerMask masking);
 
   /// Emits one Shape batch: per-vertex colour, mask targets peeled.
   void emitShape(ui.Canvas canvas, fbs.DrawBatch batch, DrawFrame frame,
-      RenderHost host, MaskContext? maskCtx, InheritedMask? inheritedMask);
+      RenderHost host, PlayerMask masking);
 
   /// Emits one Mesh batch: world-space verts, one indexed draw. Parts
   /// carrying PartColor (*whole-only* — the `lt` corner tints the whole
   /// part) and/or a mask test are peeled out of that draw, the same way
   /// [emitNormal] peels its own.
   void emitMesh(ui.Canvas canvas, fbs.DrawBatch batch, DrawFrame frame,
-      RenderHost host, MaskContext? maskCtx, InheritedMask? inheritedMask);
+      RenderHost host, PlayerMask masking);
 
   /// Emits one Effect batch: the particle plans, grouped per cellmap+blend.
   void emitEffect(

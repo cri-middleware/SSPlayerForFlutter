@@ -14,7 +14,25 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ssplayer_flutter/ssplayer_flutter.dart';
 // Re-exports the FrameData readers and adds back the flatc write-side classes,
 // which live outside lib/ (see scripts/strip_fbs_builders.dart).
+import 'package:ssplayer_flutter/src/render/mask_context.dart';
+
 import 'support/framedata_builders.g.dart' as fbs;
+
+/// A two-tile mask replay as `MaskDraw.writeReplay` flattens it. Every value is
+/// float32-exact, so the vertex round-trip is bit-identical.
+Float32List _replay() {
+  final draw = MaskDraw(
+    const MaskBits(
+        increment: <int>[5, 7], invert: <int>[6, 8], visibleInside: true),
+    null,
+    Float32List.fromList(<double>[2, 0, 0, 3]),
+    Float32List.fromList(<double>[0.25, 0.5]),
+    tilesX: 2,
+  );
+  final out = Float32List(MaskDraw.replayFloats);
+  MaskDraw.writeReplay(draw, out);
+  return out;
+}
 
 void main() {
   group('partColorCoef', () {
@@ -143,7 +161,7 @@ void main() {
           rb: const PartColorCorner(1, 1, 0, 1, 0.4),
         );
 
-    const stride = GeometryBuilder.partColorStride; // 24
+    const stride = GeometryBuilder.partColorStride; // 32
 
     test('each corner carries its own colour + rate (the 4-corner gradient)', () {
       final pc = gradient();
@@ -190,17 +208,17 @@ void main() {
     });
 
     test('a masked part carries the replay set (flat) on every vertex', () {
-      // Offsets are float32-exact so the round-trip is bit-identical.
-      final mask =
-          Float32List.fromList(<double>[5, 6, 0, 1, 2, 0, 0, 3, 0.25, 0.5]);
+      final mask = _replay();
       final g = GeometryBuilder().buildPartColorInterleaved(
           <int>[0], <PartColor>[gradient()], <Float32List?>[mask], frameWith(),
           texWidth: 16, texHeight: 16);
       for (var v = 0; v < 4; v++) {
         final o = v * stride;
-        expect(g!.vertices.sublist(o + 12, o + 22),
-            <double>[5, 6, 0, 1, 2, 0, 0, 3, 0.25, 0.5]);
+        expect(g!.vertices.sublist(o + 12, o + stride), mask);
       }
+      // `(visibleInside, enabled, tilesX, tilesY)`, then the per-tile sets.
+      expect(mask.sublist(0, 4), <double>[1, 1, 2, 1]);
+      expect(mask.sublist(12, 20), <double>[5, 7, 0, 0, 6, 8, 0, 0]);
     });
 
     test('a degenerate (zero-size) quad is dropped', () {

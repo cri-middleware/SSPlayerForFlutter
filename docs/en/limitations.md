@@ -68,6 +68,21 @@ through the Canvas backend.
   only the animation's own pixels. Give a blend-heavy animation an opaque background layer if you need
   the two to agree.
 
+## Masks
+
+!!! warning
+    - **At most 96 masks at once in one animation**, counting both mask parts and parts that write a
+      clipping mask (`writeMask`), and counting the animations it plays through instance parts. An
+      instance's masks count again every time the instance is placed; a hidden mask, or one whose mask
+      value is 0, does not count. Past 96 the rest are ignored and a warning is printed once —
+      restructure the data rather than raising the count.
+    - **Effect parts are not clipped by masks.**
+
+Neither backend uses a stencil buffer: the player draws every mask of an animation — its instances
+included — into one offscreen bitmap, one bit per mask, and each masked part tests that bitmap. Up to
+24 fit at full resolution; past that the bitmap is split into two or four tiles of the same total size,
+so an animation with many masks gets coarser mask edges rather than taking more memory.
+
 ## Part Following
 
 Sticking a widget to a part (see [Part Following](guide/part-following.md)) is currently limited to

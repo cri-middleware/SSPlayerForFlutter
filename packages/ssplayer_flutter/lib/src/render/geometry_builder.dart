@@ -669,13 +669,14 @@ class GeometryBuilder {
       _interScratch.length >= n ? _interScratch : (_interScratch = Float32List(n));
 
   /// Floats per vertex in the peeled-PartColor bakes ([buildPartColorInterleaved]
-  /// / [buildMeshPartColorInterleaved]) — 24 floats = 96 bytes, every `vec4`
+  /// / [buildMeshPartColorInterleaved]) — 32 floats = 128 bytes, every `vec4`
   /// attribute on a 16-byte boundary so Impeller reads them correctly (the
   /// ShapeMask alignment trap). Layout matches `shaders/gpu/partcolor.vert`:
-  /// `[pos.xy, uv.xy, color.rgba, coef.xyz+rate, mask_bits, mask_uv, mask_off.xy00]`.
-  static const int partColorStride = 24;
+  /// `[pos.xy, uv.xy, color.rgba, coef.xyz+rate]` then the 20-float mask
+  /// replay of `MaskDraw.writeReplay`.
+  static const int partColorStride = 32;
 
-  /// Writes one peeled-PartColor vertex (24 floats, [partColorStride]) at [fp]
+  /// Writes one peeled-PartColor vertex (32 floats, [partColorStride]) at [fp]
   /// and returns the next cursor. Shared by the Normal ([buildPartColorInterleaved])
   /// and Mesh ([buildMeshPartColorInterleaved]) bakes so their vertex format can
   /// never drift from the shader's `in` layout.
@@ -683,9 +684,9 @@ class GeometryBuilder {
   /// [col] is the corner colour whose straight RGBA + [PartColorCorner.rate] this
   /// vertex carries (the shader interpolates them into the gradient), [coef]
   /// is the part's blend coefficient row (constant across the quad), and [mask] is
-  /// the flattened replay set `(inc, inv, visibleInside, enabled, m00,m01,m10,m11,
-  /// ox,oy)` or null when the part is unmasked (→ `enabled = 0`). ALL 24 floats
-  /// are written every call, so no stale scratch leaks into the padding lanes.
+  /// the 20-float replay `MaskDraw.writeReplay` flattens, or null when the part
+  /// is unmasked (→ `enabled = 0`). ALL 32 floats are written every call, so no
+  /// stale scratch leaks into the padding lanes.
   static int _writePcVertex(Float32List v, int fp, double x, double y, double u,
       double vv, PartColorCorner col, List<double> coef, Float32List? mask) {
     v[fp] = x; // a_position
@@ -700,25 +701,12 @@ class GeometryBuilder {
     v[fp + 9] = coef[1];
     v[fp + 10] = coef[2];
     v[fp + 11] = col.rate;
+    // The mask replay (`MaskDraw.writeReplay`); all zero when the part is
+    // unmasked — `enabled` 0 makes maskPasses pass unconditionally.
     if (mask == null) {
-      // a_mask_bits/uv/off all zero — a_mask_bits.w (enabled) 0 makes maskPasses
-      // pass unconditionally.
-      for (var k = 12; k < 24; k++) {
-        v[fp + k] = 0.0;
-      }
+      v.fillRange(fp + 12, fp + partColorStride, 0.0);
     } else {
-      v[fp + 12] = mask[0]; // a_mask_bits: increment
-      v[fp + 13] = mask[1]; // invert
-      v[fp + 14] = mask[2]; // visibleInside
-      v[fp + 15] = mask[3]; // enabled
-      v[fp + 16] = mask[4]; // a_mask_uv: m00
-      v[fp + 17] = mask[5]; // m01
-      v[fp + 18] = mask[6]; // m10
-      v[fp + 19] = mask[7]; // m11
-      v[fp + 20] = mask[8]; // a_mask_off: ox
-      v[fp + 21] = mask[9]; // oy
-      v[fp + 22] = 0.0; // padding lane (unused; keeps the 16-byte stride)
-      v[fp + 23] = 0.0;
+      v.setRange(fp + 12, fp + partColorStride, mask);
     }
     return fp + partColorStride;
   }

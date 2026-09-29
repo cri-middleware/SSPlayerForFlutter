@@ -86,6 +86,7 @@ export 'src/render/mask.dart'
         MaskPartFlags,
         MaskPlan,
         MaskWriter,
+        kMaskSeqEnd,
         kMaxMaskWriters,
         noCutoutThreshold;
 

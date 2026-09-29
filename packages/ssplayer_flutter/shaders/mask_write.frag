@@ -4,7 +4,8 @@
 // Mask coverage writer for a single sprite quad.
 //
 // One writer = one bit of the coverage bitmap. The bit is pre-encoded on the CPU
-// into the R/G/B channel that owns it (8 bits x 3 = 24 writers; alpha is left as
+// into the R/G/B channel that owns it (8 bits x 3 = 24 writers per coverage
+// tile, the tile chosen by where the quad is drawn; alpha is left as
 // the "any coverage" accumulator), and the quad is drawn with BlendMode.plus, so
 // the disjoint per-writer bits OR together losslessly.
 //

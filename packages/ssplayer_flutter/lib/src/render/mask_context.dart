@@ -3,49 +3,42 @@ import 'dart:ui' as ui;
 
 import 'mask.dart';
 
-/// The frame's masking state, handed to the batch loop and the render backend.
+/// The frame's rasterised coverage: the instance tree's [plan] and the bitmap
+/// its writers were baked into.
 ///
-/// Shared by both the player (instance recursion) and the render backends (the
-/// peeled draws). [coverage] is the Canvas
-/// backend's `ui.Image` coverage bitmap; [coverageHandle] is the flutter_gpu
-/// backend's opaque `gpu.Texture` (kept as `Object?` so this file stays
-/// Widget/GPU-free). The coverage travels **with** the [MaskDraw] — so a mask
-/// inherited by an instance child carries the *parent's* coverage while
-/// the child's own mask carries the child's, without any shared mutable state.
+/// Built once per frame by the top-level player's backend
+/// ([RenderBackend.renderCoverage]) and shared by every player of the tree,
+/// each through its own [PlayerMask]. [coverage] is the Canvas backend's
+/// `ui.Image` coverage bitmap; [coverageHandle] is the flutter_gpu backend's
+/// opaque `gpu.Texture` (kept as `Object?` so this file stays Widget/GPU-free).
 class MaskContext {
-  MaskContext(this.plan, this.coverage,
-      {this.coverageHandle, this.comp = MaskComposition.identity});
+  MaskContext(this.plan, this.coverage, {this.coverageHandle});
 
   final MaskPlan plan;
   final ui.Image? coverage;
   final Object? coverageHandle;
-
-  /// The instance hierarchy above this player, [MaskComposition.identity]
-  /// at the top level. It governs this player's OWN mask too: a caller that
-  /// opted out with `mask_influence == 0` settles "not masked" for everything
-  /// below it, own writers included.
-  final MaskComposition comp;
-
-  /// The mask test for the target at [rank], or null when it is unmasked.
-  MaskBits? bitsForTarget(int rank, MaskPartFlags flags) =>
-      plan.bitsFor(rank, flags, comp: comp);
-
-  /// A ready-to-draw bundle for a target of THIS player's own mask.
-  MaskDraw drawFor(MaskBits bits) => MaskDraw(
-      bits, coverage, plan.uvBasis, plan.uvOffset,
-      coverageHandle: coverageHandle);
 }
 
 /// Everything a peeled draw needs to run the mask replay: the resolved writer
 /// sets + polarity ([bits]), the coverage bitmap ([coverage] / [coverageHandle]),
-/// and the local→coverage-UV affine. Unifies an *own* mask (from the player's own
-/// [MaskPlan]) and a mask **inherited** by an instance child, whose
-/// affine is the parent's pre-composed with the slot matrix. Either way this is
-/// ONE part's resolved test: a child subtree does not share one, it derives a
-/// polarity per part through [InheritedMask.drawFor].
+/// and the drawing player's local→coverage-UV affine. This is ONE part's
+/// resolved test.
 class MaskDraw {
   const MaskDraw(this.bits, this.coverage, this.uvBasis, this.uvOffset,
-      {this.coverageHandle});
+      {this.coverageHandle, this.tilesX = 1, this.tilesY = 1});
+
+  /// A test that fails everywhere: the part may only appear inside a mask and
+  /// none reaches it ([MaskBits.drawsNothing]). Carries no coverage — the draw
+  /// paths skip the part before they would bind any.
+  static final MaskDraw nothing = MaskDraw(
+    const MaskBits(increment: <int>[], invert: <int>[], visibleInside: true),
+    null,
+    Float32List(4),
+    Float32List(2),
+  );
+
+  /// Floats [writeReplay] writes.
+  static const int replayFloats = 20;
 
   final MaskBits bits;
 
@@ -57,113 +50,160 @@ class MaskDraw {
   final Float32List uvBasis;
   final Float32List uvOffset;
 
-  /// The same coverage and writer set, tested on the other side of the mask.
-  ///
-  /// Used to re-polarise an inherited mask per child part: scope was
-  /// settled once by the instance part's rank, so the writer sets are shared by
-  /// the whole sub-animation, while the polarity is composed per part.
-  /// Cheap — everything but the two-bool [MaskBits] header is shared.
-  MaskDraw withPolarity(bool visibleInside) => MaskDraw(
-        MaskBits(
-          increment: bits.increment,
-          invert: bits.invert,
-          visibleInside: visibleInside,
-        ),
-        coverage,
-        uvBasis,
-        uvOffset,
-        coverageHandle: coverageHandle,
-      );
+  /// The coverage tile grid ([MaskPlan.tilesX] × [MaskPlan.tilesY]).
+  final int tilesX;
+  final int tilesY;
 
-  /// Composes this player-local→UV mask with an instance slot matrix
-  /// (`world2dOf`, child-local → parent-local, column-major), yielding the
-  /// child-local → UV affine the child's fragments need
-  /// (`M_child = M_parent · slot_xf`). The coverage and the writer sets carry
-  /// over unchanged — the sub-animation sits at the instance part's rank, so
-  /// scope is settled — while [bits]'s polarity is superseded per part by
-  /// [InheritedMask.drawFor].
-  MaskDraw composeSlot(Float64List slot) {
+  /// Skip the part: see [nothing].
+  bool get drawsNothing => bits.drawsNothing;
+
+  /// Writes the replay the flutter_gpu shaders take — five `vec4`s, in the
+  /// order of `shaders/gpu/partcolor.vert`'s mask attributes and
+  /// `shaders/gpu/shapemask.frag`'s `MaskInfo` block:
+  ///
+  /// `(visibleInside, enabled, tilesX, tilesY)`, the UV basis
+  /// `[m00, m01, m10, m11]`, `(ox, oy, 0, 0)`, the per-tile increment sets and
+  /// the per-tile invert sets. [draw] null writes all zeros, which the shaders
+  /// read as "not masked".
+  static void writeReplay(MaskDraw? draw, Float32List out, [int at = 0]) {
+    if (draw == null) {
+      out.fillRange(at, at + replayFloats, 0.0);
+      return;
+    }
+    final b = draw.bits;
+    out[at] = b.visibleInside ? 1.0 : 0.0;
+    out[at + 1] = 1.0; // enabled
+    out[at + 2] = draw.tilesX.toDouble();
+    out[at + 3] = draw.tilesY.toDouble();
+    out[at + 4] = draw.uvBasis[0];
+    out[at + 5] = draw.uvBasis[1];
+    out[at + 6] = draw.uvBasis[2];
+    out[at + 7] = draw.uvBasis[3];
+    out[at + 8] = draw.uvOffset[0];
+    out[at + 9] = draw.uvOffset[1];
+    out[at + 10] = 0.0;
+    out[at + 11] = 0.0;
+    for (var t = 0; t < kMaskMaxTiles; t++) {
+      out[at + 12 + t] = b.incrementOf(t).toDouble();
+      out[at + 16 + t] = b.invertOf(t).toDouble();
+    }
+  }
+}
+
+/// How masking reaches ONE player of the instance tree this frame.
+///
+/// Three things, and they are independent:
+///
+/// * [tree] — the one coverage the top-level player rasterised for the whole
+///   tree, or null when nothing writes a mask this frame.
+/// * [comp] — what the instance part calling this player hands down, which
+///   decides each part's opt-in and polarity. One level only: it is the
+///   instance part's own flags, never composed with what that part inherited
+///   ([MaskComposition]).
+/// * [seq] — this player's draw ranks on the tree sequence, which the writers'
+///   intervals are expressed in; null when the rank is the sequence (a
+///   top-level player with no instances).
+///
+/// A part that draws only inside a mask is tested even when no coverage exists
+/// at all — SpriteStudio 7.5 draws it nowhere then — so a player gets a
+/// [PlayerMask] every frame, not only when something masks.
+class PlayerMask {
+  const PlayerMask._({
+    required this.tree,
+    required this.comp,
+    required this.seq,
+    required this.uvBasis,
+    required this.uvOffset,
+  });
+
+  /// The top-level player's view of [tree] (its own local space is the
+  /// coverage's), [seq] numbering its ranks on the tree sequence.
+  factory PlayerMask.root(MaskContext? tree, {List<int>? seq}) => tree == null
+      ? none
+      : PlayerMask._(
+          tree: tree,
+          comp: MaskComposition.identity,
+          seq: seq,
+          uvBasis: tree.plan.uvBasis,
+          uvOffset: tree.plan.uvOffset,
+        );
+
+  /// A top-level player with nothing masking this frame.
+  static final PlayerMask none = PlayerMask._(
+    tree: null,
+    comp: MaskComposition.identity,
+    seq: null,
+    uvBasis: MaskDraw.nothing.uvBasis,
+    uvOffset: MaskDraw.nothing.uvOffset,
+  );
+
+  final MaskContext? tree;
+  final MaskComposition comp;
+  final List<int>? seq;
+
+  /// This player's local → coverage-UV affine: `[m00, m01, m10, m11]`.
+  final Float32List uvBasis;
+
+  /// Offset half of [uvBasis].
+  final Float32List uvOffset;
+
+  /// The mask test for this player's part at [rank] with [flags], or null
+  /// when the part is not masked and keeps the plain batched path.
+  /// [MaskDraw.drawsNothing] when it may only appear inside a mask and none
+  /// reaches it.
+  MaskDraw? drawFor(int rank, MaskPartFlags flags) {
+    if (!comp.targets(flags)) return null;
+    final visibleInside = comp.visibleInsideFor(flags);
+    final t = tree;
+    final s = seq;
+    final at = s == null ? rank : (rank < s.length ? s[rank] : -1);
+    if (t == null || at < 0) return visibleInside ? MaskDraw.nothing : null;
+    final bits = t.plan.bitsAt(at, visibleInside: visibleInside);
+    if (bits == null) return null;
+    if (bits.drawsNothing) return MaskDraw.nothing;
+    return MaskDraw(bits, t.coverage, uvBasis, uvOffset,
+        coverageHandle: t.coverageHandle,
+        tilesX: t.plan.tilesX,
+        tilesY: t.plan.tilesY);
+  }
+
+  /// The view handed to the sub-animation of the instance part with
+  /// [instancePart] flags, placed by [slot] (`world2dOf`, child-local →
+  /// this-player-local, column-major) and numbered by [childSeq].
+  ///
+  /// The coverage and its writer sets carry over unchanged; only the UV affine
+  /// is re-composed (`M_child = M_this · slot`) so the child's local fragments
+  /// sample the same bitmap. The composition is replaced, not composed — see
+  /// [MaskComposition].
+  PlayerMask forInstance(
+      MaskPartFlags instancePart, Float64List slot, List<int>? childSeq) {
+    final comp = MaskComposition.ofInstancePart(instancePart);
+    if (tree == null) {
+      return PlayerMask._(
+        tree: null,
+        comp: comp,
+        seq: null,
+        uvBasis: uvBasis,
+        uvOffset: uvOffset,
+      );
+    }
     final b = uvBasis;
     final s0 = slot[0], s1 = slot[1], s4 = slot[4], s5 = slot[5];
     final tx = slot[12], ty = slot[13];
-    return MaskDraw(
-      bits,
-      coverage,
-      Float32List.fromList(<double>[
+    return PlayerMask._(
+      tree: tree,
+      comp: comp,
+      seq: childSeq,
+      uvBasis: Float32List.fromList(<double>[
         b[0] * s0 + b[1] * s1, // m00
         b[0] * s4 + b[1] * s5, // m01
         b[2] * s0 + b[3] * s1, // m10
         b[2] * s4 + b[3] * s5, // m11
       ]),
-      Float32List.fromList(<double>[
+      uvOffset: Float32List.fromList(<double>[
         b[0] * tx + b[1] * ty + uvOffset[0],
         b[2] * tx + b[3] * ty + uvOffset[1],
       ]),
-      coverageHandle: coverageHandle,
     );
   }
-}
-
-/// What an instance child inherits from the part that called it.
-///
-/// Two things travel together, and they are independent:
-///
-/// * [comp] — the AND/OR chain. It always propagates, and it governs the
-///   child's **own** mask as much as an inherited one: a caller with
-///   `mask_influence == 0` settles "not masked" for the whole subtree.
-/// * [source] — the ancestor's coverage, already re-based onto child-local
-///   coordinates, or null when no ancestor mask reaches this child (the child's
-///   own mask, if any, still runs).
-///
-/// Splitting them is what fixes the flattening this port shipped: the caller's
-/// resolved test used to be stamped over every part of the sub-animation, so the
-/// callee's own `mask_influence` / `visible_inside_mask` never entered the
-/// decision. It disagreed with SS7.5 in both directions — a callee opting out
-/// was masked anyway, and a callee's polarity was replaced by the caller's.
-class InheritedMask {
-  const InheritedMask({required this.comp, this.source});
-
-  /// The chain so far ([MaskComposition.identity] means "as if top-level").
-  final MaskComposition comp;
-
-  /// The ancestor's coverage + writer sets + child-local→UV affine. Its
-  /// [MaskDraw.bits] polarity is a placeholder — [drawFor] replaces it per part.
-  final MaskDraw? source;
-
-  /// The test a child part with [flags] runs against the ancestor's coverage,
-  /// or null when the composition rules the part out (it then draws unmasked,
-  /// unless its own player's mask claims it first) or no ancestor mask reaches.
-  MaskDraw? drawFor(MaskPartFlags flags) {
-    final s = source;
-    if (s == null || !comp.targets(flags)) return null;
-    return s.withPolarity(comp.visibleInsideFor(flags));
-  }
-
-  /// One more level down: [flags] is an instance part inside the child, [source]
-  /// the coverage that reaches it (its own player's mask first, else this one
-  /// re-based by [MaskDraw.composeSlot]).
-  ///
-  /// Nesting therefore chains by handing each level a composed value, with no
-  /// extra bookkeeping — which is also why multi-level nesting is untested here,
-  /// exactly as in the sibling ports.
-  InheritedMask forChild(MaskPartFlags flags, MaskDraw? source) =>
-      InheritedMask(comp: comp.compose(flags), source: source);
-}
-
-/// Resolves the mask test for one part at [rank] with [flags]: this player's OWN
-/// mask when the part is a target of it, otherwise the mask inherited from a
-/// parent instance.
-///
-/// An instance sub-animation is parent-driven and passes [maskCtx] as null (it
-/// rasterises no own coverage — see `_paintTree`), so its parts resolve straight
-/// to the inherited outer mask. At the top-level player [inheritedMask] is null,
-/// so parts resolve to the own mask. This is coverage plumbing only — the target
-/// opt-in and polarity stay the composition's ([MaskContext.comp] /
-/// [InheritedMask]).
-MaskDraw? resolvePartMask(MaskContext? maskCtx, InheritedMask? inheritedMask,
-    int rank, MaskPartFlags flags) {
-  final ownBits = maskCtx?.bitsForTarget(rank, flags);
-  return ownBits != null
-      ? maskCtx!.drawFor(ownBits)
-      : inheritedMask?.drawFor(flags);
 }

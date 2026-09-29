@@ -377,11 +377,11 @@ class FlutterGpuBackend implements RenderBackend {
   /// knob; the Canvas backend and the flagship cap at the same 1024.
   static const double _kMaxCoverageDim = 1024.0;
 
-  /// This frame's mask coverage textures — one per player that masks —
-  /// rendered by [renderCoverage]. Each is handed to its [MaskContext] as an
-  /// opaque `coverageHandle`, so an inherited mask samples the parent's
-  /// coverage and an own mask the child's, with no shared mutable state. This list
-  /// only keeps them alive until [finish] submits the frame.
+  /// This frame's mask coverage textures, rendered by [renderCoverage] — one
+  /// for the whole instance tree, which the top-level player owns. Each is
+  /// handed to its [MaskContext] as an opaque `coverageHandle`, with no shared
+  /// mutable state. This list only keeps them alive until [finish] submits the
+  /// frame.
   final List<gpu.Texture> _frameCoverages = <gpu.Texture>[];
 
   /// hash → uploaded sampled texture. A hash absent here that is in [_uploading]
@@ -479,7 +479,8 @@ class FlutterGpuBackend implements RenderBackend {
       <efbs.EffectDrawCommand>[];
   final Float32List _orthoMvpScratch = Float32List(16);
   final Float32List _shaderInfoScratch = Float32List(12);
-  final Float32List _shapeMaskUboScratch = Float32List(12);
+  final Float32List _shapeMaskUboScratch =
+      Float32List(MaskDraw.replayFloats);
   final Float32List _writerVertsScratch = Float32List(16);
   final Float32List _bitColorScratch = Float32List(4);
   final Float32List _coverageMvpScratch = Float32List(16);
@@ -629,7 +630,7 @@ class FlutterGpuBackend implements RenderBackend {
 
   @override
   void emitNormal(ui.Canvas canvas, fbs.DrawBatch batch, DrawFrame frame,
-      RenderHost host, MaskContext? maskCtx, InheritedMask? inheritedMask) {
+      RenderHost host, PlayerMask masking) {
     if (!_active) return;
     assert(_noEmitInFlight);
     final count = batch.count;
@@ -657,9 +658,10 @@ class FlutterGpuBackend implements RenderBackend {
     final pcColors = _pcColorsScratch..clear();
     final pcMasks = _pcMasksScratch..clear();
     // The coverage the current PartColor run samples. A masked part joins the run
-    // only if it shares this handle — an own mask (this player's coverage) and an
-    // inherited mask (the parent's coverage) therefore split into separate
-    // draws, each binding the right texture. Unmasked parts join any run.
+    // only if it shares this handle, so a run never mixes two textures. The
+    // tree shares one coverage per frame, so in practice every masked part
+    // does; the check is what keeps that an optimisation rather than an
+    // assumption. Unmasked parts join any run.
     gpu.Texture? pcCoverage;
 
     void flushRun() {
@@ -688,7 +690,9 @@ class FlutterGpuBackend implements RenderBackend {
       if (flags.pureMask) continue; // coverage-only, never colour
       final part = frame.partOf(p);
       final pc = part == null ? null : PartColor.read(partsColor, part);
-      final mask = resolvePartMask(maskCtx, inheritedMask, rank, flags);
+      final mask = masking.drawFor(rank, flags);
+      // Draws only inside a mask, and none reaches it: nowhere at all.
+      if (mask != null && mask.drawsNothing) continue;
       // Integration shader (`SHDR`): its parameters are per-part uniforms,
       // so it cannot join either run — flush both to keep z-order and draw it on
       // its own. NOT combined with a mask test (v1, both siblings agree): a
@@ -902,30 +906,22 @@ class FlutterGpuBackend implements RenderBackend {
   static final Uint16List _quadIndices =
       Uint16List.fromList(const <int>[0, 1, 2, 1, 3, 2]);
 
-  /// Flattens a peeled part's mask replay into the 10 floats the PartColor vertex
-  /// carries — `(increment, invert, visibleInside, enabled, m00, m01, m10, m11,
-  /// ox, oy)`, matching `GeometryBuilder._writePcVertex` — or null when the part
-  /// is unmasked this frame (no [mask], or no [coverage] texture bound for the
-  /// run), so the bake writes `enabled = 0` and the shader passes it through.
+  /// Flattens a peeled part's mask replay into the [MaskDraw.replayFloats]
+  /// floats the PartColor vertex carries ([MaskDraw.writeReplay], matching
+  /// `GeometryBuilder._writePcVertex`) — or null when the part is unmasked this
+  /// frame (no [mask], or no [coverage] texture bound for the run), so the bake
+  /// writes `enabled = 0` and the shader passes it through.
   ///
   /// Written into [_maskSetPool]`[slot]` — every set in a run is live until the
   /// bake has read them all, so [slot] must be the part's index in the run.
   Float32List? _maskSet(MaskDraw? mask, gpu.Texture? coverage, int slot) {
     if (mask == null || coverage == null) return null;
     while (_maskSetPool.length <= slot) {
-      _maskSetPool.add(Float32List(10));
+      _maskSetPool.add(Float32List(MaskDraw.replayFloats));
     }
-    return _maskSetPool[slot]
-      ..[0] = mask.bits.increment.toDouble()
-      ..[1] = mask.bits.invert.toDouble()
-      ..[2] = mask.bits.visibleInside ? 1.0 : 0.0
-      ..[3] = 1.0 // enabled
-      ..[4] = mask.uvBasis[0]
-      ..[5] = mask.uvBasis[1]
-      ..[6] = mask.uvBasis[2]
-      ..[7] = mask.uvBasis[3]
-      ..[8] = mask.uvOffset[0]
-      ..[9] = mask.uvOffset[1];
+    final set = _maskSetPool[slot];
+    MaskDraw.writeReplay(mask, set);
+    return set;
   }
 
   void _drawInterleaved(
@@ -1124,7 +1120,7 @@ class FlutterGpuBackend implements RenderBackend {
 
   @override
   void emitMesh(ui.Canvas canvas, fbs.DrawBatch batch, DrawFrame frame,
-      RenderHost host, MaskContext? maskCtx, InheritedMask? inheritedMask) {
+      RenderHost host, PlayerMask masking) {
     if (!_active) return;
     assert(_noEmitInFlight);
     final count = batch.count;
@@ -1174,7 +1170,9 @@ class FlutterGpuBackend implements RenderBackend {
       if (flags.pureMask) continue;
       final state = frame.partOf(p);
       final pc = state == null ? null : PartColor.read(partsColor, state);
-      final mask = resolvePartMask(maskCtx, inheritedMask, rank, flags);
+      final mask = masking.drawFor(rank, flags);
+      // Draws only inside a mask, and none reaches it: nowhere at all.
+      if (mask != null && mask.drawsNothing) continue;
       if (pc == null && mask == null) {
         flushPc();
         parts.add(p);
@@ -1272,7 +1270,7 @@ class FlutterGpuBackend implements RenderBackend {
 
   @override
   void emitShape(ui.Canvas canvas, fbs.DrawBatch batch, DrawFrame frame,
-      RenderHost host, MaskContext? maskCtx, InheritedMask? inheritedMask) {
+      RenderHost host, PlayerMask masking) {
     if (!_active) return;
     assert(_noEmitInFlight);
     if (batch.count == 0) return;
@@ -1298,8 +1296,10 @@ class FlutterGpuBackend implements RenderBackend {
       final p = drawOrder[rank];
       final flags = host.flagsFor(p);
       if (flags.pureMask) continue; // coverage-only, never colour
-      final mask = resolvePartMask(maskCtx, inheritedMask, rank, flags);
-      // Gate only when a GPU coverage texture exists (own or inherited); else draw
+      final mask = masking.drawFor(rank, flags);
+      // Draws only inside a mask, and none reaches it: nowhere at all.
+      if (mask != null && mask.drawsNothing) continue;
+      // Gate only when a GPU coverage texture exists; else draw
       // unmasked (mask disabled).
       if (mask == null || mask.coverageHandle is! gpu.Texture) {
         run.add(p);
@@ -1342,24 +1342,10 @@ class FlutterGpuBackend implements RenderBackend {
     }
 
     try {
-      // MaskInfo UBO: mask_bits, mask_uv, mask_off (3 vec4). All-zero => disabled.
+      // MaskInfo UBO: the five vec4s of [MaskDraw.writeReplay]. All-zero =>
+      // disabled.
       final ubo = _shapeMaskUboScratch;
-      if (mask != null) {
-        ubo[0] = mask.bits.increment.toDouble();
-        ubo[1] = mask.bits.invert.toDouble();
-        ubo[2] = mask.bits.visibleInside ? 1.0 : 0.0;
-        ubo[3] = 1.0; // enabled
-        ubo[4] = mask.uvBasis[0];
-        ubo[5] = mask.uvBasis[1];
-        ubo[6] = mask.uvBasis[2];
-        ubo[7] = mask.uvBasis[3];
-        ubo[8] = mask.uvOffset[0];
-        ubo[9] = mask.uvOffset[1];
-        ubo[10] = 0.0;
-        ubo[11] = 0.0;
-      } else {
-        ubo.fillRange(0, 12, 0.0);
-      }
+      MaskDraw.writeReplay(mask, ubo);
 
       _beginDraw(pass, pipeline);
       pass.bindUniform(
@@ -1473,30 +1459,40 @@ class FlutterGpuBackend implements RenderBackend {
     final scale = longEdge > _kMaxCoverageDim ? _kMaxCoverageDim / longEdge : 1.0;
     final pw = (bounds.width * scale).ceil().clamp(1, _kMaxCoverageDim.toInt());
     final ph = (bounds.height * scale).ceil().clamp(1, _kMaxCoverageDim.toInt());
+    // Past 24 writers the texture splits into tiles rather than growing: each
+    // tile holds the whole box at a fraction of the resolution.
+    final cols = plan.tilesX, rows = plan.tilesY;
+    final tw = (pw / cols).ceil(), th = (ph / rows).ceil();
 
     try {
       // A dedicated command buffer / render pass: the coverage texture is written
       // here and sampled by the main pass, so it is submitted before the main
       // command buffer records its sampling draws.
-      final target =
-          gpu.gpuContext.createTexture(gpu.StorageMode.devicePrivate, pw, ph);
+      final target = gpu.gpuContext
+          .createTexture(gpu.StorageMode.devicePrivate, tw * cols, th * rows);
       final cmd = gpu.gpuContext.createCommandBuffer();
       final pass = cmd.createRenderPass(
         gpu.RenderTarget.singleColor(gpu.ColorAttachment(texture: target)),
       );
       pass.setColorBlendEnable(true); // disjoint bits OR losslessly: `_additive`
 
-      // Player-local -> coverage NDC, built from the SAME uvBasis/uvOffset the
-      // main-pass shader samples with, so the two are guaranteed to agree.
-      final covMvp = _coverageMvp(plan);
-      final covMvpView = _hostBuffer!.emplace(ByteData.sublistView(covMvp));
+      // Player-local -> coverage NDC per tile, built from the SAME
+      // uvBasis/uvOffset the main-pass shader samples with, so the two are
+      // guaranteed to agree. Emplaced once per tile in use.
+      final tileMvps = <Float32List>[];
+      final tileMvpViews = <gpu.BufferView>[];
+      for (var t = 0; t < plan.tileCount; t++) {
+        final m = Float32List.fromList(_coverageMvp(plan, t));
+        tileMvps.add(m);
+        tileMvpViews.add(_hostBuffer!.emplace(ByteData.sublistView(m)));
+      }
       final mvpSlot = pipeline.vertexShader.getUniformSlot('MaskFrame');
       final bitSlot = pipeline.fragmentShader.getUniformSlot('MaskBit');
       final texSlot = pipeline.fragmentShader.getUniformSlot('u_texture');
 
       var wrote = false;
       for (final writer in plan.writers) {
-        if (writer.partIndex < 0) continue; // carry-over sentinel — baked below
+        if (writer.partIndex < 0) continue; // a descendant's — baked below
         final flags = host.flagsFor(writer.partIndex);
         Float32List verts;
         Uint16List indices;
@@ -1554,7 +1550,7 @@ class FlutterGpuBackend implements RenderBackend {
         final ib = gpu.gpuContext
             .createDeviceBufferWithCopy(ByteData.sublistView(indices));
         _beginDraw(pass, pipeline);
-        pass.bindUniform(mvpSlot, covMvpView);
+        pass.bindUniform(mvpSlot, tileMvpViews[writer.bit ~/ kMaskTileBits]);
         pass.bindUniform(bitSlot,
             _hostBuffer!.emplace(ByteData.sublistView(_bitColor(writer.bit, threshold))));
         pass.setColorBlendEquation(_additive); // bit accumulator: alpha adds too
@@ -1568,13 +1564,13 @@ class FlutterGpuBackend implements RenderBackend {
         wrote = true;
       }
 
-      // Carry-over: each instance child's clipping writers, from the
-      // CHILD's geometry, projected through coverageMvp ∘ slot so the child-local
-      // verts land in this player's coverage (the owner-local MVP folds the slot
-      // in, where the Canvas path applies it on the canvas transform stack).
+      // Instance descendants' writers, at any depth, from THEIR geometry,
+      // projected through coverageMvp ∘ slot so the descendant-local verts land
+      // in this player's coverage (the owner-local MVP folds the slot in, where
+      // the Canvas path applies it on the canvas transform stack).
       for (final bw in plan.bubbled) {
-        final childMvpView = _hostBuffer!
-            .emplace(ByteData.sublistView(_mul4Col(covMvp, bw.slot)));
+        final childMvpView = _hostBuffer!.emplace(ByteData.sublistView(
+            _mul4Col(tileMvps[bw.bit ~/ kMaskTileBits], bw.slot)));
         Float32List verts;
         Uint16List indices;
         var threshold = -1.0;
@@ -1656,8 +1652,8 @@ class FlutterGpuBackend implements RenderBackend {
   }
 
   /// Column-major 4×4 product `a · b` — the owner-local→NDC coverage matrix
-  /// composed with a carry-over writer's child-local→owner-local slot, so
-  /// the child geometry projects straight into the owner's coverage. Fresh list
+  /// composed with a descendant writer's descendant-local→owner-local slot, so
+  /// its geometry projects straight into the owner's coverage. Fresh list
   /// (not a scratch): each bubbled writer emplaces its own before the next.
   static Float32List _mul4Col(Float32List a, Float64List b) {
     final out = Float32List(16);
@@ -1673,15 +1669,21 @@ class FlutterGpuBackend implements RenderBackend {
     return out;
   }
 
-  /// Column-major player-local→coverage-NDC matrix, derived from the plan's
-  /// local→coverage-UV affine so the coverage pass writes exactly what the main
-  /// pass samples. `ndc = uv*2 - 1`, with the Y axis carrying [_kNdcYSign].
+  /// Column-major player-local→coverage-NDC matrix for coverage [tile],
+  /// derived from the plan's local→coverage-UV affine so the coverage pass
+  /// writes exactly what the main pass samples: the box's UV lands on the
+  /// tile's cell, `(uv + cell) / tiles`, then `ndc = uv*2 - 1`, with the Y axis
+  /// carrying [_kNdcYSign].
   ///
-  /// Written into [_coverageMvpScratch] — emplaced (copied) by the caller before
-  /// any nested player builds its own coverage.
-  Float32List _coverageMvp(MaskPlan plan) {
-    final b = plan.uvBasis; // [m00, m01, m10, m11]
-    final o = plan.uvOffset; // [x, y]
+  /// Written into [_coverageMvpScratch] — the caller copies it.
+  Float32List _coverageMvp(MaskPlan plan, int tile) {
+    final cols = plan.tilesX.toDouble(), rows = plan.tilesY.toDouble();
+    final cx = (tile % plan.tilesX).toDouble();
+    final cy = (tile ~/ plan.tilesX).toDouble();
+    final pb = plan.uvBasis; // [m00, m01, m10, m11]
+    final po = plan.uvOffset; // [x, y]
+    final b = <double>[pb[0] / cols, pb[1] / cols, pb[2] / rows, pb[3] / rows];
+    final o = <double>[(po[0] + cx) / cols, (po[1] + cy) / rows];
     // Every slot written, zeros included: a recycled buffer keeps nothing.
     final m = _coverageMvpScratch;
     m[0] = 2.0 * b[0];
@@ -1728,10 +1730,12 @@ class FlutterGpuBackend implements RenderBackend {
   }
 
   /// One writer's bit as the `MaskBit` uniform: rgb = the bit in its owning R/G/B
-  /// channel (8 bits × 3 = 24 writers), a = the cutout threshold.
+  /// channel (8 bits × 3 = 24 writers per coverage tile), a = the cutout
+  /// threshold.
   /// Written into [_bitColorScratch] — the caller emplaces it (which copies)
   /// before the next writer refills it.
   Float32List _bitColor(int bit, double threshold) {
+    bit %= kMaskTileBits; // the tile is chosen by where it is drawn
     final channel = bit ~/ 8;
     final v = (1 << (bit % 8)) / 255.0;
     return _bitColorScratch

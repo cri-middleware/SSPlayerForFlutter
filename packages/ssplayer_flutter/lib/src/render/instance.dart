@@ -227,6 +227,9 @@ class InstanceSlots<T extends InstanceChild> {
   /// The live slot for [partIndex], or null when that part has no child.
   InstanceSlot<T>? slotFor(int partIndex) => _slots[partIndex];
 
+  /// Every live slot, in no particular order.
+  Iterable<InstanceSlot<T>> get slots => _slots.values;
+
   /// Advances every slot one tick.
   ///
   /// [parentContext] is the **parent's** context — the `EventInstance` is

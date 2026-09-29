@@ -116,15 +116,15 @@ class _SpyBackend implements RenderBackend {
 
   @override
   void emitNormal(ui.Canvas canvas, fbs.DrawBatch batch, DrawFrame frame,
-      RenderHost host, MaskContext? maskCtx, InheritedMask? inheritedMask) {}
+      RenderHost host, PlayerMask masking) {}
 
   @override
   void emitShape(ui.Canvas canvas, fbs.DrawBatch batch, DrawFrame frame,
-      RenderHost host, MaskContext? maskCtx, InheritedMask? inheritedMask) {}
+      RenderHost host, PlayerMask masking) {}
 
   @override
   void emitMesh(ui.Canvas canvas, fbs.DrawBatch batch, DrawFrame frame,
-      RenderHost host, MaskContext? maskCtx, InheritedMask? inheritedMask) {}
+      RenderHost host, PlayerMask masking) {}
 
   @override
   void emitEffect(

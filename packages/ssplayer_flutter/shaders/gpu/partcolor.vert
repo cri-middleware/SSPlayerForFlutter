@@ -14,7 +14,7 @@
 // sets are constant across a part's 4 corners and are carried `flat`.
 //
 // vec4 vertex attributes MUST sit on a 16-byte boundary or Impeller misreads
-// them (the ShapeMask alignment trap), so the layout is a 96-byte (24-float)
+// them (the ShapeMask alignment trap), so the layout is a 128-byte (32-float)
 // stride with every vec4 at a 16-aligned offset. `a_mask_off` is a vec4 (only
 // .xy used) so the stride stays a clean multiple of 16 and the alignment recurs
 // on every vertex; its .xy feeds the mask UV, so it is a *used* attribute and
@@ -23,9 +23,12 @@
 //   loc 1  a_uv       (vec2)  float 2   normalised texture UV
 //   loc 2  a_color    (vec4)  float 4   this corner's straight RGBA
 //   loc 3  a_coef     (vec4)  float 8   (coef.x, coef.y, coef.z, rate)
-//   loc 4  a_mask_bits(vec4)  float 12  (increment, invert, visibleInside, enabled)
+//   loc 4  a_mask_bits(vec4)  float 12  (visibleInside, enabled, tilesX, tilesY)
 //   loc 5  a_mask_uv  (vec4)  float 16  player-local -> coverage UV basis [m00,m01,m10,m11]
 //   loc 6  a_mask_off (vec4)  float 20  (ox, oy, -, -)
+//   loc 7  a_mask_inc (vec4)  float 24  increment sets of coverage tiles 0..3
+//   loc 8  a_mask_inv (vec4)  float 28  invert sets of coverage tiles 0..3
+// Floats 12..31 are MaskDraw.writeReplay's layout (mask_context.dart).
 in vec2 a_position;
 in vec2 a_uv;
 in vec4 a_color;
@@ -33,6 +36,8 @@ in vec4 a_coef;
 in vec4 a_mask_bits;
 in vec4 a_mask_uv;
 in vec4 a_mask_off;
+in vec4 a_mask_inc;
+in vec4 a_mask_inv;
 
 uniform FrameInfo {
   mat4 mvp; // player-local -> NDC (same as the sprite pipeline)
@@ -45,6 +50,8 @@ out vec4 v_coef;  // coef.xyz constant across the part, .w = interpolated rate
 flat out vec4 v_mask_bits;
 flat out vec4 v_mask_uv;
 flat out vec4 v_mask_off;
+flat out vec4 v_mask_inc;
+flat out vec4 v_mask_inv;
 
 void main() {
   gl_Position = frame_info.mvp * vec4(a_position, 0.0, 1.0);
@@ -55,4 +62,6 @@ void main() {
   v_mask_bits = a_mask_bits;
   v_mask_uv = a_mask_uv;
   v_mask_off = a_mask_off;
+  v_mask_inc = a_mask_inc;
+  v_mask_inv = a_mask_inv;
 }
