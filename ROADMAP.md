@@ -43,16 +43,16 @@ Legend: ☐ **Ready** (Player-only, can start now) · ⛔ **Blocked on SDK** (ne
 ## UI integration (widget-side)
 
 Behaving like a Flutter widget, not merely painting inside one. The view sizes
-from the authored canvas and fits it into its box, as an `Image` does; these are
-the parts of a widget it does not implement yet. The vocabulary is shared with
-the sibling Players: a part rect read-out for hit areas, and a UI-state map.
+from the authored canvas, fits it into its box and answers hits over the whole
+box, as an `Image` does; these are the parts of a widget it does not implement
+yet. The vocabulary is shared with the sibling Players: a part rect read-out for
+hit areas, and a UI-state map.
 
-- ☐ **Per-part hit testing** — `hitTestSelf` is not overridden, so the box is
-  transparent to pointers and a `GestureDetector` around it answers for the whole
-  rectangle. Add `partRectOf(part)` (built from the `PartState` fields the runtime
-  already delivers every frame — `size_x` / `size_y`, `anchor`, `pivot` — and the
-  part transform), then `hitTestPart(Offset)`, and answer `hitTestSelf` from it so
-  an irregular button stops eating taps around its artwork.
+- ☐ **Per-part hit testing** — the view answers a hit anywhere in its box, so an
+  irregular button takes taps around its artwork too. Add `partRectOf(part)`
+  (built from the `PartState` fields the runtime already delivers every frame —
+  `size_x` / `size_y`, `anchor`, `pivot` — and the part transform), then
+  `hitTestPart(Offset)`, and answer `hitTestSelf` from it.
 - ☐ **UI state binding** — a widget that drives the player from
   `WidgetStatesController` (`hovered` / `pressed` / `disabled` / `focused`), each
   state mapped to an animation or a label, so a player drops into an `InkWell` or a

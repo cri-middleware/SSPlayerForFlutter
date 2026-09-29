@@ -3,6 +3,7 @@
 import 'dart:io';
 import 'dart:ui' as ui;
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -203,6 +204,21 @@ void main() {
           animationName: 'attack1', loadTextures: false));
       await tester.pump();
       expect(tester.getSize(find.byType(SpriteStudioView)), const Size(800, 600));
+    });
+
+    testWidgets('a GestureDetector around it hears a tap', (tester) async {
+      final player = await _loaded(tester);
+      if (player == null) return;
+      var taps = 0;
+      await tester.pumpWidget(_wrap(Center(
+        child: GestureDetector(
+          onTap: () => taps++,
+          child: SpriteStudioView(player: player, width: 200, height: 150),
+        ),
+      )));
+      await tester.tapAt(tester.getCenter(find.byType(SpriteStudioView)));
+      await tester.pump(kDoubleTapTimeout);
+      expect(taps, 1);
     });
   });
 

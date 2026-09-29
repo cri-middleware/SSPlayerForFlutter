@@ -241,6 +241,14 @@ class SpriteStudioRenderBox extends RenderBox {
     );
   }
 
+  /// The whole box answers, as an `Image` does, so a `GestureDetector` around
+  /// the view hears a tap without being told to be opaque. For the same reason
+  /// an animation laid over other widgets takes their taps within its box; a
+  /// decorative one lets them through under an `IgnorePointer`, as an `Image`
+  /// would.
+  @override
+  bool hitTestSelf(Offset position) => true;
+
   @override
   void paint(PaintingContext context, Offset offset) {
     // Layer 2 owns all drawing (including its own save/restore) and places the
