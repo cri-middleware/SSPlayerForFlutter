@@ -27,6 +27,14 @@ Future<void> pumpUntil(WidgetTester tester, bool Function() until) async {
 
 bool get _drawing => find.byType(SpriteStudioView).evaluate().isNotEmpty;
 
+/// Steps the fake clock one display frame at a time, so the player's ticker
+/// sees ordinary deltas rather than one jump it would cap.
+Future<void> pumpFrames(WidgetTester tester, int frames) async {
+  for (var i = 0; i < frames; i++) {
+    await tester.pump(const Duration(milliseconds: 16));
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -60,7 +68,7 @@ void main() {
     // nothing — an unselected pack draws an empty box, which is exactly what a
     // failed load looks like too.
     expect(player.currentAnimation, player.animationNames.first);
-    expect(player.isPlaying, isTrue, reason: 'autoPlay defaults to on');
+    expect(player.isPlaying, isTrue, reason: 'playing defaults to on');
     expect(player.loopCount, -1);
   });
 
@@ -84,22 +92,97 @@ void main() {
     expect(find.text('loading'), findsNothing);
   });
 
-  testWidgets('autoPlay off leaves the first frame posed', (tester) async {
+  testWidgets('playing off from the first build leaves the first frame posed',
+      (tester) async {
     if (assetDir == null) {
       markTestSkipped('overall assets missing');
       return;
     }
     SpriteStudioPlayer? seen;
-    await tester.pumpWidget(wrap(SpriteStudioAnimation.asset(
-      'assets/x/Basic.ssab',
-      autoPlay: false,
-      bundle: _DirBundle(assetDir),
-      onPlayerCreated: (p) => seen = p,
-    )));
+    // One bundle across builds: a different one is a different source, and the
+    // widget builds a new player for it.
+    final bundle = _DirBundle(assetDir);
+    Widget build(bool playing) => wrap(SpriteStudioAnimation.asset(
+          'assets/x/Basic.ssab',
+          playing: playing,
+          bundle: bundle,
+          onPlayerCreated: (p) => seen = p,
+        ));
+    await tester.pumpWidget(build(false));
     await pumpUntil(tester, () => _drawing);
 
     expect(seen!.isPlaying, isFalse);
     expect(seen!.currentAnimation, isNotNull, reason: 'still selected + posed');
+
+    // Nothing has run yet, so turning it on heads out from the start.
+    await tester.pumpWidget(build(true));
+    expect(seen!.isPlaying, isTrue);
+    expect(seen!.isPausing, isFalse);
+  });
+
+  testWidgets('playing is a state: off holds in place, on carries on',
+      (tester) async {
+    if (assetDir == null) {
+      markTestSkipped('overall assets missing');
+      return;
+    }
+    SpriteStudioPlayer? seen;
+    final bundle = _DirBundle(assetDir);
+    Widget build(bool playing) => wrap(SpriteStudioAnimation.asset(
+          'assets/x/Basic.ssab',
+          playing: playing,
+          bundle: bundle,
+          onPlayerCreated: (p) => seen = p,
+        ));
+    await tester.pumpWidget(build(true));
+    await pumpUntil(tester, () => _drawing);
+    await pumpFrames(tester, 10);
+    final player = seen!;
+
+    await tester.pumpWidget(build(false));
+    expect(player.isPausing, isTrue);
+    final held = player.frameNo;
+    expect(held, greaterThan(0), reason: 'it had advanced before the hold');
+    await pumpFrames(tester, 10);
+    expect(player.frameNo, held, reason: 'a hold does not advance');
+
+    // On again: a resume from where it stood, not a head-out. The next ticks
+    // move it on from `held`; a rewind would have put it back near 0 first.
+    await tester.pumpWidget(build(true));
+    expect(player.isPausing, isFalse);
+    expect(player.frameNo, held);
+    await pumpFrames(tester, 2);
+    expect(player.frameNo, greaterThan(held));
+  });
+
+  testWidgets('playing on after every loop has played starts over',
+      (tester) async {
+    if (assetDir == null) {
+      markTestSkipped('overall assets missing');
+      return;
+    }
+    SpriteStudioPlayer? seen;
+    final bundle = _DirBundle(assetDir);
+    Widget build(bool playing) => wrap(SpriteStudioAnimation.asset(
+          'assets/x/Basic.ssab',
+          loopCount: 1,
+          playing: playing,
+          bundle: bundle,
+          onPlayerCreated: (p) => seen = p,
+        ));
+    await tester.pumpWidget(build(true));
+    await pumpUntil(tester, () => _drawing);
+    final player = seen!;
+    for (var i = 0; i < 2000 && !player.isFinished; i++) {
+      await pumpFrames(tester, 1);
+    }
+    expect(player.isFinished, isTrue);
+
+    await tester.pumpWidget(build(false));
+    await tester.pumpWidget(build(true));
+    expect(player.isFinished, isFalse);
+    expect(player.isPlaying, isTrue);
+    expect(player.frameNo, player.startFrame);
   });
 
   testWidgets('changing the animation does not rebuild the player',

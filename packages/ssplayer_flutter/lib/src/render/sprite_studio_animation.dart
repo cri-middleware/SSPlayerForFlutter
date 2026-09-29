@@ -38,7 +38,7 @@ class SpriteStudioAnimation extends StatefulWidget {
     this.width,
     this.height,
     this.loopCount = -1,
-    this.autoPlay = true,
+    this.playing = true,
     this.bundle,
     this.backend = SpriteStudioBackend.auto,
     this.placeholder,
@@ -69,9 +69,14 @@ class SpriteStudioAnimation extends StatefulWidget {
   /// `-1` loops forever, `n > 0` plays n times. Applied before playback starts.
   final int loopCount;
 
-  /// Whether to start playing once the pack is loaded. Off leaves the first
-  /// frame posed, the way a `<video>` without `autoplay` shows a poster.
-  final bool autoPlay;
+  /// Whether the animation advances. On by default.
+  ///
+  /// A state, not a start-up flag: turning it off holds the playhead where it
+  /// stands, and turning it back on carries on from there. Only a player that is
+  /// not running at all heads out from the start — one built with this off,
+  /// which leaves the first frame posed the way a `<video>` without `autoplay`
+  /// shows a poster, or one whose loops have all played.
+  final bool playing;
 
   /// Which bundle to read [assetKey] from. Null is `rootBundle`.
   final AssetBundle? bundle;
@@ -88,8 +93,9 @@ class SpriteStudioAnimation extends StatefulWidget {
   /// for a load fast enough not to be seen.
   final Widget? placeholder;
 
-  /// Called once the pack is loaded, the animation selected and playback
-  /// started — the moment [placeholder] gives way to the first drawable frame.
+  /// Called once the pack is loaded, the animation selected and, while
+  /// [playing], playback started — the moment [placeholder] gives way to the
+  /// first drawable frame.
   ///
   /// The counterpart of [onError]: between the two, a caller always learns how
   /// the load ended without polling for it.
@@ -137,6 +143,7 @@ class _SpriteStudioAnimationState extends State<SpriteStudioAnimation>
     if (player == null || !_ready) return;
     if (old.loopCount != widget.loopCount) player.loopCount = widget.loopCount;
     if (old.animation != widget.animation) _select(player);
+    if (old.playing != widget.playing) _applyPlaying(player);
   }
 
   void _build() {
@@ -161,7 +168,7 @@ class _SpriteStudioAnimationState extends State<SpriteStudioAnimation>
     if (!mounted || !identical(_player, player)) return;
     player.loopCount = widget.loopCount;
     _select(player);
-    if (widget.autoPlay) player.play();
+    if (widget.playing) player.play();
     setState(() => _ready = true);
     widget.onLoaded?.call(player);
   }
@@ -172,6 +179,18 @@ class _SpriteStudioAnimationState extends State<SpriteStudioAnimation>
     final name = widget.animation ??
         (player.animationNames.isEmpty ? null : player.animationNames.first);
     if (name != null) player.setAnimation(name);
+  }
+
+  /// Maps the boolean onto the player's verbs. Off holds in place; on carries
+  /// on from a hold, and heads out only when nothing is running at all.
+  void _applyPlaying(SpriteStudioPlayer player) {
+    if (!widget.playing) {
+      player.pause();
+    } else if (player.isPlaying) {
+      player.resume();
+    } else {
+      player.play();
+    }
   }
 
   @override

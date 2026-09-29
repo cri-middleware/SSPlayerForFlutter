@@ -31,7 +31,7 @@ That is the whole thing. The widget builds a player, reads the bytes from the
 asset bundle (resolving sibling reference textures from the key's own folder —
 embedded packs too), selects the pack's first animation, starts it looping, and
 disposes it with the widget. Pass `animation:` to choose a different one,
-`autoPlay: false` to leave the first frame posed, `placeholder:` for what to show
+`playing: false` to leave the first frame posed, `placeholder:` for what to show
 until the first frame is drawable, and `onError:` to hear about a load that
 failed.
 
@@ -42,7 +42,7 @@ failed.
 | `animation` | Which animation to select. Omit it for the pack's first — an unselected pack draws an empty box, which is what a failed load looks like too. |
 | `width` / `height` | The box to draw in. Omit them to take the incoming constraints. |
 | `loopCount` | `-1` loops forever; `n > 0` plays *n* times. See [Playback & Events](playback.md). |
-| `autoPlay` | On by default. Off leaves the first frame posed, the way a `<video>` without `autoplay` shows a poster. |
+| `playing` | On by default. A state, not a start-up flag: off holds the playhead where it stands, and on carries on from there. Off from the first build leaves the first frame posed, the way a `<video>` without `autoplay` shows a poster. |
 | `placeholder` | Shown until the first frame is drawable. Worth setting: until then there is nothing to draw, and an empty box looks exactly like a broken pack. |
 | `onError` | Called when the load fails, instead of the error reaching the zone unhandled. |
 | `onPlayerCreated` | Hands you the player for the parts of the API the parameters do not cover. Do not dispose it — the widget does. |
