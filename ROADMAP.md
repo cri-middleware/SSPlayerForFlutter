@@ -79,6 +79,19 @@ hit areas, and a UI-state map.
 
 ## Distribution & verification
 
+- ☐ **Canvas and flutter_gpu draw different colours in three packs** — measured by
+  `examples/overall/integration_test/gpu_backend_test.dart` on macOS, where the two
+  agree on coverage everywhere. Which backend matches SpriteStudio is established for
+  none of them; the reference Player (ForWgpu) or the Editor decides it, and the
+  losing side is the fix.
+  A **four-corner PartColor gradient** (`PartsColor`, rgbMeanDiff 6.1; a one-colour
+  tint matches): the GPU interpolates it per triangle, Canvas bilinearly per
+  fragment. The **gradient inside a Shape** (`Shape`, 6.7), and a few of its edge
+  pixels. **`Mul`, `Sub`, `Mulalpha` and `Invert`** (`BlendMode`, 11.7), each over
+  the pack's own opaque backdrop, where `Mix`, `Add`, `Screen` and `Exclusion` match —
+  [Limitations](docs/en/limitations.md) says both backends reproduce all eight there,
+  which this contradicts.
+
 - 🕒 **Web wasm distribution for pub.dev** — the Web target renders every kind, but
   ships the Brain as a git-ignored, build-on-demand wasm pair
   (`assets/runtime-web/{ssruntime.js,ssruntime_bg.wasm}`), so a Rust-less pub.dev
