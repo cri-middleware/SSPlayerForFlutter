@@ -36,7 +36,7 @@ jobs:
       # The submodule is for the demo, not the docs, and only for its test projects:
       # deploy-examples.sh converts SpriteStudio-SDK/tests/*.sspj into the .ssab the demo
       # plays. Nothing here compiles the submodule — the binaries come from its release.
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: recursive
 
@@ -60,7 +60,7 @@ jobs:
       # libraries deploy-examples.sh converts over dart:ffi are fetched from that same
       # release by each package's hook/build.dart. Same flutter-version pin as
       # release.yml — the demo should be built by the toolchain that ships the packages.
-      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with:
           flutter-version: 3.47.1
           channel: stable
@@ -105,7 +105,7 @@ jobs:
       # site/ is the documentation and site/demo in one tree, which is what
       # build-pages.sh assembled above.
       - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: site
 
@@ -121,4 +121,4 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
-        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
