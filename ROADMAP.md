@@ -1,15 +1,12 @@
-# SpriteStudio Player for Flutter — Player Roadmap
+# SpriteStudio Player for Flutter — Roadmap
 
-The **Flutter Player** roadmap. It tracks Flutter-specific work for capabilities
-the Rust runtime/converter exposes (`SpriteStudio-SDK/ROADMAP.md`). This file is
-**forward-looking only**.
+This file lists unfinished work only. Technical constraints live in
+[Limitations](docs/en/limitations.md); work on the SDK side lives in the
+[SDK ROADMAP](https://github.com/cri-middleware/SpriteStudio-SDK/blob/HEAD/ROADMAP.md).
 
-Legend: ☐ **Ready** (Player-only, can start now) · ⛔ **Blocked on SDK** (needs an
-`SpriteStudio-SDK/ROADMAP.md` phase first) · 🕒 **Deferred**.
+## Playback & rendering
 
-## Player features (no SDK dependency)
-
-- ☐ **Motion blending / crossfade** — layer and cross-fade animations on one
+- [ ] **Motion blending / crossfade** — layer and cross-fade animations on one
   player through the runtime's track stack (`ss_runtime_set_track_animation`,
   `ss_runtime_crossfade`, `ss_runtime_add_track_source`, `ss_runtime_fade_track`).
   The runtime side is complete and the track calls are generated into the
@@ -19,16 +16,16 @@ Legend: ☐ **Ready** (Player-only, can start now) · ⛔ **Blocked on SDK** (ne
   §3-2 and the design is its [Animation
   mixing](https://github.com/cri-middleware/SpriteStudio-SDK/blob/HEAD/libs/ssruntime/docs/50_features/10_animation_mixing.md)
   page; SpriteStudio Player for wgpu is the one official Player that surfaces it.
-- ☐ **Label / index playback** — play a *named label* range, or play by animation
+- [ ] **Label / index playback** — play a *named label* range, or play by animation
   index. Labels already ride in the `.ssab` FlatBuffers payload, so no SDK change
   is needed; add `play_range` / `play_by_index` on L3 over the existing
   `setAnimationSection`, which already covers the frame-number form.
-- ☐ **Flip / offset on the Flame adapter** — `SpriteStudioPlayer` has `flipX` / `flipY` / `offset`;
+- [ ] **Flip / offset on the Flame adapter** — `SpriteStudioPlayer` has `flipX` / `flipY` / `offset`;
   `SpriteStudioComponent` does not surface them, since a Flame `PositionComponent` already offers
   `flipHorizontally()` and a `scale`. Worth revisiting if the two turn out to compose badly (a
   component flip also mirrors the component's children, which is exactly what the player-level one
   avoids).
-- ☐ **Reverse-playback audio — decide where the gate lives.** SpriteStudio has no
+- [ ] **Reverse-playback audio — decide where the gate lives.** SpriteStudio has no
   reverse audio, so a sound key crossed while the effective direction is backward
   (a reverse direction, or a ping-pong return leg) is not meant to sound. The
   Brain reports those keys regardless of direction — `collect_events` has no
@@ -43,46 +40,29 @@ Legend: ☐ **Ready** (Player-only, can start now) · ⛔ **Blocked on SDK** (ne
   ship the gate in `examples/overall`'s `_playAudio`, so the path people copy is
   the correct one. (c) — an opt-in audio backend on the Player — is a much larger
   item and is not on the table. Settle (a) vs (b) first.
-- 🕒 **`Nines` / `Text` kinds** — not drawn on either render backend.
+- [ ] **`Nines` / `Text` kinds** — not drawn on either render backend.
 
-## UI integration (widget-side)
+## UI integration
 
 Behaving like a Flutter widget, not merely painting inside one. The view sizes
 from the authored canvas, fits it into its box and answers hits over the whole
-box, as an `Image` does; these are the parts of a widget it does not implement
-yet. The vocabulary is shared with the sibling Players: a part rect read-out for
-hit areas, and a UI-state map.
+box, as an `Image` does; this section is the rest of what a widget does. The
+vocabulary is shared with the sibling Players: a part rect read-out for hit
+areas, and a UI-state map.
 
-- ☐ **Per-part hit testing** — the view answers a hit anywhere in its box, so an
+- [ ] **Per-part hit testing** — the view answers a hit anywhere in its box, so an
   irregular button takes taps around its artwork too. Add `partRectOf(part)`
   (built from the `PartState` fields the runtime already delivers every frame —
   `size_x` / `size_y`, `anchor`, `pivot` — and the part transform), then
   `hitTestPart(Offset)`, and answer `hitTestSelf` from it.
-- ☐ **UI state binding** — a widget that drives the player from
+- [ ] **UI state binding** — a widget that drives the player from
   `WidgetStatesController` (`hovered` / `pressed` / `disabled` / `focused`), each
   state mapped to an animation or a label, so a player drops into an `InkWell` or a
   `ButtonStyleButton` and reacts like the rest of the button does.
 
-## SDK-integration features (⛔ blocked on the SDK)
-
-- ⛔ **Dynamic instance animation swap** — replace the animation mounted on an
-  Instance part at runtime. Waits on the SDK **Instance Lifecycle API**.
-- ⛔ **Sequence (`.ssqb`) playback** — run SpriteStudio-authored playlists. Waits
-  on the SDK **State machine implementation**.
-- ⛔ **Replicate / crowd rendering** — draw many instances of one animation cheaply
-  from a single evaluated `FrameData`. Waits on the SDK **Instance Lifecycle API**
-  (shared evaluation context).
-- ⛔ **Stretch a `Nines` part to the layout box** — the runtime evaluates a
-  Nines part's size from its keyframes and hands over finished vertices, and the
-  Override Layer covers colour / cell / visibility only, so nothing can resize
-  one from the host: an authored window frame cannot follow the box Flutter
-  gives it. Needs the `Nines` kind above, which neither render backend draws, and
-  waits on the SDK **Per-part size override** (Phase 3) — the Override Layer
-  extended with `size_x` / `size_y`.
-
 ## Distribution & verification
 
-- ☐ **Canvas and flutter_gpu draw different colours in three packs** — measured by
+- [ ] **Canvas and flutter_gpu draw different colours in three packs** — measured by
   `examples/overall/integration_test/gpu_backend_test.dart` on macOS, where the two
   agree on coverage everywhere. Which backend matches SpriteStudio is established for
   none of them; the reference Player (ForWgpu) or the Editor decides it, and the
@@ -94,24 +74,40 @@ hit areas, and a UI-state map.
   the pack's own opaque backdrop, where `Mix`, `Add`, `Screen` and `Exclusion` match —
   [Limitations](docs/en/limitations.md) says both backends reproduce all eight there,
   which this contradicts.
-
-- 🕒 **Physical iOS device + `armeabi-v7a` runtime check** — verified on the iOS
+- [ ] **Physical iOS device and `armeabi-v7a` runtime check** — verified on the iOS
   simulator and Android emulator; a code-signed `iphoneos` slice and the 32-bit
-  ARM ABI at runtime are still unconfirmed.
-- 🕒 **Live reload on Windows / Linux desktop and on physical devices** — confirmed
+  ARM ABI have no runtime check. Blocked on: a physical iOS device and a 32-bit
+  ARM Android device.
+- [ ] **Live reload on Windows / Linux desktop and on physical devices** — verified
   on macOS, the Android emulator, the iOS simulator and the web (debug). The push
   is the same code on every target, and `--device` only picks the payload, so what
-  these lack is a run on the target, not push logic: `sswatch --run -d macos
-  --device` exercises the whole byte path with nothing attached, which tells a
-  broken push from an unconnected target.
+  is missing is a run on the target, not push logic. Blocked on: a Windows
+  machine, a Linux machine and physical devices.
 
-## Backlog (small / optional)
+## Needs SDK
 
-- ☐ **Instance child `Resource` sharing** — one Instance part = one `Resource`
-  today; the parsed `.ssab` should be shareable across children of the same pack
+- [ ] **Dynamic instance animation swap** — replace the animation mounted on an
+  Instance part at runtime. Waits for: Instance Lifecycle API.
+- [ ] **Sequence (`.ssqb`) playback** — run SpriteStudio-authored playlists.
+  Waits for: State machine implementation.
+- [ ] **Replicate / crowd rendering** — draw many instances of one animation cheaply
+  from a single evaluated `FrameData` (shared evaluation context). Waits for:
+  Instance Lifecycle API.
+- [ ] **Stretch a `Nines` part to the layout box** — the runtime evaluates a
+  Nines part's size from its keyframes and hands over finished vertices, and the
+  Override Layer covers colour / cell / visibility only, so nothing can resize
+  one from the host: an authored window frame cannot follow the box Flutter
+  gives it. Needs the `Nines` kind above, which neither render backend draws.
+  Waits for: Per-part size override (the Override Layer extended with `size_x` /
+  `size_y`).
+
+## Backlog
+
+- [ ] **Instance child `Resource` sharing** — each Instance part owns its own
+  `Resource`; the parsed `.ssab` should be shared across children of the same pack
   (each child's `Context` stays separate for its own clock). A Body-local dedup is
-  possible before the SDK shared-resource registry lands.
-- ☐ **Batch the Canvas `Sub` / `Invert` reconstruction** — those two modes have no
+  possible without the SDK shared-resource registry.
+- [ ] **Batch the Canvas `Sub` / `Invert` reconstruction** — those two modes have no
   stock `ui.BlendMode`, so the Canvas backend rebuilds them from three passes over
   one part's geometry (`blendPassesFor`), which also forces each such part out of
   its batched run: the inversion passes must cover every pixel exactly once. Two
