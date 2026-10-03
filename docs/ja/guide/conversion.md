@@ -147,7 +147,7 @@ ssconverter-cli project.sspj --embedded       # テクスチャを .ssab に内�
 ```
 
 詳細オプションは SDK の
-[`ssconverter-cli` README](https://github.com/cri-middleware/SpriteStudio-SDK/blob/main/cli/README.md)
+[`ssconverter-cli` README](https://github.com/cri-middleware/SpriteStudio-SDK/blob/HEAD/cli/README.ja.md)
 を参照。
 
 ## `.ssab` を配置する（手動ルート）

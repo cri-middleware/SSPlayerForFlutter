@@ -3,7 +3,7 @@ INHERIT: ./mkdocs.base.yml
 docs_dir: docs/ja
 site_dir: site/ja
 site_url: "https://cri-middleware.github.io/SSPlayerForFlutter/ja/"
-site_description: "SpriteStudio のアニメーション（.ssab）を Flutter でそのまま再生するプラグイン"
+site_description: "SpriteStudio のアニメーション（.ssab）を Flutter でそのまま再生します"
 
 theme:
   language: ja

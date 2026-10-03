@@ -13,7 +13,7 @@
     [**Web デモ**](../demo/) はこのドキュメントの隣に 2 つ公開しています。`ssplayer_flutter`
     のウィジェットを動かす `examples/overall` と、`ssplayer_flame` を動かす `examples/flame`
     です。いずれも Flutter の Web ビルドが読み込むのと同じ `libssruntime` の wasm 上で動きます。
-    Web ターゲットは developer preview です（[制限事項](limitations.md) を参照）。
+    Web ターゲットは developer preview です（[制約と適用範囲](limitations.md) を参照）。
 
 ## 目次
 

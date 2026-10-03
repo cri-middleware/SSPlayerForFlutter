@@ -172,7 +172,7 @@ ssconverter-cli project.sspj --embedded       # embed textures into the .ssab
 ```
 
 For its full options, see the
-[SDK `ssconverter-cli` README](https://github.com/cri-middleware/SpriteStudio-SDK/blob/main/cli/README.md).
+[SDK `ssconverter-cli` README](https://github.com/cri-middleware/SpriteStudio-SDK/blob/HEAD/cli/README.md).
 
 ## Deploy the `.ssab` (manual routes)
 
