@@ -66,8 +66,9 @@ hit areas, and a UI-state map.
   Nines part's size from its keyframes and hands over finished vertices, and the
   Override Layer covers colour / cell / visibility only, so nothing can resize
   one from the host: an authored window frame cannot follow the box Flutter
-  gives it. Waits on the SDK **Per-part size override** (Phase 3) — the Override
-  Layer extended with `size_x` / `size_y`.
+  gives it. Needs the `Nines` kind above, which neither render backend draws, and
+  waits on the SDK **Per-part size override** (Phase 3) — the Override Layer
+  extended with `size_x` / `size_y`.
 
 ## Distribution & verification
 
