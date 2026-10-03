@@ -71,16 +71,17 @@ class SsTextureLoader {
       // here, referenced there) would be lost entirely. A missing atlas is
       // silent for a mask writer, which is dropped rather than drawn wrong.
       if (registry.contains(cm.nameHash)) return;
-      // Sampling is a cellmap property: honour its declared filter +
-      // wrap so drawVertices doesn't fall back to nearest-neighbour (jaggy).
-      final filterQuality = _filterQualityFor(cm);
+      // Wrap is a cellmap property. The filter is not: it is the registry's
+      // (bilinear unless the app registers the atlas itself), and the
+      // SpriteStudio setting in `filterMode` is deliberately not read — the
+      // Porting Guide leaves filtering to the engine.
       final tileMode = _tileModeFor(cm);
       // 1. Embedded bytes take priority.
       final asset = embedded[cm.imagePathHash];
       final data = asset?.data;
       if (data != null && data.isNotEmpty) {
         registry.register(cm.nameHash, await decodeImage(_asBytes(data)),
-            filterQuality: filterQuality, tileMode: tileMode);
+            tileMode: tileMode);
         return;
       }
       // 2. Reference: resolve the sibling image from the asset bundle.
@@ -90,7 +91,7 @@ class SsTextureLoader {
         try {
           final bytes = (await bnd.load(assetPath)).buffer.asUint8List();
           registry.register(cm.nameHash, await decodeImage(bytes),
-              filterQuality: filterQuality, tileMode: tileMode);
+              tileMode: tileMode);
           return;
         } catch (_) {
           unresolved.add(assetPath);
@@ -135,14 +136,6 @@ class SsTextureLoader {
 
     return TextureLoadReport(unresolved);
   }
-
-  /// Cellmap `filterMode` → Flutter sampling: Nearest keeps crisp pixel-art,
-  /// Linear (the SpriteStudio default) is bilinear. These are plain single-value
-  /// enums, so `fromValue` is safe here (unlike the OR-combined `bit_flags`).
-  static ui.FilterQuality _filterQualityFor(ssab.CellMap cm) =>
-      cm.filterMode == ssab.TexFilterMode.Nearest
-          ? ui.FilterQuality.none
-          : ui.FilterQuality.low;
 
   /// Cellmap `wrapMode` → [ui.TileMode] (default Clamp).
   static ui.TileMode _tileModeFor(ssab.CellMap cm) => switch (cm.wrapMode) {
