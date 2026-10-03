@@ -2,11 +2,7 @@
 
 The **Flutter Player** roadmap. It tracks Flutter-specific work for capabilities
 the Rust runtime/converter exposes (`SpriteStudio-SDK/ROADMAP.md`). This file is
-**forward-looking only** — already-shipped features (the draw kinds Normal /
-PartColor / Mask / Mesh / Effect / Instance / Shape, the built-in `ss-*`
-integration shaders, both render backends **Canvas** and **flutter_gpu**, events,
-per-part overrides, the Flame adapter, live-reload, and the Web render target)
-are not repeated here.
+**forward-looking only**.
 
 Legend: ☐ **Ready** (Player-only, can start now) · ⛔ **Blocked on SDK** (needs an
 `SpriteStudio-SDK/ROADMAP.md` phase first) · 🕒 **Deferred**.
