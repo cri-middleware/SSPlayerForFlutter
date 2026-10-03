@@ -22,17 +22,17 @@ Legend: ☐ **Ready** (Player-only, can start now) · ⛔ **Blocked on SDK** (ne
   reverse audio, so a sound key crossed while the effective direction is backward
   (a reverse direction, or a ping-pong return leg) is not meant to sound. The
   Brain reports those keys regardless of direction — `collect_events` has no
-  direction test — and `isPlayingForward` now exposes the heading, so a host *can*
+  direction test — and `isPlayingForward` exposes the heading, so a host *can*
   gate. What is undecided is whether this Player should do more than expose it.
   The siblings that own an audio backend (ForGodot / ForUnity / ForRen'Py /
   ForWeb) gate **their own playback** and still fire the notification either way;
   this Player has no backend, so it has nothing of its own to gate, and
   suppressing `onAudio` would diverge from every sibling — the notification is an
   observation channel in all of them. So the choice is (a) leave it to the host,
-  as [Playback & Events](docs/en/guide/playback.md) documents today, or (b) also
+  as [Playback & Events](docs/en/guide/playback.md) documents, or (b) also
   ship the gate in `examples/overall`'s `_playAudio`, so the path people copy is
   the correct one. (c) — an opt-in audio backend on the Player — is a much larger
-  item and is not on the table yet. Settle (a) vs (b) first.
+  item and is not on the table. Settle (a) vs (b) first.
 - ☐ **`Nines` / `Text` kinds** — the remaining Phase-2 draw kinds. Unimplemented
   on both render backends.
 
