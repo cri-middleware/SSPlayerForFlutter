@@ -16,10 +16,11 @@ This file lists unfinished work only. Technical constraints live in
   §3-2 and the design is its [Animation
   mixing](https://github.com/cri-middleware/SpriteStudio-SDK/blob/HEAD/libs/ssruntime/docs/50_features/10_animation_mixing.md)
   page; SpriteStudio Player for wgpu is the one official Player that surfaces it.
-- [ ] **Label / index playback** — play a *named label* range, or play by animation
-  index. Labels already ride in the `.ssab` FlatBuffers payload, so no SDK change
-  is needed; add `play_range` / `play_by_index` on L3 over the existing
-  `setAnimationSection`, which already covers the frame-number form.
+- [ ] **Label playback** — set the playback section by a start and an end label, each
+  with an offset. Labels already ride in the `.ssab` FlatBuffers payload, so no SDK
+  change is needed; add `setAnimationSectionByLabel` on L3 beside the existing
+  `setAnimationSection`, which already covers the frame-number form, under the stem
+  the SDK's API conventions register.
 - [ ] **Flip / offset on the Flame adapter** — `SpriteStudioPlayer` has `flipX` / `flipY` / `offset`;
   `SpriteStudioComponent` does not surface them, since a Flame `PositionComponent` already offers
   `flipHorizontally()` and a `scale`. Worth revisiting if the two turn out to compose badly (a
