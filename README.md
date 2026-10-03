@@ -8,7 +8,7 @@
 
 A player that renders **[SpriteStudio](https://www.webtech.co.jp/spritestudio/)** animations (`.ssab`) directly in [Flutter](https://flutter.dev/). SpriteStudio is a professional 2D **raster** (sprite) animation editor — bone rigs, mesh deformation, and particle effects over hand-drawn sprite art. Your artist builds the motion visually; this player just plays the finished file, drawing it natively to the Flutter `Canvas` — no `AnimationController` to hand-write, no spritesheet to slice, no video to decode.
 
-## ✨ Why SpriteStudio Player?
+## ✨ Why use SpriteStudio with Flutter?
 
 - **Bring sprites — and whole scenes — to life, with zero animation code.** Breathing and blinking, swaying hair and clothes, flashy slash and magic effects. Instead of hand-wiring `AnimationController` / `Tween` / `AnimatedBuilder` or hand-slicing a spritesheet, the motion is authored visually in a dedicated editor (SpriteStudio) and the player just plays it — bone rigs, mesh deform, and particles included. And it is not limited to a single mascot: compose entire animated **UIs, HUDs, and full scenes** in the editor and render them as one — a scope narrower vector-icon tools don't reach.
 - **Raster sprite animation, drawn natively — not vector, not video.** It rigs and deforms **raster sprite art**, so hand-painted characters and game sprites animate exactly as authored — a different fit from vector animation tools, and lighter than shipping a `.gif` or `.mp4`. Playback runs on `dart:ffi` into a Rust runtime and draws through Flutter's own renderer — GPU-batched via **flutter_gpu** on Impeller, or `Canvas.drawVertices` elsewhere — not a WebView, not a video decode — scaling freely at runtime, looping seamlessly, and reacting to your app instead of merely playing back.

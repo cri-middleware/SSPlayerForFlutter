@@ -10,7 +10,7 @@ graph LR
     subgraph Convert ["変換 (.sspj → .ssab)"]
         AUTO["オートインポート<br>(ssgen_flutter)"]
         WEB["ssconverter-web"]
-        GUI["SSConverterGUI"]
+        GUI["SSConverter GUI"]
         CLI["ssconverter-cli"]
     end
 
@@ -80,7 +80,7 @@ GUI・CLI といった形で提供され、いずれも同じ `.ssab` を生成�
 |---|---|---|
 | [**オートインポート（ライブリロード）**](#オートインポートライブリロード) | 開発中の反復 —— 保存で自動変換、手動ステップなし | 標準搭載: [`ssgen_flutter`](live-reload.md) |
 | [**ssconverter-web**](#ssconverter-webブラウザ) | ブラウザで単発、インストール不要 | 🚧 未公開（Chromium 専用） |
-| [**SSConverterGUI**](#ssconverterguiデスクトップ-gui) | シンプルなデスクトップ GUI —— ドラッグ&ドロップ・バッチ・embedded 切替 | [バイナリをダウンロード](https://github.com/cri-middleware/SSConverterGUI/releases) |
+| [**SSConverter GUI**](#ssconverter-guiデスクトップ-gui) | シンプルなデスクトップ GUI —— ドラッグ&ドロップ・バッチ・embedded 切替 | [バイナリをダウンロード](https://github.com/cri-middleware/SSConverterGUI/releases) |
 | [**ssconverter-cli**](#ssconverter-cli) | CI / ビルド時 / 再現性 —— ワークスペース同梱の Dart 製 `ssconvert` を含む | [SDK Releases](https://github.com/cri-middleware/SpriteStudio-SDK/releases) · `dart run ssconverter_dart:ssconvert` |
 
 !!! tip "Flutter プロジェクトは追加インストールがほぼ不要"
@@ -101,11 +101,11 @@ Unity のインポータの高速反復ループに相当し、`ssgen_flutter` �
     公開後は GitHub Pages でホストされます（<https://cri-middleware.github.io/SSPlayerForWeb/ssconverter/>）。フォルダ選択に **File System
     Access API** を使うため、**Chromium 系ブラウザ（Chrome / Edge）**が必要です。
 
-## SSConverterGUI（デスクトップ GUI）
+## SSConverter GUI（デスクトップ GUI）
 
 シンプルなクロスプラットフォームのデスクトップ GUI。プロジェクトをドラッグ&ドロップ、バッチ変換、
 embedded 出力の切替ができます。OS 向けバイナリを
-[**SSConverterGUI Releases**](https://github.com/cri-middleware/SSConverterGUI/releases)
+[**SSConverter GUI Releases**](https://github.com/cri-middleware/SSConverterGUI/releases)
 からダウンロードして実行します。ターミナルを触りたくないときに。その後、変換した `.ssab` を[配置](#ssab-を配置する手動ルート)します。
 
 ## ssconverter-cli
@@ -147,7 +147,7 @@ ssconverter-cli project.sspj --embedded       # テクスチャを .ssab に内�
 ```
 
 詳細オプションは SDK の
-[`ssconverter-cli` README](https://github.com/cri-middleware/SpriteStudio-SDK/blob/main/cli/README.md)
+[`ssconverter-cli` README](https://github.com/cri-middleware/SpriteStudio-SDK/blob/HEAD/cli/README.ja.md)
 を参照。
 
 ## `.ssab` を配置する（手動ルート）

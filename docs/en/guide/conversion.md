@@ -12,7 +12,7 @@ graph LR
     subgraph Convert ["Convert (.sspj → .ssab)"]
         AUTO["Auto importer<br>(ssgen_flutter)"]
         WEB["ssconverter-web"]
-        GUI["SSConverterGUI"]
+        GUI["SSConverter GUI"]
         CLI["ssconverter-cli"]
     end
 
@@ -95,7 +95,7 @@ desktop GUI, and a CLI — all producing the same `.ssab`. Pick the one that fit
 |---|---|---|
 | [**Auto importer (Live Reload)**](#auto-importer-live-reload) | Iterating during development — auto-convert on save, no manual step | Built in: [`ssgen_flutter`](live-reload.md) |
 | [**ssconverter-web**](#ssconverter-web-browser) | A quick one-off in the browser, no install | 🚧 Not yet published (Chromium-only) |
-| [**SSConverterGUI**](#ssconvertergui-desktop-gui) | A simple desktop GUI — drag & drop, batch, embedded toggle | [Download a binary](https://github.com/cri-middleware/SSConverterGUI/releases) |
+| [**SSConverter GUI**](#ssconverter-gui-desktop-gui) | A simple desktop GUI — drag & drop, batch, embedded toggle | [Download a binary](https://github.com/cri-middleware/SSConverterGUI/releases) |
 | [**ssconverter-cli**](#ssconverter-cli) | CI / build-time / reproducibility — including the in-workspace Dart `ssconvert` | [SDK Releases](https://github.com/cri-middleware/SpriteStudio-SDK/releases) · `dart run ssconverter_dart:ssconvert` |
 
 !!! tip "Flutter projects rarely install anything extra"
@@ -121,11 +121,11 @@ of the converter client-side. Then [deploy](#deploy-the-ssab-manual-routes) the 
     (<https://cri-middleware.github.io/SSPlayerForWeb/ssconverter/>). Folder selection uses the **File
     System Access API**, so a **Chromium-based browser (Chrome / Edge)** is required.
 
-## SSConverterGUI (desktop GUI)
+## SSConverter GUI (desktop GUI)
 
 A simple cross-platform desktop GUI: drag & drop a project, batch-convert, and toggle embedded output.
 Download the binary for your OS from
-[**SSConverterGUI Releases**](https://github.com/cri-middleware/SSConverterGUI/releases) and run it.
+[**SSConverter GUI Releases**](https://github.com/cri-middleware/SSConverterGUI/releases) and run it.
 Good when you'd rather not touch a terminal. Then [deploy](#deploy-the-ssab-manual-routes) the
 converted `.ssab`.
 
@@ -172,7 +172,7 @@ ssconverter-cli project.sspj --embedded       # embed textures into the .ssab
 ```
 
 For its full options, see the
-[SDK `ssconverter-cli` README](https://github.com/cri-middleware/SpriteStudio-SDK/blob/main/cli/README.md).
+[SDK `ssconverter-cli` README](https://github.com/cri-middleware/SpriteStudio-SDK/blob/HEAD/cli/README.md).
 
 ## Deploy the `.ssab` (manual routes)
 

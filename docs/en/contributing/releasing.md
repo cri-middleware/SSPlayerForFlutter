@@ -43,8 +43,9 @@ constraint bump.
 - **Native assets ship source only.** The prebuilt `libssruntime` / `libssconverter` are fetched by
   each package's `hook/build.dart` at the *consumer's* build time; `native/` is gitignored and not in
   the published archive — nothing to do at release time.
-- **Melos is a pinned workspace dev-dependency** (`>=7.0.0 <7.8.2`; 7.8.2 pulls a `cli_util` that
-  conflicts with ffigen's pin). Invoke via `dart run melos …`.
+- **Melos is a pinned workspace dev-dependency** (`^8.9.0`). It shares the workspace resolution with
+  ffigen, which still pins `cli_util ^0.4.2`, through a `cli_util: ^0.6.0` override in the root
+  `pubspec.yaml`. Invoke via `dart run melos …`.
 - **CI toolchain is pinned** in `release.yml` (Flutter 3.47.1 / Dart 3.13.1). Most packages declare a
   support *floor* well below it (`sdk: >=3.10.0`, Flutter `>=3.38.0`) so consumers aren't forced onto
   the exact CI version. `ssplayer_flutter` is the exception, at Flutter `>=3.47.0`: flutter_gpu ships

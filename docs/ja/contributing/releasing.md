@@ -37,8 +37,7 @@ Melos は各パッケージの直近 `<package>-v<version>` タグ以降のコ�
 
 - **`publish_to: none` が on/off スイッチ。** `release.yml` は `melos version --no-private` を実行するので、この行がある間はリリース対象から完全に外れます。公開準備ができたときだけ外し、初回のみ依存順に手動公開します。
 - **Native Assets はソースのみ公開。** プリビルドの `libssruntime` / `libssconverter` は利用者のビルド時に各パッケージの `hook/build.dart` が取得します。`native/` は gitignore で公開アーカイブに含まれず、リリース時にやることはありません。
-- **Melos はピン留めした workspace dev-dependency**（`>=7.0.0 <7.8.2`。7.8.2 は ffigen のピンと衝突する
-  `cli_util` を引き込む）。`dart run melos …` で起動します。
+- **Melos はピン留めした workspace dev-dependency**（`^8.9.0`）。ffigen がまだ `cli_util ^0.4.2` に固定しているため、ルートの `pubspec.yaml` の `dependency_overrides` で `cli_util: ^0.6.0` に上書きし、同じ解決に同居させています。`dart run melos …` で起動します。
 - **CI のツールチェーンはピン留め**（`release.yml` で Flutter 3.47.1 / Dart 3.13.1）。ほとんどのパッケージの `environment:` はそれよりずっと低い対応**下限**（`sdk: >=3.10.0`、Flutter `>=3.38.0`）のみを宣言し、利用者を CI と同一バージョンに縛りません。例外は `ssplayer_flutter` の Flutter
   `>=3.47.0` です —— flutter_gpu は SDK 同梱でバージョンを持たず、3.47 の API はソース互換を壊すため、
   GPU バックエンドはそれ未満ではコンパイルできません。ローカルのツールチェーン更新に合わせて
