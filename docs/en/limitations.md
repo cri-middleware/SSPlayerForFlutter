@@ -26,8 +26,6 @@ ordinary part at authoring time.
 ## Platforms
 
 Verified on **macOS**, **iOS (simulator)**, **Android (emulator)**, and **Web (developer preview)**.
-Not yet confirmed: a **physical iOS device** (signed `iphoneos` slice) and the 32-bit **`armeabi-v7a`**
-ABI at runtime.
 
 The native runtime (`libssruntime`) is delivered per target by the **native assets** build hook — no
 CocoaPods, no manual linking. On the **Web** there is no `dart:ffi`: the Brain ships as the SDK's
@@ -118,5 +116,3 @@ to every official player, so the full explanations and the rest of the shared co
       yours: read `isPlayingForward` and return early. (A negative speed is not one of those cases:
       speed is a multiplier, and a negative one stops the playhead rather than turning it around, as
       does `0`.) See [Playback & Events](guide/playback.md#example-play-an-audio-trigger).
-    - **Animation blending is same-`.ssab` only**, and every blended animation must assign the
-      same cell to the same part.
