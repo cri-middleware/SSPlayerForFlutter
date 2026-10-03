@@ -71,17 +71,15 @@ class SsTextureLoader {
       // here, referenced there) would be lost entirely. A missing atlas is
       // silent for a mask writer, which is dropped rather than drawn wrong.
       if (registry.contains(cm.nameHash)) return;
-      // Wrap is a cellmap property. The filter is not: it is the registry's
-      // (bilinear unless the app registers the atlas itself), and the
-      // SpriteStudio setting in `filterMode` is deliberately not read — the
-      // Porting Guide leaves filtering to the engine.
-      final tileMode = _tileModeFor(cm);
+      // Sampling is the registry's (bilinear + clamp unless the app registers
+      // the atlas itself). The SpriteStudio settings in `filterMode` and
+      // `wrapMode` are deliberately not read — the Porting Guide leaves both
+      // to the engine.
       // 1. Embedded bytes take priority.
       final asset = embedded[cm.imagePathHash];
       final data = asset?.data;
       if (data != null && data.isNotEmpty) {
-        registry.register(cm.nameHash, await decodeImage(_asBytes(data)),
-            tileMode: tileMode);
+        registry.register(cm.nameHash, await decodeImage(_asBytes(data)));
         return;
       }
       // 2. Reference: resolve the sibling image from the asset bundle.
@@ -90,8 +88,7 @@ class SsTextureLoader {
         final assetPath = _joinAsset(baseAssetDir, path);
         try {
           final bytes = (await bnd.load(assetPath)).buffer.asUint8List();
-          registry.register(cm.nameHash, await decodeImage(bytes),
-              tileMode: tileMode);
+          registry.register(cm.nameHash, await decodeImage(bytes));
           return;
         } catch (_) {
           unresolved.add(assetPath);
@@ -136,13 +133,6 @@ class SsTextureLoader {
 
     return TextureLoadReport(unresolved);
   }
-
-  /// Cellmap `wrapMode` → [ui.TileMode] (default Clamp).
-  static ui.TileMode _tileModeFor(ssab.CellMap cm) => switch (cm.wrapMode) {
-        ssab.TexWrapMode.Repeat => ui.TileMode.repeated,
-        ssab.TexWrapMode.Mirror => ui.TileMode.mirror,
-        ssab.TexWrapMode.Clamp => ui.TileMode.clamp,
-      };
 
   /// Loads ONLY the embedded cellmap textures (no asset bundle access).
   static Future<TextureLoadReport> loadEmbedded(

@@ -42,11 +42,11 @@ class TextureRegistry {
   final List<ui.ImageShader> _retired = [];
 
   /// Registers (or replaces) the decoded image for a `cellmap` texture hash,
-  /// together with its sampling: [filterQuality] is the app's choice
-  /// (bilinear [ui.FilterQuality.low] by default; [ui.FilterQuality.none] for
-  /// crisp pixel art), never the cellmap's `filterMode`, and [tileMode] maps the
-  /// cellmap `wrapMode` (Clamp/Repeat/Mirror). Baked into the [ui.ImageShader]
-  /// so `drawVertices` honours it — otherwise the shader inherits
+  /// together with its sampling. Both are the app's choice, never the
+  /// cellmap's `filterMode` / `wrapMode`: [filterQuality] is bilinear
+  /// [ui.FilterQuality.low] by default ([ui.FilterQuality.none] for crisp pixel
+  /// art), and [tileMode] is clamp. Baked into the [ui.ImageShader] so
+  /// `drawVertices` honours it — otherwise the shader inherits
   /// `Paint.filterQuality`, which defaults to [ui.FilterQuality.none] and makes
   /// every scaled/rotated sprite jaggy.
   ///
