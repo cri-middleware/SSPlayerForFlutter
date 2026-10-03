@@ -112,9 +112,3 @@ hit areas, and a UI-state map.
   overlapping parts could still batch if the emitter proved their quads disjoint.
   Bounded cost — 3 draws per Sub/Invert part — so it is only worth doing for a pack
   that leans on those modes heavily.
-- 🕒 **`Mul` over transparency** — SpriteStudio's Mul row (`DST_COLOR`,
-  `1-SRC_ALPHA`) assumes an opaque target; over transparency the two backends
-  diverge from each other by one `Cs·(1-αb)` term, and the Canvas Sub / Invert
-  reconstruction likewise forces alpha to 1 over transparency. Exactness there
-  would need a framebuffer-read shader. Deliberately skipped: give a blend-heavy
-  pack an opaque background layer instead. See [Limitations](docs/en/limitations.md).
