@@ -26,7 +26,7 @@ This file lists unfinished work only. Technical constraints live in
   `flipHorizontally()` and a `scale`. Worth revisiting if the two turn out to compose badly (a
   component flip also mirrors the component's children, which is exactly what the player-level one
   avoids).
-- [ ] **Reverse-playback audio — decide where the gate lives.** SpriteStudio has no
+- [ ] **Reverse-playback audio** — decide where the gate lives. SpriteStudio has no
   reverse audio, so a sound key crossed while the effective direction is backward
   (a reverse direction, or a ping-pong return leg) is not meant to sound. The
   Brain reports those keys regardless of direction — `collect_events` has no
