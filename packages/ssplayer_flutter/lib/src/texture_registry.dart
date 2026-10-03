@@ -42,13 +42,13 @@ class TextureRegistry {
   final List<ui.ImageShader> _retired = [];
 
   /// Registers (or replaces) the decoded image for a `cellmap` texture hash,
-  /// together with the cellmap's declared sampling: [filterQuality]
-  /// maps the cellmap `filterMode` (Nearest → [ui.FilterQuality.none], Linear →
-  /// [ui.FilterQuality.low] bilinear) and [tileMode] its `wrapMode`
-  /// (Clamp/Repeat/Mirror). Baked into the [ui.ImageShader] so `drawVertices`
-  /// honours it — otherwise the shader inherits `Paint.filterQuality`, which
-  /// defaults to [ui.FilterQuality.none] and makes every scaled/rotated sprite
-  /// jaggy. Defaults match the SpriteStudio project defaults (bilinear + clamp).
+  /// together with its sampling. Both are the app's choice, never the
+  /// cellmap's `filterMode` / `wrapMode`: [filterQuality] is bilinear
+  /// [ui.FilterQuality.low] by default ([ui.FilterQuality.none] for crisp pixel
+  /// art), and [tileMode] is clamp. Baked into the [ui.ImageShader] so
+  /// `drawVertices` honours it — otherwise the shader inherits
+  /// `Paint.filterQuality`, which defaults to [ui.FilterQuality.none] and makes
+  /// every scaled/rotated sprite jaggy.
   ///
   /// Replacing an existing hash disposes what it replaces, so the caller must
   /// not re-register a texture that an already-recorded (but not yet rasterised)
@@ -83,7 +83,7 @@ class TextureRegistry {
   /// The identity-matrix [ui.ImageShader] for a texture hash (cached), or null
   /// when no image is registered. `drawVertices` samples it in image-pixel
   /// space, so the Brain's texture-pixel UVs are passed straight through.
-  /// Tile mode + filter quality come from the cellmap via [register].
+  /// Tile mode + filter quality are the ones given to [register].
   ui.ImageShader? shaderFor(int textureHash) {
     final cached = _shaders[textureHash];
     if (cached != null) return cached;
@@ -113,7 +113,7 @@ class TextureRegistry {
   /// [image] is **not** owned by the registry — keep it alive while it is set and
   /// dispose it yourself once it is cleared or replaced.
   ///
-  /// Sampling defaults to the original cellmap's ([filterQuality] / [tileMode]
+  /// Sampling defaults to the original's ([filterQuality] / [tileMode]
   /// override it), on the same-size/same-layout-atlas assumption.
   void setOverride(
     int textureHash,
@@ -210,7 +210,7 @@ class TextureRegistry {
   );
 }
 
-/// A cellmap's per-texture sampling, baked into its cached [ui.ImageShader].
+/// A texture's sampling, baked into its cached [ui.ImageShader].
 class _Sampling {
   const _Sampling(this.filterQuality, this.tileMode);
   const _Sampling.defaults()
