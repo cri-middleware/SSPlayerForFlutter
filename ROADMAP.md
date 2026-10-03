@@ -33,8 +33,7 @@ Legend: ☐ **Ready** (Player-only, can start now) · ⛔ **Blocked on SDK** (ne
   ship the gate in `examples/overall`'s `_playAudio`, so the path people copy is
   the correct one. (c) — an opt-in audio backend on the Player — is a much larger
   item and is not on the table. Settle (a) vs (b) first.
-- ☐ **`Nines` / `Text` kinds** — the remaining Phase-2 draw kinds. Unimplemented
-  on both render backends.
+- 🕒 **`Nines` / `Text` kinds** — not drawn on either render backend.
 
 ## UI integration (widget-side)
 
