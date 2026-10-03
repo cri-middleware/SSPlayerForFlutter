@@ -101,17 +101,6 @@ hit areas, and a UI-state map.
 
 ## Backlog (small / optional)
 
-- ✖ **PartColor struct direct-read (`ByteData`)** — *measured, not worth it.* The
-  idea was to read the packed `PartAttributePartColor` struct straight from the
-  `FrameData` bytes (as the Unity / RenPy / Web siblings do), dropping the
-  throwaway wrappers plus the `PartColor` + 4 `PartColorCorner` PODs per tinted
-  part per frame. The gating micro-benchmark says no: on `PartsColor.ssab`
-  (17 parts, 16 tinted) the **whole** per-frame extraction is **0.97 µs** —
-  ~60 ns per tinted part, i.e. 0.006 % of a 60 fps budget, and still under 0.2 %
-  extrapolated to 500 tinted parts. (`scaleAlpha` 58 ns/call,
-  `wholeTintMatrix` 33 ns/call, both instance-chain only.) Making a public
-  immutable value type mutable and slot-pooling it through every render path is
-  not a trade worth that. Reopen only if a real profile contradicts the number.
 - ☐ **Instance child `Resource` sharing** — one Instance part = one `Resource`
   today; the parsed `.ssab` should be shareable across children of the same pack
   (each child's `Context` stays separate for its own clock). A Body-local dedup is
