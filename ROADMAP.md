@@ -89,15 +89,6 @@ hit areas, and a UI-state map.
   [Limitations](docs/en/limitations.md) says both backends reproduce all eight there,
   which this contradicts.
 
-- 🕒 **Web wasm distribution for pub.dev** — the Web target renders every kind, but
-  ships the Brain as a git-ignored, build-on-demand wasm pair
-  (`assets/runtime-web/{ssruntime.js,ssruntime_bg.wasm}`), so a Rust-less pub.dev
-  consumer can't obtain it. **Must be settled before `ssplayer_flutter`'s
-  `publish_to: none` is lifted.** Leaning: commit the small (~330 KB; ~660 KB with
-  the nosimd variant), target-independent wasm as the already-declared asset;
-  alternative is a runtime CDN fetch via the existing `loadSsRuntime([url])` seam.
-  Open concern: the committed blob must be rebuilt + re-committed on every SDK pin
-  bump (`_sdkVersion`) — consider a CI check that it equals a fresh build.
 - 🕒 **Physical iOS device + `armeabi-v7a` runtime check** — verified on the iOS
   simulator and Android emulator; a code-signed `iphoneos` slice and the 32-bit
   ARM ABI at runtime are still unconfirmed.
