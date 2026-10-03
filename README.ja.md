@@ -32,7 +32,7 @@
 - [クイックスタート](docs/ja/guide/quickstart.md)
 - [Flame 連携](docs/ja/guide/flame.md)
 - [アセットの準備（`.sspj` → `.ssab`）](docs/ja/guide/conversion.md)
-- [制限事項と対応範囲](docs/ja/limitations.md)
+- [制約と適用範囲](docs/ja/limitations.md)
 
 ---
 

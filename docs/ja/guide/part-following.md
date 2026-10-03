@@ -200,4 +200,4 @@ if (pose != null && !player.isPartHidden(partName)) {
 
 - [パーツオーバーライド](part-overrides.md) —— 逆方向の書き込み。パーツの色 / セル / 表示を強制する
 - [再生とイベント](playback.md) —— トランスポートとイベントコールバック
-- [制限事項と適用範囲](../limitations.md) —— 現時点の追従まわりの制約
+- [制約と適用範囲](../limitations.md) —— 現時点の追従まわりの制約
