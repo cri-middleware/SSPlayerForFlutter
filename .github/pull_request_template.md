@@ -16,8 +16,8 @@ that is useful information, not a problem.
 実行した確認と環境。実行できなかった場合はその旨をお書きください。
 -->
 
-- [ ] `flutter analyze lib test` and `flutter test` in `packages/ssplayer_flutter/`
-- [ ] The other packages' suites (`dart test` / `flutter test` in each) — the Ringo tests report skipped without `scripts/deploy-examples.sh`
+- [ ] `scripts/deploy-examples.sh`, then `flutter analyze lib test` and `flutter test` in `packages/ssplayer_flutter/` — without its packs, the tests that play an animation report skipped
+- [ ] The other packages' suites (`dart test` / `flutter test` in each)
 - [ ] `cd examples/overall && flutter run` — `[ssplayer] OK`
 - [ ] Not run — see notes below / 未実行（理由は下記）
 
