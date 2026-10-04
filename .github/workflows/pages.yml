@@ -1,6 +1,6 @@
 name: Publish docs via GitHub Pages
 
-# Build the MkDocs site plus the playable Flutter Web demo and deploy them to GitHub
+# Build the documentation site plus the two playable Web demos and deploy them to GitHub
 # Pages via the artifact method (no gh-pages branch) — matching SSPlayerForGodot /
 # SSPlayerForWeb / SSPlayerForRenPy.
 #
@@ -17,8 +17,8 @@ on:
     types: [published]
   workflow_dispatch:
 
-# Least privilege at the workflow level: the build job (which runs on PRs and
-# executes third-party code — pip install + zensical) only needs to read the repo.
+# Least privilege at the workflow level: the build job (which executes third-party
+# code — pip install + zensical) only needs to read the repo.
 # The Pages write + OIDC token are granted to the deploy job alone (below).
 permissions:
   contents: read

@@ -17,9 +17,9 @@
 # site/demo/ -- the address both locale index pages link to.
 #
 # The demos are built here, not downloaded: unlike the sibling players, this
-# repository's release.yml versions packages and publishes them to pub.dev -- it
-# creates no GitHub Release and attaches no assets, so there is nothing for a
-# demo=download option to fetch. pages.yml therefore runs the same export this
+# repository's release.yml versions packages and publishes them to pub.dev -- its
+# GitHub Releases carry no assets, so there is nothing for a demo=download option
+# to fetch. pages.yml therefore runs the same export this
 # script does, which is the whole reason the export lives here rather than in
 # the workflow. (sdk=download is a different thing: the Brain's binaries, which
 # the SDK's own release does publish.)
