@@ -32,7 +32,6 @@ that is useful information, not a problem.
 - [ ] L2 (`SpriteStudioInternalPlayer`) stays Widget-free; no Widget dependency leaks downward.
 - [ ] No per-frame allocations, and every `Context` / `Resource` is disposed.
 - [ ] Generated `*.g.dart` regenerated with the scripts and committed, never hand-edited.
-- [ ] Commit messages follow Conventional Commits; the release tooling derives version bumps from them.
 
 ## Anything reviewers should know? / レビュー時の注意点
 

@@ -7,8 +7,8 @@ adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 > **Per-package versioning.** This is a monorepo whose packages (`ssplayer_flutter`,
 > `ssplayer_flame`, `ssruntime_dart`, `ssconverter_dart`, `ssgen_flutter`, `ssgen_dart`) are versioned
-> and published **independently**. Package-level history lives in each package's own `CHANGELOG.md`;
-> this file records repository-wide milestones.
+> and published **independently**. Package-level history lives in each package's GitHub Releases
+> (`<package>-v<version>`), which its `CHANGELOG.md` links; this file records repository-wide milestones.
 
 ## [Unreleased]
 

@@ -28,7 +28,7 @@
 
 ## What this repo is
 
-The Flutter **Body** for the SpriteStudio-SDK **Brain**: a pub workspace, released with Melos, that
+The Flutter **Body** for the SpriteStudio-SDK **Brain**: a pub workspace that
 renders `.ssab` animations by driving the Rust `libssruntime` over `dart:ffi`. The Brain is the
 `SpriteStudio-SDK/` submodule.
 
@@ -37,11 +37,10 @@ renders `.ssab` animations by driving the Rust `libssruntime` over `dart:ffi`. T
 | Question | File |
 |---|---|
 | What the packages are, how to install and use them | [README.md](./README.md), the [docs site](./docs/en/) |
-| How to build, generate code and test from a checkout | [CONTRIBUTING.md](./CONTRIBUTING.md), [Build Guide](./docs/en/contributing/build.md) |
+| How to build, generate code and test from a checkout, the docs site included | [CONTRIBUTING.md](./CONTRIBUTING.md), [Build Guide](./docs/en/contributing/build.md) |
 | The four layers and what each owns | [Architecture](./docs/en/contributing/architecture.md) |
 | How the native library is resolved and packaged | [Native Runtime](./docs/en/contributing/native-runtime.md) |
-| How versions are computed and published | [Releasing](./docs/en/contributing/releasing.md) |
-| How the site is built and a release is cut | [RELEASING.md](./RELEASING.md), maintainers only |
+| How a release is cut | [RELEASING.md](./RELEASING.md), maintainers only |
 | What to build next, and what is out of scope | [ROADMAP.md](./ROADMAP.md) |
 | What each script does and takes | that script's header comment |
 

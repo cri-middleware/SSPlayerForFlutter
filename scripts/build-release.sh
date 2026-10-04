@@ -11,31 +11,30 @@
 #   scripts/build-release.sh packages=ssruntime_dart    # one package
 #   scripts/build-release.sh out=/tmp/rel               # somewhere else
 #
-# A release here is NOT a GitHub Release, which is the whole reason this script
-# looks different from the sibling players' build-release. There, one archive is
-# built and attached to a Release. Here, release.yml computes the per-package
-# version bumps and pushes `<package>-v<version>` tags; each tag triggers
-# publish.yml, which runs `dart pub publish` in that package's directory and
-# uploads it to pub.dev. Nothing is attached to anything -- so what there is to
-# "build" is the file set each of those publishes would send, and the confidence
-# that all of them will succeed.
+# A release here attaches nothing, which is the whole reason this script looks
+# different from the sibling players' build-release. There, one archive is built
+# and attached to a Release. Here, release.yml sets the versions it is given,
+# runs this script, and only then commits them and pushes `<package>-v<version>`
+# tags; each tag triggers publish.yml, which runs `dart pub publish` in that
+# package's directory and uploads it to pub.dev, and the package's GitHub Release
+# carries its notes and nothing else. So what there is to "build" is the file set
+# each of those publishes would send, and the confidence that all of them will
+# succeed.
 #
-# The confidence is the valuable half, because the order is unforgiving: the tags
-# are pushed BEFORE pub.dev ever sees a package, and a version on pub.dev is
-# permanent. By the time `dart pub publish` fails, release.yml has already
-# written the CHANGELOGs, committed them and burnt the version -- the only way
-# forward is another version. Everything below runs before that point, which is
-# why release.yml runs this script as its first step: CI and a local run cannot
+# The confidence is the valuable half, because a version on pub.dev is permanent:
+# once its tag is pushed, a publish that fails can only be followed by another
+# version. Everything below runs before that point, which is why release.yml
+# runs this script before it commits or tags anything: CI and a local run cannot
 # drift.
 #
-# What this does NOT do is bump a version or push a tag. Those are decisions, and
-# a script that made them would have to guess which.
+# What this does NOT do is set a version or push a tag. Those are decisions:
+# scripts/set-versions.dart makes the first, release.yml the second.
 #
 # ---------------------------------------------------------------------------
 #
-# A package still carrying `publish_to: none` is not in the release: `melos
-# version --no-private` skips it and `dart pub publish` refuses it outright. That
-# one line is the on/off switch for the whole pipeline. While it is still there
+# A package still carrying `publish_to: none` is not published: publish.yml skips
+# its tag and `dart pub publish` refuses it outright. That one line is the on/off
+# switch for pub.dev. While it is still there
 # on every package, skipping them would leave this script with nothing to do, so
 # a private package is PREVIEWED instead -- the line is lifted for the length of
 # the dry run (and put straight back), everything that would block its publish is

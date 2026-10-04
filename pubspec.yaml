@@ -7,8 +7,6 @@
 # own (see each package's pubspec). Members opt in with `resolution: workspace`.
 name: ssplayer_flutter_workspace
 publish_to: none
-# Used by Melos to build commit links in generated CHANGELOGs (linkToCommits).
-repository: https://github.com/cri-middleware/SSPlayerForFlutter
 
 environment:
   sdk: ">=3.10.0 <4.0.0"
@@ -23,45 +21,3 @@ workspace:
   - examples/overall
   - examples/flame
   - examples/part_following
-
-# Melos must be a workspace dependency (its cli_launcher locates the workspace
-# only via a pubspec that depends on melos — a global `pub global activate`
-# install cannot detect it).
-#
-# The `cli_util` override is what lets Melos 8 coexist with ffigen in the shared
-# workspace resolution: Melos 8 needs `cli_util >=0.5.0` and ffigen 22 still pins
-# `^0.4.2`. ffigen uses one symbol from it — `Ansi`, which neither the 0.5 break
-# (dropping `applicationConfigHome`) nor the 0.6 one (`sdkPath` turning nullable)
-# touches — and regenerates byte-identical bindings against 0.6.x. Drop the
-# override once ffigen allows 0.5+.
-dev_dependencies:
-  melos: ^8.9.0
-
-dependency_overrides:
-  cli_util: ^0.6.0
-
-# ── Melos: monorepo release automation ────────────────────────────────────────
-# Melos reads this `melos:` key of the workspace-root pubspec. Workspace members
-# come from the `workspace:` list above, so no separate `packages:` glob is
-# needed. Versioning is INDEPENDENT (the Melos default): each package bumps on
-# its own Conventional-Commit history and gets its own `<package>-v<version>` git
-# tag, which drives pub.dev automated publishing.
-# See .github/workflows/{release,publish}.yml.
-melos:
-  command:
-    version:
-      # Trunk-based: only ever cut releases from main.
-      branch: main
-      # CHANGELOG entries link back to the commits that produced them.
-      linkToCommits: true
-      # Also maintain an aggregate CHANGELOG.md at the workspace root.
-      workspaceChangelog: true
-      # Keep any git-dependency version-tag refs in sync (no-op for our hosted deps).
-      updateGitTagRefs: true
-      # Release commit message; {new_package_versions} is expanded by Melos.
-      # NB: never add [skip ci] here — the release tag points at this commit and
-      # [skip ci] would also suppress the tag-triggered publish workflow.
-      message: |
-        chore(release): version packages
-
-        {new_package_versions}

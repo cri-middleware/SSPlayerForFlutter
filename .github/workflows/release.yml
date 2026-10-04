@@ -1,64 +1,108 @@
 name: Release
 
-# On-demand ("option B"): you merge PRs to main normally, then run this by hand
-# from the Actions tab when you want to cut versions. It computes INDEPENDENT
-# SemVer bumps from Conventional Commits since each package's last
-# `<package>-v<version>` tag, writes CHANGELOGs, commits, and pushes per-package
-# tags. Pushing those tags is what triggers publish.yml.
+# One release, dispatched by hand from main. A maintainer names the versions;
+# everything after that is this workflow's, and the same ref with the same inputs
+# always produces the same result:
+#
+#   versions   `<package>@<version>` pairs separated by spaces, <package> being
+#              the directory under packages/. scripts/set-versions.dart writes
+#              them, raises the other packages' constraints on them and gives
+#              each a CHANGELOG heading linking its Release, and the commit
+#              reaches main only once scripts/build-release.sh has passed.
+#              Empty sets nothing and releases every current version that has no
+#              Release yet: the first release, and the retry after a run that
+#              died halfway.
+#
+#   dry_run    Set the versions and check everything, and commit, tag and release
+#              nothing. The look before a release.
+#
+# Every package released gets a `<package>-v<version>` tag, which starts
+# publish.yml -- pub.dev for a package without `publish_to: none`, nothing for one
+# that still carries it -- and a DRAFT GitHub Release with notes generated from
+# the pull requests since its previous tag. A package whose Release already
+# exists, draft or not, is skipped, so a re-run never doubles one. A maintainer
+# edits each draft and publishes it, and publishing is what starts pages.yml.
 on:
   workflow_dispatch:
     inputs:
-      dry-run:
-        description: "Compute versions & tags but do NOT push (preview only)"
+      versions:
+        description: 'Versions to set: <package>@<version>, space separated, <package> = directory under packages/. Empty releases the current versions.'
+        type: string
+        default: ''
+      dry_run:
+        description: 'Set the versions and check everything, but commit, tag and release nothing'
         type: boolean
         default: false
 
+# Never let two releases run at once.
 concurrency:
   group: release
   cancel-in-progress: false
 
 jobs:
-  # Everything that has to be true BEFORE a version is burnt.
-  #
-  # The order downstream is unforgiving: the version job below writes the
-  # CHANGELOGs, commits them and pushes the tags, and only then does publish.yml
-  # run `dart pub publish`. A package pub rejects at that point has already cost
-  # a version number, and a version on pub.dev is permanent -- so the rejection
-  # has to happen here instead.
-  #
-  # scripts/build-release.sh is that check, and it is the same script a
-  # contributor runs in a working tree, so CI and a local run cannot drift. Every
-  # option is spelled out rather than left to the script's defaults: the defaults
-  # are chosen for a working tree, and a release should not change because one of
-  # them did.
-  #
-  #   checks=analyze  the test suites need the Brain, which the build hooks
-  #                   download from the pinned SDK release -- the same download
-  #                   sdk=check is already asking about, one line down.
-  #   codegen=skip    regenerating needs flatc and the C headers build-runtime.sh
-  #                   copies out of the SDK submodule, neither of which is on
-  #                   this runner. That one stays a local gate; the script says
-  #                   so when it self-skips.
-  #   sdk=download    fetches the web Brain into assets/runtime-web the same way
-  #                   publish.yml's ssplayer_flutter job does, so the archive this
-  #                   checks is the one that job would upload -- and checks that
-  #                   the release packages/*/hook/build.dart pin carries the host
-  #                   libraries too, or every consumer's `flutter pub get` 404s.
-  #                   This is the step that fails while the SDK has not been
-  #                   tagged yet, and that is the correct failure: there is
-  #                   nothing to publish against.
-  preflight:
+  release:
+    # Refuse to release from anywhere but main, even if dispatched on another ref.
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # the version commit and the draft Releases
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Full history + tags, for the previous tag each Release's notes start at.
+          fetch-depth: 0
+          # IMPORTANT: a PAT (or GitHub App token), NOT the default GITHUB_TOKEN.
+          # Tags pushed with GITHUB_TOKEN do NOT trigger other workflows, so
+          # publish.yml would silently never run.
+          token: ${{ secrets.RELEASE_PAT }}
 
-      # The same pin release.yml versions with and pages.yml builds the demos
+      # The same pin pages.yml builds the demos with and publish.yml publishes
       # with: a release should be checked by the toolchain that ships it.
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with:
           flutter-version: 3.47.1
           channel: stable
 
+      - name: Resolve workspace
+        run: flutter pub get
+
+      - name: Configure git identity
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Set the versions
+        if: inputs.versions != ''
+        env:
+          VERSIONS: ${{ inputs.versions }}
+        run: |
+          # One argument per pair, so the split is the point.
+          # shellcheck disable=SC2086
+          dart scripts/set-versions.dart $VERSIONS
+
+      # Everything that has to be true BEFORE a version is burnt: once a tag is
+      # pushed, publish.yml runs `dart pub publish`, and a version on pub.dev is
+      # permanent. scripts/build-release.sh is that check, against the versions
+      # just set, and it is the same script a contributor runs in a working tree,
+      # so CI and a local run cannot drift. Every option is spelled out rather
+      # than left to the script's defaults: the defaults are chosen for a working
+      # tree, and a release should not change because one of them did.
+      #
+      #   checks=analyze  the test suites need the Brain, which the build hooks
+      #                   download from the pinned SDK release -- the same download
+      #                   sdk=check is already asking about, one line down.
+      #   codegen=skip    regenerating needs flatc and the C headers build-runtime.sh
+      #                   copies out of the SDK submodule, neither of which is on
+      #                   this runner. That one stays a local gate; the script says
+      #                   so when it self-skips.
+      #   sdk=download    fetches the web Brain into assets/runtime-web the same way
+      #                   publish.yml's ssplayer_flutter job does, so the archive this
+      #                   checks is the one that job would upload -- and checks that
+      #                   the release packages/*/hook/build.dart pin carries the host
+      #                   libraries too, or every consumer's `flutter pub get` 404s.
+      #                   This is the step that fails while the SDK has not been
+      #                   tagged yet, and that is the correct failure: there is
+      #                   nothing to publish against.
       - name: Build & check the release
         run: ./scripts/build-release.sh out=release-dist packages=all checks=analyze codegen=skip sdk=download verify=yes clean=yes
 
@@ -72,45 +116,41 @@ jobs:
           path: release-dist
           if-no-files-found: warn
 
-  version:
-    needs: preflight
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          # Full history + tags so Melos can diff each package since its last tag.
-          fetch-depth: 0
-          # IMPORTANT: a PAT (or GitHub App token), NOT the default GITHUB_TOKEN.
-          # Tags pushed with GITHUB_TOKEN do NOT trigger other workflows, so
-          # publish.yml would silently never run.
-          token: ${{ secrets.RELEASE_PAT }}
-
-      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
-        with:
-          flutter-version: 3.47.1
-          channel: stable
-
-      # Resolves the workspace AND the pinned Melos dev-dependency, so the next
-      # step can invoke the exact Melos version from pubspec.lock via `dart run`.
-      - name: Resolve workspace
-        run: flutter pub get
-
-      - name: Configure git identity
+      # A main that moved during the run rejects this push, and nothing is tagged.
+      - name: Commit the versions
+        if: inputs.versions != '' && !inputs.dry_run
+        env:
+          VERSIONS: ${{ inputs.versions }}
         run: |
-          git config user.name  "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-      # Independent versioning is the Melos default. --no-private skips packages
-      # still carrying `publish_to: none`, so removing that one line is what opts
-      # a package into automated releases. Dependent packages are bumped
-      # automatically (--dependent-constraints / --dependent-versions, on by default).
-      - name: Version packages (independent, Conventional Commits)
-        run: dart run melos version --yes --no-private
-
-      - name: Push version commit & tags
-        if: ${{ !inputs.dry-run }}
-        run: |
+          git add -u -- packages
+          git commit -m "chore(release): $VERSIONS"
           git push origin HEAD:main
-          git push origin --tags
+
+      - name: Tag and draft the Releases
+        if: ${{ !inputs.dry_run }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          sha="$(git rev-parse HEAD)"
+          for pubspec in packages/*/pubspec.yaml; do
+            dir="$(basename "$(dirname "$pubspec")")"
+            version="$(sed -n 's/^version:[[:space:]]*//p' "$pubspec" | head -n 1)"
+            tag="${dir}-v${version}"
+            if gh release view "$tag" > /dev/null 2>&1; then
+              continue
+            fi
+            # The notes start at this package's previous tag. A prerelease sorts
+            # below its full release, so 7.0.1 starts at 7.0.0, not at 7.0.0-beta.N.
+            previous="$(git -c versionsort.suffix=- tag --list "${dir}-v*" --sort=-v:refname | grep -vx "$tag" | head -n 1 || true)"
+            # A run that tagged and then died left the tag behind; it is reused.
+            if ! git rev-parse -q --verify "refs/tags/${tag}" > /dev/null; then
+              git tag -a "$tag" -m "$tag" "$sha"
+              git push origin "refs/tags/${tag}"
+            fi
+            args=(--verify-tag --title "${dir} ${version}" --generate-notes --draft)
+            if [ -n "$previous" ]; then args+=(--notes-start-tag "$previous"); fi
+            case "$version" in *-*) args+=(--prerelease) ;; esac
+            gh release create "$tag" "${args[@]}"
+            echo "::notice::Drafted ${tag} — edit its notes and publish it from the Releases page."
+          done
