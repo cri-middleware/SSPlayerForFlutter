@@ -26,7 +26,7 @@ class InstancePackLoadResult {
 /// child's Context must exist before the first `ss_instance_slot_step`), so the
 /// bytes have to be in hand first. This is the [SsTextureLoader] of the instance
 /// world, and resolves the same way: `<baseAssetDir>/<packName>.ssab`, which is
-/// the asset-bundle analogue of the flagship's `<parent_dir>/<pack>.ssab`
+/// the asset-bundle analogue of ForGodot's `<parent_dir>/<pack>.ssab`
 /// filesystem convention and of what `ssconvert` emits (one `.ssab` per
 /// `.ssae`, side by side).
 ///

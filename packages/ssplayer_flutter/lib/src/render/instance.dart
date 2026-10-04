@@ -23,7 +23,7 @@ class InstancePart {
 
   /// The instance part's index. It doubles as the **slot index** for
   /// `ss_runtime_get_active_event_instance`, because the ssab keys
-  /// `EventInstance` by `part_index` (the flagship passes `p_idx` straight in).
+  /// `EventInstance` by `part_index` (ForGodot passes `p_idx` straight in).
   final int partIndex;
 
   /// `PartTypeInstance.ref_anime_pack` — the pack holding the child animation.
@@ -86,11 +86,11 @@ class InstancePart {
     return List<String>.unmodifiable(seen);
   }
 
-  /// Resolves the `.ssab` bytes holding this part's child animation (ports the
-  /// flagship `_resolve_ssab_by_hash`).
+  /// Resolves the `.ssab` bytes holding this part's child animation (ports
+  /// ForGodot's `_resolve_ssab_by_hash`).
   ///
   /// External packs win over the own pack, then the own binary is the fallback
-  /// — matching the flagship's order. [ownPackHash] is the parent's
+  /// — matching ForGodot's order. [ownPackHash] is the parent's
   /// `SsAnimeBinary.name_hash`; a `packNameHash` of 0 means the author left the
   /// reference pack-less, which also resolves to the own binary.
   static Uint8List? resolvePack(
@@ -170,7 +170,7 @@ class InstanceSlot<T extends InstanceChild> {
   /// Only meaningful once the slot has seen its `EventInstance` (i.e. after the
   /// first [InstanceSlots.step] that reaches the key). The Body does not need
   /// this to *drive* the slot — we hand every slot a delta every tick regardless
-  /// — it is a query, and it is how the flagship decides whether it may skip
+  /// — it is a query, and it is how ForGodot decides whether it may skip
   /// ticks at all.
   ///
   /// Known SDK limitation: independent playback is undefined under reverse
@@ -289,7 +289,7 @@ class InstanceSlots<T extends InstanceChild> {
   ///
   /// Must run on an explicit head-out — `play()` or a new `setAnimation` — or
   /// the debounce swallows the first key and a replayed animation never
-  /// re-fires its instance. Recurses into children, like the flagship's
+  /// re-fires its instance. Recurses into children, like ForGodot's
   /// `_reset_slots_playback_state`.
   ///
   /// This re-arms *memory* only. The child is stopped rather than replayed: the
@@ -307,7 +307,7 @@ class InstanceSlots<T extends InstanceChild> {
 
   void dispose() {
     for (final state in _slots.values) {
-      // The child borrows nothing from the slot, but mirror the flagship's
+      // The child borrows nothing from the slot, but mirror ForGodot's
       // order anyway: player first, then the slot that drove it.
       state.child.instanceDispose();
       ssRuntime.destroyInstanceSlot(state.slot);

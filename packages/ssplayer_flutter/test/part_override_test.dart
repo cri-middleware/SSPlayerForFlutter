@@ -369,7 +369,7 @@ void main() {
 
     test('a permanent COLOUR override survives setupAnimation, a '
         'hold-until-next one does not', () {
-      // The Godot flagship lost exactly this: its `setAnimation` re-created and
+      // ForGodot lost exactly this: its `setAnimation` re-created and
       // re-BOUND the resource handle, and `bind_resource` clears the Brain's
       // whole override table (new pack == new part identities), so a Permanent
       // colour went with it. This Body binds once, at load

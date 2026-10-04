@@ -2,7 +2,7 @@
 
 // The 13 built-in SpriteStudio integration shaders (`ss-*`) for the flutter_gpu
 // backend — the GPU twin of `shaders/ss_*.frag` (Canvas) and a near-verbatim
-// port of the Godot flagship's `ss_*.fs` / the Web renderer's `SSShaderLib.ts`.
+// port of ForGodot's `ss_*.fs` / the Web renderer's `SSShaderLib.ts`.
 //
 // Real GLSL here, so the effects read the way the siblings wrote them: `discard`
 // works, varyings carry the PartColor corner, and the parameters arrive in a

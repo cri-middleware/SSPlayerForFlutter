@@ -157,8 +157,8 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
       _instances.slotFor(part.partIndex)?.child.subFrameEnabled = value;
     }
     // Effects sample `subFrameEnabled ? frame : floor(frame)`, so on a frozen frame the
-    // toggle would otherwise not show until something advances the clock. The
-    // flagship's `setSubFrameEnabled` re-resolves for the same reason.
+    // toggle would otherwise not show until something advances the clock.
+    // ForGodot's `setSubFrameEnabled` re-resolves for the same reason.
     _stepSlots(frameNo, 0.0, false);
   }
 
@@ -245,11 +245,11 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
       }
       // Direct render mode (the default): the Brain fills the SoA buffers this
       // Body reads and skips redundant FrameData vertices/cells/deforms.
-      // The Godot flagship relies on the same default.
+      // ForGodot relies on the same default.
       ssRuntime.setRenderMode(context, 0);
-      // Coordinate system = 1 (Y-Down) like the flagship: the Brain applies the
+      // Coordinate system = 1 (Y-Down) like ForGodot: the Brain applies the
       // flip once, so the Body must NOT flip again. Origin/unit are left at the
-      // runtime defaults (Center / Pixel) — the flagship sets neither.
+      // runtime defaults (Center / Pixel) — ForGodot sets neither.
       ssRuntime.setCoordinateSystem(context, 1); // 1 = Y-Down
 
       // Resolve the requested backend through the capability probe: gpu only when
@@ -327,7 +327,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
         // the other setting stutters at integer frames while its parent is
         // smooth.
         child.subFrameEnabled = player.subFrameEnabled;
-        // Stopped until an EventInstance starts it (the flagship does the same
+        // Stopped until an EventInstance starts it (ForGodot does the same
         // at setup). A child left playing would advance its own clock from frame
         // 0 and be out of position the moment its key finally fires.
         child.stop();
@@ -362,7 +362,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
       // Then resolve them *at* the frame we just rewound to. `setupAnimation`
       // poses the first frame without playing,
       // and without this the instance children are
-      // missing from that pose until something advances the clock. The flagship
+      // missing from that pose until something advances the clock. ForGodot
       // ends its `_fetchAnimation` with the same re-resolve.
       _stepSlots(frameNo, 0.0, false);
     }
@@ -385,7 +385,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   }
 
   /// Re-arms every slot-based kind on an explicit head-out (`play` / a new
-  /// `setupAnimation`), recursing into instance children — the flagship's
+  /// `setupAnimation`), recursing into instance children — ForGodot's
   /// `_reset_slots_playback_state`.
   void _resetSlots() {
     _effects.reset();
@@ -499,12 +499,12 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
       // Effects simulate themselves rather than riding the SoA, so they are
       // stepped here, where the delta is known; `paint` then draws the plans.
       //
-      // Note this diverges from the flagship, which steps effects inside its
+      // Note this diverges from ForGodot, which steps effects inside its
       // draw pass and therefore needs an `is_independent` probe to stop its
       // redraw dedup from also skipping simulation ticks. Flutter's Ticker
       // drives update→paint 1:1, so stepping here keeps the clock honest with
       // no such workaround. The visible difference is a *hidden* independent
-      // effect: the flagship freezes its clock (no batch → no step), we keep it
+      // effect: ForGodot freezes its clock (no batch → no step), we keep it
       // running. Synced effects are unaffected — their frame is a pure function
       // of the parent's.
       _effects.step(
@@ -898,8 +898,8 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   /// Whether [partIndex] is hidden on the current frame — the keyframe `hide`
   /// composed with any visibility override, read from the same FrameData
   /// the draw path consumes. A part absent from this frame's `parts` reads as not
-  /// hidden (its world matrix is still valid), matching the flagship followers.
-  /// Out-of-range → false.
+  /// hidden (its world matrix is still valid), matching ForGodot's and
+  /// ForUnity's followers. Out-of-range → false.
   bool partHidden(int partIndex) {
     _ensureAlive();
     if (partIndex < 0) return false;
@@ -978,7 +978,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
 
   // --- Rendering -----------------------------------------------------------
 
-  /// Draws the current frame into [canvas] (ports the Godot flagship
+  /// Draws the current frame into [canvas] (ports ForGodot's
   /// `_drawAnimation`). Gathers the FlatBuffers `FrameData` + SoA views into one
   /// [DrawFrame], hands frame placement to the [RenderBackend] (which centers the
   /// animation's world origin in [dst]), then dispatches each `DrawBatch` on its
@@ -1066,7 +1066,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
       }
     }
 
-    // One zero-copy SoA gather per frame (mirrors the flagship's single-block
+    // One zero-copy SoA gather per frame (mirrors ForGodot's single-block
     // fetch); the views are valid only until the next update.
     final frame = _geometry.buildFrame(
       frameData: frameData,
@@ -1136,7 +1136,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   /// The child is a whole nested player whose clock the Brain advanced during
   /// [updateMs]; all that is left here is placement. Its parts are in *child*
   /// space, so the instance part's world matrix goes on the canvas and the child
-  /// paints beneath it — where the flagship instead re-parents a retained
+  /// paints beneath it — where ForGodot instead re-parents a retained
   /// CanvasItem and lets Godot's scene graph do the multiply.
   ///
   /// The whole child occupies exactly the instance part's z-slot: it can never
@@ -1220,7 +1220,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   /// [PlayerMask.none] when nothing in the tree writes a mask (the
   /// overwhelmingly common case, decided from the static flags alone).
   ///
-  /// Three steps, after the ForGodot flagship: number every part of the tree
+  /// Three steps, after ForGodot: number every part of the tree
   /// on one sequence ([_numberMaskTree]), collect every writer of every
   /// visible player into one plan, each on its interval of that sequence
   /// ([MaskPlan.collect]), then bake them all into one bitmap in this player's

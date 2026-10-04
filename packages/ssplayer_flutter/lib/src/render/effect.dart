@@ -122,7 +122,7 @@ class EffectSlots {
 
   SsEffectSlot? _slotFor(EffectPart part) =>
       _slots.putIfAbsent(part.partIndex, () {
-        // Seed = part_index ^ effect_name_hash, the flagship's exact formula:
+        // Seed = part_index ^ effect_name_hash, ForGodot's exact formula:
         // deterministic (no clock, no RNG) yet different per part, so two parts
         // playing the SAME effect don't emit in visual lockstep. The runtime
         // overrides it entirely for effects authored with `is_lock_rand_seed`.

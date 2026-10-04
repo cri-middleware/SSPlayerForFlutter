@@ -83,10 +83,10 @@ enum SpriteStudioAnchorMirror {
 /// ])
 /// ```
 ///
-/// **Ownership** is the caller's (constraint-style, like both flagships): the
-/// anchor never creates or disposes [child] or [player] — it only reads a pose
-/// and applies it. It rebuilds on the player's notifications, so it lands on the
-/// same frame the view paints.
+/// **Ownership** is the caller's (constraint-style, like ForUnity and
+/// ForGodot): the anchor never creates or disposes [child] or [player] — it
+/// only reads a pose and applies it. It rebuilds on the player's
+/// notifications, so it lands on the same frame the view paints.
 ///
 /// **Anchor point.** The child's own top-left origin is pinned to the part's
 /// origin; wrap [child] (e.g. in a `Transform.translate` or `Align`) to attach a

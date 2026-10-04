@@ -18,7 +18,7 @@
 // PartColor passes white corners with rate 0, which the formula below collapses
 // to a plain texel passthrough (default white, rate 0 = passthrough). Masking
 // a part therefore costs it the batched drawVertices fast path — the same per-part
-// cliff the flagship has.
+// cliff ForGodot has.
 //
 // Uniform float indices (samplers are NOT counted) are written by
 // canvas_backend.dart (_setPartColorUniforms) in this exact declaration order —
@@ -86,7 +86,7 @@ vec2 replayTile(float bits, float inc, float inv) {
 // Mask replay: rebuild the SS stencil for this fragment from the
 // coverage bitmap and decide whether the fragment survives.
 //
-// Unlike the flagship we do NOT carry a `mask_meta[]` array: scope is
+// Unlike ForGodot we do NOT carry a `mask_meta[]` array: scope is
 // resolved on the CPU into two 24-bit sets per tile — one per OP, which is
 // exactly the plane split, handed to us for free.
 bool maskPasses(vec2 local) {

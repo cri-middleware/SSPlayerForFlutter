@@ -81,7 +81,7 @@ class PartColor {
   /// The one legitimate reason to touch a Brain-supplied corner alpha: an
   /// instance child is modulated by its instance part's alpha, which the
   /// Brain cannot know about because it lives in the *parent's* FrameData. RGB
-  /// and `rate` are untouched, matching the flagship's alpha-only
+  /// and `rate` are untouched, matching ForGodot's alpha-only
   /// `Color(1, 1, 1, part_alpha)` modulate.
   PartColor scaleAlpha(double scale) => scale == 1.0
       ? this

@@ -5,11 +5,11 @@ Flutter widget to a SpriteStudio part so it tracks that part's **position,
 rotation and scale** every frame. It runs the **Ringo** character and pins a
 marker to a part with `SpriteStudioPartAnchor`.
 
-This is the Flutter take on the same feature in the flagship players —
+This is the Flutter take on the same feature as
 [SSPlayerForUnity](https://github.com/cri-middleware/SSPlayerForUnity)'s part
 tracker (`SpriteStudioPartTracker`) and
 [SSPlayerForGodot](https://github.com/cri-middleware/SSPlayerForGodot)'s part
-attachment (`SpriteStudioPartAttachment2D`) — and a direct port of
+attachment (`SpriteStudioPartAttachment2D`), and a direct port of
 [SSPlayerForWeb](https://github.com/cri-middleware/SSPlayerForWeb)'s
 `examples/part-follow`. Each engine delivers the same capability its own
 idiomatic way; Flutter's is a Widget you drop into the tree.

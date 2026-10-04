@@ -1059,7 +1059,7 @@ class SpriteStudioPlayer extends ChangeNotifier {
   // Thin transport over Layer 2, plus the one thing this layer owes the caller:
   // a repaint. An override changes the pose WITHOUT changing the frame number,
   // so on a paused (or externally clocked, or simply idle) player nothing would
-  // redraw and the API would look broken — the flagship players hit the same
+  // redraw and the API would look broken — ForGodot and ForUnity hit the same
   // trap through their frame caches. Every successful set/clear here
   // therefore notifies listeners; a rejected call does not (nothing changed).
   //
