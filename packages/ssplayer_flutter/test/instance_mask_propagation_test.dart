@@ -13,10 +13,9 @@
 // through the real CanvasBackend to exercise the descendant bake without
 // throwing.
 //
-// The fixtures in test/fixtures/instprop are the SDK's "overall"
-// InstancePropagation animation and its Source01 sub-animation, committed here
-// and re-converted whenever the .ssab layout changes; the test skips when they
-// are absent, and the runtime rejects them when they are stale.
+// The packs are the SDK's "overall" InstancePropagation animation and its
+// Source01 sub-animation, as scripts/deploy-examples.sh converts them; the test
+// skips when they are absent.
 import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
@@ -41,12 +40,12 @@ const _target = MaskPartFlags(
 
 void main() {
   final parentPath = _firstExisting([
-    'test/fixtures/instprop/InstancePropagation.ssab',
-    'packages/ssplayer_flutter/test/fixtures/instprop/InstancePropagation.ssab',
+    'examples/overall/assets/spritestudio/overall/InstancePropagation.ssab',
+    '../../examples/overall/assets/spritestudio/overall/InstancePropagation.ssab',
   ]);
   final childPath = _firstExisting([
-    'test/fixtures/instprop/InstancePropagation_Source01.ssab',
-    'packages/ssplayer_flutter/test/fixtures/instprop/InstancePropagation_Source01.ssab',
+    'examples/overall/assets/spritestudio/overall/InstancePropagation_Source01.ssab',
+    '../../examples/overall/assets/spritestudio/overall/InstancePropagation_Source01.ssab',
   ]);
 
   ({Uint8List parent, Uint8List child})? assets;
@@ -64,8 +63,8 @@ void main() {
       'parts', () {
     final a = assets;
     if (a == null) {
-      markTestSkipped('InstancePropagation fixtures missing — convert '
-          'overall.sspj into test/fixtures/instprop first');
+      markTestSkipped(
+          'InstancePropagation.ssab missing — run deploy-examples.sh');
       return;
     }
     // Guard the guard: the fixture must actually mount its instance child, or
@@ -132,7 +131,7 @@ void main() {
       () {
     final a = assets;
     if (a == null) {
-      markTestSkipped('InstancePropagation fixtures missing');
+      markTestSkipped('InstancePropagation.ssab missing');
       return;
     }
     // No renderBackendOverride → the default CanvasBackend, whose coverage pass
