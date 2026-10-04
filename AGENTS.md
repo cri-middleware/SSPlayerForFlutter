@@ -28,7 +28,7 @@
 
 ## What this repo is
 
-The Flutter **Body** for the SpriteStudio-SDK **Brain**: a pub workspace, released with Melos, that
+The Flutter **Body** for the SpriteStudio-SDK **Brain**: a pub workspace that
 renders `.ssab` animations by driving the Rust `libssruntime` over `dart:ffi`. The Brain is the
 `SpriteStudio-SDK/` submodule.
 

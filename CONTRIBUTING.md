@@ -36,8 +36,7 @@ If you find a bug, please open a GitHub Issue and include:
 2. Ensure your code follows the existing Dart style and the layer boundaries above.
 3. Run `flutter analyze` and the tests locally (see below).
 4. Submit a Pull Request targeting `main` with a clear description of the changes. Use
-   [Conventional Commits](https://www.conventionalcommits.org/) (e.g. `feat(ssruntime_dart): …`) — the
-   release tooling derives version bumps from them.
+   [Conventional Commits](https://www.conventionalcommits.org/) (e.g. `feat(ssruntime_dart): …`).
 
 ## Development Environment
 
@@ -125,7 +124,7 @@ SSPlayerForFlutter にご関心をお寄せいただき、ありがとうござ�
 2. 既存の Dart スタイルと上記のレイヤー境界に従ってコードを記述してください。
 3. ローカルで `flutter analyze` とテストを実行してください（下記参照）。
 4. `main` ブランチに向けて、変更内容を明確に記載したプルリクエストを送信してください。コミットは
-   [Conventional Commits](https://www.conventionalcommits.org/)（例: `feat(ssruntime_dart): …`）を使用してください —— リリースツールがこれをもとにバージョンを決定します。
+   [Conventional Commits](https://www.conventionalcommits.org/)（例: `feat(ssruntime_dart): …`）を使用してください。
 
 ## 開発環境のセットアップ
 
