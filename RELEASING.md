@@ -10,7 +10,7 @@ scripts/build-docs.sh      # English then Japanese, both --strict
 ```
 
 Both locales, English first: it clears `site/`, which contains `site/ja`, so an English-only build
-leaves a stale Japanese site behind and a page you just broke still looks fine. `mkdocs.base.yml`
+leaves no Japanese site at all. `mkdocs.base.yml`
 sets `strict: true`; `zensical serve` validates nothing, `--strict` or not. `.ps1` twins on Windows,
 `key=value` options and `--help` on both.
 
@@ -95,7 +95,7 @@ scripts/prepare-docs.sh    # 一度だけ: .venv と docs/requirements.txt の�
 scripts/build-docs.sh      # 英語 → 日本語の順に、どちらも --strict
 ```
 
-必ず両ロケールを、英語を先に。英語ビルドは `site/`（その中に `site/ja` がある）を消すため、英語だけ建てると古い日本語サイトが残り、壊したページが無傷に見えます。`mkdocs.base.yml` が `strict: true` を設定します。`zensical serve` は `--strict` を付けても何も検証しません。Windows は `.ps1` 双子、どちらも
+必ず両ロケールを、英語を先に。英語ビルドは `site/`（その中に `site/ja` がある）を消すため、英語だけ建てると日本語サイトは残らず消えます。`mkdocs.base.yml` が `strict: true` を設定します。`zensical serve` は `--strict` を付けても何も検証しません。Windows は `.ps1` 双子、どちらも
 `key=value` オプションと `--help` を取ります。
 
 `scripts/build-pages.sh` が公開ツリーです。上記 2 ロケールに続けて Web デモ 2 本 — `examples/overall`
