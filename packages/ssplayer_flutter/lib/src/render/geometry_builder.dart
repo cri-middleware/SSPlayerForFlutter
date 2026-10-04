@@ -107,7 +107,7 @@ class MeshBuffers {
   ///
   /// A range whose length is not a multiple of 3 is rejected: the indices are
   /// triangles, so a partial one means the buffer is not what we think it is
-  /// (the flagship makes the same defensive check).
+  /// (ForGodot makes the same defensive check).
   (int, int)? indexRange(int p) {
     if (p < 0 || p + 1 >= indexOffsets.length) return null;
     final start = indexOffsets[p];
@@ -120,7 +120,7 @@ class MeshBuffers {
 
 /// Per-frame draw inputs bundled for the geometry builders.
 ///
-/// Mirrors the Godot flagship `DrawFrame` struct and the Web port's raw frame
+/// Mirrors ForGodot's `DrawFrame` struct and the Web port's raw frame
 /// views: it gathers the FlatBuffers `FrameData` root together with the Brain's
 /// SoA buffers (all zero-copy typed views, valid only until the next `update` —
 /// consume within the frame) so the per-kind builders take one argument instead

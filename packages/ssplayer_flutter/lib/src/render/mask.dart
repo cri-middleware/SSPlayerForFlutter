@@ -9,7 +9,7 @@ import 'geometry_builder.dart';
 ///
 /// Each writer owns one bit of the coverage bitmap, and the bits live in the
 /// RGB channels only (8 × 3 = 24) — alpha is reserved as the premultiplied-blend
-/// accumulator, exactly as in the Godot flagship.
+/// accumulator, exactly as in ForGodot.
 const int kMaskTileBits = 24;
 
 /// Tiles the coverage bitmap splits into at most (a 2×2 grid).
@@ -40,7 +40,7 @@ const int kMaskSeqEnd = 1 << 30;
 
 /// [MaskWriter.threshold] for a writer that has no texel to cut out — a Shape
 /// (the shape special case), whose whole polygon is the mask. Below every
-/// possible alpha, so nothing is ever thresholded away (the flagship's sentinel
+/// possible alpha, so nothing is ever thresholded away (ForGodot's sentinel
 /// too).
 const double noCutoutThreshold = -1.0;
 
@@ -313,7 +313,7 @@ class MaskWriter {
 /// [increment] / [invert] hold one 24-bit set per coverage tile, bit `b` of
 /// tile `t` standing for [MaskWriter.bit] `t * kMaskTileBits + b`, already
 /// filtered to the writers whose scope reaches this target. Resolving
-/// scope on the CPU is why the flagship's `mask_meta[]` array (4 floats per
+/// scope on the CPU is why ForGodot's `mask_meta[]` array (4 floats per
 /// writer) is not needed here — only these sets reach the shader. 24-bit
 /// integers are exactly representable in a float32 uniform.
 ///
@@ -574,8 +574,8 @@ class MaskPlan {
           // A shape has no texel to threshold, so its whole polygon is the mask
           // (the shape special case); a mesh could threshold in principle but
           // our coverage pass can't sample its per-vertex UV (no shader
-          // varyings), so it too falls back to geometry-as-mask. -1 is the
-          // flagship's "never cut out" sentinel.
+          // varyings), so it too falls back to geometry-as-mask. -1 is
+          // ForGodot's "never cut out" sentinel.
           threshold: f.shapeGeometry || f.meshGeometry
               ? noCutoutThreshold
               : ((255.0 - mask) / 255.0).clamp(0.0, 1.0),
@@ -622,7 +622,7 @@ class MaskPlan {
   }
 
   /// Whether any writer reaches a target at tree sequence [seq] — the cheap
-  /// early-out the flagship calls `_part_in_mask_scope`.
+  /// early-out.
   bool inScope(int seq) {
     for (final w in writers) {
       if (w.reaches(seq)) return true;

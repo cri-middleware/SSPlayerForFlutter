@@ -374,7 +374,7 @@ class FlutterGpuBackend implements RenderBackend {
   }
 
   /// Longest edge, in pixels, of the mask coverage texture — a quality
-  /// knob; the Canvas backend and the flagship cap at the same 1024.
+  /// knob; the Canvas backend and ForGodot cap at the same 1024.
   static const double _kMaxCoverageDim = 1024.0;
 
   /// This frame's mask coverage textures, rendered by [renderCoverage] — one

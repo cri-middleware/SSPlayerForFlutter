@@ -18,7 +18,7 @@ import 'render_host.dart';
 
 /// Longest edge, in pixels, of the mask coverage bitmap. The bitmap is
 /// stretched over the writers' bounding box, so this is purely a quality knob;
-/// the flagship caps at the same 1024 (≤ 4 MiB RGBA8).
+/// ForGodot caps at the same 1024 (≤ 4 MiB RGBA8).
 const double _maxCoverageDim = 1024.0;
 
 /// The dart:ui `Canvas.drawVertices` render backend — the default path, the only
@@ -309,7 +309,7 @@ class CanvasBackend implements RenderBackend {
   /// The bitmap is stretched over exactly [MaskPlan.bounds], so the local→UV map
   /// is resolution-independent and the pixel size is purely a quality knob: the
   /// frame's enlargement ([_coverageScale]), capped at [_maxCoverageDim] on the
-  /// long edge — the flagship's cap too.
+  /// long edge — ForGodot's cap too.
   /// The canvas transform keeps the canvas-local space *player-local*, so the
   /// writer quads and their shader affines are the same values the colour pass
   /// uses.

@@ -208,7 +208,7 @@ List<BlendPass> _planFor(fbs.BlendType type) {
 ///
 /// **Not** the [fbs.BlendType] enum — an emitter's blend is the SS6-style raw
 /// byte `0 = Mix`, `1 = Add`, and anything else falls back to Mix (the runtime
-/// says so, and the flagship agrees). Passing it through [blendModeFor] would
+/// says so, and ForGodot agrees). Passing it through [blendModeFor] would
 /// read 1 as `BlendType.Mul` and silently turn every additive particle into a
 /// multiply, so the two mappings stay separate on purpose.
 ///

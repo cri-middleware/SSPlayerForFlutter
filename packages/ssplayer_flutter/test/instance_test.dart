@@ -170,7 +170,7 @@ void main() {
       expect(half.rt.a, closeTo(0.2, 1e-9));
       expect(half.lb.a, 0.5);
       expect(half.rb.a, 0.0);
-      // RGB and rate must survive untouched — the flagship modulates alpha only.
+      // RGB and rate must survive untouched — ForGodot modulates alpha only.
       expect(half.lt.r, 0.1);
       expect(half.lt.g, 0.2);
       expect(half.lt.b, 0.3);

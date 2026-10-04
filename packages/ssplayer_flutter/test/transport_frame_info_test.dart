@@ -58,7 +58,7 @@ void main() {
 
     expect(player.frameRate, greaterThan(0), reason: 'fps comes from the pack');
     expect(player.endFrame, greaterThanOrEqualTo(player.startFrame));
-    // The length is inclusive of both ends, matching the flagship's
+    // The length is inclusive of both ends, matching ForGodot's
     // getTotalFrames(); an off-by-one here would shorten every scrubber.
     expect(player.totalFrames, player.endFrame - player.startFrame + 1);
     expect(player.totalFrames, greaterThan(1));

@@ -75,11 +75,11 @@ int packRgba(ui.Color color) {
 ///
 /// Part indices are positional over the pack's parts and stable within one
 /// `.ssab`, so a name is resolved once here and the index reused. This
-/// mirrors the flagship players, which keep the same map (Godot's
+/// mirrors ForGodot and ForUnity, which keep the same map (Godot's
 /// `_part_name_to_index`, Unity's `_partNameToIndex`); the Brain's own
 /// `find_part_index` covers the same space but only after `setAnimation`.
 ///
-/// Duplicate names keep the FIRST index, matching the flagships' insert-if-absent
+/// Duplicate names keep the FIRST index, matching their insert-if-absent
 /// map build — SpriteStudio does not guarantee unique part names.
 ///
 /// The skinned-mesh flag ([isSkinnedMeshAt]) rides along because it is the same
