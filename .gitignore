@@ -9,8 +9,9 @@ packages/ssplayer_flutter/native
 packages/ssruntime_dart/native
 packages/ssconverter_dart/native
 
-# Example assets are derived from the SDK test projects (scripts/deploy-examples.sh)
-examples/overall/assets/overall/
+# .ssab is converter output and never committed: the examples and the tests read
+# what scripts/deploy-examples.sh converts from the SDK's test projects.
+*.ssab
 
 # Example platform runners are generated per-clone: `cd example && flutter create --platforms=<p> .`
 examples/*/android/

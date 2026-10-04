@@ -66,7 +66,7 @@ Windows uses the `.ps1` variant of each script. After a C-API change, regenerate
 flutter analyze lib test
 flutter test          # native assets bundles the Brain via hook/build.dart — no env vars
 ```
-Every other package and example has a suite of its own, run in its directory: `dart test` in `ssruntime_dart`, `ssconverter_dart` and `ssgen_dart`; `flutter test` in `ssplayer_flame`, `ssgen_flutter`, `examples/overall`, `examples/flame` and `examples/part_following`. Run the ones for what you touched. The tests that play Ringo read the packs `scripts/deploy-examples.sh` writes, and report skipped without them.
+Every other package and example has a suite of its own, run in its directory: `dart test` in `ssruntime_dart`, `ssconverter_dart` and `ssgen_dart`; `flutter test` in `ssplayer_flame`, `ssgen_flutter`, `examples/overall`, `examples/flame` and `examples/part_following`. Run the ones for what you touched. The tests that play an animation — most of `ssplayer_flutter`'s, and those in `ssplayer_flame`, `examples/flame` and `examples/part_following` — read the packs `scripts/deploy-examples.sh` writes, and report skipped without them.
 
 ### Documentation
 Pages live as both `docs/en/<path>` and `docs/ja/<path>`; there is no fallback locale, so a page missing from one side is a nav entry pointing at nothing. If you edit one, build both locales before you finish — see [RELEASING.md](./RELEASING.md). Nothing builds the docs on a pull request, so that local build is the only gate.
@@ -154,7 +154,7 @@ Windows は各スクリプトの `.ps1` を使います。C-API を変えたら 
 flutter analyze lib test
 flutter test          # Native Assets が hook/build.dart 経由で Brain を同梱。env 変数は不要
 ```
-ほかのパッケージと example もそれぞれ自分のテストを持っており、各ディレクトリで実行します。`ssruntime_dart`・`ssconverter_dart`・`ssgen_dart` は `dart test`、`ssplayer_flame`・`ssgen_flutter`・`examples/overall`・`examples/flame`・`examples/part_following` は `flutter test` です。触ったものに対応するテストを実行してください。Ringo を再生するテストは `scripts/deploy-examples.sh` が書き出すパックを読むため、パックが無いと skipped として報告します。
+ほかのパッケージと example もそれぞれ自分のテストを持っており、各ディレクトリで実行します。`ssruntime_dart`・`ssconverter_dart`・`ssgen_dart` は `dart test`、`ssplayer_flame`・`ssgen_flutter`・`examples/overall`・`examples/flame`・`examples/part_following` は `flutter test` です。触ったものに対応するテストを実行してください。アニメーションを再生するテスト（`ssplayer_flutter` の大半と、`ssplayer_flame`・`examples/flame`・`examples/part_following` のもの）は `scripts/deploy-examples.sh` が書き出すパックを読むため、パックが無いと skipped として報告します。
 
 ### ドキュメント
 ページは `docs/en/<path>` と `docs/ja/<path>` の両方に存在します。フォールバックロケールは無いため、片方に欠けたページは行き先の無い nav エントリになります。編集したら、仕上げる前に両ロケールをビルドしてください（手順は [RELEASING.md](./RELEASING.md)）。プルリクエストでは docs はビルドされないため、手元のビルドが唯一のゲートです。
