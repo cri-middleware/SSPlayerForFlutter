@@ -68,7 +68,45 @@ flutter test          # native assets bundles the Brain via hook/build.dart — 
 Every other package and example has a suite of its own, run in its directory: `dart test` in `ssruntime_dart`, `ssconverter_dart` and `ssgen_dart`; `flutter test` in `ssplayer_flame`, `ssgen_flutter`, `examples/overall`, `examples/flame` and `examples/part_following`. Run the ones for what you touched. The tests that play an animation — most of `ssplayer_flutter`'s, and those in `ssplayer_flame`, `examples/flame` and `examples/part_following` — read the packs `scripts/deploy-examples.sh` writes, and report skipped without them.
 
 ### Documentation
-Pages live as both `docs/en/<path>` and `docs/ja/<path>`; there is no fallback locale, so a page missing from one side is a nav entry pointing at nothing. If you edit one, build both locales before you finish — see [RELEASING.md](./RELEASING.md). Nothing builds the docs on a pull request, so that local build is the only gate.
+Pages live as both `docs/en/<path>` and `docs/ja/<path>`; there is no fallback locale, so a page missing from one side is a nav entry pointing at nothing. If you edit one, build both locales before you finish: nothing builds the docs on a pull request, so that local build is the only gate.
+
+```bash
+scripts/prepare-docs.sh    # once: .venv + the pins in docs/requirements.txt
+scripts/build-docs.sh      # English then Japanese, both --strict
+```
+
+Both locales, English first: it clears `site/`, which contains `site/ja`, so an English-only build
+leaves no Japanese site at all. `mkdocs.base.yml`
+sets `strict: true`; `zensical serve` validates nothing, `--strict` or not. `.ps1` twins on Windows,
+`key=value` options and `--help` on both.
+
+`scripts/build-pages.sh` builds the published tree: those two locales, then both web demos —
+`examples/overall` at `site/demo/flutter/`, `examples/flame` at `site/demo/flame/`, with a chooser
+at `site/demo/`. `pages.yml`'s build job **is** this script, so CI builds exactly
+what a local run with the same options builds.
+
+```bash
+scripts/build-pages.sh serve=yes          # -> http://localhost:8000/SSPlayerForFlutter/
+scripts/build-pages.sh sdk=build          # ... with the Brain compiled from the submodule
+scripts/build-pages.sh demo=skip          # documentation only
+scripts/build-pages.sh base=/ zip=yes     # the Cloudflare Pages upload: SSPlayerForFlutter-site.zip
+```
+
+*   **The demos are built here, never downloaded** — a Release carries no asset, so there is nothing
+    to fetch. `sdk=` is the separate question of where the
+    Brain comes from: `download`, the default and what CI uses, needs no Rust toolchain anywhere.
+*   **`base=` is baked in** by `flutter build web --base-href`, so a demo built for one path 404s on
+    another. `serve=yes` hangs `site/` off `.pages-preview/<repo>` and serves that, which is the
+    only way to open the demo at the address it was built for.
+*   **The examples' `web/` runners are git-ignored**, so the script runs `flutter create
+    --platforms=web .` when one is missing — and puts `.metadata` back, because `flutter create`
+    replaces its platform list rather than appending to it.
+*   **`deploy-examples.sh` runs every time**: the `.ssab` both demos play are generated and
+    git-ignored, and a stale pack is what nobody notices in a published demo.
+*   **A second copy goes up by hand to Cloudflare Pages**, which serves a project at its own root —
+    hence `base=/`. `zip=yes` packs `site/` with its contents at the archive root and refuses a tree
+    built for a subpath. GitHub Pages stays canonical: the absolute URLs in the READMEs point there,
+    and every demo link inside `docs/` is relative, which is what lets one build serve both hosts.
 
 ## Coding Standards
 
@@ -156,7 +194,34 @@ flutter test          # Native Assets が hook/build.dart 経由で Brain を同
 ほかのパッケージと example もそれぞれ自分のテストを持っており、各ディレクトリで実行します。`ssruntime_dart`・`ssconverter_dart`・`ssgen_dart` は `dart test`、`ssplayer_flame`・`ssgen_flutter`・`examples/overall`・`examples/flame`・`examples/part_following` は `flutter test` です。触ったものに対応するテストを実行してください。アニメーションを再生するテスト（`ssplayer_flutter` の大半と、`ssplayer_flame`・`examples/flame`・`examples/part_following` のもの）は `scripts/deploy-examples.sh` が書き出すパックを読むため、パックが無いと skipped として報告します。
 
 ### ドキュメント
-ページは `docs/en/<path>` と `docs/ja/<path>` の両方に存在します。フォールバックロケールは無いため、片方に欠けたページは行き先の無い nav エントリになります。編集したら、仕上げる前に両ロケールをビルドしてください（手順は [RELEASING.md](./RELEASING.md)）。プルリクエストでは docs はビルドされないため、手元のビルドが唯一のゲートです。
+ページは `docs/en/<path>` と `docs/ja/<path>` の両方に存在します。フォールバックロケールは無いため、片方に欠けたページは行き先の無い nav エントリになります。編集したら、仕上げる前に両ロケールをビルドしてください。プルリクエストでは docs はビルドされないため、手元のビルドが唯一のゲートです。
+
+```bash
+scripts/prepare-docs.sh    # 一度だけ: .venv と docs/requirements.txt のピン
+scripts/build-docs.sh      # 英語 → 日本語の順に、どちらも --strict
+```
+
+必ず両ロケールを、英語を先に。英語ビルドは `site/`（その中に `site/ja` がある）を消すため、英語だけ建てると日本語サイトは残らず消えます。`mkdocs.base.yml` が `strict: true` を設定します。`zensical serve` は `--strict` を付けても何も検証しません。Windows は `.ps1` 双子、どちらも
+`key=value` オプションと `--help` を取ります。
+
+`scripts/build-pages.sh` が公開ツリーです。上記 2 ロケールに続けて Web デモ 2 本 — `examples/overall`
+を `site/demo/flutter/`、`examples/flame` を `site/demo/flame/`、選択ページを `site/demo/` に — を建てます。`pages.yml` のビルドジョブはこのスクリプトなので、CI が建てるものは、同じオプションで手元で建てたものと一致します。
+
+```bash
+scripts/build-pages.sh serve=yes          # -> http://localhost:8000/SSPlayerForFlutter/
+scripts/build-pages.sh sdk=build          # ... Brain を submodule からビルドする
+scripts/build-pages.sh demo=skip          # ドキュメントのみ
+scripts/build-pages.sh base=/ zip=yes     # Cloudflare Pages 用: SSPlayerForFlutter-site.zip
+```
+
+*   **デモはここでビルドします。ダウンロードではありません。** Release は asset を持たないため、取得できるものがありません。`sdk=` は Brain の入手元という別の話で、既定かつ CI が使う `download` なら Rust ツールチェーンは一切不要です。
+*   **`base=` はビルド時に焼き込まれます**（`flutter build web --base-href`）。あるパス用に建てたデモは別のパスでは 404 します。`serve=yes` が `site/` を `.pages-preview/<repo>` に吊るして配信するのは、建てたときのアドレスでデモを開く唯一の方法だからです。
+*   **examples の `web/` ランナーは git 管理外**なので、無ければスクリプトが `flutter create
+    --platforms=web .` を実行し、そのあと `.metadata` を戻します（`flutter create` はプラットフォーム一覧を追記ではなく置き換えるため）。
+*   **`deploy-examples.sh` は毎回走ります。** デモが再生する `.ssab` は生成物で git 管理外です。古い
+    pack は公開デモで誰も気づかない類の事故です。
+*   **もう 1 部を手作業で Cloudflare Pages に上げます。** あちらはプロジェクトを自身のルートで配信するので `base=/` が要ります。`zip=yes` は `site/` の中身をアーカイブのルートに置いて固め、サブパス用に建てたツリーなら拒否します。正典は GitHub Pages 側です（README の絶対 URL はそちらを指し、`docs/`
+    内のデモリンクはすべて相対なので、1 回のビルドが両方のホストで正しく動きます）。
 
 ## コーディング規約
 

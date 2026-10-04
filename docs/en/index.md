@@ -42,7 +42,6 @@ hand-write. Playback runs through `libssruntime` provided by
 - **For Contributors**
     - [Architecture](contributing/architecture.md)
     - [Native Runtime](contributing/native-runtime.md)
-    - [Releasing](contributing/releasing.md)
 - [**Packages**](packages.md)
 
 ## Key Features

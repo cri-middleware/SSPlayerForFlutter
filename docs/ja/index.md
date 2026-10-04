@@ -34,7 +34,6 @@
 - **コントリビューター向け**
     - [アーキテクチャ](contributing/architecture.md)
     - [ネイティブランタイム](contributing/native-runtime.md)
-    - [リリース](contributing/releasing.md)
 - [**パッケージ**](packages.md)
 
 ## 主な機能 (Key Features)
