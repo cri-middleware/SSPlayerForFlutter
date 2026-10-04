@@ -337,48 +337,32 @@ class U8ColorObjectBuilder extends fb.ObjectBuilder {
   }
 }
 
-class SsCurveBuilder {
-  SsCurveBuilder(this.fbBuilder);
+class KeyCurveBuilder {
+  KeyCurveBuilder(this.fbBuilder);
 
   final fb.Builder fbBuilder;
 
-  void begin() {
-    fbBuilder.startTable(4);
-  }
-
-  int addStartTime(double? startTime) {
-    fbBuilder.addFloat32(0, startTime);
-    return fbBuilder.offset;
-  }
-  int addStartValue(double? startValue) {
-    fbBuilder.addFloat32(1, startValue);
-    return fbBuilder.offset;
-  }
-  int addEndTime(double? endTime) {
-    fbBuilder.addFloat32(2, endTime);
-    return fbBuilder.offset;
-  }
-  int addEndValue(double? endValue) {
-    fbBuilder.addFloat32(3, endValue);
+  int finish(double startTime, double startValue, double endTime, double endValue) {
+    fbBuilder.putFloat32(endValue);
+    fbBuilder.putFloat32(endTime);
+    fbBuilder.putFloat32(startValue);
+    fbBuilder.putFloat32(startTime);
     return fbBuilder.offset;
   }
 
-  int finish() {
-    return fbBuilder.endTable();
-  }
 }
 
-class SsCurveObjectBuilder extends fb.ObjectBuilder {
-  final double? _startTime;
-  final double? _startValue;
-  final double? _endTime;
-  final double? _endValue;
+class KeyCurveObjectBuilder extends fb.ObjectBuilder {
+  final double _startTime;
+  final double _startValue;
+  final double _endTime;
+  final double _endValue;
 
-  SsCurveObjectBuilder({
-    double? startTime,
-    double? startValue,
-    double? endTime,
-    double? endValue,
+  KeyCurveObjectBuilder({
+    required double startTime,
+    required double startValue,
+    required double endTime,
+    required double endValue,
   })
       : _startTime = startTime,
         _startValue = startValue,
@@ -388,12 +372,11 @@ class SsCurveObjectBuilder extends fb.ObjectBuilder {
   /// Finish building, and store into the [fbBuilder].
   @override
   int finish(fb.Builder fbBuilder) {
-    fbBuilder.startTable(4);
-    fbBuilder.addFloat32(0, _startTime);
-    fbBuilder.addFloat32(1, _startValue);
-    fbBuilder.addFloat32(2, _endTime);
-    fbBuilder.addFloat32(3, _endValue);
-    return fbBuilder.endTable();
+    fbBuilder.putFloat32(_endValue);
+    fbBuilder.putFloat32(_endTime);
+    fbBuilder.putFloat32(_startValue);
+    fbBuilder.putFloat32(_startTime);
+    return fbBuilder.offset;
   }
 
   /// Convenience method to serialize to byte list.
@@ -4374,559 +4357,6 @@ class LabelObjectBuilder extends fb.ObjectBuilder {
   }
 }
 
-class PartAnimationDataCellValueBuilder {
-  PartAnimationDataCellValueBuilder(this.fbBuilder);
-
-  final fb.Builder fbBuilder;
-
-  void begin() {
-    fbBuilder.startTable(2);
-  }
-
-  int addIndex(int? index) {
-    fbBuilder.addUint16(0, index);
-    return fbBuilder.offset;
-  }
-  int addValueOffset(int? offset) {
-    fbBuilder.addOffset(1, offset);
-    return fbBuilder.offset;
-  }
-
-  int finish() {
-    return fbBuilder.endTable();
-  }
-}
-
-class PartAnimationDataCellValueObjectBuilder extends fb.ObjectBuilder {
-  final int? _index;
-  final PartAttributeCellObjectBuilder? _value;
-
-  PartAnimationDataCellValueObjectBuilder({
-    int? index,
-    PartAttributeCellObjectBuilder? value,
-  })
-      : _index = index,
-        _value = value;
-
-  /// Finish building, and store into the [fbBuilder].
-  @override
-  int finish(fb.Builder fbBuilder) {
-    final int? valueOffset = _value?.getOrCreateOffset(fbBuilder);
-    fbBuilder.startTable(2);
-    fbBuilder.addUint16(0, _index);
-    fbBuilder.addOffset(1, valueOffset);
-    return fbBuilder.endTable();
-  }
-
-  /// Convenience method to serialize to byte list.
-  @override
-  Uint8List toBytes([String? fileIdentifier]) {
-    final fbBuilder = fb.Builder(deduplicateTables: false);
-    fbBuilder.finish(finish(fbBuilder), fileIdentifier);
-    return fbBuilder.buffer;
-  }
-}
-
-class PartAnimationDataFloatValueBuilder {
-  PartAnimationDataFloatValueBuilder(this.fbBuilder);
-
-  final fb.Builder fbBuilder;
-
-  void begin() {
-    fbBuilder.startTable(5);
-  }
-
-  int addIndex(int? index) {
-    fbBuilder.addUint16(0, index);
-    return fbBuilder.offset;
-  }
-  int addInterpolation(InterpolationType? interpolation) {
-    fbBuilder.addUint8(1, interpolation?.value);
-    return fbBuilder.offset;
-  }
-  int addValue(double? value) {
-    fbBuilder.addFloat32(2, value);
-    return fbBuilder.offset;
-  }
-  int addCurveOffset(int? offset) {
-    fbBuilder.addOffset(3, offset);
-    return fbBuilder.offset;
-  }
-  int addEasingRate(double? easingRate) {
-    fbBuilder.addFloat32(4, easingRate);
-    return fbBuilder.offset;
-  }
-
-  int finish() {
-    return fbBuilder.endTable();
-  }
-}
-
-class PartAnimationDataFloatValueObjectBuilder extends fb.ObjectBuilder {
-  final int? _index;
-  final InterpolationType? _interpolation;
-  final double? _value;
-  final SsCurveObjectBuilder? _curve;
-  final double? _easingRate;
-
-  PartAnimationDataFloatValueObjectBuilder({
-    int? index,
-    InterpolationType? interpolation,
-    double? value,
-    SsCurveObjectBuilder? curve,
-    double? easingRate,
-  })
-      : _index = index,
-        _interpolation = interpolation,
-        _value = value,
-        _curve = curve,
-        _easingRate = easingRate;
-
-  /// Finish building, and store into the [fbBuilder].
-  @override
-  int finish(fb.Builder fbBuilder) {
-    final int? curveOffset = _curve?.getOrCreateOffset(fbBuilder);
-    fbBuilder.startTable(5);
-    fbBuilder.addUint16(0, _index);
-    fbBuilder.addUint8(1, _interpolation?.value);
-    fbBuilder.addFloat32(2, _value);
-    fbBuilder.addOffset(3, curveOffset);
-    fbBuilder.addFloat32(4, _easingRate);
-    return fbBuilder.endTable();
-  }
-
-  /// Convenience method to serialize to byte list.
-  @override
-  Uint8List toBytes([String? fileIdentifier]) {
-    final fbBuilder = fb.Builder(deduplicateTables: false);
-    fbBuilder.finish(finish(fbBuilder), fileIdentifier);
-    return fbBuilder.buffer;
-  }
-}
-
-class PartAnimationDataIntValueBuilder {
-  PartAnimationDataIntValueBuilder(this.fbBuilder);
-
-  final fb.Builder fbBuilder;
-
-  void begin() {
-    fbBuilder.startTable(5);
-  }
-
-  int addIndex(int? index) {
-    fbBuilder.addUint16(0, index);
-    return fbBuilder.offset;
-  }
-  int addInterpolation(InterpolationType? interpolation) {
-    fbBuilder.addUint8(1, interpolation?.value);
-    return fbBuilder.offset;
-  }
-  int addValue(int? value) {
-    fbBuilder.addInt32(2, value);
-    return fbBuilder.offset;
-  }
-  int addCurveOffset(int? offset) {
-    fbBuilder.addOffset(3, offset);
-    return fbBuilder.offset;
-  }
-  int addEasingRate(double? easingRate) {
-    fbBuilder.addFloat32(4, easingRate);
-    return fbBuilder.offset;
-  }
-
-  int finish() {
-    return fbBuilder.endTable();
-  }
-}
-
-class PartAnimationDataIntValueObjectBuilder extends fb.ObjectBuilder {
-  final int? _index;
-  final InterpolationType? _interpolation;
-  final int? _value;
-  final SsCurveObjectBuilder? _curve;
-  final double? _easingRate;
-
-  PartAnimationDataIntValueObjectBuilder({
-    int? index,
-    InterpolationType? interpolation,
-    int? value,
-    SsCurveObjectBuilder? curve,
-    double? easingRate,
-  })
-      : _index = index,
-        _interpolation = interpolation,
-        _value = value,
-        _curve = curve,
-        _easingRate = easingRate;
-
-  /// Finish building, and store into the [fbBuilder].
-  @override
-  int finish(fb.Builder fbBuilder) {
-    final int? curveOffset = _curve?.getOrCreateOffset(fbBuilder);
-    fbBuilder.startTable(5);
-    fbBuilder.addUint16(0, _index);
-    fbBuilder.addUint8(1, _interpolation?.value);
-    fbBuilder.addInt32(2, _value);
-    fbBuilder.addOffset(3, curveOffset);
-    fbBuilder.addFloat32(4, _easingRate);
-    return fbBuilder.endTable();
-  }
-
-  /// Convenience method to serialize to byte list.
-  @override
-  Uint8List toBytes([String? fileIdentifier]) {
-    final fbBuilder = fb.Builder(deduplicateTables: false);
-    fbBuilder.finish(finish(fbBuilder), fileIdentifier);
-    return fbBuilder.buffer;
-  }
-}
-
-class PartAnimationDataUintValueBuilder {
-  PartAnimationDataUintValueBuilder(this.fbBuilder);
-
-  final fb.Builder fbBuilder;
-
-  void begin() {
-    fbBuilder.startTable(3);
-  }
-
-  int addIndex(int? index) {
-    fbBuilder.addUint16(0, index);
-    return fbBuilder.offset;
-  }
-  int addInterpolation(InterpolationType? interpolation) {
-    fbBuilder.addUint8(1, interpolation?.value);
-    return fbBuilder.offset;
-  }
-  int addValue(int? value) {
-    fbBuilder.addUint32(2, value);
-    return fbBuilder.offset;
-  }
-
-  int finish() {
-    return fbBuilder.endTable();
-  }
-}
-
-class PartAnimationDataUintValueObjectBuilder extends fb.ObjectBuilder {
-  final int? _index;
-  final InterpolationType? _interpolation;
-  final int? _value;
-
-  PartAnimationDataUintValueObjectBuilder({
-    int? index,
-    InterpolationType? interpolation,
-    int? value,
-  })
-      : _index = index,
-        _interpolation = interpolation,
-        _value = value;
-
-  /// Finish building, and store into the [fbBuilder].
-  @override
-  int finish(fb.Builder fbBuilder) {
-    fbBuilder.startTable(3);
-    fbBuilder.addUint16(0, _index);
-    fbBuilder.addUint8(1, _interpolation?.value);
-    fbBuilder.addUint32(2, _value);
-    return fbBuilder.endTable();
-  }
-
-  /// Convenience method to serialize to byte list.
-  @override
-  Uint8List toBytes([String? fileIdentifier]) {
-    final fbBuilder = fb.Builder(deduplicateTables: false);
-    fbBuilder.finish(finish(fbBuilder), fileIdentifier);
-    return fbBuilder.buffer;
-  }
-}
-
-class PartAnimationDataBoolValueBuilder {
-  PartAnimationDataBoolValueBuilder(this.fbBuilder);
-
-  final fb.Builder fbBuilder;
-
-  void begin() {
-    fbBuilder.startTable(2);
-  }
-
-  int addIndex(int? index) {
-    fbBuilder.addUint16(0, index);
-    return fbBuilder.offset;
-  }
-  int addValue(bool? value) {
-    fbBuilder.addBool(1, value);
-    return fbBuilder.offset;
-  }
-
-  int finish() {
-    return fbBuilder.endTable();
-  }
-}
-
-class PartAnimationDataBoolValueObjectBuilder extends fb.ObjectBuilder {
-  final int? _index;
-  final bool? _value;
-
-  PartAnimationDataBoolValueObjectBuilder({
-    int? index,
-    bool? value,
-  })
-      : _index = index,
-        _value = value;
-
-  /// Finish building, and store into the [fbBuilder].
-  @override
-  int finish(fb.Builder fbBuilder) {
-    fbBuilder.startTable(2);
-    fbBuilder.addUint16(0, _index);
-    fbBuilder.addBool(1, _value);
-    return fbBuilder.endTable();
-  }
-
-  /// Convenience method to serialize to byte list.
-  @override
-  Uint8List toBytes([String? fileIdentifier]) {
-    final fbBuilder = fb.Builder(deduplicateTables: false);
-    fbBuilder.finish(finish(fbBuilder), fileIdentifier);
-    return fbBuilder.buffer;
-  }
-}
-
-class PartAnimationDataPartColorBuilder {
-  PartAnimationDataPartColorBuilder(this.fbBuilder);
-
-  final fb.Builder fbBuilder;
-
-  void begin() {
-    fbBuilder.startTable(5);
-  }
-
-  int addIndex(int? index) {
-    fbBuilder.addUint16(0, index);
-    return fbBuilder.offset;
-  }
-  int addInterpolation(InterpolationType? interpolation) {
-    fbBuilder.addUint8(1, interpolation?.value);
-    return fbBuilder.offset;
-  }
-  int addValueOffset(int? offset) {
-    fbBuilder.addOffset(2, offset);
-    return fbBuilder.offset;
-  }
-  int addCurveOffset(int? offset) {
-    fbBuilder.addOffset(3, offset);
-    return fbBuilder.offset;
-  }
-  int addEasingRate(double? easingRate) {
-    fbBuilder.addFloat32(4, easingRate);
-    return fbBuilder.offset;
-  }
-
-  int finish() {
-    return fbBuilder.endTable();
-  }
-}
-
-class PartAnimationDataPartColorObjectBuilder extends fb.ObjectBuilder {
-  final int? _index;
-  final InterpolationType? _interpolation;
-  final PartAttributePartColorObjectBuilder? _value;
-  final SsCurveObjectBuilder? _curve;
-  final double? _easingRate;
-
-  PartAnimationDataPartColorObjectBuilder({
-    int? index,
-    InterpolationType? interpolation,
-    PartAttributePartColorObjectBuilder? value,
-    SsCurveObjectBuilder? curve,
-    double? easingRate,
-  })
-      : _index = index,
-        _interpolation = interpolation,
-        _value = value,
-        _curve = curve,
-        _easingRate = easingRate;
-
-  /// Finish building, and store into the [fbBuilder].
-  @override
-  int finish(fb.Builder fbBuilder) {
-    final int? valueOffset = _value?.getOrCreateOffset(fbBuilder);
-    final int? curveOffset = _curve?.getOrCreateOffset(fbBuilder);
-    fbBuilder.startTable(5);
-    fbBuilder.addUint16(0, _index);
-    fbBuilder.addUint8(1, _interpolation?.value);
-    fbBuilder.addOffset(2, valueOffset);
-    fbBuilder.addOffset(3, curveOffset);
-    fbBuilder.addFloat32(4, _easingRate);
-    return fbBuilder.endTable();
-  }
-
-  /// Convenience method to serialize to byte list.
-  @override
-  Uint8List toBytes([String? fileIdentifier]) {
-    final fbBuilder = fb.Builder(deduplicateTables: false);
-    fbBuilder.finish(finish(fbBuilder), fileIdentifier);
-    return fbBuilder.buffer;
-  }
-}
-
-class PartAnimationDataShaderBuilder {
-  PartAnimationDataShaderBuilder(this.fbBuilder);
-
-  final fb.Builder fbBuilder;
-
-  void begin() {
-    fbBuilder.startTable(5);
-  }
-
-  int addIndex(int? index) {
-    fbBuilder.addUint16(0, index);
-    return fbBuilder.offset;
-  }
-  int addInterpolation(InterpolationType? interpolation) {
-    fbBuilder.addUint8(1, interpolation?.value);
-    return fbBuilder.offset;
-  }
-  int addValueOffset(int? offset) {
-    fbBuilder.addOffset(2, offset);
-    return fbBuilder.offset;
-  }
-  int addCurveOffset(int? offset) {
-    fbBuilder.addOffset(3, offset);
-    return fbBuilder.offset;
-  }
-  int addEasingRate(double? easingRate) {
-    fbBuilder.addFloat32(4, easingRate);
-    return fbBuilder.offset;
-  }
-
-  int finish() {
-    return fbBuilder.endTable();
-  }
-}
-
-class PartAnimationDataShaderObjectBuilder extends fb.ObjectBuilder {
-  final int? _index;
-  final InterpolationType? _interpolation;
-  final PartAttributeShaderObjectBuilder? _value;
-  final SsCurveObjectBuilder? _curve;
-  final double? _easingRate;
-
-  PartAnimationDataShaderObjectBuilder({
-    int? index,
-    InterpolationType? interpolation,
-    PartAttributeShaderObjectBuilder? value,
-    SsCurveObjectBuilder? curve,
-    double? easingRate,
-  })
-      : _index = index,
-        _interpolation = interpolation,
-        _value = value,
-        _curve = curve,
-        _easingRate = easingRate;
-
-  /// Finish building, and store into the [fbBuilder].
-  @override
-  int finish(fb.Builder fbBuilder) {
-    final int? valueOffset = _value?.getOrCreateOffset(fbBuilder);
-    final int? curveOffset = _curve?.getOrCreateOffset(fbBuilder);
-    fbBuilder.startTable(5);
-    fbBuilder.addUint16(0, _index);
-    fbBuilder.addUint8(1, _interpolation?.value);
-    fbBuilder.addOffset(2, valueOffset);
-    fbBuilder.addOffset(3, curveOffset);
-    fbBuilder.addFloat32(4, _easingRate);
-    return fbBuilder.endTable();
-  }
-
-  /// Convenience method to serialize to byte list.
-  @override
-  Uint8List toBytes([String? fileIdentifier]) {
-    final fbBuilder = fb.Builder(deduplicateTables: false);
-    fbBuilder.finish(finish(fbBuilder), fileIdentifier);
-    return fbBuilder.buffer;
-  }
-}
-
-class PartAnimationDataVertexBuilder {
-  PartAnimationDataVertexBuilder(this.fbBuilder);
-
-  final fb.Builder fbBuilder;
-
-  void begin() {
-    fbBuilder.startTable(5);
-  }
-
-  int addIndex(int? index) {
-    fbBuilder.addUint16(0, index);
-    return fbBuilder.offset;
-  }
-  int addInterpolation(InterpolationType? interpolation) {
-    fbBuilder.addUint8(1, interpolation?.value);
-    return fbBuilder.offset;
-  }
-  int addValueOffset(int? offset) {
-    fbBuilder.addOffset(2, offset);
-    return fbBuilder.offset;
-  }
-  int addCurveOffset(int? offset) {
-    fbBuilder.addOffset(3, offset);
-    return fbBuilder.offset;
-  }
-  int addEasingRate(double? easingRate) {
-    fbBuilder.addFloat32(4, easingRate);
-    return fbBuilder.offset;
-  }
-
-  int finish() {
-    return fbBuilder.endTable();
-  }
-}
-
-class PartAnimationDataVertexObjectBuilder extends fb.ObjectBuilder {
-  final int? _index;
-  final InterpolationType? _interpolation;
-  final PartAttributeVertexObjectBuilder? _value;
-  final SsCurveObjectBuilder? _curve;
-  final double? _easingRate;
-
-  PartAnimationDataVertexObjectBuilder({
-    int? index,
-    InterpolationType? interpolation,
-    PartAttributeVertexObjectBuilder? value,
-    SsCurveObjectBuilder? curve,
-    double? easingRate,
-  })
-      : _index = index,
-        _interpolation = interpolation,
-        _value = value,
-        _curve = curve,
-        _easingRate = easingRate;
-
-  /// Finish building, and store into the [fbBuilder].
-  @override
-  int finish(fb.Builder fbBuilder) {
-    final int? valueOffset = _value?.getOrCreateOffset(fbBuilder);
-    final int? curveOffset = _curve?.getOrCreateOffset(fbBuilder);
-    fbBuilder.startTable(5);
-    fbBuilder.addUint16(0, _index);
-    fbBuilder.addUint8(1, _interpolation?.value);
-    fbBuilder.addOffset(2, valueOffset);
-    fbBuilder.addOffset(3, curveOffset);
-    fbBuilder.addFloat32(4, _easingRate);
-    return fbBuilder.endTable();
-  }
-
-  /// Convenience method to serialize to byte list.
-  @override
-  Uint8List toBytes([String? fileIdentifier]) {
-    final fbBuilder = fb.Builder(deduplicateTables: false);
-    fbBuilder.finish(finish(fbBuilder), fileIdentifier);
-    return fbBuilder.buffer;
-  }
-}
-
 class PartAnimationDataInstanceBuilder {
   PartAnimationDataInstanceBuilder(this.fbBuilder);
 
@@ -5033,162 +4463,6 @@ class PartAnimationDataEffectObjectBuilder extends fb.ObjectBuilder {
   }
 }
 
-class PartAnimationDataVec2Builder {
-  PartAnimationDataVec2Builder(this.fbBuilder);
-
-  final fb.Builder fbBuilder;
-
-  void begin() {
-    fbBuilder.startTable(5);
-  }
-
-  int addIndex(int? index) {
-    fbBuilder.addUint16(0, index);
-    return fbBuilder.offset;
-  }
-  int addInterpolation(InterpolationType? interpolation) {
-    fbBuilder.addUint8(1, interpolation?.value);
-    return fbBuilder.offset;
-  }
-  int addValueOffset(int? offset) {
-    fbBuilder.addOffset(2, offset);
-    return fbBuilder.offset;
-  }
-  int addCurveOffset(int? offset) {
-    fbBuilder.addOffset(3, offset);
-    return fbBuilder.offset;
-  }
-  int addEasingRate(double? easingRate) {
-    fbBuilder.addFloat32(4, easingRate);
-    return fbBuilder.offset;
-  }
-
-  int finish() {
-    return fbBuilder.endTable();
-  }
-}
-
-class PartAnimationDataVec2ObjectBuilder extends fb.ObjectBuilder {
-  final int? _index;
-  final InterpolationType? _interpolation;
-  final Vec2ObjectBuilder? _value;
-  final SsCurveObjectBuilder? _curve;
-  final double? _easingRate;
-
-  PartAnimationDataVec2ObjectBuilder({
-    int? index,
-    InterpolationType? interpolation,
-    Vec2ObjectBuilder? value,
-    SsCurveObjectBuilder? curve,
-    double? easingRate,
-  })
-      : _index = index,
-        _interpolation = interpolation,
-        _value = value,
-        _curve = curve,
-        _easingRate = easingRate;
-
-  /// Finish building, and store into the [fbBuilder].
-  @override
-  int finish(fb.Builder fbBuilder) {
-    final int? valueOffset = _value?.getOrCreateOffset(fbBuilder);
-    final int? curveOffset = _curve?.getOrCreateOffset(fbBuilder);
-    fbBuilder.startTable(5);
-    fbBuilder.addUint16(0, _index);
-    fbBuilder.addUint8(1, _interpolation?.value);
-    fbBuilder.addOffset(2, valueOffset);
-    fbBuilder.addOffset(3, curveOffset);
-    fbBuilder.addFloat32(4, _easingRate);
-    return fbBuilder.endTable();
-  }
-
-  /// Convenience method to serialize to byte list.
-  @override
-  Uint8List toBytes([String? fileIdentifier]) {
-    final fbBuilder = fb.Builder(deduplicateTables: false);
-    fbBuilder.finish(finish(fbBuilder), fileIdentifier);
-    return fbBuilder.buffer;
-  }
-}
-
-class PartAnimationDataDeformBuilder {
-  PartAnimationDataDeformBuilder(this.fbBuilder);
-
-  final fb.Builder fbBuilder;
-
-  void begin() {
-    fbBuilder.startTable(5);
-  }
-
-  int addIndex(int? index) {
-    fbBuilder.addUint16(0, index);
-    return fbBuilder.offset;
-  }
-  int addInterpolation(InterpolationType? interpolation) {
-    fbBuilder.addUint8(1, interpolation?.value);
-    return fbBuilder.offset;
-  }
-  int addValueOffset(int? offset) {
-    fbBuilder.addOffset(2, offset);
-    return fbBuilder.offset;
-  }
-  int addCurveOffset(int? offset) {
-    fbBuilder.addOffset(3, offset);
-    return fbBuilder.offset;
-  }
-  int addEasingRate(double? easingRate) {
-    fbBuilder.addFloat32(4, easingRate);
-    return fbBuilder.offset;
-  }
-
-  int finish() {
-    return fbBuilder.endTable();
-  }
-}
-
-class PartAnimationDataDeformObjectBuilder extends fb.ObjectBuilder {
-  final int? _index;
-  final InterpolationType? _interpolation;
-  final PartAttributeDeformObjectBuilder? _value;
-  final SsCurveObjectBuilder? _curve;
-  final double? _easingRate;
-
-  PartAnimationDataDeformObjectBuilder({
-    int? index,
-    InterpolationType? interpolation,
-    PartAttributeDeformObjectBuilder? value,
-    SsCurveObjectBuilder? curve,
-    double? easingRate,
-  })
-      : _index = index,
-        _interpolation = interpolation,
-        _value = value,
-        _curve = curve,
-        _easingRate = easingRate;
-
-  /// Finish building, and store into the [fbBuilder].
-  @override
-  int finish(fb.Builder fbBuilder) {
-    final int? valueOffset = _value?.getOrCreateOffset(fbBuilder);
-    final int? curveOffset = _curve?.getOrCreateOffset(fbBuilder);
-    fbBuilder.startTable(5);
-    fbBuilder.addUint16(0, _index);
-    fbBuilder.addUint8(1, _interpolation?.value);
-    fbBuilder.addOffset(2, valueOffset);
-    fbBuilder.addOffset(3, curveOffset);
-    fbBuilder.addFloat32(4, _easingRate);
-    return fbBuilder.endTable();
-  }
-
-  /// Convenience method to serialize to byte list.
-  @override
-  Uint8List toBytes([String? fileIdentifier]) {
-    final fbBuilder = fb.Builder(deduplicateTables: false);
-    fbBuilder.finish(finish(fbBuilder), fileIdentifier);
-    return fbBuilder.buffer;
-  }
-}
-
 class PartAnimationDataBuilder {
   PartAnimationDataBuilder(this.fbBuilder);
 
@@ -5198,156 +4472,156 @@ class PartAnimationDataBuilder {
     fbBuilder.startTable(38);
   }
 
-  int addCellArrayOffset(int? offset) {
-    fbBuilder.addOffset(0, offset);
+  int addCellKeys(int? cellKeys) {
+    fbBuilder.addUint32(0, cellKeys);
     return fbBuilder.offset;
   }
-  int addPositionXArrayOffset(int? offset) {
-    fbBuilder.addOffset(1, offset);
+  int addPositionXKeys(int? positionXKeys) {
+    fbBuilder.addUint32(1, positionXKeys);
     return fbBuilder.offset;
   }
-  int addPositionYArrayOffset(int? offset) {
-    fbBuilder.addOffset(2, offset);
+  int addPositionYKeys(int? positionYKeys) {
+    fbBuilder.addUint32(2, positionYKeys);
     return fbBuilder.offset;
   }
-  int addPositionZArrayOffset(int? offset) {
-    fbBuilder.addOffset(3, offset);
+  int addPositionZKeys(int? positionZKeys) {
+    fbBuilder.addUint32(3, positionZKeys);
     return fbBuilder.offset;
   }
-  int addRotationXArrayOffset(int? offset) {
-    fbBuilder.addOffset(4, offset);
+  int addRotationXKeys(int? rotationXKeys) {
+    fbBuilder.addUint32(4, rotationXKeys);
     return fbBuilder.offset;
   }
-  int addRotationYArrayOffset(int? offset) {
-    fbBuilder.addOffset(5, offset);
+  int addRotationYKeys(int? rotationYKeys) {
+    fbBuilder.addUint32(5, rotationYKeys);
     return fbBuilder.offset;
   }
-  int addRotationZArrayOffset(int? offset) {
-    fbBuilder.addOffset(6, offset);
+  int addRotationZKeys(int? rotationZKeys) {
+    fbBuilder.addUint32(6, rotationZKeys);
     return fbBuilder.offset;
   }
-  int addScaleXArrayOffset(int? offset) {
-    fbBuilder.addOffset(7, offset);
+  int addScaleXKeys(int? scaleXKeys) {
+    fbBuilder.addUint32(7, scaleXKeys);
     return fbBuilder.offset;
   }
-  int addScaleYArrayOffset(int? offset) {
-    fbBuilder.addOffset(8, offset);
+  int addScaleYKeys(int? scaleYKeys) {
+    fbBuilder.addUint32(8, scaleYKeys);
     return fbBuilder.offset;
   }
-  int addLocalScaleXArrayOffset(int? offset) {
-    fbBuilder.addOffset(9, offset);
+  int addLocalScaleXKeys(int? localScaleXKeys) {
+    fbBuilder.addUint32(9, localScaleXKeys);
     return fbBuilder.offset;
   }
-  int addLocalScaleYArrayOffset(int? offset) {
-    fbBuilder.addOffset(10, offset);
+  int addLocalScaleYKeys(int? localScaleYKeys) {
+    fbBuilder.addUint32(10, localScaleYKeys);
     return fbBuilder.offset;
   }
-  int addAlphaArrayOffset(int? offset) {
-    fbBuilder.addOffset(11, offset);
+  int addAlphaKeys(int? alphaKeys) {
+    fbBuilder.addUint32(11, alphaKeys);
     return fbBuilder.offset;
   }
-  int addLocalAlphaArrayOffset(int? offset) {
-    fbBuilder.addOffset(12, offset);
+  int addLocalAlphaKeys(int? localAlphaKeys) {
+    fbBuilder.addUint32(12, localAlphaKeys);
     return fbBuilder.offset;
   }
-  int addPriorityArrayOffset(int? offset) {
-    fbBuilder.addOffset(13, offset);
+  int addPriorityKeys(int? priorityKeys) {
+    fbBuilder.addUint32(13, priorityKeys);
     return fbBuilder.offset;
   }
-  int addFlipHArrayOffset(int? offset) {
-    fbBuilder.addOffset(14, offset);
+  int addFlipHKeys(int? flipHKeys) {
+    fbBuilder.addUint32(14, flipHKeys);
     return fbBuilder.offset;
   }
-  int addFlipVArrayOffset(int? offset) {
-    fbBuilder.addOffset(15, offset);
+  int addFlipVKeys(int? flipVKeys) {
+    fbBuilder.addUint32(15, flipVKeys);
     return fbBuilder.offset;
   }
-  int addHideArrayOffset(int? offset) {
-    fbBuilder.addOffset(16, offset);
+  int addHideKeys(int? hideKeys) {
+    fbBuilder.addUint32(16, hideKeys);
     return fbBuilder.offset;
   }
-  int addPartColorArrayOffset(int? offset) {
-    fbBuilder.addOffset(17, offset);
+  int addPartColorKeys(int? partColorKeys) {
+    fbBuilder.addUint32(17, partColorKeys);
     return fbBuilder.offset;
   }
-  int addShaderArrayOffset(int? offset) {
-    fbBuilder.addOffset(18, offset);
+  int addShaderKeys(int? shaderKeys) {
+    fbBuilder.addUint32(18, shaderKeys);
     return fbBuilder.offset;
   }
-  int addVertexArrayOffset(int? offset) {
-    fbBuilder.addOffset(19, offset);
+  int addVertexKeys(int? vertexKeys) {
+    fbBuilder.addUint32(19, vertexKeys);
     return fbBuilder.offset;
   }
-  int addPivotXArrayOffset(int? offset) {
-    fbBuilder.addOffset(20, offset);
+  int addPivotXKeys(int? pivotXKeys) {
+    fbBuilder.addUint32(20, pivotXKeys);
     return fbBuilder.offset;
   }
-  int addPivotYArrayOffset(int? offset) {
-    fbBuilder.addOffset(21, offset);
+  int addPivotYKeys(int? pivotYKeys) {
+    fbBuilder.addUint32(21, pivotYKeys);
     return fbBuilder.offset;
   }
-  int addAnchorXArrayOffset(int? offset) {
-    fbBuilder.addOffset(22, offset);
+  int addAnchorXKeys(int? anchorXKeys) {
+    fbBuilder.addUint32(22, anchorXKeys);
     return fbBuilder.offset;
   }
-  int addAnchorYArrayOffset(int? offset) {
-    fbBuilder.addOffset(23, offset);
+  int addAnchorYKeys(int? anchorYKeys) {
+    fbBuilder.addUint32(23, anchorYKeys);
     return fbBuilder.offset;
   }
-  int addSizeXArrayOffset(int? offset) {
-    fbBuilder.addOffset(24, offset);
+  int addSizeXKeys(int? sizeXKeys) {
+    fbBuilder.addUint32(24, sizeXKeys);
     return fbBuilder.offset;
   }
-  int addSizeYArrayOffset(int? offset) {
-    fbBuilder.addOffset(25, offset);
+  int addSizeYKeys(int? sizeYKeys) {
+    fbBuilder.addUint32(25, sizeYKeys);
     return fbBuilder.offset;
   }
-  int addImgFlipHArrayOffset(int? offset) {
-    fbBuilder.addOffset(26, offset);
+  int addImgFlipHKeys(int? imgFlipHKeys) {
+    fbBuilder.addUint32(26, imgFlipHKeys);
     return fbBuilder.offset;
   }
-  int addImgFlipVArrayOffset(int? offset) {
-    fbBuilder.addOffset(27, offset);
+  int addImgFlipVKeys(int? imgFlipVKeys) {
+    fbBuilder.addUint32(27, imgFlipVKeys);
     return fbBuilder.offset;
   }
-  int addUvTranslationXArrayOffset(int? offset) {
-    fbBuilder.addOffset(28, offset);
+  int addUvTranslationXKeys(int? uvTranslationXKeys) {
+    fbBuilder.addUint32(28, uvTranslationXKeys);
     return fbBuilder.offset;
   }
-  int addUvTranslationYArrayOffset(int? offset) {
-    fbBuilder.addOffset(29, offset);
+  int addUvTranslationYKeys(int? uvTranslationYKeys) {
+    fbBuilder.addUint32(29, uvTranslationYKeys);
     return fbBuilder.offset;
   }
-  int addUvRotationZArrayOffset(int? offset) {
-    fbBuilder.addOffset(30, offset);
+  int addUvRotationZKeys(int? uvRotationZKeys) {
+    fbBuilder.addUint32(30, uvRotationZKeys);
     return fbBuilder.offset;
   }
-  int addUvScaleXArrayOffset(int? offset) {
-    fbBuilder.addOffset(31, offset);
+  int addUvScaleXKeys(int? uvScaleXKeys) {
+    fbBuilder.addUint32(31, uvScaleXKeys);
     return fbBuilder.offset;
   }
-  int addUvScaleYArrayOffset(int? offset) {
-    fbBuilder.addOffset(32, offset);
+  int addUvScaleYKeys(int? uvScaleYKeys) {
+    fbBuilder.addUint32(32, uvScaleYKeys);
     return fbBuilder.offset;
   }
-  int addBoundingRadiusArrayOffset(int? offset) {
-    fbBuilder.addOffset(33, offset);
+  int addBoundingRadiusKeys(int? boundingRadiusKeys) {
+    fbBuilder.addUint32(33, boundingRadiusKeys);
     return fbBuilder.offset;
   }
-  int addMaskArrayOffset(int? offset) {
-    fbBuilder.addOffset(34, offset);
+  int addMaskKeys(int? maskKeys) {
+    fbBuilder.addUint32(34, maskKeys);
     return fbBuilder.offset;
   }
-  int addSkewArrayOffset(int? offset) {
-    fbBuilder.addOffset(35, offset);
+  int addSkewKeys(int? skewKeys) {
+    fbBuilder.addUint32(35, skewKeys);
     return fbBuilder.offset;
   }
-  int addDeformArrayOffset(int? offset) {
-    fbBuilder.addOffset(36, offset);
+  int addDeformKeys(int? deformKeys) {
+    fbBuilder.addUint32(36, deformKeys);
     return fbBuilder.offset;
   }
-  int addTextureArrayOffset(int? offset) {
-    fbBuilder.addOffset(37, offset);
+  int addTextureKeys(int? textureKeys) {
+    fbBuilder.addUint32(37, textureKeys);
     return fbBuilder.offset;
   }
 
@@ -5357,242 +4631,332 @@ class PartAnimationDataBuilder {
 }
 
 class PartAnimationDataObjectBuilder extends fb.ObjectBuilder {
-  final List<PartAnimationDataCellValueObjectBuilder>? _cellArray;
-  final List<PartAnimationDataFloatValueObjectBuilder>? _positionXArray;
-  final List<PartAnimationDataFloatValueObjectBuilder>? _positionYArray;
-  final List<PartAnimationDataFloatValueObjectBuilder>? _positionZArray;
-  final List<PartAnimationDataFloatValueObjectBuilder>? _rotationXArray;
-  final List<PartAnimationDataFloatValueObjectBuilder>? _rotationYArray;
-  final List<PartAnimationDataFloatValueObjectBuilder>? _rotationZArray;
-  final List<PartAnimationDataFloatValueObjectBuilder>? _scaleXArray;
-  final List<PartAnimationDataFloatValueObjectBuilder>? _scaleYArray;
-  final List<PartAnimationDataFloatValueObjectBuilder>? _localScaleXArray;
-  final List<PartAnimationDataFloatValueObjectBuilder>? _localScaleYArray;
-  final List<PartAnimationDataFloatValueObjectBuilder>? _alphaArray;
-  final List<PartAnimationDataFloatValueObjectBuilder>? _localAlphaArray;
-  final List<PartAnimationDataIntValueObjectBuilder>? _priorityArray;
-  final List<PartAnimationDataBoolValueObjectBuilder>? _flipHArray;
-  final List<PartAnimationDataBoolValueObjectBuilder>? _flipVArray;
-  final List<PartAnimationDataBoolValueObjectBuilder>? _hideArray;
-  final List<PartAnimationDataPartColorObjectBuilder>? _partColorArray;
-  final List<PartAnimationDataShaderObjectBuilder>? _shaderArray;
-  final List<PartAnimationDataVertexObjectBuilder>? _vertexArray;
-  final List<PartAnimationDataFloatValueObjectBuilder>? _pivotXArray;
-  final List<PartAnimationDataFloatValueObjectBuilder>? _pivotYArray;
-  final List<PartAnimationDataFloatValueObjectBuilder>? _anchorXArray;
-  final List<PartAnimationDataFloatValueObjectBuilder>? _anchorYArray;
-  final List<PartAnimationDataFloatValueObjectBuilder>? _sizeXArray;
-  final List<PartAnimationDataFloatValueObjectBuilder>? _sizeYArray;
-  final List<PartAnimationDataBoolValueObjectBuilder>? _imgFlipHArray;
-  final List<PartAnimationDataBoolValueObjectBuilder>? _imgFlipVArray;
-  final List<PartAnimationDataFloatValueObjectBuilder>? _uvTranslationXArray;
-  final List<PartAnimationDataFloatValueObjectBuilder>? _uvTranslationYArray;
-  final List<PartAnimationDataFloatValueObjectBuilder>? _uvRotationZArray;
-  final List<PartAnimationDataFloatValueObjectBuilder>? _uvScaleXArray;
-  final List<PartAnimationDataFloatValueObjectBuilder>? _uvScaleYArray;
-  final List<PartAnimationDataFloatValueObjectBuilder>? _boundingRadiusArray;
-  final List<PartAnimationDataFloatValueObjectBuilder>? _maskArray;
-  final List<PartAnimationDataVec2ObjectBuilder>? _skewArray;
-  final List<PartAnimationDataDeformObjectBuilder>? _deformArray;
-  final List<PartAnimationDataUintValueObjectBuilder>? _textureArray;
+  final int? _cellKeys;
+  final int? _positionXKeys;
+  final int? _positionYKeys;
+  final int? _positionZKeys;
+  final int? _rotationXKeys;
+  final int? _rotationYKeys;
+  final int? _rotationZKeys;
+  final int? _scaleXKeys;
+  final int? _scaleYKeys;
+  final int? _localScaleXKeys;
+  final int? _localScaleYKeys;
+  final int? _alphaKeys;
+  final int? _localAlphaKeys;
+  final int? _priorityKeys;
+  final int? _flipHKeys;
+  final int? _flipVKeys;
+  final int? _hideKeys;
+  final int? _partColorKeys;
+  final int? _shaderKeys;
+  final int? _vertexKeys;
+  final int? _pivotXKeys;
+  final int? _pivotYKeys;
+  final int? _anchorXKeys;
+  final int? _anchorYKeys;
+  final int? _sizeXKeys;
+  final int? _sizeYKeys;
+  final int? _imgFlipHKeys;
+  final int? _imgFlipVKeys;
+  final int? _uvTranslationXKeys;
+  final int? _uvTranslationYKeys;
+  final int? _uvRotationZKeys;
+  final int? _uvScaleXKeys;
+  final int? _uvScaleYKeys;
+  final int? _boundingRadiusKeys;
+  final int? _maskKeys;
+  final int? _skewKeys;
+  final int? _deformKeys;
+  final int? _textureKeys;
 
   PartAnimationDataObjectBuilder({
-    List<PartAnimationDataCellValueObjectBuilder>? cellArray,
-    List<PartAnimationDataFloatValueObjectBuilder>? positionXArray,
-    List<PartAnimationDataFloatValueObjectBuilder>? positionYArray,
-    List<PartAnimationDataFloatValueObjectBuilder>? positionZArray,
-    List<PartAnimationDataFloatValueObjectBuilder>? rotationXArray,
-    List<PartAnimationDataFloatValueObjectBuilder>? rotationYArray,
-    List<PartAnimationDataFloatValueObjectBuilder>? rotationZArray,
-    List<PartAnimationDataFloatValueObjectBuilder>? scaleXArray,
-    List<PartAnimationDataFloatValueObjectBuilder>? scaleYArray,
-    List<PartAnimationDataFloatValueObjectBuilder>? localScaleXArray,
-    List<PartAnimationDataFloatValueObjectBuilder>? localScaleYArray,
-    List<PartAnimationDataFloatValueObjectBuilder>? alphaArray,
-    List<PartAnimationDataFloatValueObjectBuilder>? localAlphaArray,
-    List<PartAnimationDataIntValueObjectBuilder>? priorityArray,
-    List<PartAnimationDataBoolValueObjectBuilder>? flipHArray,
-    List<PartAnimationDataBoolValueObjectBuilder>? flipVArray,
-    List<PartAnimationDataBoolValueObjectBuilder>? hideArray,
-    List<PartAnimationDataPartColorObjectBuilder>? partColorArray,
-    List<PartAnimationDataShaderObjectBuilder>? shaderArray,
-    List<PartAnimationDataVertexObjectBuilder>? vertexArray,
-    List<PartAnimationDataFloatValueObjectBuilder>? pivotXArray,
-    List<PartAnimationDataFloatValueObjectBuilder>? pivotYArray,
-    List<PartAnimationDataFloatValueObjectBuilder>? anchorXArray,
-    List<PartAnimationDataFloatValueObjectBuilder>? anchorYArray,
-    List<PartAnimationDataFloatValueObjectBuilder>? sizeXArray,
-    List<PartAnimationDataFloatValueObjectBuilder>? sizeYArray,
-    List<PartAnimationDataBoolValueObjectBuilder>? imgFlipHArray,
-    List<PartAnimationDataBoolValueObjectBuilder>? imgFlipVArray,
-    List<PartAnimationDataFloatValueObjectBuilder>? uvTranslationXArray,
-    List<PartAnimationDataFloatValueObjectBuilder>? uvTranslationYArray,
-    List<PartAnimationDataFloatValueObjectBuilder>? uvRotationZArray,
-    List<PartAnimationDataFloatValueObjectBuilder>? uvScaleXArray,
-    List<PartAnimationDataFloatValueObjectBuilder>? uvScaleYArray,
-    List<PartAnimationDataFloatValueObjectBuilder>? boundingRadiusArray,
-    List<PartAnimationDataFloatValueObjectBuilder>? maskArray,
-    List<PartAnimationDataVec2ObjectBuilder>? skewArray,
-    List<PartAnimationDataDeformObjectBuilder>? deformArray,
-    List<PartAnimationDataUintValueObjectBuilder>? textureArray,
+    int? cellKeys,
+    int? positionXKeys,
+    int? positionYKeys,
+    int? positionZKeys,
+    int? rotationXKeys,
+    int? rotationYKeys,
+    int? rotationZKeys,
+    int? scaleXKeys,
+    int? scaleYKeys,
+    int? localScaleXKeys,
+    int? localScaleYKeys,
+    int? alphaKeys,
+    int? localAlphaKeys,
+    int? priorityKeys,
+    int? flipHKeys,
+    int? flipVKeys,
+    int? hideKeys,
+    int? partColorKeys,
+    int? shaderKeys,
+    int? vertexKeys,
+    int? pivotXKeys,
+    int? pivotYKeys,
+    int? anchorXKeys,
+    int? anchorYKeys,
+    int? sizeXKeys,
+    int? sizeYKeys,
+    int? imgFlipHKeys,
+    int? imgFlipVKeys,
+    int? uvTranslationXKeys,
+    int? uvTranslationYKeys,
+    int? uvRotationZKeys,
+    int? uvScaleXKeys,
+    int? uvScaleYKeys,
+    int? boundingRadiusKeys,
+    int? maskKeys,
+    int? skewKeys,
+    int? deformKeys,
+    int? textureKeys,
   })
-      : _cellArray = cellArray,
-        _positionXArray = positionXArray,
-        _positionYArray = positionYArray,
-        _positionZArray = positionZArray,
-        _rotationXArray = rotationXArray,
-        _rotationYArray = rotationYArray,
-        _rotationZArray = rotationZArray,
-        _scaleXArray = scaleXArray,
-        _scaleYArray = scaleYArray,
-        _localScaleXArray = localScaleXArray,
-        _localScaleYArray = localScaleYArray,
-        _alphaArray = alphaArray,
-        _localAlphaArray = localAlphaArray,
-        _priorityArray = priorityArray,
-        _flipHArray = flipHArray,
-        _flipVArray = flipVArray,
-        _hideArray = hideArray,
-        _partColorArray = partColorArray,
-        _shaderArray = shaderArray,
-        _vertexArray = vertexArray,
-        _pivotXArray = pivotXArray,
-        _pivotYArray = pivotYArray,
-        _anchorXArray = anchorXArray,
-        _anchorYArray = anchorYArray,
-        _sizeXArray = sizeXArray,
-        _sizeYArray = sizeYArray,
-        _imgFlipHArray = imgFlipHArray,
-        _imgFlipVArray = imgFlipVArray,
-        _uvTranslationXArray = uvTranslationXArray,
-        _uvTranslationYArray = uvTranslationYArray,
-        _uvRotationZArray = uvRotationZArray,
-        _uvScaleXArray = uvScaleXArray,
-        _uvScaleYArray = uvScaleYArray,
-        _boundingRadiusArray = boundingRadiusArray,
-        _maskArray = maskArray,
-        _skewArray = skewArray,
-        _deformArray = deformArray,
-        _textureArray = textureArray;
+      : _cellKeys = cellKeys,
+        _positionXKeys = positionXKeys,
+        _positionYKeys = positionYKeys,
+        _positionZKeys = positionZKeys,
+        _rotationXKeys = rotationXKeys,
+        _rotationYKeys = rotationYKeys,
+        _rotationZKeys = rotationZKeys,
+        _scaleXKeys = scaleXKeys,
+        _scaleYKeys = scaleYKeys,
+        _localScaleXKeys = localScaleXKeys,
+        _localScaleYKeys = localScaleYKeys,
+        _alphaKeys = alphaKeys,
+        _localAlphaKeys = localAlphaKeys,
+        _priorityKeys = priorityKeys,
+        _flipHKeys = flipHKeys,
+        _flipVKeys = flipVKeys,
+        _hideKeys = hideKeys,
+        _partColorKeys = partColorKeys,
+        _shaderKeys = shaderKeys,
+        _vertexKeys = vertexKeys,
+        _pivotXKeys = pivotXKeys,
+        _pivotYKeys = pivotYKeys,
+        _anchorXKeys = anchorXKeys,
+        _anchorYKeys = anchorYKeys,
+        _sizeXKeys = sizeXKeys,
+        _sizeYKeys = sizeYKeys,
+        _imgFlipHKeys = imgFlipHKeys,
+        _imgFlipVKeys = imgFlipVKeys,
+        _uvTranslationXKeys = uvTranslationXKeys,
+        _uvTranslationYKeys = uvTranslationYKeys,
+        _uvRotationZKeys = uvRotationZKeys,
+        _uvScaleXKeys = uvScaleXKeys,
+        _uvScaleYKeys = uvScaleYKeys,
+        _boundingRadiusKeys = boundingRadiusKeys,
+        _maskKeys = maskKeys,
+        _skewKeys = skewKeys,
+        _deformKeys = deformKeys,
+        _textureKeys = textureKeys;
 
   /// Finish building, and store into the [fbBuilder].
   @override
   int finish(fb.Builder fbBuilder) {
-    final int? cellArrayOffset = _cellArray == null ? null
-        : fbBuilder.writeList(_cellArray!.map((b) => b.getOrCreateOffset(fbBuilder)).toList());
-    final int? positionXArrayOffset = _positionXArray == null ? null
-        : fbBuilder.writeList(_positionXArray!.map((b) => b.getOrCreateOffset(fbBuilder)).toList());
-    final int? positionYArrayOffset = _positionYArray == null ? null
-        : fbBuilder.writeList(_positionYArray!.map((b) => b.getOrCreateOffset(fbBuilder)).toList());
-    final int? positionZArrayOffset = _positionZArray == null ? null
-        : fbBuilder.writeList(_positionZArray!.map((b) => b.getOrCreateOffset(fbBuilder)).toList());
-    final int? rotationXArrayOffset = _rotationXArray == null ? null
-        : fbBuilder.writeList(_rotationXArray!.map((b) => b.getOrCreateOffset(fbBuilder)).toList());
-    final int? rotationYArrayOffset = _rotationYArray == null ? null
-        : fbBuilder.writeList(_rotationYArray!.map((b) => b.getOrCreateOffset(fbBuilder)).toList());
-    final int? rotationZArrayOffset = _rotationZArray == null ? null
-        : fbBuilder.writeList(_rotationZArray!.map((b) => b.getOrCreateOffset(fbBuilder)).toList());
-    final int? scaleXArrayOffset = _scaleXArray == null ? null
-        : fbBuilder.writeList(_scaleXArray!.map((b) => b.getOrCreateOffset(fbBuilder)).toList());
-    final int? scaleYArrayOffset = _scaleYArray == null ? null
-        : fbBuilder.writeList(_scaleYArray!.map((b) => b.getOrCreateOffset(fbBuilder)).toList());
-    final int? localScaleXArrayOffset = _localScaleXArray == null ? null
-        : fbBuilder.writeList(_localScaleXArray!.map((b) => b.getOrCreateOffset(fbBuilder)).toList());
-    final int? localScaleYArrayOffset = _localScaleYArray == null ? null
-        : fbBuilder.writeList(_localScaleYArray!.map((b) => b.getOrCreateOffset(fbBuilder)).toList());
-    final int? alphaArrayOffset = _alphaArray == null ? null
-        : fbBuilder.writeList(_alphaArray!.map((b) => b.getOrCreateOffset(fbBuilder)).toList());
-    final int? localAlphaArrayOffset = _localAlphaArray == null ? null
-        : fbBuilder.writeList(_localAlphaArray!.map((b) => b.getOrCreateOffset(fbBuilder)).toList());
-    final int? priorityArrayOffset = _priorityArray == null ? null
-        : fbBuilder.writeList(_priorityArray!.map((b) => b.getOrCreateOffset(fbBuilder)).toList());
-    final int? flipHArrayOffset = _flipHArray == null ? null
-        : fbBuilder.writeList(_flipHArray!.map((b) => b.getOrCreateOffset(fbBuilder)).toList());
-    final int? flipVArrayOffset = _flipVArray == null ? null
-        : fbBuilder.writeList(_flipVArray!.map((b) => b.getOrCreateOffset(fbBuilder)).toList());
-    final int? hideArrayOffset = _hideArray == null ? null
-        : fbBuilder.writeList(_hideArray!.map((b) => b.getOrCreateOffset(fbBuilder)).toList());
-    final int? partColorArrayOffset = _partColorArray == null ? null
-        : fbBuilder.writeList(_partColorArray!.map((b) => b.getOrCreateOffset(fbBuilder)).toList());
-    final int? shaderArrayOffset = _shaderArray == null ? null
-        : fbBuilder.writeList(_shaderArray!.map((b) => b.getOrCreateOffset(fbBuilder)).toList());
-    final int? vertexArrayOffset = _vertexArray == null ? null
-        : fbBuilder.writeList(_vertexArray!.map((b) => b.getOrCreateOffset(fbBuilder)).toList());
-    final int? pivotXArrayOffset = _pivotXArray == null ? null
-        : fbBuilder.writeList(_pivotXArray!.map((b) => b.getOrCreateOffset(fbBuilder)).toList());
-    final int? pivotYArrayOffset = _pivotYArray == null ? null
-        : fbBuilder.writeList(_pivotYArray!.map((b) => b.getOrCreateOffset(fbBuilder)).toList());
-    final int? anchorXArrayOffset = _anchorXArray == null ? null
-        : fbBuilder.writeList(_anchorXArray!.map((b) => b.getOrCreateOffset(fbBuilder)).toList());
-    final int? anchorYArrayOffset = _anchorYArray == null ? null
-        : fbBuilder.writeList(_anchorYArray!.map((b) => b.getOrCreateOffset(fbBuilder)).toList());
-    final int? sizeXArrayOffset = _sizeXArray == null ? null
-        : fbBuilder.writeList(_sizeXArray!.map((b) => b.getOrCreateOffset(fbBuilder)).toList());
-    final int? sizeYArrayOffset = _sizeYArray == null ? null
-        : fbBuilder.writeList(_sizeYArray!.map((b) => b.getOrCreateOffset(fbBuilder)).toList());
-    final int? imgFlipHArrayOffset = _imgFlipHArray == null ? null
-        : fbBuilder.writeList(_imgFlipHArray!.map((b) => b.getOrCreateOffset(fbBuilder)).toList());
-    final int? imgFlipVArrayOffset = _imgFlipVArray == null ? null
-        : fbBuilder.writeList(_imgFlipVArray!.map((b) => b.getOrCreateOffset(fbBuilder)).toList());
-    final int? uvTranslationXArrayOffset = _uvTranslationXArray == null ? null
-        : fbBuilder.writeList(_uvTranslationXArray!.map((b) => b.getOrCreateOffset(fbBuilder)).toList());
-    final int? uvTranslationYArrayOffset = _uvTranslationYArray == null ? null
-        : fbBuilder.writeList(_uvTranslationYArray!.map((b) => b.getOrCreateOffset(fbBuilder)).toList());
-    final int? uvRotationZArrayOffset = _uvRotationZArray == null ? null
-        : fbBuilder.writeList(_uvRotationZArray!.map((b) => b.getOrCreateOffset(fbBuilder)).toList());
-    final int? uvScaleXArrayOffset = _uvScaleXArray == null ? null
-        : fbBuilder.writeList(_uvScaleXArray!.map((b) => b.getOrCreateOffset(fbBuilder)).toList());
-    final int? uvScaleYArrayOffset = _uvScaleYArray == null ? null
-        : fbBuilder.writeList(_uvScaleYArray!.map((b) => b.getOrCreateOffset(fbBuilder)).toList());
-    final int? boundingRadiusArrayOffset = _boundingRadiusArray == null ? null
-        : fbBuilder.writeList(_boundingRadiusArray!.map((b) => b.getOrCreateOffset(fbBuilder)).toList());
-    final int? maskArrayOffset = _maskArray == null ? null
-        : fbBuilder.writeList(_maskArray!.map((b) => b.getOrCreateOffset(fbBuilder)).toList());
-    final int? skewArrayOffset = _skewArray == null ? null
-        : fbBuilder.writeList(_skewArray!.map((b) => b.getOrCreateOffset(fbBuilder)).toList());
-    final int? deformArrayOffset = _deformArray == null ? null
-        : fbBuilder.writeList(_deformArray!.map((b) => b.getOrCreateOffset(fbBuilder)).toList());
-    final int? textureArrayOffset = _textureArray == null ? null
-        : fbBuilder.writeList(_textureArray!.map((b) => b.getOrCreateOffset(fbBuilder)).toList());
     fbBuilder.startTable(38);
-    fbBuilder.addOffset(0, cellArrayOffset);
-    fbBuilder.addOffset(1, positionXArrayOffset);
-    fbBuilder.addOffset(2, positionYArrayOffset);
-    fbBuilder.addOffset(3, positionZArrayOffset);
-    fbBuilder.addOffset(4, rotationXArrayOffset);
-    fbBuilder.addOffset(5, rotationYArrayOffset);
-    fbBuilder.addOffset(6, rotationZArrayOffset);
-    fbBuilder.addOffset(7, scaleXArrayOffset);
-    fbBuilder.addOffset(8, scaleYArrayOffset);
-    fbBuilder.addOffset(9, localScaleXArrayOffset);
-    fbBuilder.addOffset(10, localScaleYArrayOffset);
-    fbBuilder.addOffset(11, alphaArrayOffset);
-    fbBuilder.addOffset(12, localAlphaArrayOffset);
-    fbBuilder.addOffset(13, priorityArrayOffset);
-    fbBuilder.addOffset(14, flipHArrayOffset);
-    fbBuilder.addOffset(15, flipVArrayOffset);
-    fbBuilder.addOffset(16, hideArrayOffset);
-    fbBuilder.addOffset(17, partColorArrayOffset);
-    fbBuilder.addOffset(18, shaderArrayOffset);
-    fbBuilder.addOffset(19, vertexArrayOffset);
-    fbBuilder.addOffset(20, pivotXArrayOffset);
-    fbBuilder.addOffset(21, pivotYArrayOffset);
-    fbBuilder.addOffset(22, anchorXArrayOffset);
-    fbBuilder.addOffset(23, anchorYArrayOffset);
-    fbBuilder.addOffset(24, sizeXArrayOffset);
-    fbBuilder.addOffset(25, sizeYArrayOffset);
-    fbBuilder.addOffset(26, imgFlipHArrayOffset);
-    fbBuilder.addOffset(27, imgFlipVArrayOffset);
-    fbBuilder.addOffset(28, uvTranslationXArrayOffset);
-    fbBuilder.addOffset(29, uvTranslationYArrayOffset);
-    fbBuilder.addOffset(30, uvRotationZArrayOffset);
-    fbBuilder.addOffset(31, uvScaleXArrayOffset);
-    fbBuilder.addOffset(32, uvScaleYArrayOffset);
-    fbBuilder.addOffset(33, boundingRadiusArrayOffset);
-    fbBuilder.addOffset(34, maskArrayOffset);
-    fbBuilder.addOffset(35, skewArrayOffset);
-    fbBuilder.addOffset(36, deformArrayOffset);
-    fbBuilder.addOffset(37, textureArrayOffset);
+    fbBuilder.addUint32(0, _cellKeys);
+    fbBuilder.addUint32(1, _positionXKeys);
+    fbBuilder.addUint32(2, _positionYKeys);
+    fbBuilder.addUint32(3, _positionZKeys);
+    fbBuilder.addUint32(4, _rotationXKeys);
+    fbBuilder.addUint32(5, _rotationYKeys);
+    fbBuilder.addUint32(6, _rotationZKeys);
+    fbBuilder.addUint32(7, _scaleXKeys);
+    fbBuilder.addUint32(8, _scaleYKeys);
+    fbBuilder.addUint32(9, _localScaleXKeys);
+    fbBuilder.addUint32(10, _localScaleYKeys);
+    fbBuilder.addUint32(11, _alphaKeys);
+    fbBuilder.addUint32(12, _localAlphaKeys);
+    fbBuilder.addUint32(13, _priorityKeys);
+    fbBuilder.addUint32(14, _flipHKeys);
+    fbBuilder.addUint32(15, _flipVKeys);
+    fbBuilder.addUint32(16, _hideKeys);
+    fbBuilder.addUint32(17, _partColorKeys);
+    fbBuilder.addUint32(18, _shaderKeys);
+    fbBuilder.addUint32(19, _vertexKeys);
+    fbBuilder.addUint32(20, _pivotXKeys);
+    fbBuilder.addUint32(21, _pivotYKeys);
+    fbBuilder.addUint32(22, _anchorXKeys);
+    fbBuilder.addUint32(23, _anchorYKeys);
+    fbBuilder.addUint32(24, _sizeXKeys);
+    fbBuilder.addUint32(25, _sizeYKeys);
+    fbBuilder.addUint32(26, _imgFlipHKeys);
+    fbBuilder.addUint32(27, _imgFlipVKeys);
+    fbBuilder.addUint32(28, _uvTranslationXKeys);
+    fbBuilder.addUint32(29, _uvTranslationYKeys);
+    fbBuilder.addUint32(30, _uvRotationZKeys);
+    fbBuilder.addUint32(31, _uvScaleXKeys);
+    fbBuilder.addUint32(32, _uvScaleYKeys);
+    fbBuilder.addUint32(33, _boundingRadiusKeys);
+    fbBuilder.addUint32(34, _maskKeys);
+    fbBuilder.addUint32(35, _skewKeys);
+    fbBuilder.addUint32(36, _deformKeys);
+    fbBuilder.addUint32(37, _textureKeys);
+    return fbBuilder.endTable();
+  }
+
+  /// Convenience method to serialize to byte list.
+  @override
+  Uint8List toBytes([String? fileIdentifier]) {
+    final fbBuilder = fb.Builder(deduplicateTables: false);
+    fbBuilder.finish(finish(fbBuilder), fileIdentifier);
+    return fbBuilder.buffer;
+  }
+}
+
+class KeyframesBuilder {
+  KeyframesBuilder(this.fbBuilder);
+
+  final fb.Builder fbBuilder;
+
+  void begin() {
+    fbBuilder.startTable(13);
+  }
+
+  int addRunsOffset(int? offset) {
+    fbBuilder.addOffset(0, offset);
+    return fbBuilder.offset;
+  }
+  int addFrameOffset(int? offset) {
+    fbBuilder.addOffset(1, offset);
+    return fbBuilder.offset;
+  }
+  int addInterpolationOffset(int? offset) {
+    fbBuilder.addOffset(2, offset);
+    return fbBuilder.offset;
+  }
+  int addCurveOffset(int? offset) {
+    fbBuilder.addOffset(3, offset);
+    return fbBuilder.offset;
+  }
+  int addValueOffset(int? offset) {
+    fbBuilder.addOffset(4, offset);
+    return fbBuilder.offset;
+  }
+  int addCurvesOffset(int? offset) {
+    fbBuilder.addOffset(5, offset);
+    return fbBuilder.offset;
+  }
+  int addEasingRatesOffset(int? offset) {
+    fbBuilder.addOffset(6, offset);
+    return fbBuilder.offset;
+  }
+  int addCellsOffset(int? offset) {
+    fbBuilder.addOffset(7, offset);
+    return fbBuilder.offset;
+  }
+  int addPartColorsOffset(int? offset) {
+    fbBuilder.addOffset(8, offset);
+    return fbBuilder.offset;
+  }
+  int addShadersOffset(int? offset) {
+    fbBuilder.addOffset(9, offset);
+    return fbBuilder.offset;
+  }
+  int addVerticesOffset(int? offset) {
+    fbBuilder.addOffset(10, offset);
+    return fbBuilder.offset;
+  }
+  int addSkewsOffset(int? offset) {
+    fbBuilder.addOffset(11, offset);
+    return fbBuilder.offset;
+  }
+  int addDeformsOffset(int? offset) {
+    fbBuilder.addOffset(12, offset);
+    return fbBuilder.offset;
+  }
+
+  int finish() {
+    return fbBuilder.endTable();
+  }
+}
+
+class KeyframesObjectBuilder extends fb.ObjectBuilder {
+  final List<int>? _runs;
+  final List<int>? _frame;
+  final List<InterpolationType>? _interpolation;
+  final List<int>? _curve;
+  final List<int>? _value;
+  final List<KeyCurveObjectBuilder>? _curves;
+  final List<double>? _easingRates;
+  final List<PartAttributeCellObjectBuilder>? _cells;
+  final List<PartAttributePartColorObjectBuilder>? _partColors;
+  final List<PartAttributeShaderObjectBuilder>? _shaders;
+  final List<PartAttributeVertexObjectBuilder>? _vertices;
+  final List<Vec2ObjectBuilder>? _skews;
+  final List<PartAttributeDeformObjectBuilder>? _deforms;
+
+  KeyframesObjectBuilder({
+    List<int>? runs,
+    List<int>? frame,
+    List<InterpolationType>? interpolation,
+    List<int>? curve,
+    List<int>? value,
+    List<KeyCurveObjectBuilder>? curves,
+    List<double>? easingRates,
+    List<PartAttributeCellObjectBuilder>? cells,
+    List<PartAttributePartColorObjectBuilder>? partColors,
+    List<PartAttributeShaderObjectBuilder>? shaders,
+    List<PartAttributeVertexObjectBuilder>? vertices,
+    List<Vec2ObjectBuilder>? skews,
+    List<PartAttributeDeformObjectBuilder>? deforms,
+  })
+      : _runs = runs,
+        _frame = frame,
+        _interpolation = interpolation,
+        _curve = curve,
+        _value = value,
+        _curves = curves,
+        _easingRates = easingRates,
+        _cells = cells,
+        _partColors = partColors,
+        _shaders = shaders,
+        _vertices = vertices,
+        _skews = skews,
+        _deforms = deforms;
+
+  /// Finish building, and store into the [fbBuilder].
+  @override
+  int finish(fb.Builder fbBuilder) {
+    final int? runsOffset = _runs == null ? null
+        : fbBuilder.writeListUint32(_runs!);
+    final int? frameOffset = _frame == null ? null
+        : fbBuilder.writeListUint16(_frame!);
+    final int? interpolationOffset = _interpolation == null ? null
+        : fbBuilder.writeListUint8(_interpolation!.map((f) => f.value).toList());
+    final int? curveOffset = _curve == null ? null
+        : fbBuilder.writeListUint16(_curve!);
+    final int? valueOffset = _value == null ? null
+        : fbBuilder.writeListUint32(_value!);
+    final int? curvesOffset = _curves == null ? null
+        : fbBuilder.writeListOfStructs(_curves!);
+    final int? easingRatesOffset = _easingRates == null ? null
+        : fbBuilder.writeListFloat32(_easingRates!);
+    final int? cellsOffset = _cells == null ? null
+        : fbBuilder.writeList(_cells!.map((b) => b.getOrCreateOffset(fbBuilder)).toList());
+    final int? partColorsOffset = _partColors == null ? null
+        : fbBuilder.writeList(_partColors!.map((b) => b.getOrCreateOffset(fbBuilder)).toList());
+    final int? shadersOffset = _shaders == null ? null
+        : fbBuilder.writeList(_shaders!.map((b) => b.getOrCreateOffset(fbBuilder)).toList());
+    final int? verticesOffset = _vertices == null ? null
+        : fbBuilder.writeList(_vertices!.map((b) => b.getOrCreateOffset(fbBuilder)).toList());
+    final int? skewsOffset = _skews == null ? null
+        : fbBuilder.writeList(_skews!.map((b) => b.getOrCreateOffset(fbBuilder)).toList());
+    final int? deformsOffset = _deforms == null ? null
+        : fbBuilder.writeList(_deforms!.map((b) => b.getOrCreateOffset(fbBuilder)).toList());
+    fbBuilder.startTable(13);
+    fbBuilder.addOffset(0, runsOffset);
+    fbBuilder.addOffset(1, frameOffset);
+    fbBuilder.addOffset(2, interpolationOffset);
+    fbBuilder.addOffset(3, curveOffset);
+    fbBuilder.addOffset(4, valueOffset);
+    fbBuilder.addOffset(5, curvesOffset);
+    fbBuilder.addOffset(6, easingRatesOffset);
+    fbBuilder.addOffset(7, cellsOffset);
+    fbBuilder.addOffset(8, partColorsOffset);
+    fbBuilder.addOffset(9, shadersOffset);
+    fbBuilder.addOffset(10, verticesOffset);
+    fbBuilder.addOffset(11, skewsOffset);
+    fbBuilder.addOffset(12, deformsOffset);
     return fbBuilder.endTable();
   }
 
@@ -5955,7 +5319,7 @@ class SsAnimeBinaryBuilder {
   final fb.Builder fbBuilder;
 
   void begin() {
-    fbBuilder.startTable(12);
+    fbBuilder.startTable(13);
   }
 
   int addVersion(int? version) {
@@ -6006,6 +5370,10 @@ class SsAnimeBinaryBuilder {
     fbBuilder.addOffset(11, offset);
     return fbBuilder.offset;
   }
+  int addKeyframesOffset(int? offset) {
+    fbBuilder.addOffset(12, offset);
+    return fbBuilder.offset;
+  }
 
   int finish() {
     return fbBuilder.endTable();
@@ -6025,6 +5393,7 @@ class SsAnimeBinaryObjectBuilder extends fb.ObjectBuilder {
   final List<ExternalTextureObjectBuilder>? _externalTextures;
   final List<ExternalInstanceObjectBuilder>? _externalInstances;
   final List<EmbeddedAssetObjectBuilder>? _embeddedAssets;
+  final KeyframesObjectBuilder? _keyframes;
 
   SsAnimeBinaryObjectBuilder({
     int? version,
@@ -6039,6 +5408,7 @@ class SsAnimeBinaryObjectBuilder extends fb.ObjectBuilder {
     List<ExternalTextureObjectBuilder>? externalTextures,
     List<ExternalInstanceObjectBuilder>? externalInstances,
     List<EmbeddedAssetObjectBuilder>? embeddedAssets,
+    KeyframesObjectBuilder? keyframes,
   })
       : _version = version,
         _name = name,
@@ -6051,7 +5421,8 @@ class SsAnimeBinaryObjectBuilder extends fb.ObjectBuilder {
         _fontBitmaps = fontBitmaps,
         _externalTextures = externalTextures,
         _externalInstances = externalInstances,
-        _embeddedAssets = embeddedAssets;
+        _embeddedAssets = embeddedAssets,
+        _keyframes = keyframes;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -6076,7 +5447,8 @@ class SsAnimeBinaryObjectBuilder extends fb.ObjectBuilder {
         : fbBuilder.writeList(_externalInstances!.map((b) => b.getOrCreateOffset(fbBuilder)).toList());
     final int? embeddedAssetsOffset = _embeddedAssets == null ? null
         : fbBuilder.writeList(_embeddedAssets!.map((b) => b.getOrCreateOffset(fbBuilder)).toList());
-    fbBuilder.startTable(12);
+    final int? keyframesOffset = _keyframes?.getOrCreateOffset(fbBuilder);
+    fbBuilder.startTable(13);
     fbBuilder.addUint32(0, _version);
     fbBuilder.addOffset(1, nameOffset);
     fbBuilder.addUint32(2, _nameHash);
@@ -6089,6 +5461,7 @@ class SsAnimeBinaryObjectBuilder extends fb.ObjectBuilder {
     fbBuilder.addOffset(9, externalTexturesOffset);
     fbBuilder.addOffset(10, externalInstancesOffset);
     fbBuilder.addOffset(11, embeddedAssetsOffset);
+    fbBuilder.addOffset(12, keyframesOffset);
     return fbBuilder.endTable();
   }
 

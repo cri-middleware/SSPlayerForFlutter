@@ -959,35 +959,34 @@ class _U8ColorReader extends fb.TableReader<U8Color> {
     U8Color._(bc, offset);
 }
 
-class SsCurve {
-  SsCurve._(this._bc, this._bcOffset);
-  factory SsCurve(List<int> bytes) {
-    final rootRef = fb.BufferContext.fromBytes(bytes);
-    return reader.read(rootRef, 0);
-  }
+class KeyCurve {
+  KeyCurve._(this._bc, this._bcOffset);
 
-  static const fb.Reader<SsCurve> reader = _SsCurveReader();
+  static const fb.Reader<KeyCurve> reader = _KeyCurveReader();
 
   final fb.BufferContext _bc;
   final int _bcOffset;
 
-  double get startTime => const fb.Float32Reader().vTableGet(_bc, _bcOffset, 4, 0.0);
-  double get startValue => const fb.Float32Reader().vTableGet(_bc, _bcOffset, 6, 0.0);
-  double get endTime => const fb.Float32Reader().vTableGet(_bc, _bcOffset, 8, 0.0);
-  double get endValue => const fb.Float32Reader().vTableGet(_bc, _bcOffset, 10, 0.0);
+  double get startTime => const fb.Float32Reader().read(_bc, _bcOffset + 0);
+  double get startValue => const fb.Float32Reader().read(_bc, _bcOffset + 4);
+  double get endTime => const fb.Float32Reader().read(_bc, _bcOffset + 8);
+  double get endValue => const fb.Float32Reader().read(_bc, _bcOffset + 12);
 
   @override
   String toString() {
-    return 'SsCurve{startTime: ${startTime}, startValue: ${startValue}, endTime: ${endTime}, endValue: ${endValue}}';
+    return 'KeyCurve{startTime: ${startTime}, startValue: ${startValue}, endTime: ${endTime}, endValue: ${endValue}}';
   }
 }
 
-class _SsCurveReader extends fb.TableReader<SsCurve> {
-  const _SsCurveReader();
+class _KeyCurveReader extends fb.StructReader<KeyCurve> {
+  const _KeyCurveReader();
 
   @override
-  SsCurve createObject(fb.BufferContext bc, int offset) => 
-    SsCurve._(bc, offset);
+  int get size => 16;
+
+  @override
+  KeyCurve createObject(fb.BufferContext bc, int offset) => 
+    KeyCurve._(bc, offset);
 }
 
 class NoneValueEntry {
@@ -2669,254 +2668,6 @@ class _LabelReader extends fb.TableReader<Label> {
     Label._(bc, offset);
 }
 
-class PartAnimationDataCellValue {
-  PartAnimationDataCellValue._(this._bc, this._bcOffset);
-  factory PartAnimationDataCellValue(List<int> bytes) {
-    final rootRef = fb.BufferContext.fromBytes(bytes);
-    return reader.read(rootRef, 0);
-  }
-
-  static const fb.Reader<PartAnimationDataCellValue> reader = _PartAnimationDataCellValueReader();
-
-  final fb.BufferContext _bc;
-  final int _bcOffset;
-
-  int get index => const fb.Uint16Reader().vTableGet(_bc, _bcOffset, 4, 0);
-  PartAttributeCell? get value => PartAttributeCell.reader.vTableGetNullable(_bc, _bcOffset, 6);
-
-  @override
-  String toString() {
-    return 'PartAnimationDataCellValue{index: ${index}, value: ${value}}';
-  }
-}
-
-class _PartAnimationDataCellValueReader extends fb.TableReader<PartAnimationDataCellValue> {
-  const _PartAnimationDataCellValueReader();
-
-  @override
-  PartAnimationDataCellValue createObject(fb.BufferContext bc, int offset) => 
-    PartAnimationDataCellValue._(bc, offset);
-}
-
-class PartAnimationDataFloatValue {
-  PartAnimationDataFloatValue._(this._bc, this._bcOffset);
-  factory PartAnimationDataFloatValue(List<int> bytes) {
-    final rootRef = fb.BufferContext.fromBytes(bytes);
-    return reader.read(rootRef, 0);
-  }
-
-  static const fb.Reader<PartAnimationDataFloatValue> reader = _PartAnimationDataFloatValueReader();
-
-  final fb.BufferContext _bc;
-  final int _bcOffset;
-
-  int get index => const fb.Uint16Reader().vTableGet(_bc, _bcOffset, 4, 0);
-  InterpolationType get interpolation => InterpolationType.fromValue(const fb.Uint8Reader().vTableGet(_bc, _bcOffset, 6, 0));
-  double get value => const fb.Float32Reader().vTableGet(_bc, _bcOffset, 8, 0.0);
-  SsCurve? get curve => SsCurve.reader.vTableGetNullable(_bc, _bcOffset, 10);
-  double get easingRate => const fb.Float32Reader().vTableGet(_bc, _bcOffset, 12, 0.0);
-
-  @override
-  String toString() {
-    return 'PartAnimationDataFloatValue{index: ${index}, interpolation: ${interpolation}, value: ${value}, curve: ${curve}, easingRate: ${easingRate}}';
-  }
-}
-
-class _PartAnimationDataFloatValueReader extends fb.TableReader<PartAnimationDataFloatValue> {
-  const _PartAnimationDataFloatValueReader();
-
-  @override
-  PartAnimationDataFloatValue createObject(fb.BufferContext bc, int offset) => 
-    PartAnimationDataFloatValue._(bc, offset);
-}
-
-class PartAnimationDataIntValue {
-  PartAnimationDataIntValue._(this._bc, this._bcOffset);
-  factory PartAnimationDataIntValue(List<int> bytes) {
-    final rootRef = fb.BufferContext.fromBytes(bytes);
-    return reader.read(rootRef, 0);
-  }
-
-  static const fb.Reader<PartAnimationDataIntValue> reader = _PartAnimationDataIntValueReader();
-
-  final fb.BufferContext _bc;
-  final int _bcOffset;
-
-  int get index => const fb.Uint16Reader().vTableGet(_bc, _bcOffset, 4, 0);
-  InterpolationType get interpolation => InterpolationType.fromValue(const fb.Uint8Reader().vTableGet(_bc, _bcOffset, 6, 0));
-  int get value => const fb.Int32Reader().vTableGet(_bc, _bcOffset, 8, 0);
-  SsCurve? get curve => SsCurve.reader.vTableGetNullable(_bc, _bcOffset, 10);
-  double get easingRate => const fb.Float32Reader().vTableGet(_bc, _bcOffset, 12, 0.0);
-
-  @override
-  String toString() {
-    return 'PartAnimationDataIntValue{index: ${index}, interpolation: ${interpolation}, value: ${value}, curve: ${curve}, easingRate: ${easingRate}}';
-  }
-}
-
-class _PartAnimationDataIntValueReader extends fb.TableReader<PartAnimationDataIntValue> {
-  const _PartAnimationDataIntValueReader();
-
-  @override
-  PartAnimationDataIntValue createObject(fb.BufferContext bc, int offset) => 
-    PartAnimationDataIntValue._(bc, offset);
-}
-
-class PartAnimationDataUintValue {
-  PartAnimationDataUintValue._(this._bc, this._bcOffset);
-  factory PartAnimationDataUintValue(List<int> bytes) {
-    final rootRef = fb.BufferContext.fromBytes(bytes);
-    return reader.read(rootRef, 0);
-  }
-
-  static const fb.Reader<PartAnimationDataUintValue> reader = _PartAnimationDataUintValueReader();
-
-  final fb.BufferContext _bc;
-  final int _bcOffset;
-
-  int get index => const fb.Uint16Reader().vTableGet(_bc, _bcOffset, 4, 0);
-  InterpolationType get interpolation => InterpolationType.fromValue(const fb.Uint8Reader().vTableGet(_bc, _bcOffset, 6, 0));
-  int get value => const fb.Uint32Reader().vTableGet(_bc, _bcOffset, 8, 0);
-
-  @override
-  String toString() {
-    return 'PartAnimationDataUintValue{index: ${index}, interpolation: ${interpolation}, value: ${value}}';
-  }
-}
-
-class _PartAnimationDataUintValueReader extends fb.TableReader<PartAnimationDataUintValue> {
-  const _PartAnimationDataUintValueReader();
-
-  @override
-  PartAnimationDataUintValue createObject(fb.BufferContext bc, int offset) => 
-    PartAnimationDataUintValue._(bc, offset);
-}
-
-class PartAnimationDataBoolValue {
-  PartAnimationDataBoolValue._(this._bc, this._bcOffset);
-  factory PartAnimationDataBoolValue(List<int> bytes) {
-    final rootRef = fb.BufferContext.fromBytes(bytes);
-    return reader.read(rootRef, 0);
-  }
-
-  static const fb.Reader<PartAnimationDataBoolValue> reader = _PartAnimationDataBoolValueReader();
-
-  final fb.BufferContext _bc;
-  final int _bcOffset;
-
-  int get index => const fb.Uint16Reader().vTableGet(_bc, _bcOffset, 4, 0);
-  bool get value => const fb.BoolReader().vTableGet(_bc, _bcOffset, 6, false);
-
-  @override
-  String toString() {
-    return 'PartAnimationDataBoolValue{index: ${index}, value: ${value}}';
-  }
-}
-
-class _PartAnimationDataBoolValueReader extends fb.TableReader<PartAnimationDataBoolValue> {
-  const _PartAnimationDataBoolValueReader();
-
-  @override
-  PartAnimationDataBoolValue createObject(fb.BufferContext bc, int offset) => 
-    PartAnimationDataBoolValue._(bc, offset);
-}
-
-class PartAnimationDataPartColor {
-  PartAnimationDataPartColor._(this._bc, this._bcOffset);
-  factory PartAnimationDataPartColor(List<int> bytes) {
-    final rootRef = fb.BufferContext.fromBytes(bytes);
-    return reader.read(rootRef, 0);
-  }
-
-  static const fb.Reader<PartAnimationDataPartColor> reader = _PartAnimationDataPartColorReader();
-
-  final fb.BufferContext _bc;
-  final int _bcOffset;
-
-  int get index => const fb.Uint16Reader().vTableGet(_bc, _bcOffset, 4, 0);
-  InterpolationType get interpolation => InterpolationType.fromValue(const fb.Uint8Reader().vTableGet(_bc, _bcOffset, 6, 0));
-  PartAttributePartColor? get value => PartAttributePartColor.reader.vTableGetNullable(_bc, _bcOffset, 8);
-  SsCurve? get curve => SsCurve.reader.vTableGetNullable(_bc, _bcOffset, 10);
-  double get easingRate => const fb.Float32Reader().vTableGet(_bc, _bcOffset, 12, 0.0);
-
-  @override
-  String toString() {
-    return 'PartAnimationDataPartColor{index: ${index}, interpolation: ${interpolation}, value: ${value}, curve: ${curve}, easingRate: ${easingRate}}';
-  }
-}
-
-class _PartAnimationDataPartColorReader extends fb.TableReader<PartAnimationDataPartColor> {
-  const _PartAnimationDataPartColorReader();
-
-  @override
-  PartAnimationDataPartColor createObject(fb.BufferContext bc, int offset) => 
-    PartAnimationDataPartColor._(bc, offset);
-}
-
-class PartAnimationDataShader {
-  PartAnimationDataShader._(this._bc, this._bcOffset);
-  factory PartAnimationDataShader(List<int> bytes) {
-    final rootRef = fb.BufferContext.fromBytes(bytes);
-    return reader.read(rootRef, 0);
-  }
-
-  static const fb.Reader<PartAnimationDataShader> reader = _PartAnimationDataShaderReader();
-
-  final fb.BufferContext _bc;
-  final int _bcOffset;
-
-  int get index => const fb.Uint16Reader().vTableGet(_bc, _bcOffset, 4, 0);
-  InterpolationType get interpolation => InterpolationType.fromValue(const fb.Uint8Reader().vTableGet(_bc, _bcOffset, 6, 0));
-  PartAttributeShader? get value => PartAttributeShader.reader.vTableGetNullable(_bc, _bcOffset, 8);
-  SsCurve? get curve => SsCurve.reader.vTableGetNullable(_bc, _bcOffset, 10);
-  double get easingRate => const fb.Float32Reader().vTableGet(_bc, _bcOffset, 12, 0.0);
-
-  @override
-  String toString() {
-    return 'PartAnimationDataShader{index: ${index}, interpolation: ${interpolation}, value: ${value}, curve: ${curve}, easingRate: ${easingRate}}';
-  }
-}
-
-class _PartAnimationDataShaderReader extends fb.TableReader<PartAnimationDataShader> {
-  const _PartAnimationDataShaderReader();
-
-  @override
-  PartAnimationDataShader createObject(fb.BufferContext bc, int offset) => 
-    PartAnimationDataShader._(bc, offset);
-}
-
-class PartAnimationDataVertex {
-  PartAnimationDataVertex._(this._bc, this._bcOffset);
-  factory PartAnimationDataVertex(List<int> bytes) {
-    final rootRef = fb.BufferContext.fromBytes(bytes);
-    return reader.read(rootRef, 0);
-  }
-
-  static const fb.Reader<PartAnimationDataVertex> reader = _PartAnimationDataVertexReader();
-
-  final fb.BufferContext _bc;
-  final int _bcOffset;
-
-  int get index => const fb.Uint16Reader().vTableGet(_bc, _bcOffset, 4, 0);
-  InterpolationType get interpolation => InterpolationType.fromValue(const fb.Uint8Reader().vTableGet(_bc, _bcOffset, 6, 0));
-  PartAttributeVertex? get value => PartAttributeVertex.reader.vTableGetNullable(_bc, _bcOffset, 8);
-  SsCurve? get curve => SsCurve.reader.vTableGetNullable(_bc, _bcOffset, 10);
-  double get easingRate => const fb.Float32Reader().vTableGet(_bc, _bcOffset, 12, 0.0);
-
-  @override
-  String toString() {
-    return 'PartAnimationDataVertex{index: ${index}, interpolation: ${interpolation}, value: ${value}, curve: ${curve}, easingRate: ${easingRate}}';
-  }
-}
-
-class _PartAnimationDataVertexReader extends fb.TableReader<PartAnimationDataVertex> {
-  const _PartAnimationDataVertexReader();
-
-  @override
-  PartAnimationDataVertex createObject(fb.BufferContext bc, int offset) => 
-    PartAnimationDataVertex._(bc, offset);
-}
-
 class PartAnimationDataInstance {
   PartAnimationDataInstance._(this._bc, this._bcOffset);
   factory PartAnimationDataInstance(List<int> bytes) {
@@ -2975,70 +2726,6 @@ class _PartAnimationDataEffectReader extends fb.TableReader<PartAnimationDataEff
     PartAnimationDataEffect._(bc, offset);
 }
 
-class PartAnimationDataVec2 {
-  PartAnimationDataVec2._(this._bc, this._bcOffset);
-  factory PartAnimationDataVec2(List<int> bytes) {
-    final rootRef = fb.BufferContext.fromBytes(bytes);
-    return reader.read(rootRef, 0);
-  }
-
-  static const fb.Reader<PartAnimationDataVec2> reader = _PartAnimationDataVec2Reader();
-
-  final fb.BufferContext _bc;
-  final int _bcOffset;
-
-  int get index => const fb.Uint16Reader().vTableGet(_bc, _bcOffset, 4, 0);
-  InterpolationType get interpolation => InterpolationType.fromValue(const fb.Uint8Reader().vTableGet(_bc, _bcOffset, 6, 0));
-  Vec2? get value => Vec2.reader.vTableGetNullable(_bc, _bcOffset, 8);
-  SsCurve? get curve => SsCurve.reader.vTableGetNullable(_bc, _bcOffset, 10);
-  double get easingRate => const fb.Float32Reader().vTableGet(_bc, _bcOffset, 12, 0.0);
-
-  @override
-  String toString() {
-    return 'PartAnimationDataVec2{index: ${index}, interpolation: ${interpolation}, value: ${value}, curve: ${curve}, easingRate: ${easingRate}}';
-  }
-}
-
-class _PartAnimationDataVec2Reader extends fb.TableReader<PartAnimationDataVec2> {
-  const _PartAnimationDataVec2Reader();
-
-  @override
-  PartAnimationDataVec2 createObject(fb.BufferContext bc, int offset) => 
-    PartAnimationDataVec2._(bc, offset);
-}
-
-class PartAnimationDataDeform {
-  PartAnimationDataDeform._(this._bc, this._bcOffset);
-  factory PartAnimationDataDeform(List<int> bytes) {
-    final rootRef = fb.BufferContext.fromBytes(bytes);
-    return reader.read(rootRef, 0);
-  }
-
-  static const fb.Reader<PartAnimationDataDeform> reader = _PartAnimationDataDeformReader();
-
-  final fb.BufferContext _bc;
-  final int _bcOffset;
-
-  int get index => const fb.Uint16Reader().vTableGet(_bc, _bcOffset, 4, 0);
-  InterpolationType get interpolation => InterpolationType.fromValue(const fb.Uint8Reader().vTableGet(_bc, _bcOffset, 6, 0));
-  PartAttributeDeform? get value => PartAttributeDeform.reader.vTableGetNullable(_bc, _bcOffset, 8);
-  SsCurve? get curve => SsCurve.reader.vTableGetNullable(_bc, _bcOffset, 10);
-  double get easingRate => const fb.Float32Reader().vTableGet(_bc, _bcOffset, 12, 0.0);
-
-  @override
-  String toString() {
-    return 'PartAnimationDataDeform{index: ${index}, interpolation: ${interpolation}, value: ${value}, curve: ${curve}, easingRate: ${easingRate}}';
-  }
-}
-
-class _PartAnimationDataDeformReader extends fb.TableReader<PartAnimationDataDeform> {
-  const _PartAnimationDataDeformReader();
-
-  @override
-  PartAnimationDataDeform createObject(fb.BufferContext bc, int offset) => 
-    PartAnimationDataDeform._(bc, offset);
-}
-
 class PartAnimationData {
   PartAnimationData._(this._bc, this._bcOffset);
   factory PartAnimationData(List<int> bytes) {
@@ -3051,48 +2738,48 @@ class PartAnimationData {
   final fb.BufferContext _bc;
   final int _bcOffset;
 
-  List<PartAnimationDataCellValue>? get cellArray => const fb.ListReader<PartAnimationDataCellValue>(PartAnimationDataCellValue.reader).vTableGetNullable(_bc, _bcOffset, 4);
-  List<PartAnimationDataFloatValue>? get positionXArray => const fb.ListReader<PartAnimationDataFloatValue>(PartAnimationDataFloatValue.reader).vTableGetNullable(_bc, _bcOffset, 6);
-  List<PartAnimationDataFloatValue>? get positionYArray => const fb.ListReader<PartAnimationDataFloatValue>(PartAnimationDataFloatValue.reader).vTableGetNullable(_bc, _bcOffset, 8);
-  List<PartAnimationDataFloatValue>? get positionZArray => const fb.ListReader<PartAnimationDataFloatValue>(PartAnimationDataFloatValue.reader).vTableGetNullable(_bc, _bcOffset, 10);
-  List<PartAnimationDataFloatValue>? get rotationXArray => const fb.ListReader<PartAnimationDataFloatValue>(PartAnimationDataFloatValue.reader).vTableGetNullable(_bc, _bcOffset, 12);
-  List<PartAnimationDataFloatValue>? get rotationYArray => const fb.ListReader<PartAnimationDataFloatValue>(PartAnimationDataFloatValue.reader).vTableGetNullable(_bc, _bcOffset, 14);
-  List<PartAnimationDataFloatValue>? get rotationZArray => const fb.ListReader<PartAnimationDataFloatValue>(PartAnimationDataFloatValue.reader).vTableGetNullable(_bc, _bcOffset, 16);
-  List<PartAnimationDataFloatValue>? get scaleXArray => const fb.ListReader<PartAnimationDataFloatValue>(PartAnimationDataFloatValue.reader).vTableGetNullable(_bc, _bcOffset, 18);
-  List<PartAnimationDataFloatValue>? get scaleYArray => const fb.ListReader<PartAnimationDataFloatValue>(PartAnimationDataFloatValue.reader).vTableGetNullable(_bc, _bcOffset, 20);
-  List<PartAnimationDataFloatValue>? get localScaleXArray => const fb.ListReader<PartAnimationDataFloatValue>(PartAnimationDataFloatValue.reader).vTableGetNullable(_bc, _bcOffset, 22);
-  List<PartAnimationDataFloatValue>? get localScaleYArray => const fb.ListReader<PartAnimationDataFloatValue>(PartAnimationDataFloatValue.reader).vTableGetNullable(_bc, _bcOffset, 24);
-  List<PartAnimationDataFloatValue>? get alphaArray => const fb.ListReader<PartAnimationDataFloatValue>(PartAnimationDataFloatValue.reader).vTableGetNullable(_bc, _bcOffset, 26);
-  List<PartAnimationDataFloatValue>? get localAlphaArray => const fb.ListReader<PartAnimationDataFloatValue>(PartAnimationDataFloatValue.reader).vTableGetNullable(_bc, _bcOffset, 28);
-  List<PartAnimationDataIntValue>? get priorityArray => const fb.ListReader<PartAnimationDataIntValue>(PartAnimationDataIntValue.reader).vTableGetNullable(_bc, _bcOffset, 30);
-  List<PartAnimationDataBoolValue>? get flipHArray => const fb.ListReader<PartAnimationDataBoolValue>(PartAnimationDataBoolValue.reader).vTableGetNullable(_bc, _bcOffset, 32);
-  List<PartAnimationDataBoolValue>? get flipVArray => const fb.ListReader<PartAnimationDataBoolValue>(PartAnimationDataBoolValue.reader).vTableGetNullable(_bc, _bcOffset, 34);
-  List<PartAnimationDataBoolValue>? get hideArray => const fb.ListReader<PartAnimationDataBoolValue>(PartAnimationDataBoolValue.reader).vTableGetNullable(_bc, _bcOffset, 36);
-  List<PartAnimationDataPartColor>? get partColorArray => const fb.ListReader<PartAnimationDataPartColor>(PartAnimationDataPartColor.reader).vTableGetNullable(_bc, _bcOffset, 38);
-  List<PartAnimationDataShader>? get shaderArray => const fb.ListReader<PartAnimationDataShader>(PartAnimationDataShader.reader).vTableGetNullable(_bc, _bcOffset, 40);
-  List<PartAnimationDataVertex>? get vertexArray => const fb.ListReader<PartAnimationDataVertex>(PartAnimationDataVertex.reader).vTableGetNullable(_bc, _bcOffset, 42);
-  List<PartAnimationDataFloatValue>? get pivotXArray => const fb.ListReader<PartAnimationDataFloatValue>(PartAnimationDataFloatValue.reader).vTableGetNullable(_bc, _bcOffset, 44);
-  List<PartAnimationDataFloatValue>? get pivotYArray => const fb.ListReader<PartAnimationDataFloatValue>(PartAnimationDataFloatValue.reader).vTableGetNullable(_bc, _bcOffset, 46);
-  List<PartAnimationDataFloatValue>? get anchorXArray => const fb.ListReader<PartAnimationDataFloatValue>(PartAnimationDataFloatValue.reader).vTableGetNullable(_bc, _bcOffset, 48);
-  List<PartAnimationDataFloatValue>? get anchorYArray => const fb.ListReader<PartAnimationDataFloatValue>(PartAnimationDataFloatValue.reader).vTableGetNullable(_bc, _bcOffset, 50);
-  List<PartAnimationDataFloatValue>? get sizeXArray => const fb.ListReader<PartAnimationDataFloatValue>(PartAnimationDataFloatValue.reader).vTableGetNullable(_bc, _bcOffset, 52);
-  List<PartAnimationDataFloatValue>? get sizeYArray => const fb.ListReader<PartAnimationDataFloatValue>(PartAnimationDataFloatValue.reader).vTableGetNullable(_bc, _bcOffset, 54);
-  List<PartAnimationDataBoolValue>? get imgFlipHArray => const fb.ListReader<PartAnimationDataBoolValue>(PartAnimationDataBoolValue.reader).vTableGetNullable(_bc, _bcOffset, 56);
-  List<PartAnimationDataBoolValue>? get imgFlipVArray => const fb.ListReader<PartAnimationDataBoolValue>(PartAnimationDataBoolValue.reader).vTableGetNullable(_bc, _bcOffset, 58);
-  List<PartAnimationDataFloatValue>? get uvTranslationXArray => const fb.ListReader<PartAnimationDataFloatValue>(PartAnimationDataFloatValue.reader).vTableGetNullable(_bc, _bcOffset, 60);
-  List<PartAnimationDataFloatValue>? get uvTranslationYArray => const fb.ListReader<PartAnimationDataFloatValue>(PartAnimationDataFloatValue.reader).vTableGetNullable(_bc, _bcOffset, 62);
-  List<PartAnimationDataFloatValue>? get uvRotationZArray => const fb.ListReader<PartAnimationDataFloatValue>(PartAnimationDataFloatValue.reader).vTableGetNullable(_bc, _bcOffset, 64);
-  List<PartAnimationDataFloatValue>? get uvScaleXArray => const fb.ListReader<PartAnimationDataFloatValue>(PartAnimationDataFloatValue.reader).vTableGetNullable(_bc, _bcOffset, 66);
-  List<PartAnimationDataFloatValue>? get uvScaleYArray => const fb.ListReader<PartAnimationDataFloatValue>(PartAnimationDataFloatValue.reader).vTableGetNullable(_bc, _bcOffset, 68);
-  List<PartAnimationDataFloatValue>? get boundingRadiusArray => const fb.ListReader<PartAnimationDataFloatValue>(PartAnimationDataFloatValue.reader).vTableGetNullable(_bc, _bcOffset, 70);
-  List<PartAnimationDataFloatValue>? get maskArray => const fb.ListReader<PartAnimationDataFloatValue>(PartAnimationDataFloatValue.reader).vTableGetNullable(_bc, _bcOffset, 72);
-  List<PartAnimationDataVec2>? get skewArray => const fb.ListReader<PartAnimationDataVec2>(PartAnimationDataVec2.reader).vTableGetNullable(_bc, _bcOffset, 74);
-  List<PartAnimationDataDeform>? get deformArray => const fb.ListReader<PartAnimationDataDeform>(PartAnimationDataDeform.reader).vTableGetNullable(_bc, _bcOffset, 76);
-  List<PartAnimationDataUintValue>? get textureArray => const fb.ListReader<PartAnimationDataUintValue>(PartAnimationDataUintValue.reader).vTableGetNullable(_bc, _bcOffset, 78);
+  int get cellKeys => const fb.Uint32Reader().vTableGet(_bc, _bcOffset, 4, 4294967295);
+  int get positionXKeys => const fb.Uint32Reader().vTableGet(_bc, _bcOffset, 6, 4294967295);
+  int get positionYKeys => const fb.Uint32Reader().vTableGet(_bc, _bcOffset, 8, 4294967295);
+  int get positionZKeys => const fb.Uint32Reader().vTableGet(_bc, _bcOffset, 10, 4294967295);
+  int get rotationXKeys => const fb.Uint32Reader().vTableGet(_bc, _bcOffset, 12, 4294967295);
+  int get rotationYKeys => const fb.Uint32Reader().vTableGet(_bc, _bcOffset, 14, 4294967295);
+  int get rotationZKeys => const fb.Uint32Reader().vTableGet(_bc, _bcOffset, 16, 4294967295);
+  int get scaleXKeys => const fb.Uint32Reader().vTableGet(_bc, _bcOffset, 18, 4294967295);
+  int get scaleYKeys => const fb.Uint32Reader().vTableGet(_bc, _bcOffset, 20, 4294967295);
+  int get localScaleXKeys => const fb.Uint32Reader().vTableGet(_bc, _bcOffset, 22, 4294967295);
+  int get localScaleYKeys => const fb.Uint32Reader().vTableGet(_bc, _bcOffset, 24, 4294967295);
+  int get alphaKeys => const fb.Uint32Reader().vTableGet(_bc, _bcOffset, 26, 4294967295);
+  int get localAlphaKeys => const fb.Uint32Reader().vTableGet(_bc, _bcOffset, 28, 4294967295);
+  int get priorityKeys => const fb.Uint32Reader().vTableGet(_bc, _bcOffset, 30, 4294967295);
+  int get flipHKeys => const fb.Uint32Reader().vTableGet(_bc, _bcOffset, 32, 4294967295);
+  int get flipVKeys => const fb.Uint32Reader().vTableGet(_bc, _bcOffset, 34, 4294967295);
+  int get hideKeys => const fb.Uint32Reader().vTableGet(_bc, _bcOffset, 36, 4294967295);
+  int get partColorKeys => const fb.Uint32Reader().vTableGet(_bc, _bcOffset, 38, 4294967295);
+  int get shaderKeys => const fb.Uint32Reader().vTableGet(_bc, _bcOffset, 40, 4294967295);
+  int get vertexKeys => const fb.Uint32Reader().vTableGet(_bc, _bcOffset, 42, 4294967295);
+  int get pivotXKeys => const fb.Uint32Reader().vTableGet(_bc, _bcOffset, 44, 4294967295);
+  int get pivotYKeys => const fb.Uint32Reader().vTableGet(_bc, _bcOffset, 46, 4294967295);
+  int get anchorXKeys => const fb.Uint32Reader().vTableGet(_bc, _bcOffset, 48, 4294967295);
+  int get anchorYKeys => const fb.Uint32Reader().vTableGet(_bc, _bcOffset, 50, 4294967295);
+  int get sizeXKeys => const fb.Uint32Reader().vTableGet(_bc, _bcOffset, 52, 4294967295);
+  int get sizeYKeys => const fb.Uint32Reader().vTableGet(_bc, _bcOffset, 54, 4294967295);
+  int get imgFlipHKeys => const fb.Uint32Reader().vTableGet(_bc, _bcOffset, 56, 4294967295);
+  int get imgFlipVKeys => const fb.Uint32Reader().vTableGet(_bc, _bcOffset, 58, 4294967295);
+  int get uvTranslationXKeys => const fb.Uint32Reader().vTableGet(_bc, _bcOffset, 60, 4294967295);
+  int get uvTranslationYKeys => const fb.Uint32Reader().vTableGet(_bc, _bcOffset, 62, 4294967295);
+  int get uvRotationZKeys => const fb.Uint32Reader().vTableGet(_bc, _bcOffset, 64, 4294967295);
+  int get uvScaleXKeys => const fb.Uint32Reader().vTableGet(_bc, _bcOffset, 66, 4294967295);
+  int get uvScaleYKeys => const fb.Uint32Reader().vTableGet(_bc, _bcOffset, 68, 4294967295);
+  int get boundingRadiusKeys => const fb.Uint32Reader().vTableGet(_bc, _bcOffset, 70, 4294967295);
+  int get maskKeys => const fb.Uint32Reader().vTableGet(_bc, _bcOffset, 72, 4294967295);
+  int get skewKeys => const fb.Uint32Reader().vTableGet(_bc, _bcOffset, 74, 4294967295);
+  int get deformKeys => const fb.Uint32Reader().vTableGet(_bc, _bcOffset, 76, 4294967295);
+  int get textureKeys => const fb.Uint32Reader().vTableGet(_bc, _bcOffset, 78, 4294967295);
 
   @override
   String toString() {
-    return 'PartAnimationData{cellArray: ${cellArray}, positionXArray: ${positionXArray}, positionYArray: ${positionYArray}, positionZArray: ${positionZArray}, rotationXArray: ${rotationXArray}, rotationYArray: ${rotationYArray}, rotationZArray: ${rotationZArray}, scaleXArray: ${scaleXArray}, scaleYArray: ${scaleYArray}, localScaleXArray: ${localScaleXArray}, localScaleYArray: ${localScaleYArray}, alphaArray: ${alphaArray}, localAlphaArray: ${localAlphaArray}, priorityArray: ${priorityArray}, flipHArray: ${flipHArray}, flipVArray: ${flipVArray}, hideArray: ${hideArray}, partColorArray: ${partColorArray}, shaderArray: ${shaderArray}, vertexArray: ${vertexArray}, pivotXArray: ${pivotXArray}, pivotYArray: ${pivotYArray}, anchorXArray: ${anchorXArray}, anchorYArray: ${anchorYArray}, sizeXArray: ${sizeXArray}, sizeYArray: ${sizeYArray}, imgFlipHArray: ${imgFlipHArray}, imgFlipVArray: ${imgFlipVArray}, uvTranslationXArray: ${uvTranslationXArray}, uvTranslationYArray: ${uvTranslationYArray}, uvRotationZArray: ${uvRotationZArray}, uvScaleXArray: ${uvScaleXArray}, uvScaleYArray: ${uvScaleYArray}, boundingRadiusArray: ${boundingRadiusArray}, maskArray: ${maskArray}, skewArray: ${skewArray}, deformArray: ${deformArray}, textureArray: ${textureArray}}';
+    return 'PartAnimationData{cellKeys: ${cellKeys}, positionXKeys: ${positionXKeys}, positionYKeys: ${positionYKeys}, positionZKeys: ${positionZKeys}, rotationXKeys: ${rotationXKeys}, rotationYKeys: ${rotationYKeys}, rotationZKeys: ${rotationZKeys}, scaleXKeys: ${scaleXKeys}, scaleYKeys: ${scaleYKeys}, localScaleXKeys: ${localScaleXKeys}, localScaleYKeys: ${localScaleYKeys}, alphaKeys: ${alphaKeys}, localAlphaKeys: ${localAlphaKeys}, priorityKeys: ${priorityKeys}, flipHKeys: ${flipHKeys}, flipVKeys: ${flipVKeys}, hideKeys: ${hideKeys}, partColorKeys: ${partColorKeys}, shaderKeys: ${shaderKeys}, vertexKeys: ${vertexKeys}, pivotXKeys: ${pivotXKeys}, pivotYKeys: ${pivotYKeys}, anchorXKeys: ${anchorXKeys}, anchorYKeys: ${anchorYKeys}, sizeXKeys: ${sizeXKeys}, sizeYKeys: ${sizeYKeys}, imgFlipHKeys: ${imgFlipHKeys}, imgFlipVKeys: ${imgFlipVKeys}, uvTranslationXKeys: ${uvTranslationXKeys}, uvTranslationYKeys: ${uvTranslationYKeys}, uvRotationZKeys: ${uvRotationZKeys}, uvScaleXKeys: ${uvScaleXKeys}, uvScaleYKeys: ${uvScaleYKeys}, boundingRadiusKeys: ${boundingRadiusKeys}, maskKeys: ${maskKeys}, skewKeys: ${skewKeys}, deformKeys: ${deformKeys}, textureKeys: ${textureKeys}}';
   }
 }
 
@@ -3102,6 +2789,46 @@ class _PartAnimationDataReader extends fb.TableReader<PartAnimationData> {
   @override
   PartAnimationData createObject(fb.BufferContext bc, int offset) => 
     PartAnimationData._(bc, offset);
+}
+
+class Keyframes {
+  Keyframes._(this._bc, this._bcOffset);
+  factory Keyframes(List<int> bytes) {
+    final rootRef = fb.BufferContext.fromBytes(bytes);
+    return reader.read(rootRef, 0);
+  }
+
+  static const fb.Reader<Keyframes> reader = _KeyframesReader();
+
+  final fb.BufferContext _bc;
+  final int _bcOffset;
+
+  List<int>? get runs => const fb.ListReader<int>(fb.Uint32Reader()).vTableGetNullable(_bc, _bcOffset, 4);
+  List<int>? get frame => const fb.ListReader<int>(fb.Uint16Reader()).vTableGetNullable(_bc, _bcOffset, 6);
+  List<InterpolationType>? get interpolation => const fb.ListReader<InterpolationType>(InterpolationType.reader).vTableGetNullable(_bc, _bcOffset, 8);
+  List<int>? get curve => const fb.ListReader<int>(fb.Uint16Reader()).vTableGetNullable(_bc, _bcOffset, 10);
+  List<int>? get value => const fb.ListReader<int>(fb.Uint32Reader()).vTableGetNullable(_bc, _bcOffset, 12);
+  List<KeyCurve>? get curves => const fb.ListReader<KeyCurve>(KeyCurve.reader).vTableGetNullable(_bc, _bcOffset, 14);
+  List<double>? get easingRates => const fb.ListReader<double>(fb.Float32Reader()).vTableGetNullable(_bc, _bcOffset, 16);
+  List<PartAttributeCell>? get cells => const fb.ListReader<PartAttributeCell>(PartAttributeCell.reader).vTableGetNullable(_bc, _bcOffset, 18);
+  List<PartAttributePartColor>? get partColors => const fb.ListReader<PartAttributePartColor>(PartAttributePartColor.reader).vTableGetNullable(_bc, _bcOffset, 20);
+  List<PartAttributeShader>? get shaders => const fb.ListReader<PartAttributeShader>(PartAttributeShader.reader).vTableGetNullable(_bc, _bcOffset, 22);
+  List<PartAttributeVertex>? get vertices => const fb.ListReader<PartAttributeVertex>(PartAttributeVertex.reader).vTableGetNullable(_bc, _bcOffset, 24);
+  List<Vec2>? get skews => const fb.ListReader<Vec2>(Vec2.reader).vTableGetNullable(_bc, _bcOffset, 26);
+  List<PartAttributeDeform>? get deforms => const fb.ListReader<PartAttributeDeform>(PartAttributeDeform.reader).vTableGetNullable(_bc, _bcOffset, 28);
+
+  @override
+  String toString() {
+    return 'Keyframes{runs: ${runs}, frame: ${frame}, interpolation: ${interpolation}, curve: ${curve}, value: ${value}, curves: ${curves}, easingRates: ${easingRates}, cells: ${cells}, partColors: ${partColors}, shaders: ${shaders}, vertices: ${vertices}, skews: ${skews}, deforms: ${deforms}}';
+  }
+}
+
+class _KeyframesReader extends fb.TableReader<Keyframes> {
+  const _KeyframesReader();
+
+  @override
+  Keyframes createObject(fb.BufferContext bc, int offset) => 
+    Keyframes._(bc, offset);
 }
 
 class AnimationData {
@@ -3258,10 +2985,11 @@ class SsAnimeBinary {
   List<ExternalTexture>? get externalTextures => const fb.ListReader<ExternalTexture>(ExternalTexture.reader).vTableGetNullable(_bc, _bcOffset, 22);
   List<ExternalInstance>? get externalInstances => const fb.ListReader<ExternalInstance>(ExternalInstance.reader).vTableGetNullable(_bc, _bcOffset, 24);
   List<EmbeddedAsset>? get embeddedAssets => const fb.ListReader<EmbeddedAsset>(EmbeddedAsset.reader).vTableGetNullable(_bc, _bcOffset, 26);
+  Keyframes? get keyframes => Keyframes.reader.vTableGetNullable(_bc, _bcOffset, 28);
 
   @override
   String toString() {
-    return 'SsAnimeBinary{version: ${version}, name: ${name}, nameHash: ${nameHash}, parts: ${parts}, animations: ${animations}, cellmaps: ${cellmaps}, effects: ${effects}, soundLists: ${soundLists}, fontBitmaps: ${fontBitmaps}, externalTextures: ${externalTextures}, externalInstances: ${externalInstances}, embeddedAssets: ${embeddedAssets}}';
+    return 'SsAnimeBinary{version: ${version}, name: ${name}, nameHash: ${nameHash}, parts: ${parts}, animations: ${animations}, cellmaps: ${cellmaps}, effects: ${effects}, soundLists: ${soundLists}, fontBitmaps: ${fontBitmaps}, externalTextures: ${externalTextures}, externalInstances: ${externalInstances}, embeddedAssets: ${embeddedAssets}, keyframes: ${keyframes}}';
   }
 }
 
