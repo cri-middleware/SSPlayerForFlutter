@@ -4,7 +4,7 @@ Maintainers only. Contributors do not run any of this — see [CONTRIBUTING.md](
 
 ## Cutting a release
 
-Anyone with the Write role on this repository can cut a release: it is one run of the **Release** workflow on `main`, so nothing depends on whose machine starts it. You need `gh` (run `gh auth login` once), and the repository needs the `RELEASE_PAT` secret: the tags have to be pushed by a token other than `GITHUB_TOKEN`, or they start no workflow.
+Anyone with the Write role on this repository can cut a release: it is one run of the **Release** workflow on `main`, so nothing depends on whose machine starts it. You need `gh` 2.87 or later (run `gh auth login` once), and the repository needs the `RELEASE_PAT` secret: the tags have to be pushed by a token other than `GITHUB_TOKEN`, or they start no workflow.
 
 The packages are versioned independently, and a release names the versions it sets, as `<package>@<version>` pairs where `<package>` is the directory under `packages/`. `scripts/set-versions.dart` writes each version, raises the `^` constraint the other packages have on it, and gives its `CHANGELOG.md` a heading that links the package's Release. The workflow then checks everything with `scripts/build-release.sh`, commits the versions to `main`, and gives every package it released a `<package>-v<version>` tag and a draft GitHub Release. Each tag starts `publish.yml`, which publishes the package to pub.dev — unless it still carries `publish_to: none`, in which case it is released on GitHub alone. A pull request carries no version and no release note — both are decided here.
 
@@ -21,16 +21,16 @@ git log --oneline ssruntime_dart-v7.0.0-beta.1..origin/main -- packages/ssruntim
 A dry run sets the versions and checks everything, and commits, tags and releases nothing. The per-package archives and dry-run reports stay on the run (`release-dist`).
 
 ```bash
-gh workflow run release.yml --ref main -f versions="ssruntime_dart@7.0.0-beta.2 ssplayer_flutter@7.0.0-beta.2" -f dry_run=true
-gh run watch                                      # the run takes a few seconds to appear
-gh run download <run-id> -n release-dist -D qa    # <run-id>: the one gh run watch shows
+RUN=$(gh workflow run release.yml --ref main -f versions="ssruntime_dart@7.0.0-beta.2 ssplayer_flutter@7.0.0-beta.2" -f dry_run=true | sed 's|.*/||')
+gh run watch "${RUN:?}" --exit-status
+gh run download "${RUN:?}" -n release-dist -D qa
 ```
 
 ### 3. Run the release
 
 ```bash
-gh workflow run release.yml --ref main -f versions="ssruntime_dart@7.0.0-beta.2 ssplayer_flutter@7.0.0-beta.2"
-gh run watch
+RUN=$(gh workflow run release.yml --ref main -f versions="ssruntime_dart@7.0.0-beta.2 ssplayer_flutter@7.0.0-beta.2" | sed 's|.*/||')
+gh run watch "${RUN:?}" --exit-status
 ```
 
 The run sets the versions, checks every package with `scripts/build-release.sh` — analyze, a dry-run publish, the SDK release and the web Brain — and only then commits the versions to `main`, pushes the tags and drafts the Releases, with notes generated from the pull requests since each package's previous tag. A failure before the commit leaves `main` untouched, and so does a `main` that moved during the run, which rejects the push.
@@ -39,10 +39,12 @@ With `versions` left empty, nothing is set, and every current version that has n
 
 ### 4. Publish the drafts
 
-Open each draft on the [Releases](https://github.com/cri-middleware/SSPlayerForFlutter/releases) page: edit its notes down to what that package gained — they list every pull request since its previous tag, the other packages' included — choose **Set as a pre-release** or **Set as the latest release**, and **Publish release**. Publishing starts `pages.yml`, which deploys the [documentation site](https://cri-middleware.github.io/SSPlayerForFlutter/) and the web demos. Watch the run through, then open the site: a failed run leaves the site as it was. Once the cause is fixed, re-run it.
+Open each draft on the [Releases](https://github.com/cri-middleware/SSPlayerForFlutter/releases) page: edit its notes down to what that package gained — they list every pull request since its previous tag, the other packages' included — choose **Set as a pre-release** or **Set as the latest release**, and **Publish release**. Publishing starts `pages.yml`, which deploys the [documentation site](https://cri-middleware.github.io/SSPlayerForFlutter/) and the web demos. Watch the run through, then open the site: a failed run leaves the site as it was. Once the cause is fixed, re-run it. In the block below, `<tag>` is the tag of the draft you published, `<package>-v<version>`.
 
 ```bash
-gh run watch                                      # pages.yml; the run takes a few seconds to appear
+TAG=<tag>
+RUN=$(gh run list -w pages.yml -b "${TAG:?}" -L 1 --json databaseId -q '.[0].databaseId')
+gh run watch "${RUN:?}" --exit-status             # RUN is empty for the few seconds before the run appears
 ```
 
 ## Opening a package to pub.dev
@@ -98,7 +100,7 @@ scripts/build-release.sh packages=ssruntime_dart
 
 ## リリースの手順
 
-このリポジトリの Write ロールを持つ人なら誰でもリリースできます。リリースは `main` での **Release** ワークフローの実行 1 回なので、誰の手元から始めても結果は変わりません。必要なのは `gh`（最初に一度 `gh auth login`）で、リポジトリには `RELEASE_PAT` secret が要ります。タグを `GITHUB_TOKEN` 以外のトークンで push しないと、ワークフローが起動しないためです。
+このリポジトリの Write ロールを持つ人なら誰でもリリースできます。リリースは `main` での **Release** ワークフローの実行 1 回なので、誰の手元から始めても結果は変わりません。必要なのは `gh` 2.87 以降（最初に一度 `gh auth login`）で、リポジトリには `RELEASE_PAT` secret が要ります。タグを `GITHUB_TOKEN` 以外のトークンで push しないと、ワークフローが起動しないためです。
 
 パッケージは独立にバージョンを持ち、リリースは設定するバージョンを `<package>@<version>` の組で指定します。`<package>` は `packages/` の下のディレクトリ名です。`scripts/set-versions.dart` が各バージョンを書き、他のパッケージがそれに付けている `^` の制約を引き上げ、`CHANGELOG.md` にそのパッケージの Release へリンクする見出しを足します。続けてワークフローが `scripts/build-release.sh` ですべてを検査し、バージョンを `main` へコミットし、リリースした各パッケージに `<package>-v<version>` のタグと下書きの GitHub Release を作ります。タグはそれぞれ `publish.yml` を起動し、パッケージを pub.dev へ publish します。ただし `publish_to: none` が残っているパッケージは GitHub だけでリリースされます。プルリクエストはバージョンもリリースノートも持ちません。どちらもここで決めます。
 
@@ -115,16 +117,16 @@ git log --oneline ssruntime_dart-v7.0.0-beta.1..origin/main -- packages/ssruntim
 dry run はバージョンを設定してすべてを検査し、コミットもタグも Release も作りません。パッケージごとのアーカイブと dry-run の報告は run に残ります（`release-dist`）。
 
 ```bash
-gh workflow run release.yml --ref main -f versions="ssruntime_dart@7.0.0-beta.2 ssplayer_flutter@7.0.0-beta.2" -f dry_run=true
-gh run watch                                      # run が一覧に出るまで数秒かかる
-gh run download <run-id> -n release-dist -D qa    # <run-id>: gh run watch に出るもの
+RUN=$(gh workflow run release.yml --ref main -f versions="ssruntime_dart@7.0.0-beta.2 ssplayer_flutter@7.0.0-beta.2" -f dry_run=true | sed 's|.*/||')
+gh run watch "${RUN:?}" --exit-status
+gh run download "${RUN:?}" -n release-dist -D qa
 ```
 
 ### 3. リリースを実行する
 
 ```bash
-gh workflow run release.yml --ref main -f versions="ssruntime_dart@7.0.0-beta.2 ssplayer_flutter@7.0.0-beta.2"
-gh run watch
+RUN=$(gh workflow run release.yml --ref main -f versions="ssruntime_dart@7.0.0-beta.2 ssplayer_flutter@7.0.0-beta.2" | sed 's|.*/||')
+gh run watch "${RUN:?}" --exit-status
 ```
 
 run はバージョンを設定し、`scripts/build-release.sh` で全パッケージを検査します（analyze、dry-run publish、SDK リリース、Web の Brain）。そのあとで初めてバージョンを `main` へコミットし、タグを push し、各パッケージの前回のタグ以降のプルリクエストから生成したノート付きで Release の下書きを作ります。コミットより前に失敗すれば `main` は変わりません。run の途中で `main` が進んでいた場合も、push が拒否されるので同じです。
@@ -133,10 +135,12 @@ run はバージョンを設定し、`scripts/build-release.sh` で全パッケ�
 
 ### 4. 下書きを公開する
 
-[Releases](https://github.com/cri-middleware/SSPlayerForFlutter/releases) ページで下書きを 1 つずつ開きます。ノートにはそのパッケージの前回のタグ以降のプルリクエストが、他のパッケージのものも含めてすべて並ぶので、このパッケージが得たものだけに絞ります。**Set as a pre-release** か **Set as the latest release** を選んで、**Publish release** を押します。公開すると `pages.yml` が動き、[ドキュメントサイト](https://cri-middleware.github.io/SSPlayerForFlutter/) と Web デモをデプロイします。run を最後まで見届けてから、サイトを開いて確かめます。run が失敗してもサイトは元のまま残ります。原因を直したら run を再実行します。
+[Releases](https://github.com/cri-middleware/SSPlayerForFlutter/releases) ページで下書きを 1 つずつ開きます。ノートにはそのパッケージの前回のタグ以降のプルリクエストが、他のパッケージのものも含めてすべて並ぶので、このパッケージが得たものだけに絞ります。**Set as a pre-release** か **Set as the latest release** を選んで、**Publish release** を押します。公開すると `pages.yml` が動き、[ドキュメントサイト](https://cri-middleware.github.io/SSPlayerForFlutter/) と Web デモをデプロイします。run を最後まで見届けてから、サイトを開いて確かめます。run が失敗してもサイトは元のまま残ります。原因を直したら run を再実行します。下のブロックの `<tag>` は、公開した下書きのタグ（`<package>-v<version>`）です。
 
 ```bash
-gh run watch                                      # pages.yml。run が一覧に出るまで数秒かかる
+TAG=<tag>
+RUN=$(gh run list -w pages.yml -b "${TAG:?}" -L 1 --json databaseId -q '.[0].databaseId')
+gh run watch "${RUN:?}" --exit-status             # run が一覧に出るまでの数秒間は RUN が空になる
 ```
 
 ## パッケージを pub.dev に開く
