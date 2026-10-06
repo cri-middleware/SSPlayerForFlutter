@@ -10,6 +10,8 @@ The packages are versioned independently, and a release names the versions it se
 
 Every block runs as written in a new shell: it works out what it needs from git and GitHub. One value is set by hand, written as a placeholder to fill in: `<versions>`, the pairs from step 1 in quotes, in steps 4 and 5 and their retry under [Undoing a release](#undoing-a-release). A block that acts on a tag or package you chose takes it as `<tag>` or `<package>` the same way. Left as it is, a placeholder stops its line with a syntax error, and a list left unquoted leaves `VERSIONS` unset, which the dispatch refuses: an empty `versions` is the retry of whatever is not yet released.
 
+An agent can run every block. A person decides two steps — the merge in step 2, which puts the notes on `main`, and step 6, which publishes the Releases for good — and step 5 too once a package is on pub.dev, where its tag publishes it for good. A package's first version on pub.dev is a person's to publish (see [Opening a package to pub.dev](#opening-a-package-to-pubdev)).
+
 ### 1. Decide the versions
 
 Look at what each package gained since its previous tag. A package gets a new version only when it is named: one that depends on a package being released keeps its own version, with its constraint raised for its next release. The SDK the packages fetch is `_sdkVersion` in `packages/*/hook/build.dart`, and the bindings committed under `packages/` are generated from the `SpriteStudio-SDK` submodule, so both hooks and the submodule must name the same SDK release: point all three at it first, in an ordinary pull request into `main`; `scripts/build-release.sh` says whether the bindings need regenerating. The last two lines below print the release the hooks pin and the tag the submodule is on, and stop when it is on none.
@@ -44,6 +46,11 @@ git add packages/*/CHANGELOG.md THIRD_PARTY_NOTICES.md
 git commit -m "docs: changelog for the next release"
 git push -u origin release-notes
 gh pr create -B main --fill
+```
+
+**A person runs the merge**, which puts the notes on `main`: choose **Create a merge commit** on the pull request's page, or run
+
+```bash
 gh pr merge release-notes --merge --delete-branch
 ```
 
@@ -92,7 +99,7 @@ gh run list -w publish.yml -L 6                   # one run per tag; a package w
 
 ### 6. Publish the Releases
 
-Nothing on a draft needs writing, and a version with a `-` is already marked as a pre-release. Publishing starts `pages.yml`, which deploys the [documentation site](https://cri-middleware.github.io/SSPlayerForFlutter/) and the web demos.
+**A person publishes the Releases**: a published Release is permanent. Nothing on a draft needs writing, and a version with a `-` is already marked as a pre-release. Publishing starts `pages.yml`, which deploys the [documentation site](https://cri-middleware.github.io/SSPlayerForFlutter/) and the web demos.
 
 ```bash
 for tag in $(gh release list --json tagName,isDraft -q '.[] | select(.isDraft) | .tagName'); do
@@ -199,6 +206,8 @@ Then enable **Automated publishing** in the package's pub.dev Admin tab, with th
 
 どのブロックも、新しいシェルで書かれたとおりに実行できます。必要なものは git と GitHub から求めます。手で設定する値は 1 つで、埋めるプレースホルダとして書いてあります。手順 4・5 と「リリースの取り消し」にあるその再実行の `<versions>` で、手順 1 で決めた組を引用符で囲んで入れます。選んだタグやパッケージに対して操作するブロックも、それを `<tag>` や `<package>` で受け取ります。埋めずに実行すると、その行は構文エラーで止まります。組を引用符で囲み忘れると `VERSIONS` は設定されず、dispatch はそれを拒否します。空の `versions` は、まだリリースしていないものすべての再実行になるためです。
 
+どのブロックもエージェントに実行させられます。2 つの手順は人が判断します。ノートを `main` に入れる手順 2 のマージと、取り消せない公開を行う手順 6 です。pub.dev に出したパッケージがあれば、手順 5 のタグがそれを取り消せない形で publish するので、手順 5 も人が判断します。パッケージの pub.dev への最初のバージョンも人が publish します（「パッケージを pub.dev に開く」を参照）。
+
 ### 1. バージョンを決める
 
 各パッケージが前回のタグから何を得たかを見ます。新しいバージョンになるのは指定したパッケージだけです。リリースするパッケージに依存するパッケージは自分のバージョンを保ち、次のリリースに向けて制約だけが引き上げられます。パッケージが取得する SDK は `packages/*/hook/build.dart` の `_sdkVersion` で、`packages/` にコミットしてあるバインディングは `SpriteStudio-SDK` submodule から生成しています。そのため 2 つの hook と submodule は同じ SDK リリースを指す必要があります。先に、通常のプルリクエストで `main` の 3 つをそのリリースに合わせます。バインディングの再生成が要るかどうかは `scripts/build-release.sh` が示します。下のブロックの最後の 2 行は、hook が指すリリースと submodule が載っているタグを出し、submodule がどのタグにも載っていなければ止まります。
@@ -233,6 +242,11 @@ git add packages/*/CHANGELOG.md THIRD_PARTY_NOTICES.md
 git commit -m "docs: changelog for the next release"
 git push -u origin release-notes
 gh pr create -B main --fill
+```
+
+**マージは人が行います。** ノートが `main` に入るためです。プルリクエストのページで **Create a merge commit** を選ぶか、次を実行します。
+
+```bash
 gh pr merge release-notes --merge --delete-branch
 ```
 
@@ -281,7 +295,7 @@ gh run list -w publish.yml -L 6                   # タグごとに 1 つ。publ
 
 ### 6. Release を公開する
 
-下書きに書き足すものはありません。`-` を含むバージョンは、すでに pre-release になっています。公開すると `pages.yml` が動き、[ドキュメントサイト](https://cri-middleware.github.io/SSPlayerForFlutter/) と Web デモをデプロイします。
+**Release の公開は人が行います。** 公開した Release は取り消せないためです。下書きに書き足すものはありません。`-` を含むバージョンは、すでに pre-release になっています。公開すると `pages.yml` が動き、[ドキュメントサイト](https://cri-middleware.github.io/SSPlayerForFlutter/) と Web デモをデプロイします。
 
 ```bash
 for tag in $(gh release list --json tagName,isDraft -q '.[] | select(.isDraft) | .tagName'); do
