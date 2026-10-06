@@ -5,21 +5,22 @@
 //
 // Each argument is <directory under packages/>@<version>. For each, this writes
 // the `version:` of that package, raises the `^` constraint every other package
-// under packages/ has on it (the examples depend by path), and gives its
-// CHANGELOG.md a heading for the version that links its GitHub Release, which is
-// where the notes are: `dart pub publish` warns about a CHANGELOG that does not
-// mention the version, and a warning fails it. Nothing else moves, so a dependent
-// gets a new version only when it is named too. release.yml runs this with its
-// `versions` input; run it locally to see what a release would check, and
-// `git checkout -- packages` to put the tree back.
+// under packages/ has on it (the examples depend by path), and turns the
+// `## [Unreleased]` notes in its CHANGELOG.md into `## [<version>] - <date>` under
+// a fresh, empty `## [Unreleased]`: the changelog is where the notes are, and
+// `dart pub publish` warns about one that does not mention the version, and a
+// warning fails it. Nothing else moves, so a dependent gets a new version only
+// when it is named too. release.yml runs this with its `versions` input; run it
+// locally to see what a release would check, and `git checkout -- packages` to
+// put the tree back.
 //
 // Every argument is checked, and every edit made in memory, before anything is
 // written. A version may not go backwards: pub.dev keeps every version it is
-// given, for good.
+// given, for good. A version the changelog already has a heading for is
+// released, and nothing under `## [Unreleased]` leaves a release with no notes.
+// Naming the version a package already has cuts its first release.
 
 import 'dart:io';
-
-const repo = 'https://github.com/cri-middleware/SSPlayerForFlutter';
 
 final root = File(Platform.script.toFilePath()).parent.parent;
 
@@ -92,6 +93,7 @@ void main(List<String> args) {
   final pending = <String, String>{};
   String read(File f) => pending[f.path] ?? f.readAsStringSync();
 
+  final today = DateTime.now().toUtc().toIso8601String().substring(0, 10);
   final summary = <String>[];
   final errors = <String>[];
   final seen = <String>{};
@@ -124,55 +126,81 @@ void main(List<String> args) {
       continue;
     }
     final order = want.compareTo(have);
-    if (order <= 0) {
-      errors.add(
-        order == 0
-            ? '$name: already $current'
-            : '$name: $version is lower than its current $current',
-      );
+    if (order < 0) {
+      errors.add('$name: $version is lower than its current $current');
       continue;
-    }
-
-    final own = RegExp(
-      '^version:[ \\t]*${RegExp.escape(current)}[ \\t]*\$',
-      multiLine: true,
-    );
-    final text = read(pubspec);
-    if (own.allMatches(text).length != 1) {
-      errors.add(
-        '$name: its pubspec does not say `version: $current` exactly once -- set it by hand',
-      );
-      continue;
-    }
-    pending[pubspec.path] = text.replaceFirst(own, 'version: $version');
-
-    final raised = <String>[];
-    final constraint = RegExp(
-      '^([ \\t]+$name:[ \\t]*)\\^${RegExp.escape(current)}[ \\t]*\$',
-      multiLine: true,
-    );
-    for (final e in pubspecs.entries) {
-      final other = read(e.value);
-      if (constraint.hasMatch(other)) {
-        pending[e.value.path] = other.replaceAllMapped(
-          constraint,
-          (m) => '${m[1]}^$version',
-        );
-        raised.add(e.key);
-      }
     }
 
     final changelog = File('${pubspec.parent.path}/CHANGELOG.md');
-    final log = changelog.existsSync() ? read(changelog) : '';
-    final entry =
-        '## $version\n\n - [Release notes]($repo/releases/tag/$name-v$version)\n\n';
-    final first = RegExp(r'^## ', multiLine: true).firstMatch(log);
-    pending[changelog.path] = first == null
-        ? '${log.trimRight()}\n\n$entry'
-        : log.replaceRange(first.start, first.start, entry);
+    if (!changelog.existsSync()) {
+      errors.add('$name: there is no CHANGELOG.md beside its pubspec');
+      continue;
+    }
+    final lines = read(changelog).split('\n');
+    if (lines.any((l) => l.startsWith('## [$version]'))) {
+      errors.add(
+        '$name: $version is already released -- its CHANGELOG.md has a heading for it',
+      );
+      continue;
+    }
+    final top = lines.indexWhere((l) => l.trimRight() == '## [Unreleased]');
+    if (top < 0) {
+      errors.add("$name: its CHANGELOG.md has no '## [Unreleased]' heading");
+      continue;
+    }
+    var end = lines.indexWhere((l) => l.startsWith('## '), top + 1);
+    if (end < 0) end = lines.length;
+    if (!lines
+        .sublist(top + 1, end)
+        .any((l) => l.trim().isNotEmpty && !l.startsWith('#'))) {
+      errors.add(
+        "$name: nothing under '## [Unreleased]' in its CHANGELOG.md -- write what $version gains first",
+      );
+      continue;
+    }
+
+    final raised = <String>[];
+    if (order > 0) {
+      final own = RegExp(
+        '^version:[ \\t]*${RegExp.escape(current)}[ \\t]*\$',
+        multiLine: true,
+      );
+      final text = read(pubspec);
+      if (own.allMatches(text).length != 1) {
+        errors.add(
+          '$name: its pubspec does not say `version: $current` exactly once -- set it by hand',
+        );
+        continue;
+      }
+      pending[pubspec.path] = text.replaceFirst(own, 'version: $version');
+
+      final constraint = RegExp(
+        '^([ \\t]+$name:[ \\t]*)\\^${RegExp.escape(current)}[ \\t]*\$',
+        multiLine: true,
+      );
+      for (final e in pubspecs.entries) {
+        final other = read(e.value);
+        if (constraint.hasMatch(other)) {
+          pending[e.value.path] = other.replaceAllMapped(
+            constraint,
+            (m) => '${m[1]}^$version',
+          );
+          raised.add(e.key);
+        }
+      }
+    }
+
+    lines.replaceRange(top, top + 1, [
+      '## [Unreleased]',
+      '',
+      '## [$version] - $today',
+    ]);
+    pending[changelog.path] = lines.join('\n');
 
     summary.add(
-      '$name: $current -> $version${raised.isEmpty ? '' : ' (constraint raised in ${raised.join(', ')})'}',
+      order > 0
+          ? '$name: $current -> $version${raised.isEmpty ? '' : ' (constraint raised in ${raised.join(', ')})'}'
+          : '$name: $version',
     );
   }
 

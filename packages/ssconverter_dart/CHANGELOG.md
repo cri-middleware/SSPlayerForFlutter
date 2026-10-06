@@ -1,9 +1,12 @@
 # Changelog
 
-Each version's notes are its GitHub Release (`<package>-v<version>`), which the
-entry for that version links; the repository-wide history is in the root
-`CHANGELOG.md`.
+All notable changes to `ssconverter_dart` are documented here. The format is based on
+[Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and the package adheres to
+[Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## 7.0.0-beta.1
+## [Unreleased]
 
- - First beta. `dart:ffi` bindings for `libssconverter` (host-only) and the `ssconvert` CLI: `.sspj` / `.ssae` projects to the `.ssab` pack the player loads.
+### Added
+- **First release.** `dart:ffi` bindings for `libssconverter` (host-only): the `ssconvert` CLI
+  and the `SsConverter` library, which turn `.sspj` / `.ssae` projects into the `.ssab` pack the
+  player loads. Desktop only.

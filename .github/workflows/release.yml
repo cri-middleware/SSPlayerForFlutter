@@ -6,22 +6,22 @@ name: Release
 #
 #   versions   `<package>@<version>` pairs separated by spaces, <package> being
 #              the directory under packages/. scripts/set-versions.dart writes
-#              them, raises the other packages' constraints on them and gives
-#              each a CHANGELOG heading linking its Release, and the commit
-#              reaches main only once scripts/build-release.sh has passed.
-#              Empty sets nothing and releases every current version that has no
-#              Release yet: the first release, and the retry after a run that
-#              died halfway.
+#              them, raises the other packages' constraints on them and turns
+#              each package's `## [Unreleased]` notes into that version's
+#              CHANGELOG.md section, and the commit reaches main only once
+#              scripts/build-release.sh has passed. Empty sets nothing and
+#              releases every current version that has no Release yet: the retry
+#              after a run that died halfway.
 #
 #   dry_run    Set the versions and check everything, and commit, tag and release
 #              nothing. The look before a release.
 #
 # Every package released gets a `<package>-v<version>` tag, which starts
 # publish.yml -- pub.dev for a package without `publish_to: none`, nothing for one
-# that still carries it -- and a DRAFT GitHub Release with notes generated from
-# the pull requests since its previous tag. A package whose Release already
+# that still carries it -- and a DRAFT GitHub Release with a link to its
+# CHANGELOG.md, which is where the notes are. A package whose Release already
 # exists, draft or not, is skipped, so a re-run never doubles one. A maintainer
-# edits each draft and publishes it, and publishing is what starts pages.yml.
+# publishes each draft, and publishing is what starts pages.yml.
 on:
   workflow_dispatch:
     inputs:
@@ -49,7 +49,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # Full history + tags, for the previous tag each Release's notes start at.
+          # Full history + tags, so that a tag a run left behind is reused.
           fetch-depth: 0
           # IMPORTANT: a PAT (or GitHub App token), NOT the default GITHUB_TOKEN.
           # Tags pushed with GITHUB_TOKEN do NOT trigger other workflows, so
@@ -79,6 +79,25 @@ jobs:
           # One argument per pair, so the split is the point.
           # shellcheck disable=SC2086
           dart scripts/set-versions.dart $VERSIONS
+
+      # A Release carries a link to its package's CHANGELOG.md and no notes of
+      # its own, so a version without a section there would go out with nothing
+      # to say. set-versions.dart writes the section for the versions it sets; a
+      # run with `versions` empty releases what main already carries, and this is
+      # where a version nobody wrote notes for stops, before anything is built.
+      - name: Check the changelogs
+        run: |
+          set -euo pipefail
+          status=0
+          for pubspec in packages/*/pubspec.yaml; do
+            dir="$(basename "$(dirname "$pubspec")")"
+            version="$(sed -n 's/^version:[[:space:]]*//p' "$pubspec" | head -n 1)"
+            if ! awk -v h="## [${version}] - " 'index($0, h) == 1 { found = 1 } END { exit !found }' "packages/${dir}/CHANGELOG.md" 2>/dev/null; then
+              echo "::error::packages/${dir}/CHANGELOG.md has no '## [${version}]' section."
+              status=1
+            fi
+          done
+          exit "$status"
 
       # Everything that has to be true BEFORE a version is burnt: once a tag is
       # pushed, publish.yml runs `dart pub publish`, and a version on pub.dev is
@@ -140,17 +159,14 @@ jobs:
             if gh release view "$tag" > /dev/null 2>&1; then
               continue
             fi
-            # The notes start at this package's previous tag. A prerelease sorts
-            # below its full release, so 7.0.1 starts at 7.0.0, not at 7.0.0-beta.N.
-            previous="$(git -c versionsort.suffix=- tag --list "${dir}-v*" --sort=-v:refname | grep -vx "$tag" | head -n 1 || true)"
             # A run that tagged and then died left the tag behind; it is reused.
             if ! git rev-parse -q --verify "refs/tags/${tag}" > /dev/null; then
               git tag -a "$tag" -m "$tag" "$sha"
               git push origin "refs/tags/${tag}"
             fi
-            args=(--verify-tag --title "${dir} ${version}" --generate-notes --draft)
-            if [ -n "$previous" ]; then args+=(--notes-start-tag "$previous"); fi
+            notes="See [CHANGELOG.md](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/blob/${tag}/packages/${dir}/CHANGELOG.md) for what changed."
+            args=(--verify-tag --title "${dir} ${version}" --notes "$notes" --draft)
             case "$version" in *-*) args+=(--prerelease) ;; esac
             gh release create "$tag" "${args[@]}"
-            echo "::notice::Drafted ${tag} — edit its notes and publish it from the Releases page."
+            echo "::notice::Drafted ${tag} — check it and publish it from the Releases page."
           done

@@ -1,9 +1,14 @@
 # Changelog
 
-Each version's notes are its GitHub Release (`<package>-v<version>`), which the
-entry for that version links; the repository-wide history is in the root
-`CHANGELOG.md`.
+All notable changes to `ssruntime_dart` are documented here. The format is based on
+[Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and the package adheres to
+[Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## 7.0.0-beta.1
+## [Unreleased]
 
- - First beta. `dart:ffi` `@Native` bindings for `libssruntime` (the SpriteStudio-SDK Rust runtime), delivered as a native-assets code asset, plus the flatc `FrameData` / `EffectDrawPlan` accessors and the `dart:js_interop` web backend.
+### Added
+- **First release.** `dart:ffi` `@Native` bindings for `libssruntime` (the SpriteStudio-SDK Rust
+  runtime), plus the flatc `FrameData` / `EffectDrawPlan` accessors and the `dart:js_interop` web
+  backend.
+- **Native delivery via Dart native assets**: the runtime is bundled automatically, with no
+  CocoaPods and no vendored framework.
