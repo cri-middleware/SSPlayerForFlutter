@@ -12,7 +12,7 @@ Only steps 4 and 5 and their retry under [Undoing a release](#undoing-a-release)
 
 ### 1. Decide the versions
 
-Look at what each package gained since its previous tag. A package gets a new version only when it is named: one that depends on a package being released keeps its own version, with its constraint raised for its next release. The SDK the packages fetch is `_sdkVersion` in `packages/*/hook/build.dart`, and both hooks must name the same release: point them at it first, in an ordinary pull request into `main`.
+Look at what each package gained since its previous tag. A package gets a new version only when it is named: one that depends on a package being released keeps its own version, with its constraint raised for its next release. The SDK the packages fetch is `_sdkVersion` in `packages/*/hook/build.dart`, and the bindings committed under `packages/` are generated from the `SpriteStudio-SDK` submodule, so both hooks and the submodule must name the same SDK release: point all three at it first, in an ordinary pull request into `main`; `scripts/build-release.sh` says whether the bindings need regenerating. The last two lines below print the release the hooks pin and the tag the submodule is on, and stop when it is on none.
 
 ```bash
 git fetch origin --tags
@@ -21,6 +21,8 @@ for pkg in $(git ls-tree -r --name-only origin/main -- packages | sed -n 's|^pac
   echo "== $pkg, last released: ${prev:-never}"
   git log --oneline ${prev:+"$prev.."}origin/main -- "packages/$pkg"
 done
+git show origin/main:packages/ssruntime_dart/hook/build.dart origin/main:packages/ssconverter_dart/hook/build.dart | grep '^const _sdkVersion'
+git -C SpriteStudio-SDK fetch -q --tags && git -C SpriteStudio-SDK describe --tags --exact-match "$(git rev-parse origin/main:SpriteStudio-SDK)"
 ```
 
 A run releases every package whose current version has no Release yet, named or not. So the first release names every package at the version it already has:
@@ -182,7 +184,7 @@ scripts/build-release.sh                        # every package: analyze + tests
 
 ### 1. バージョンを決める
 
-各パッケージが前回のタグから何を得たかを見ます。新しいバージョンになるのは指定したパッケージだけです。リリースするパッケージに依存するパッケージは自分のバージョンを保ち、次のリリースに向けて制約だけが引き上げられます。パッケージが取得する SDK は `packages/*/hook/build.dart` の `_sdkVersion` で、2 つの hook は同じリリースを指す必要があります。先に、通常のプルリクエストで `main` のそれを合わせておきます。
+各パッケージが前回のタグから何を得たかを見ます。新しいバージョンになるのは指定したパッケージだけです。リリースするパッケージに依存するパッケージは自分のバージョンを保ち、次のリリースに向けて制約だけが引き上げられます。パッケージが取得する SDK は `packages/*/hook/build.dart` の `_sdkVersion` で、`packages/` にコミットしてあるバインディングは `SpriteStudio-SDK` submodule から生成しています。そのため 2 つの hook と submodule は同じ SDK リリースを指す必要があります。先に、通常のプルリクエストで `main` の 3 つをそのリリースに合わせます。バインディングの再生成が要るかどうかは `scripts/build-release.sh` が示します。下のブロックの最後の 2 行は、hook が指すリリースと submodule が載っているタグを出し、submodule がどのタグにも載っていなければ止まります。
 
 ```bash
 git fetch origin --tags
@@ -191,6 +193,8 @@ for pkg in $(git ls-tree -r --name-only origin/main -- packages | sed -n 's|^pac
   echo "== $pkg, last released: ${prev:-never}"
   git log --oneline ${prev:+"$prev.."}origin/main -- "packages/$pkg"
 done
+git show origin/main:packages/ssruntime_dart/hook/build.dart origin/main:packages/ssconverter_dart/hook/build.dart | grep '^const _sdkVersion'
+git -C SpriteStudio-SDK fetch -q --tags && git -C SpriteStudio-SDK describe --tags --exact-match "$(git rev-parse origin/main:SpriteStudio-SDK)"
 ```
 
 run は、指定したかどうかに関わらず、現在のバージョンにまだ Release が無いパッケージをすべて出します。そのため初回のリリースでは、全パッケージをいま持っているバージョンのまま指定します。
