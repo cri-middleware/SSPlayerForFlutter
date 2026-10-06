@@ -108,8 +108,8 @@ jobs:
       # tree, and a release should not change because one of them did.
       #
       #   checks=analyze  the test suites need the Brain, which the build hooks
-      #                   download from the pinned SDK release -- the same download
-      #                   sdk=check is already asking about, one line down.
+      #                   download from the pinned SDK release -- the same release
+      #                   sdk=download is already asking about, below.
       #   codegen=skip    regenerating needs flatc and the C headers build-runtime.sh
       #                   copies out of the SDK submodule, neither of which is on
       #                   this runner. That one stays a local gate; the script says
