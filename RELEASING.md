@@ -4,7 +4,7 @@ Maintainers only. Contributors do not run any of this — see [CONTRIBUTING.md](
 
 ## Cutting a release
 
-Anyone with the Write role on this repository can cut a release: it is one run of the **Release** workflow on `main`, so nothing depends on whose machine starts it. You need `git` and `gh` 2.87 or later (run `gh auth login` once), and for step 3, the Flutter toolchain [CONTRIBUTING.md](./CONTRIBUTING.md) sets up. The repository needs the `RELEASE_PAT` secret: the tags have to be pushed by a token other than `GITHUB_TOKEN`, or they start no workflow. It also needs GitHub Pages enabled with GitHub Actions as its source, and a `*-v*` tag rule on its `github-pages` environment, or publishing a Release deploys nothing; both are settings a repository admin makes. The commands are bash: in zsh, run `setopt interactive_comments` first, so that the `#` comments are not taken as arguments; on Windows, use Git Bash.
+Anyone with the Write role on this repository can cut a release: it is one run of the **Release** workflow on `main`, so nothing depends on whose machine starts it. You need `git` and `gh` 2.87 or later (run `gh auth login` once), and for step 3, the toolchain [CONTRIBUTING.md](./CONTRIBUTING.md) sets up, `flatc` included. The repository needs the `RELEASE_PAT` secret: the tags have to be pushed by a token other than `GITHUB_TOKEN`, or they start no workflow. It also needs GitHub Pages enabled with GitHub Actions as its source, and a `*-v*` tag rule on its `github-pages` environment, or publishing a Release deploys nothing; both are settings a repository admin makes. The commands are bash: in zsh, run `setopt interactive_comments` first, so that the `#` comments are not taken as arguments; on Windows, use Git Bash.
 
 The packages are versioned independently, and a release names the versions it sets, as `<package>@<version>` pairs where `<package>` is the directory under `packages/`. `scripts/set-versions.dart` writes each version, raises the `^` constraint the other packages have on it, and turns the package's `## [Unreleased]` notes into that version's section of its `CHANGELOG.md`. The workflow then checks everything with `scripts/build-release.sh`, commits the versions to `main`, and gives every package it released a `<package>-v<version>` tag and a draft GitHub Release. Each tag starts `publish.yml`, which publishes the package to pub.dev — unless it still carries `publish_to: none`, in which case it is released on GitHub alone. What each version gained is written in its package's `CHANGELOG.md` and nowhere else: a Release carries a link to that changelog. A contributor's pull request carries no version and no changelog entry — both are written here. There is no release branch: what `main` holds is what goes out, so `main` holds only what can ship.
 
@@ -51,14 +51,19 @@ gh pr create -B main --fill
 gh pr merge release-notes --merge --delete-branch
 ```
 
-### 3. Build the site
+### 3. Check it locally
 
-`pages.yml` builds the site only once a Release is published, from its tag, and a re-run builds that same tag: a fault in the docs or the demos found then can only be fixed in `main` and deployed from there. So build the site now, from the `main` the release will be cut from. `scripts/build-pages.sh` builds what `pages.yml` deploys, in the same order. A failure is fixed by a pull request into `main` before step 4.
+The tests and the generated code are checked here and nowhere else: `release.yml` runs `scripts/build-release.sh` with `checks=analyze codegen=skip`, and no workflow runs the tests. The site is built here too: `pages.yml` builds it only once a Release is published, from its tag, and a re-run builds that same tag, so a fault in the docs or the demos found then can only be fixed in `main` and deployed from there. `scripts/build-pages.sh` builds what `pages.yml` deploys, in the same order. Run all of it from the `main` the release will be cut from, and fix a failure by a pull request into `main` before step 4.
 
 ```bash
-git switch main && git pull --ff-only
-scripts/build-pages.sh                            # -> site/, the site pages.yml would deploy
+git switch main && git pull --ff-only && git submodule update --init --recursive &&
+  scripts/build-runtime.sh &&                     # the Brain and its C headers, from the submodule
+  scripts/deploy-examples.sh &&                   # the packs the tests play; without them they report skipped
+  scripts/build-release.sh &&                     # analyze, tests, generated code, dry-run publish
+  scripts/build-pages.sh                          # -> site/, the site pages.yml would deploy
 ```
+
+A check that cannot run says so and passes, so read the output, not only the exit status. `ffigen SKIPPED` or `flatc SKIPPED` means the generated code went unchecked, and a package still carrying `publish_to: none` reports what would block its publish as `would not publish` without failing the script.
 
 ### 4. Look at it first
 
@@ -133,13 +138,7 @@ A package is published only once its pubspec drops `publish_to: none`. Do that i
 
 ## Building the release locally
 
-`scripts/build-release.sh` is the check, and `release.yml` runs exactly this script before it commits or tags anything. Run it before a release:
-
-```bash
-scripts/build-release.sh                        # every package: analyze + tests + dry-run publish
-```
-
-`checks=skip sdk=skip` builds just the archives, offline, and `packages=<package>` checks one package. To check under the versions a release would set, set them first with `dart scripts/set-versions.dart <package>@<version> …`, which sets them, and dates their changelog sections, the same way the release would; put them back afterwards with `git checkout -- packages`.
+`scripts/build-release.sh` is the check. Step 3 runs it with its defaults, and `release.yml` runs the same script before it commits or tags anything. `checks=skip sdk=skip` builds just the archives, offline, and `packages=<package>` checks one package. To check under the versions a release would set, set them first with `dart scripts/set-versions.dart <package>@<version> …`, which sets them, and dates their changelog sections, the same way the release would; put them back afterwards with `git checkout -- packages`.
 
 *   **A private package is previewed, not skipped.** The script lifts `publish_to: none` for the
     length of the dry run and restores it however it exits, from a backup kept *outside* the package
@@ -176,7 +175,7 @@ scripts/build-release.sh                        # every package: analyze + tests
 
 ## リリースの手順
 
-このリポジトリの Write ロールを持つ人なら誰でもリリースできます。リリースは `main` での **Release** ワークフローの実行 1 回なので、誰の手元から始めても結果は変わりません。必要なのは `git` と `gh` 2.87 以降（最初に一度 `gh auth login`）、それに手順 3 のための、[CONTRIBUTING.md](./CONTRIBUTING.md) が用意する Flutter のツールチェーンです。リポジトリには `RELEASE_PAT` secret が要ります。タグを `GITHUB_TOKEN` 以外のトークンで push しないと、ワークフローが起動しないためです。さらに、GitHub Pages を有効にしてソースを GitHub Actions にし、`github-pages` environment に `*-v*` のタグのルールを足しておく必要があります。どちらかが欠けると、Release を公開しても何もデプロイされません。どちらもリポジトリの admin が行う設定です。コマンドは bash です。zsh では、`#` のコメントが引数として渡されないよう、先に `setopt interactive_comments` を実行します。Windows では Git Bash を使います。
+このリポジトリの Write ロールを持つ人なら誰でもリリースできます。リリースは `main` での **Release** ワークフローの実行 1 回なので、誰の手元から始めても結果は変わりません。必要なのは `git` と `gh` 2.87 以降（最初に一度 `gh auth login`）、それに手順 3 のための、[CONTRIBUTING.md](./CONTRIBUTING.md) が用意するツールチェーン（`flatc` を含む）です。リポジトリには `RELEASE_PAT` secret が要ります。タグを `GITHUB_TOKEN` 以外のトークンで push しないと、ワークフローが起動しないためです。さらに、GitHub Pages を有効にしてソースを GitHub Actions にし、`github-pages` environment に `*-v*` のタグのルールを足しておく必要があります。どちらかが欠けると、Release を公開しても何もデプロイされません。どちらもリポジトリの admin が行う設定です。コマンドは bash です。zsh では、`#` のコメントが引数として渡されないよう、先に `setopt interactive_comments` を実行します。Windows では Git Bash を使います。
 
 パッケージは独立にバージョンを持ち、リリースは設定するバージョンを `<package>@<version>` の組で指定します。`<package>` は `packages/` の下のディレクトリ名です。`scripts/set-versions.dart` が各バージョンを書き、他のパッケージがそれに付けている `^` の制約を引き上げ、パッケージの `## [Unreleased]` のノートを、`CHANGELOG.md` のそのバージョンの節に書き換えます。続けてワークフローが `scripts/build-release.sh` ですべてを検査し、バージョンを `main` へコミットし、リリースした各パッケージに `<package>-v<version>` のタグと下書きの GitHub Release を作ります。タグはそれぞれ `publish.yml` を起動し、パッケージを pub.dev へ publish します。ただし `publish_to: none` が残っているパッケージは GitHub だけでリリースされます。各バージョンで何が変わったかは、そのパッケージの `CHANGELOG.md` にだけ書きます。Release が持つのは、その changelog へのリンクだけです。コントリビューターのプルリクエストはバージョンも changelog の項目も持ちません。どちらもここで書きます。release ブランチはありません。`main` にあるものがそのまま出るので、`main` には出せるものだけを置きます。
 
@@ -223,14 +222,19 @@ gh pr create -B main --fill
 gh pr merge release-notes --merge --delete-branch
 ```
 
-### 3. サイトをビルドする
+### 3. 手元で検査する
 
-`pages.yml` がサイトをビルドするのは Release を公開したときだけで、そのタグから作ります。再実行しても同じタグをビルドするだけなので、そこで docs やデモの不具合が見つかると、`main` で直してそこからデプロイするしかありません。そこで、リリースを切る `main` から、先にサイトをビルドしておきます。`scripts/build-pages.sh` は、`pages.yml` がデプロイするものを同じ順にビルドします。失敗したら、手順 4 の前にプルリクエストで `main` を直します。
+テストと生成コードを検査するのはここだけです。`release.yml` は `scripts/build-release.sh` を `checks=analyze codegen=skip` で実行し、テストを実行するワークフローはありません。サイトもここでビルドします。`pages.yml` がサイトをビルドするのは Release を公開したときだけで、そのタグから作ります。再実行しても同じタグをビルドするだけなので、そこで docs やデモの不具合が見つかると、`main` で直してそこからデプロイするしかありません。`scripts/build-pages.sh` は、`pages.yml` がデプロイするものを同じ順にビルドします。どれもリリースを切る `main` から実行し、失敗したら、手順 4 の前にプルリクエストで `main` を直します。
 
 ```bash
-git switch main && git pull --ff-only
-scripts/build-pages.sh                            # -> site/。pages.yml がデプロイするサイト
+git switch main && git pull --ff-only && git submodule update --init --recursive &&
+  scripts/build-runtime.sh &&                     # submodule から Brain と C ヘッダーを作る
+  scripts/deploy-examples.sh &&                   # テストが再生する pack。無いとテストは skipped になる
+  scripts/build-release.sh &&                     # analyze、テスト、生成コード、dry-run publish
+  scripts/build-pages.sh                          # -> site/。pages.yml がデプロイするサイト
 ```
+
+実行できない検査は、そう表示したうえで通過します。終了コードだけでなく出力を読みます。`ffigen SKIPPED` か `flatc SKIPPED` が出たら、生成コードは検査されていません。`publish_to: none` が残っているパッケージは、publish を妨げるものを `would not publish` として報告しますが、スクリプトは失敗しません。
 
 ### 4. 先に確かめる
 
@@ -305,13 +309,7 @@ gh run watch "${RUN:?}" --exit-status             # run が一覧に出るまで
 
 ## リリースのローカルビルド
 
-`scripts/build-release.sh` が検査そのもので、`release.yml` はコミットやタグの前にこのスクリプトを実行しているだけです。リリースの前に実行してください。
-
-```bash
-scripts/build-release.sh                        # 全パッケージ: analyze + テスト + dry-run publish
-```
-
-`checks=skip sdk=skip` を付けるとアーカイブだけをオフラインで作り、`packages=<package>` を付けると 1 つのパッケージだけを検査します。リリースが設定するバージョンで検査するなら、先に `dart scripts/set-versions.dart <package>@<version> …` で、リリースと同じ方法でバージョンを設定して changelog の節に日付を入れ、終わったら `git checkout -- packages` で元に戻します。
+`scripts/build-release.sh` が検査そのものです。手順 3 が既定のオプションで実行し、`release.yml` もコミットやタグの前に同じスクリプトを実行します。`checks=skip sdk=skip` を付けるとアーカイブだけをオフラインで作り、`packages=<package>` を付けると 1 つのパッケージだけを検査します。リリースが設定するバージョンで検査するなら、先に `dart scripts/set-versions.dart <package>@<version> …` で、リリースと同じ方法でバージョンを設定して changelog の節に日付を入れ、終わったら `git checkout -- packages` で元に戻します。
 
 *   **private なパッケージはスキップせずプレビューします。** dry run の間だけ `publish_to: none` を外し、スクリプトがどう終了しても復元します。バックアップはパッケージの**外**に置きます（pub は未追跡ファイルも publish するため、隣に置いた `pubspec.yaml.bak` はアーカイブに入ってしまいます）。
 *   **`dart pub publish` は警告を致命エラーとして扱います。** `--ignore-warnings` を渡すのは `-f` でも再利用ワークフローでもありません。`LICENSE` ではなく `LICENSE.md` である、`CHANGELOG.md` が無い、またはそのバージョンに触れていない、だけで publish は中断します。まだリリースしていないバージョンは、`set-versions.dart` が節に日付を入れて初めて changelog に現れるので、設定してから検査します。
