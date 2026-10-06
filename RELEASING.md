@@ -8,7 +8,7 @@ Anyone with the Write role on this repository can cut a release: it is one run o
 
 The packages are versioned independently, and a release names the versions it sets, as `<package>@<version>` pairs where `<package>` is the directory under `packages/`. `scripts/set-versions.dart` writes each version, raises the `^` constraint the other packages have on it, and turns the package's `## [Unreleased]` notes into that version's section of its `CHANGELOG.md`. The workflow then checks everything with `scripts/build-release.sh`, commits the versions to `main`, and gives every package it released a `<package>-v<version>` tag and a draft GitHub Release. Each tag starts `publish.yml`, which publishes the package to pub.dev — unless it still carries `publish_to: none`, in which case it is released on GitHub alone. What each version gained is written in its package's `CHANGELOG.md` and nowhere else: a Release carries a link to that changelog. A contributor's pull request carries no version and no changelog entry — both are written here. There is no release branch: what `main` holds is what goes out, so `main` holds only what can ship.
 
-Only steps 4 and 5 and their retry under [Undoing a release](#undoing-a-release) read a value set by hand, `VERSIONS`, and they refuse one that is empty. Every other block works out what it needs from git and GitHub, so each can run in a new shell; the one block that acts on a Release you chose takes it as a `<tag>` placeholder, which stops with a syntax error when left as it is.
+Only steps 4 and 5 and their retry under [Undoing a release](#undoing-a-release) read a value set by hand, `VERSIONS`, and they refuse one that is empty. Every other block works out what it needs from git and GitHub, so each can run in a new shell; a block that acts on a tag or package you chose takes it as a `<tag>` or `<package>` placeholder, which stops with a syntax error when left as it is.
 
 ### 1. Decide the versions
 
@@ -108,7 +108,16 @@ Then open the site. A failed run leaves the site as it was. When the cause was a
 
 ## Opening a package to pub.dev
 
-A package is published only once its pubspec drops `publish_to: none`. Do that in an ordinary pull request, publish its first version by hand from a checkout of its tag — in dependency order, `ssruntime_dart` and `ssconverter_dart` before the packages that depend on them — and enable **Automated publishing** in the package's pub.dev Admin tab with the tag pattern `<package>-v{{version}}`. From then on, a release's tag publishes it.
+A package is published only once its pubspec drops `publish_to: none`. Do that in an ordinary pull request, then release a version of it as above. pub.dev takes an automated publish only for a package it already has, so `publish.yml` fails on that first tag, and **a person publishes the version by hand**: `dart pub publish` signs in with a Google account in a browser and asks before it uploads. Publish from a checkout of the tag, in dependency order — `ssruntime_dart` and `ssconverter_dart`, then `ssplayer_flutter` and `ssgen_dart`, then `ssplayer_flame` and `ssgen_flutter` — and fetch the web Brain before `ssplayer_flutter`, or that version goes out without it for good:
+
+```bash
+git switch --detach <tag>
+flutter pub get
+scripts/download-web-runtime.sh                   # ssplayer_flutter only
+cd packages/<package> && dart pub publish
+```
+
+Then enable **Automated publishing** in the package's pub.dev Admin tab, with the repository `cri-middleware/SSPlayerForFlutter` and the tag pattern `<package>-v{{version}}`. From then on, a release's tag publishes it.
 
 ## Undoing a release
 
@@ -179,7 +188,7 @@ A package is published only once its pubspec drops `publish_to: none`. Do that i
 
 パッケージは独立にバージョンを持ち、リリースは設定するバージョンを `<package>@<version>` の組で指定します。`<package>` は `packages/` の下のディレクトリ名です。`scripts/set-versions.dart` が各バージョンを書き、他のパッケージがそれに付けている `^` の制約を引き上げ、パッケージの `## [Unreleased]` のノートを、`CHANGELOG.md` のそのバージョンの節に書き換えます。続けてワークフローが `scripts/build-release.sh` ですべてを検査し、バージョンを `main` へコミットし、リリースした各パッケージに `<package>-v<version>` のタグと下書きの GitHub Release を作ります。タグはそれぞれ `publish.yml` を起動し、パッケージを pub.dev へ publish します。ただし `publish_to: none` が残っているパッケージは GitHub だけでリリースされます。各バージョンで何が変わったかは、そのパッケージの `CHANGELOG.md` にだけ書きます。Release が持つのは、その changelog へのリンクだけです。コントリビューターのプルリクエストはバージョンも changelog の項目も持ちません。どちらもここで書きます。release ブランチはありません。`main` にあるものがそのまま出るので、`main` には出せるものだけを置きます。
 
-手で設定する値 `VERSIONS` を読むのは、手順 4・5 と「リリースの取り消し」にあるその再実行だけで、空なら実行を拒否します。ほかのブロックは必要なものを git と GitHub から求めるので、どれも新しいシェルで実行できます。選んだ Release に対して操作するブロックは 1 つだけで、その Release を `<tag>` のプレースホルダで受け取ります。埋めずに実行すると、その行は構文エラーで止まります。
+手で設定する値 `VERSIONS` を読むのは、手順 4・5 と「リリースの取り消し」にあるその再実行だけで、空なら実行を拒否します。ほかのブロックは必要なものを git と GitHub から求めるので、どれも新しいシェルで実行できます。選んだタグやパッケージに対して操作するブロックは、それを `<tag>` や `<package>` のプレースホルダで受け取ります。埋めずに実行すると、その行は構文エラーで止まります。
 
 ### 1. バージョンを決める
 
@@ -279,7 +288,16 @@ gh run watch "${RUN:?}" --exit-status             # run が一覧に出るまで
 
 ## パッケージを pub.dev に開く
 
-パッケージが publish されるのは、その pubspec から `publish_to: none` を外してからです。通常のプルリクエストで外し、最初のバージョンだけはタグをチェックアウトして手で publish します（依存の順に。`ssruntime_dart` と `ssconverter_dart` を、それに依存するパッケージより先に）。そのうえで pub.dev のパッケージの Admin タブで **Automated publishing** を有効にし、タグのパターンを `<package>-v{{version}}` にします。以後はリリースのタグで publish されます。
+パッケージが publish されるのは、その pubspec から `publish_to: none` を外してからです。通常のプルリクエストで外し、上の手順でそのパッケージのバージョンをリリースします。pub.dev が自動の publish を受け付けるのはすでにあるパッケージだけなので、その最初のタグでは `publish.yml` が失敗します。そのバージョンは**人が手で publish します**。`dart pub publish` はブラウザで Google アカウントにサインインさせ、アップロードの前に確認を求めます。タグをチェックアウトし、依存の順に publish します（`ssruntime_dart` と `ssconverter_dart`、続けて `ssplayer_flutter` と `ssgen_dart`、最後に `ssplayer_flame` と `ssgen_flutter`）。`ssplayer_flutter` の前には Web の Brain を取得します。取得しないと、そのバージョンは Web の Brain を持たないまま恒久的に残ります。
+
+```bash
+git switch --detach <tag>
+flutter pub get
+scripts/download-web-runtime.sh                   # ssplayer_flutter のときだけ
+cd packages/<package> && dart pub publish
+```
+
+そのうえで pub.dev のパッケージの Admin タブで **Automated publishing** を有効にし、リポジトリを `cri-middleware/SSPlayerForFlutter`、タグのパターンを `<package>-v{{version}}` にします。以後はリリースのタグで publish されます。
 
 ## リリースの取り消し
 
