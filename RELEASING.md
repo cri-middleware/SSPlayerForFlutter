@@ -63,13 +63,14 @@ A check that cannot run says so and passes, so read the output, not only the exi
 
 ### 4. Look at it first
 
-A dry run sets the versions and checks everything, and commits, tags and releases nothing. The per-package archives and dry-run reports stay on the run (`release-dist`). Once a tag is pushed, a package without `publish_to: none` is on pub.dev for good, so this is the last look before that.
+A dry run sets the versions and checks everything, and commits, tags and releases nothing. The per-package archives and dry-run reports stay on the run (`release-dist`); the block downloads them into `qa/<run ID>`, and fails when the run did. Once a tag is pushed, a package without `publish_to: none` is on pub.dev for good, so this is the last look before that.
 
 ```bash
 VERSIONS=<versions>                               # the pairs from step 1, in quotes
 RUN=$(gh workflow run release.yml --ref main -f versions="${VERSIONS:?}" -f dry_run=true | sed 's|.*/||')
 gh run watch "${RUN:?}" --exit-status
-gh run download "${RUN:?}" -n release-dist -D qa
+gh run download "${RUN:?}" -n release-dist -D "qa/$RUN"
+gh run view "${RUN:?}" --exit-status > /dev/null  # the block fails when the run did
 ```
 
 ### 5. Run the release
@@ -251,13 +252,14 @@ git switch main && git pull --ff-only && git submodule update --init --recursive
 
 ### 4. 先に確かめる
 
-dry run はバージョンを設定してすべてを検査し、コミットもタグも Release も作りません。パッケージごとのアーカイブと dry-run の報告は run に残ります（`release-dist`）。タグを push すると、`publish_to: none` の無いパッケージは pub.dev に出て取り消せないので、これがその前の最後の確認です。
+dry run はバージョンを設定してすべてを検査し、コミットもタグも Release も作りません。パッケージごとのアーカイブと dry-run の報告は run に残ります（`release-dist`）。ブロックはそれを `qa/<run ID>` にダウンロードし、run が失敗していればブロックも失敗します。タグを push すると、`publish_to: none` の無いパッケージは pub.dev に出て取り消せないので、これがその前の最後の確認です。
 
 ```bash
 VERSIONS=<versions>                               # 手順 1 の組を引用符で囲む
 RUN=$(gh workflow run release.yml --ref main -f versions="${VERSIONS:?}" -f dry_run=true | sed 's|.*/||')
 gh run watch "${RUN:?}" --exit-status
-gh run download "${RUN:?}" -n release-dist -D qa
+gh run download "${RUN:?}" -n release-dist -D "qa/$RUN"
+gh run view "${RUN:?}" --exit-status > /dev/null  # run が失敗していればブロックも失敗する
 ```
 
 ### 5. リリースを実行する
