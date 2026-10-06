@@ -4,15 +4,15 @@ Maintainers only. Contributors do not run any of this — see [CONTRIBUTING.md](
 
 ## Cutting a release
 
-Anyone with the Write role on this repository can cut a release: it is one run of the **Release** workflow on `main`, so nothing depends on whose machine starts it. You need `git` and `gh` 2.87 or later (run `gh auth login` once), and for step 3, the Flutter toolchain [CONTRIBUTING.md](./CONTRIBUTING.md) sets up. The repository needs the `RELEASE_PAT` secret: the tags have to be pushed by a token other than `GITHUB_TOKEN`, or they start no workflow. It also needs GitHub Pages enabled with GitHub Actions as its source, and a `*-v*` tag rule on its `github-pages` environment, or publishing a Release deploys nothing; both are settings a repository admin makes. The commands are bash: in zsh, run `setopt interactive_comments` first, so that the `#` comments are not taken as arguments; on Windows, use Git Bash.
+Anyone with the Write role on this repository can cut a release: it is one run of the **Release** workflow on `main`, so nothing depends on whose machine starts it. You need `git` and `gh` 2.87 or later (run `gh auth login` once), and for step 3, the toolchain [CONTRIBUTING.md](./CONTRIBUTING.md) sets up, `flatc` included. The repository needs the `RELEASE_PAT` secret: the tags have to be pushed by a token other than `GITHUB_TOKEN`, or they start no workflow. It also needs GitHub Pages enabled with GitHub Actions as its source, and a `*-v*` tag rule on its `github-pages` environment, or publishing a Release deploys nothing; both are settings a repository admin makes. The commands are bash: in zsh, run `setopt interactive_comments` first, so that the `#` comments are not taken as arguments; on Windows, use Git Bash.
 
 The packages are versioned independently, and a release names the versions it sets, as `<package>@<version>` pairs where `<package>` is the directory under `packages/`. `scripts/set-versions.dart` writes each version, raises the `^` constraint the other packages have on it, and turns the package's `## [Unreleased]` notes into that version's section of its `CHANGELOG.md`. The workflow then checks everything with `scripts/build-release.sh`, commits the versions to `main`, and gives every package it released a `<package>-v<version>` tag and a draft GitHub Release. Each tag starts `publish.yml`, which publishes the package to pub.dev — unless it still carries `publish_to: none`, in which case it is released on GitHub alone. What each version gained is written in its package's `CHANGELOG.md` and nowhere else: a Release carries a link to that changelog. A contributor's pull request carries no version and no changelog entry — both are written here. There is no release branch: what `main` holds is what goes out, so `main` holds only what can ship.
 
-Only steps 4 and 5 and their retry under [Undoing a release](#undoing-a-release) read a value set by hand, `VERSIONS`, and they refuse one that is empty. Every other block works out what it needs from git and GitHub, so each can run in a new shell; the one block that acts on a Release you chose takes it as a `<tag>` placeholder, which stops with a syntax error when left as it is.
+Only steps 4 and 5 and their retry under [Undoing a release](#undoing-a-release) read a value set by hand, `VERSIONS`, and they refuse one that is empty. Every other block works out what it needs from git and GitHub, so each can run in a new shell; a block that acts on a tag or package you chose takes it as a `<tag>` or `<package>` placeholder, which stops with a syntax error when left as it is.
 
 ### 1. Decide the versions
 
-Look at what each package gained since its previous tag. A package gets a new version only when it is named: one that depends on a package being released keeps its own version, with its constraint raised for its next release. The SDK the packages fetch is `_sdkVersion` in `packages/*/hook/build.dart`, and both hooks must name the same release: point them at it first, in an ordinary pull request into `main`.
+Look at what each package gained since its previous tag. A package gets a new version only when it is named: one that depends on a package being released keeps its own version, with its constraint raised for its next release. The SDK the packages fetch is `_sdkVersion` in `packages/*/hook/build.dart`, and the bindings committed under `packages/` are generated from the `SpriteStudio-SDK` submodule, so both hooks and the submodule must name the same SDK release: point all three at it first, in an ordinary pull request into `main`; `scripts/build-release.sh` says whether the bindings need regenerating. The last two lines below print the release the hooks pin and the tag the submodule is on, and stop when it is on none.
 
 ```bash
 git fetch origin --tags
@@ -21,6 +21,8 @@ for pkg in $(git ls-tree -r --name-only origin/main -- packages | sed -n 's|^pac
   echo "== $pkg, last released: ${prev:-never}"
   git log --oneline ${prev:+"$prev.."}origin/main -- "packages/$pkg"
 done
+git show origin/main:packages/ssruntime_dart/hook/build.dart origin/main:packages/ssconverter_dart/hook/build.dart | grep '^const _sdkVersion'
+git -C SpriteStudio-SDK fetch -q --tags && git -C SpriteStudio-SDK describe --tags --exact-match "$(git rev-parse origin/main:SpriteStudio-SDK)"
 ```
 
 A run releases every package whose current version has no Release yet, named or not. So the first release names every package at the version it already has:
@@ -49,14 +51,19 @@ gh pr create -B main --fill
 gh pr merge release-notes --merge --delete-branch
 ```
 
-### 3. Build the site
+### 3. Check it locally
 
-`pages.yml` builds the site only once a Release is published, from its tag, and a re-run builds that same tag: a fault in the docs or the demos found then can only be fixed in `main` and deployed from there. So build the site now, from the `main` the release will be cut from. `scripts/build-pages.sh` builds what `pages.yml` deploys, in the same order. A failure is fixed by a pull request into `main` before step 4.
+The tests and the generated code are checked here and nowhere else: `release.yml` runs `scripts/build-release.sh` with `checks=analyze codegen=skip`, and no workflow runs the tests. The site is built here too: `pages.yml` builds it only once a Release is published, from its tag, and a re-run builds that same tag, so a fault in the docs or the demos found then can only be fixed in `main` and deployed from there. `scripts/build-pages.sh` builds what `pages.yml` deploys, in the same order. Run all of it from the `main` the release will be cut from, and fix a failure by a pull request into `main` before step 4.
 
 ```bash
-git switch main && git pull --ff-only
-scripts/build-pages.sh                            # -> site/, the site pages.yml would deploy
+git switch main && git pull --ff-only && git submodule update --init --recursive &&
+  scripts/build-runtime.sh &&                     # the Brain and its C headers, from the submodule
+  scripts/deploy-examples.sh &&                   # the packs the tests play; without them they report skipped
+  scripts/build-release.sh &&                     # analyze, tests, generated code, dry-run publish
+  scripts/build-pages.sh                          # -> site/, the site pages.yml would deploy
 ```
+
+A check that cannot run says so and passes, so read the output, not only the exit status. `ffigen SKIPPED` or `flatc SKIPPED` means the generated code went unchecked, and a package still carrying `publish_to: none` reports what would block its publish as `would not publish` without failing the script.
 
 ### 4. Look at it first
 
@@ -101,7 +108,16 @@ Then open the site. A failed run leaves the site as it was. When the cause was a
 
 ## Opening a package to pub.dev
 
-A package is published only once its pubspec drops `publish_to: none`. Do that in an ordinary pull request, publish its first version by hand from a checkout of its tag — in dependency order, `ssruntime_dart` and `ssconverter_dart` before the packages that depend on them — and enable **Automated publishing** in the package's pub.dev Admin tab with the tag pattern `<package>-v{{version}}`. From then on, a release's tag publishes it.
+A package is published only once its pubspec drops `publish_to: none`. Do that in an ordinary pull request, then release a version of it as above. pub.dev takes an automated publish only for a package it already has, so `publish.yml` fails on that first tag, and **a person publishes the version by hand**: `dart pub publish` signs in with a Google account in a browser and asks before it uploads. Publish from a checkout of the tag, in dependency order — `ssruntime_dart` and `ssconverter_dart`, then `ssplayer_flutter` and `ssgen_dart`, then `ssplayer_flame` and `ssgen_flutter` — and fetch the web Brain before `ssplayer_flutter`, or that version goes out without it for good:
+
+```bash
+git switch --detach <tag>
+flutter pub get
+scripts/download-web-runtime.sh                   # ssplayer_flutter only
+cd packages/<package> && dart pub publish
+```
+
+Then enable **Automated publishing** in the package's pub.dev Admin tab, with the repository `cri-middleware/SSPlayerForFlutter` and the tag pattern `<package>-v{{version}}`. From then on, a release's tag publishes it.
 
 ## Undoing a release
 
@@ -131,13 +147,7 @@ A package is published only once its pubspec drops `publish_to: none`. Do that i
 
 ## Building the release locally
 
-`scripts/build-release.sh` is the check, and `release.yml` runs exactly this script before it commits or tags anything. Run it before a release:
-
-```bash
-scripts/build-release.sh                        # every package: analyze + tests + dry-run publish
-```
-
-`checks=skip sdk=skip` builds just the archives, offline, and `packages=<package>` checks one package. To check under the versions a release would set, set them first with `dart scripts/set-versions.dart <package>@<version> …`, which sets them, and dates their changelog sections, the same way the release would; put them back afterwards with `git checkout -- packages`.
+`scripts/build-release.sh` is the check. Step 3 runs it with its defaults, and `release.yml` runs the same script before it commits or tags anything. `checks=skip sdk=skip` builds just the archives, offline, and `packages=<package>` checks one package. To check under the versions a release would set, set them first with `dart scripts/set-versions.dart <package>@<version> …`, which sets them, and dates their changelog sections, the same way the release would; put them back afterwards with `git checkout -- packages`.
 
 *   **A private package is previewed, not skipped.** The script lifts `publish_to: none` for the
     length of the dry run and restores it however it exits, from a backup kept *outside* the package
@@ -148,8 +158,8 @@ scripts/build-release.sh                        # every package: analyze + tests
     mentioned only once `set-versions.dart` has dated its section, so check one after setting it.
 *   **The pinned SDK release has to exist.** `packages/*/hook/build.dart` download `libssruntime` /
     `libssconverter` from `_sdkVersion`'s release for every consumer without a Rust toolchain, and
-    the two hooks must name the *same* release. `sdk=check` failing while the SDK is untagged is
-    correct — there is nothing to publish against.
+    the two hooks must name the *same* release. `sdk=download`, the default, failing while the SDK
+    is untagged is correct — there is nothing to publish against.
 *   **The web Brain is git-ignored build output that has to ship.**
     `assets/runtime-web/{ssruntime.js,ssruntime_bg.wasm,ssruntime_bg.nosimd.wasm}` are what
     `ssruntime_dart`'s `web_runtime.dart` loads by name, and pub publishes nothing git ignores —
@@ -174,15 +184,15 @@ scripts/build-release.sh                        # every package: analyze + tests
 
 ## リリースの手順
 
-このリポジトリの Write ロールを持つ人なら誰でもリリースできます。リリースは `main` での **Release** ワークフローの実行 1 回なので、誰の手元から始めても結果は変わりません。必要なのは `git` と `gh` 2.87 以降（最初に一度 `gh auth login`）、それに手順 3 のための、[CONTRIBUTING.md](./CONTRIBUTING.md) が用意する Flutter のツールチェーンです。リポジトリには `RELEASE_PAT` secret が要ります。タグを `GITHUB_TOKEN` 以外のトークンで push しないと、ワークフローが起動しないためです。さらに、GitHub Pages を有効にしてソースを GitHub Actions にし、`github-pages` environment に `*-v*` のタグのルールを足しておく必要があります。どちらかが欠けると、Release を公開しても何もデプロイされません。どちらもリポジトリの admin が行う設定です。コマンドは bash です。zsh では、`#` のコメントが引数として渡されないよう、先に `setopt interactive_comments` を実行します。Windows では Git Bash を使います。
+このリポジトリの Write ロールを持つ人なら誰でもリリースできます。リリースは `main` での **Release** ワークフローの実行 1 回なので、誰の手元から始めても結果は変わりません。必要なのは `git` と `gh` 2.87 以降（最初に一度 `gh auth login`）、それに手順 3 のための、[CONTRIBUTING.md](./CONTRIBUTING.md) が用意するツールチェーン（`flatc` を含む）です。リポジトリには `RELEASE_PAT` secret が要ります。タグを `GITHUB_TOKEN` 以外のトークンで push しないと、ワークフローが起動しないためです。さらに、GitHub Pages を有効にしてソースを GitHub Actions にし、`github-pages` environment に `*-v*` のタグのルールを足しておく必要があります。どちらかが欠けると、Release を公開しても何もデプロイされません。どちらもリポジトリの admin が行う設定です。コマンドは bash です。zsh では、`#` のコメントが引数として渡されないよう、先に `setopt interactive_comments` を実行します。Windows では Git Bash を使います。
 
 パッケージは独立にバージョンを持ち、リリースは設定するバージョンを `<package>@<version>` の組で指定します。`<package>` は `packages/` の下のディレクトリ名です。`scripts/set-versions.dart` が各バージョンを書き、他のパッケージがそれに付けている `^` の制約を引き上げ、パッケージの `## [Unreleased]` のノートを、`CHANGELOG.md` のそのバージョンの節に書き換えます。続けてワークフローが `scripts/build-release.sh` ですべてを検査し、バージョンを `main` へコミットし、リリースした各パッケージに `<package>-v<version>` のタグと下書きの GitHub Release を作ります。タグはそれぞれ `publish.yml` を起動し、パッケージを pub.dev へ publish します。ただし `publish_to: none` が残っているパッケージは GitHub だけでリリースされます。各バージョンで何が変わったかは、そのパッケージの `CHANGELOG.md` にだけ書きます。Release が持つのは、その changelog へのリンクだけです。コントリビューターのプルリクエストはバージョンも changelog の項目も持ちません。どちらもここで書きます。release ブランチはありません。`main` にあるものがそのまま出るので、`main` には出せるものだけを置きます。
 
-手で設定する値 `VERSIONS` を読むのは、手順 4・5 と「リリースの取り消し」にあるその再実行だけで、空なら実行を拒否します。ほかのブロックは必要なものを git と GitHub から求めるので、どれも新しいシェルで実行できます。選んだ Release に対して操作するブロックは 1 つだけで、その Release を `<tag>` のプレースホルダで受け取ります。埋めずに実行すると、その行は構文エラーで止まります。
+手で設定する値 `VERSIONS` を読むのは、手順 4・5 と「リリースの取り消し」にあるその再実行だけで、空なら実行を拒否します。ほかのブロックは必要なものを git と GitHub から求めるので、どれも新しいシェルで実行できます。選んだタグやパッケージに対して操作するブロックは、それを `<tag>` や `<package>` のプレースホルダで受け取ります。埋めずに実行すると、その行は構文エラーで止まります。
 
 ### 1. バージョンを決める
 
-各パッケージが前回のタグから何を得たかを見ます。新しいバージョンになるのは指定したパッケージだけです。リリースするパッケージに依存するパッケージは自分のバージョンを保ち、次のリリースに向けて制約だけが引き上げられます。パッケージが取得する SDK は `packages/*/hook/build.dart` の `_sdkVersion` で、2 つの hook は同じリリースを指す必要があります。先に、通常のプルリクエストで `main` のそれを合わせておきます。
+各パッケージが前回のタグから何を得たかを見ます。新しいバージョンになるのは指定したパッケージだけです。リリースするパッケージに依存するパッケージは自分のバージョンを保ち、次のリリースに向けて制約だけが引き上げられます。パッケージが取得する SDK は `packages/*/hook/build.dart` の `_sdkVersion` で、`packages/` にコミットしてあるバインディングは `SpriteStudio-SDK` submodule から生成しています。そのため 2 つの hook と submodule は同じ SDK リリースを指す必要があります。先に、通常のプルリクエストで `main` の 3 つをそのリリースに合わせます。バインディングの再生成が要るかどうかは `scripts/build-release.sh` が示します。下のブロックの最後の 2 行は、hook が指すリリースと submodule が載っているタグを出し、submodule がどのタグにも載っていなければ止まります。
 
 ```bash
 git fetch origin --tags
@@ -191,6 +201,8 @@ for pkg in $(git ls-tree -r --name-only origin/main -- packages | sed -n 's|^pac
   echo "== $pkg, last released: ${prev:-never}"
   git log --oneline ${prev:+"$prev.."}origin/main -- "packages/$pkg"
 done
+git show origin/main:packages/ssruntime_dart/hook/build.dart origin/main:packages/ssconverter_dart/hook/build.dart | grep '^const _sdkVersion'
+git -C SpriteStudio-SDK fetch -q --tags && git -C SpriteStudio-SDK describe --tags --exact-match "$(git rev-parse origin/main:SpriteStudio-SDK)"
 ```
 
 run は、指定したかどうかに関わらず、現在のバージョンにまだ Release が無いパッケージをすべて出します。そのため初回のリリースでは、全パッケージをいま持っているバージョンのまま指定します。
@@ -219,14 +231,19 @@ gh pr create -B main --fill
 gh pr merge release-notes --merge --delete-branch
 ```
 
-### 3. サイトをビルドする
+### 3. 手元で検査する
 
-`pages.yml` がサイトをビルドするのは Release を公開したときだけで、そのタグから作ります。再実行しても同じタグをビルドするだけなので、そこで docs やデモの不具合が見つかると、`main` で直してそこからデプロイするしかありません。そこで、リリースを切る `main` から、先にサイトをビルドしておきます。`scripts/build-pages.sh` は、`pages.yml` がデプロイするものを同じ順にビルドします。失敗したら、手順 4 の前にプルリクエストで `main` を直します。
+テストと生成コードを検査するのはここだけです。`release.yml` は `scripts/build-release.sh` を `checks=analyze codegen=skip` で実行し、テストを実行するワークフローはありません。サイトもここでビルドします。`pages.yml` がサイトをビルドするのは Release を公開したときだけで、そのタグから作ります。再実行しても同じタグをビルドするだけなので、そこで docs やデモの不具合が見つかると、`main` で直してそこからデプロイするしかありません。`scripts/build-pages.sh` は、`pages.yml` がデプロイするものを同じ順にビルドします。どれもリリースを切る `main` から実行し、失敗したら、手順 4 の前にプルリクエストで `main` を直します。
 
 ```bash
-git switch main && git pull --ff-only
-scripts/build-pages.sh                            # -> site/。pages.yml がデプロイするサイト
+git switch main && git pull --ff-only && git submodule update --init --recursive &&
+  scripts/build-runtime.sh &&                     # submodule から Brain と C ヘッダーを作る
+  scripts/deploy-examples.sh &&                   # テストが再生する pack。無いとテストは skipped になる
+  scripts/build-release.sh &&                     # analyze、テスト、生成コード、dry-run publish
+  scripts/build-pages.sh                          # -> site/。pages.yml がデプロイするサイト
 ```
+
+実行できない検査は、そう表示したうえで通過します。終了コードだけでなく出力を読みます。`ffigen SKIPPED` か `flatc SKIPPED` が出たら、生成コードは検査されていません。`publish_to: none` が残っているパッケージは、publish を妨げるものを `would not publish` として報告しますが、スクリプトは失敗しません。
 
 ### 4. 先に確かめる
 
@@ -271,7 +288,16 @@ gh run watch "${RUN:?}" --exit-status             # run が一覧に出るまで
 
 ## パッケージを pub.dev に開く
 
-パッケージが publish されるのは、その pubspec から `publish_to: none` を外してからです。通常のプルリクエストで外し、最初のバージョンだけはタグをチェックアウトして手で publish します（依存の順に。`ssruntime_dart` と `ssconverter_dart` を、それに依存するパッケージより先に）。そのうえで pub.dev のパッケージの Admin タブで **Automated publishing** を有効にし、タグのパターンを `<package>-v{{version}}` にします。以後はリリースのタグで publish されます。
+パッケージが publish されるのは、その pubspec から `publish_to: none` を外してからです。通常のプルリクエストで外し、上の手順でそのパッケージのバージョンをリリースします。pub.dev が自動の publish を受け付けるのはすでにあるパッケージだけなので、その最初のタグでは `publish.yml` が失敗します。そのバージョンは**人が手で publish します**。`dart pub publish` はブラウザで Google アカウントにサインインさせ、アップロードの前に確認を求めます。タグをチェックアウトし、依存の順に publish します（`ssruntime_dart` と `ssconverter_dart`、続けて `ssplayer_flutter` と `ssgen_dart`、最後に `ssplayer_flame` と `ssgen_flutter`）。`ssplayer_flutter` の前には Web の Brain を取得します。取得しないと、そのバージョンは Web の Brain を持たないまま恒久的に残ります。
+
+```bash
+git switch --detach <tag>
+flutter pub get
+scripts/download-web-runtime.sh                   # ssplayer_flutter のときだけ
+cd packages/<package> && dart pub publish
+```
+
+そのうえで pub.dev のパッケージの Admin タブで **Automated publishing** を有効にし、リポジトリを `cri-middleware/SSPlayerForFlutter`、タグのパターンを `<package>-v{{version}}` にします。以後はリリースのタグで publish されます。
 
 ## リリースの取り消し
 
@@ -301,16 +327,10 @@ gh run watch "${RUN:?}" --exit-status             # run が一覧に出るまで
 
 ## リリースのローカルビルド
 
-`scripts/build-release.sh` が検査そのもので、`release.yml` はコミットやタグの前にこのスクリプトを実行しているだけです。リリースの前に実行してください。
-
-```bash
-scripts/build-release.sh                        # 全パッケージ: analyze + テスト + dry-run publish
-```
-
-`checks=skip sdk=skip` を付けるとアーカイブだけをオフラインで作り、`packages=<package>` を付けると 1 つのパッケージだけを検査します。リリースが設定するバージョンで検査するなら、先に `dart scripts/set-versions.dart <package>@<version> …` で、リリースと同じ方法でバージョンを設定して changelog の節に日付を入れ、終わったら `git checkout -- packages` で元に戻します。
+`scripts/build-release.sh` が検査そのものです。手順 3 が既定のオプションで実行し、`release.yml` もコミットやタグの前に同じスクリプトを実行します。`checks=skip sdk=skip` を付けるとアーカイブだけをオフラインで作り、`packages=<package>` を付けると 1 つのパッケージだけを検査します。リリースが設定するバージョンで検査するなら、先に `dart scripts/set-versions.dart <package>@<version> …` で、リリースと同じ方法でバージョンを設定して changelog の節に日付を入れ、終わったら `git checkout -- packages` で元に戻します。
 
 *   **private なパッケージはスキップせずプレビューします。** dry run の間だけ `publish_to: none` を外し、スクリプトがどう終了しても復元します。バックアップはパッケージの**外**に置きます（pub は未追跡ファイルも publish するため、隣に置いた `pubspec.yaml.bak` はアーカイブに入ってしまいます）。
 *   **`dart pub publish` は警告を致命エラーとして扱います。** `--ignore-warnings` を渡すのは `-f` でも再利用ワークフローでもありません。`LICENSE` ではなく `LICENSE.md` である、`CHANGELOG.md` が無い、またはそのバージョンに触れていない、だけで publish は中断します。まだリリースしていないバージョンは、`set-versions.dart` が節に日付を入れて初めて changelog に現れるので、設定してから検査します。
-*   **ピンした SDK リリースが存在している必要があります。** `packages/*/hook/build.dart` が `_sdkVersion` のリリースから、Rust ツールチェインを持たないすべての利用者向けに `libssruntime` / `libssconverter` を取得します。2 つの hook は**同じ**リリースを指す必要があります。SDK が未タグのうち `sdk=check` が失敗するのは正しい挙動です。
+*   **ピンした SDK リリースが存在している必要があります。** `packages/*/hook/build.dart` が `_sdkVersion` のリリースから、Rust ツールチェインを持たないすべての利用者向けに `libssruntime` / `libssconverter` を取得します。2 つの hook は**同じ**リリースを指す必要があります。SDK が未タグのうち `sdk=download`（既定）が失敗するのは正しい挙動です。
 *   **Web の Brain は git 管理外のビルド生成物ですが、publish に含める必要があります。** `assets/runtime-web/{ssruntime.js,ssruntime_bg.wasm,ssruntime_bg.nosimd.wasm}` は `ssruntime_dart` の `web_runtime.dart` が名前で読み込むファイルで、pub は git が無視するものを publish しません。そのための `assets/runtime-web/.pubignore` で、pub はそのディレクトリの `.gitignore` の**代わりに**これを読みます。dart-lang の再利用ワークフローは checkout と `dart pub publish` の間に何も挟めないため、`publish.yml` の **`ssplayer_flutter` ジョブだけは手書き**です（同じ手順に `scripts/download-web-runtime.sh` を dry run の前に挿入）。この取得手順が消えた場合は `build-release.sh` の verify が指摘します。空の `assets/runtime-web/` を抱えた一見完全なアーカイブが pub.dev に上がるのを防ぐためです。
 *   **ツールチェーンは固定しています。** `release.yml`・`publish.yml`・`pages.yml` の 3 か所で Flutter 3.47.1 にしているので、検査も publish もデモも同じものが行います。3 つは一緒に動かし、パッケージが宣言する下限を下回らないようにしてください。多くのパッケージはピンよりかなり低い下限を宣言していますが、`ssplayer_flutter` は使っている flutter_gpu が SDK に同梱されるため Flutter `>=3.47.0` です。
