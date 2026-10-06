@@ -1,9 +1,12 @@
 # Changelog
 
-Each version's notes are its GitHub Release (`<package>-v<version>`), which the
-entry for that version links; the repository-wide history is in the root
-`CHANGELOG.md`.
+All notable changes to `ssgen_flutter` are documented here. The format is based on
+[Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and the package adheres to
+[Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## 7.0.0-beta.1
+## [Unreleased]
 
- - First beta. Live reload for a running app: the `ext.ssgen.reload` service extension, the `SsDevChannel` transport and the `sswatch` runner that pushes a fresh pack over the Dart VM Service.
+### Added
+- **First release.** Live reload for a running app: save a `.sspj` and see it update. The
+  `ext.ssgen.reload` service extension, the `SsDevChannel` transport and the `sswatch` runner that
+  pushes a fresh pack over the Dart VM Service.
