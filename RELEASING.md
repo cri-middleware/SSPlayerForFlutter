@@ -8,7 +8,9 @@ Anyone with the Write role on this repository can cut a release: it is one run o
 
 The packages are versioned independently, and a release names the versions it sets, as `<package>@<version>` pairs where `<package>` is the directory under `packages/`. `scripts/set-versions.dart` writes each version, raises the `^` constraint the other packages have on it, and turns the package's `## [Unreleased]` notes into that version's section of its `CHANGELOG.md`. The workflow then checks everything with `scripts/build-release.sh`, commits the versions to `main`, and gives every package it released a `<package>-v<version>` tag and a draft GitHub Release. Each tag starts `publish.yml`, which publishes the package to pub.dev — unless it still carries `publish_to: none`, in which case it is released on GitHub alone. What each version gained is written in its package's `CHANGELOG.md` and nowhere else: a Release carries a link to that changelog. A contributor's pull request carries no version and no changelog entry — both are written here. There is no release branch: what `main` holds is what goes out, so `main` holds only what can ship.
 
-Only steps 4 and 5 and their retry under [Undoing a release](#undoing-a-release) read a value set by hand, `VERSIONS`, and they refuse one that is empty. Every other block works out what it needs from git and GitHub, so each can run in a new shell; a block that acts on a tag or package you chose takes it as a `<tag>` or `<package>` placeholder, which stops with a syntax error when left as it is.
+Every block runs as written in a new shell: it works out what it needs from git and GitHub. One value is set by hand, written as a placeholder to fill in: `<versions>`, the pairs from step 1 in quotes, in steps 4 and 5 and their retry under [Undoing a release](#undoing-a-release). A block that acts on a tag or package you chose takes it as `<tag>` or `<package>` the same way. Left as it is, a placeholder stops its line with a syntax error, and a list left unquoted leaves `VERSIONS` unset, which the dispatch refuses: an empty `versions` is the retry of whatever is not yet released.
+
+An agent can run every block. A person decides two steps — the merge in step 2, which puts the notes on `main`, and step 6, which publishes the Releases for good — and step 5 too once a package is on pub.dev, where its tag publishes it for good. A package's first version on pub.dev is a person's to publish (see [Opening a package to pub.dev](#opening-a-package-to-pubdev)).
 
 ### 1. Decide the versions
 
@@ -31,11 +33,7 @@ A run releases every package whose current version has no Release yet, named or 
 ssruntime_dart@7.0.0-beta.1 ssconverter_dart@7.0.0-beta.1 ssplayer_flutter@7.0.0-beta.1 ssplayer_flame@7.0.0-beta.1 ssgen_dart@7.0.0-beta.1 ssgen_flutter@7.0.0-beta.1
 ```
 
-Write the decision down for steps 4 and 5:
-
-```bash
-VERSIONS="ssruntime_dart@7.0.0-beta.2 ssplayer_flutter@7.0.0-beta.2"
-```
+Steps 4 and 5 take the decision in place of their `<versions>`, in quotes, as in `"ssruntime_dart@7.0.0-beta.2 ssplayer_flutter@7.0.0-beta.2"`.
 
 ### 2. Write the changelog
 
@@ -48,6 +46,11 @@ git add packages/*/CHANGELOG.md THIRD_PARTY_NOTICES.md
 git commit -m "docs: changelog for the next release"
 git push -u origin release-notes
 gh pr create -B main --fill
+```
+
+**A person runs the merge**, which puts the notes on `main`: choose **Create a merge commit** on the pull request's page, or run
+
+```bash
 gh pr merge release-notes --merge --delete-branch
 ```
 
@@ -67,17 +70,20 @@ A check that cannot run says so and passes, so read the output, not only the exi
 
 ### 4. Look at it first
 
-A dry run sets the versions and checks everything, and commits, tags and releases nothing. The per-package archives and dry-run reports stay on the run (`release-dist`). Once a tag is pushed, a package without `publish_to: none` is on pub.dev for good, so this is the last look before that.
+A dry run sets the versions and checks everything, and commits, tags and releases nothing. The per-package archives and dry-run reports stay on the run (`release-dist`); the block downloads them into `qa/<run ID>`, and fails when the run did. Once a tag is pushed, a package without `publish_to: none` is on pub.dev for good, so this is the last look before that.
 
 ```bash
+VERSIONS=<versions>                               # the pairs from step 1, in quotes
 RUN=$(gh workflow run release.yml --ref main -f versions="${VERSIONS:?}" -f dry_run=true | sed 's|.*/||')
 gh run watch "${RUN:?}" --exit-status
-gh run download "${RUN:?}" -n release-dist -D qa
+gh run download "${RUN:?}" -n release-dist -D "qa/$RUN"
+gh run view "${RUN:?}" --exit-status > /dev/null  # the block fails when the run did
 ```
 
 ### 5. Run the release
 
 ```bash
+VERSIONS=<versions>                               # the pairs from step 1, in quotes
 RUN=$(gh workflow run release.yml --ref main -f versions="${VERSIONS:?}" | sed 's|.*/||')
 gh run watch "${RUN:?}" --exit-status
 ```
@@ -93,18 +99,27 @@ gh run list -w publish.yml -L 6                   # one run per tag; a package w
 
 ### 6. Publish the Releases
 
-Nothing on a draft needs writing, and a version with a `-` is already marked as a pre-release. Publishing starts `pages.yml`, which deploys the [documentation site](https://cri-middleware.github.io/SSPlayerForFlutter/) and the web demos. Every Release published starts a run of its own; they queue, and a newer one replaces one still waiting, which then shows as cancelled, so the run to watch is the last Release's.
+**A person publishes the Releases**: a published Release is permanent. Nothing on a draft needs writing, and a version with a `-` is already marked as a pre-release. Publishing starts `pages.yml`, which deploys the [documentation site](https://cri-middleware.github.io/SSPlayerForFlutter/) and the web demos.
 
 ```bash
-tag=
 for tag in $(gh release list --json tagName,isDraft -q '.[] | select(.isDraft) | .tagName'); do
   gh release edit "$tag" --draft=false
 done
-RUN=$(gh run list -w pages.yml -b "${tag:?}" -L 1 --json databaseId -q '.[0].databaseId')
-gh run watch "${RUN:?}" --exit-status             # RUN is empty for the few seconds before the run appears
 ```
 
-Then open the site. A failed run leaves the site as it was. When the cause was a setting outside the repository, re-run it with `gh run rerun "$RUN"`; a fix in the repository goes into `main` by pull request and deploys with `gh workflow run pages.yml --ref main`.
+Then watch the deploy. Every Release published starts a run of its own; they queue, and a newer one replaces one still waiting, which then shows as cancelled, so the run to watch is the one for the Release published last. The block finds that Release itself, and waits up to a minute for its run, which appears a few seconds after it.
+
+```bash
+tag=$(gh release list --json tagName,publishedAt,isDraft -q '[.[] | select(.isDraft | not)] | sort_by(.publishedAt) | last | .tagName')
+for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
+  RUN=$(gh run list -w pages.yml -b "${tag:?}" -L 1 --json databaseId -q '.[0].databaseId')
+  [ -n "$RUN" ] && break
+  sleep 5
+done
+gh run watch "${RUN:?}" --exit-status
+```
+
+Then open the site. A failed run leaves the site as it was. When the cause was a setting outside the repository, re-run it with `gh run rerun <run-id>`, the run the block watched; a fix in the repository goes into `main` by pull request and deploys with `gh workflow run pages.yml --ref main`.
 
 ## Opening a package to pub.dev
 
@@ -126,6 +141,7 @@ Then enable **Automated publishing** in the package's pub.dev Admin tab, with th
 *   A run that failed before its commit reached `main` is run again with the same versions, once the cause is fixed in `main`. The **Re-run** button would replay the old commit, and its push would be rejected.
 
     ```bash
+    VERSIONS=<versions>                               # the pairs from step 1, in quotes
     RUN=$(gh workflow run release.yml --ref main -f versions="${VERSIONS:?}" | sed 's|.*/||')
     gh run watch "${RUN:?}" --exit-status
     ```
@@ -188,7 +204,9 @@ Then enable **Automated publishing** in the package's pub.dev Admin tab, with th
 
 パッケージは独立にバージョンを持ち、リリースは設定するバージョンを `<package>@<version>` の組で指定します。`<package>` は `packages/` の下のディレクトリ名です。`scripts/set-versions.dart` が各バージョンを書き、他のパッケージがそれに付けている `^` の制約を引き上げ、パッケージの `## [Unreleased]` のノートを、`CHANGELOG.md` のそのバージョンの節に書き換えます。続けてワークフローが `scripts/build-release.sh` ですべてを検査し、バージョンを `main` へコミットし、リリースした各パッケージに `<package>-v<version>` のタグと下書きの GitHub Release を作ります。タグはそれぞれ `publish.yml` を起動し、パッケージを pub.dev へ publish します。ただし `publish_to: none` が残っているパッケージは GitHub だけでリリースされます。各バージョンで何が変わったかは、そのパッケージの `CHANGELOG.md` にだけ書きます。Release が持つのは、その changelog へのリンクだけです。コントリビューターのプルリクエストはバージョンも changelog の項目も持ちません。どちらもここで書きます。release ブランチはありません。`main` にあるものがそのまま出るので、`main` には出せるものだけを置きます。
 
-手で設定する値 `VERSIONS` を読むのは、手順 4・5 と「リリースの取り消し」にあるその再実行だけで、空なら実行を拒否します。ほかのブロックは必要なものを git と GitHub から求めるので、どれも新しいシェルで実行できます。選んだタグやパッケージに対して操作するブロックは、それを `<tag>` や `<package>` のプレースホルダで受け取ります。埋めずに実行すると、その行は構文エラーで止まります。
+どのブロックも、新しいシェルで書かれたとおりに実行できます。必要なものは git と GitHub から求めます。手で設定する値は 1 つで、埋めるプレースホルダとして書いてあります。手順 4・5 と「リリースの取り消し」にあるその再実行の `<versions>` で、手順 1 で決めた組を引用符で囲んで入れます。選んだタグやパッケージに対して操作するブロックも、それを `<tag>` や `<package>` で受け取ります。埋めずに実行すると、その行は構文エラーで止まります。組を引用符で囲み忘れると `VERSIONS` は設定されず、dispatch はそれを拒否します。空の `versions` は、まだリリースしていないものすべての再実行になるためです。
+
+どのブロックもエージェントに実行させられます。2 つの手順は人が判断します。ノートを `main` に入れる手順 2 のマージと、取り消せない公開を行う手順 6 です。pub.dev に出したパッケージがあれば、手順 5 のタグがそれを取り消せない形で publish するので、手順 5 も人が判断します。パッケージの pub.dev への最初のバージョンも人が publish します（「パッケージを pub.dev に開く」を参照）。
 
 ### 1. バージョンを決める
 
@@ -211,11 +229,7 @@ run は、指定したかどうかに関わらず、現在のバージョンに�
 ssruntime_dart@7.0.0-beta.1 ssconverter_dart@7.0.0-beta.1 ssplayer_flutter@7.0.0-beta.1 ssplayer_flame@7.0.0-beta.1 ssgen_dart@7.0.0-beta.1 ssgen_flutter@7.0.0-beta.1
 ```
 
-決めたものを手順 4・5 のために書き留めます。
-
-```bash
-VERSIONS="ssruntime_dart@7.0.0-beta.2 ssplayer_flutter@7.0.0-beta.2"
-```
+手順 4・5 は、決めた組を引用符で囲んで `<versions>` の位置に受け取ります（`"ssruntime_dart@7.0.0-beta.2 ssplayer_flutter@7.0.0-beta.2"` など）。
 
 ### 2. changelog を書く
 
@@ -228,6 +242,11 @@ git add packages/*/CHANGELOG.md THIRD_PARTY_NOTICES.md
 git commit -m "docs: changelog for the next release"
 git push -u origin release-notes
 gh pr create -B main --fill
+```
+
+**マージは人が行います。** ノートが `main` に入るためです。プルリクエストのページで **Create a merge commit** を選ぶか、次を実行します。
+
+```bash
 gh pr merge release-notes --merge --delete-branch
 ```
 
@@ -247,17 +266,20 @@ git switch main && git pull --ff-only && git submodule update --init --recursive
 
 ### 4. 先に確かめる
 
-dry run はバージョンを設定してすべてを検査し、コミットもタグも Release も作りません。パッケージごとのアーカイブと dry-run の報告は run に残ります（`release-dist`）。タグを push すると、`publish_to: none` の無いパッケージは pub.dev に出て取り消せないので、これがその前の最後の確認です。
+dry run はバージョンを設定してすべてを検査し、コミットもタグも Release も作りません。パッケージごとのアーカイブと dry-run の報告は run に残ります（`release-dist`）。ブロックはそれを `qa/<run ID>` にダウンロードし、run が失敗していればブロックも失敗します。タグを push すると、`publish_to: none` の無いパッケージは pub.dev に出て取り消せないので、これがその前の最後の確認です。
 
 ```bash
+VERSIONS=<versions>                               # 手順 1 の組を引用符で囲む
 RUN=$(gh workflow run release.yml --ref main -f versions="${VERSIONS:?}" -f dry_run=true | sed 's|.*/||')
 gh run watch "${RUN:?}" --exit-status
-gh run download "${RUN:?}" -n release-dist -D qa
+gh run download "${RUN:?}" -n release-dist -D "qa/$RUN"
+gh run view "${RUN:?}" --exit-status > /dev/null  # run が失敗していればブロックも失敗する
 ```
 
 ### 5. リリースを実行する
 
 ```bash
+VERSIONS=<versions>                               # 手順 1 の組を引用符で囲む
 RUN=$(gh workflow run release.yml --ref main -f versions="${VERSIONS:?}" | sed 's|.*/||')
 gh run watch "${RUN:?}" --exit-status
 ```
@@ -273,18 +295,27 @@ gh run list -w publish.yml -L 6                   # タグごとに 1 つ。publ
 
 ### 6. Release を公開する
 
-下書きに書き足すものはありません。`-` を含むバージョンは、すでに pre-release になっています。公開すると `pages.yml` が動き、[ドキュメントサイト](https://cri-middleware.github.io/SSPlayerForFlutter/) と Web デモをデプロイします。Release を 1 つ公開するごとに run が 1 つ始まります。run は順に並び、待っている run は新しい run に置き換えられて cancelled と表示されるので、見届けるのは最後に公開した Release の run です。
+**Release の公開は人が行います。** 公開した Release は取り消せないためです。下書きに書き足すものはありません。`-` を含むバージョンは、すでに pre-release になっています。公開すると `pages.yml` が動き、[ドキュメントサイト](https://cri-middleware.github.io/SSPlayerForFlutter/) と Web デモをデプロイします。
 
 ```bash
-tag=
 for tag in $(gh release list --json tagName,isDraft -q '.[] | select(.isDraft) | .tagName'); do
   gh release edit "$tag" --draft=false
 done
-RUN=$(gh run list -w pages.yml -b "${tag:?}" -L 1 --json databaseId -q '.[0].databaseId')
-gh run watch "${RUN:?}" --exit-status             # run が一覧に出るまでの数秒間は RUN が空になる
 ```
 
-終わったら、サイトを開いて確かめます。run が失敗してもサイトは元のまま残ります。原因がリポジトリの外の設定にあったなら、`gh run rerun "$RUN"` で再実行します。リポジトリ内の修正は、プルリクエストで `main` に入れてから `gh workflow run pages.yml --ref main` でデプロイします。
+続けてデプロイを見届けます。Release を 1 つ公開するごとに run が 1 つ始まります。run は順に並び、待っている run は新しい run に置き換えられて cancelled と表示されるので、見届けるのは最後に公開した Release の run です。ブロックはその Release を自分で探し、run が一覧に出るまで最大 1 分待ちます。run は Release の公開から数秒遅れて出るためです。
+
+```bash
+tag=$(gh release list --json tagName,publishedAt,isDraft -q '[.[] | select(.isDraft | not)] | sort_by(.publishedAt) | last | .tagName')
+for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
+  RUN=$(gh run list -w pages.yml -b "${tag:?}" -L 1 --json databaseId -q '.[0].databaseId')
+  [ -n "$RUN" ] && break
+  sleep 5
+done
+gh run watch "${RUN:?}" --exit-status
+```
+
+終わったら、サイトを開いて確かめます。run が失敗してもサイトは元のまま残ります。原因がリポジトリの外の設定にあったなら、ブロックが見届けた run を `gh run rerun <run-id>` で再実行します。リポジトリ内の修正は、プルリクエストで `main` に入れてから `gh workflow run pages.yml --ref main` でデプロイします。
 
 ## パッケージを pub.dev に開く
 
@@ -306,6 +337,7 @@ cd packages/<package> && dart pub publish
 *   コミットが `main` に届く前に失敗した run は、原因を `main` で直してから、同じバージョンで実行し直します。**Re-run** ボタンは古いコミットを再生するので、その push は拒否されます。
 
     ```bash
+    VERSIONS=<versions>                               # 手順 1 の組を引用符で囲む
     RUN=$(gh workflow run release.yml --ref main -f versions="${VERSIONS:?}" | sed 's|.*/||')
     gh run watch "${RUN:?}" --exit-status
     ```
