@@ -115,9 +115,12 @@ external void ss_instance_slot_reset(ffi.Pointer<ffi.Void> slot);
 /// EventInstance (via `ss_runtime_get_active_event_instance` against the
 /// *parent* runtime context) and passes the *child* runtime context here so
 /// that label resolution and frame stepping happen against the right Context.
-/// Returns `transitioned == true` on EventInstance edges; the caller is
-/// responsible for any side effects tied to `play()` (event-sink notifications)
-/// since those are host-side concerns.
+/// Returns `transitioned == true` on EventInstance edges, having configured the
+/// child for the new key without starting it: the caller then calls
+/// `ss_runtime_play` on the child (an independent child never advances
+/// otherwise). Draw the child at `child_frame_no` on that tick too: the slot
+/// already put it where `play` snaps it, and a synced child's value follows the
+/// parent, which reading the frame back after `play` would lose.
 @ffi.Native<
   ss_instance_step_result Function(
     ffi.Pointer<ffi.Void>,
@@ -762,7 +765,7 @@ external int ss_runtime_get_passed_event_index(
 /// Which source fired the collected event at `index` — parallel to
 /// `ss_runtime_get_passed_event_index`, and read with the same index.
 ///
-/// With every source at the default event threshold (`1.0`) this is uniformly
+/// With every source at the default event threshold (`+∞`) this is uniformly
 /// `ss_runtime_get_track_main_source` of track 0, so a Player that does not use
 /// animation mixing can ignore it. It diverges once a secondary source opts in
 /// to firing events via `ss_runtime_set_source_event_threshold`, and that is
@@ -842,7 +845,8 @@ external void ss_runtime_get_shape_vertex_counts(
 /// world matrix. Only the first
 /// `ss_runtime_get_shape_vertex_counts(...)[part_index]` vertices are
 /// valid; remaining slots are zero-initialized. Non-shape parts carry zero
-/// count and zero-filled vertex slots.
+/// count and zero-filled vertex slots. When no part of the pack is a shape,
+/// the buffer is empty, as is `ss_runtime_get_shape_vertex_box_coords`.
 ///
 /// # Safety
 ///
@@ -863,6 +867,17 @@ external void ss_runtime_get_shape_vertices(
 
 @ffi.Native<ffi.Bool Function(ffi.Pointer<ffi.Void>)>()
 external bool ss_runtime_get_skip_frames(ffi.Pointer<ffi.Void> context);
+
+/// Which animation the source `handle` plays, as an index into the ssab's
+/// `animations()`; `-1` for a handle that names no source. An event index
+/// addresses the `events()` of the animation of the source that fired it
+/// (`ss_runtime_get_passed_event_source_handle`), track 0's included: after a
+/// crossfade on track 0 that is the incoming animation.
+@ffi.Native<ffi.Int32 Function(ffi.Pointer<ffi.Void>, ffi.Uint32)>()
+external int ss_runtime_get_source_animation_index(
+  ffi.Pointer<ffi.Void> context,
+  int handle,
+);
 
 @ffi.Native<ffi.Float Function(ffi.Pointer<ffi.Void>, ffi.Uint32)>()
 external double ss_runtime_get_source_event_threshold(
@@ -960,6 +975,13 @@ external int ss_runtime_get_track_main_source(
   int track,
 );
 
+/// Returns `SS_RUNTIME_INVALID_HANDLE` for a track that does not exist.
+@ffi.Native<ffi.Uint32 Function(ffi.Pointer<ffi.Void>, ffi.Uint32)>()
+external int ss_runtime_get_track_sync(
+  ffi.Pointer<ffi.Void> context,
+  int track,
+);
+
 @ffi.Native<ffi.Int32 Function(ffi.Pointer<ffi.Void>)>()
 external int ss_runtime_get_unit(ffi.Pointer<ffi.Void> context);
 
@@ -1008,6 +1030,11 @@ external bool ss_runtime_is_playing_forward(ffi.Pointer<ffi.Void> context);
 @ffi.Native<ffi.Bool Function(ffi.Pointer<ffi.Void>)>()
 external bool ss_runtime_just_looped(ffi.Pointer<ffi.Void> context);
 
+/// # Security and Validation
+/// To maximize performance and minimize binary size, `libssruntime` **does not validate** the input `.ssab` data.
+/// Passing corrupted or maliciously crafted data will cause undefined behavior (e.g., out-of-bounds reads).
+/// The caller MUST ensure the data is trusted or validated before passing it to this function.
+///
 /// # Safety
 ///
 /// This function is unsafe because it dereferences a raw pointer.
@@ -1025,6 +1052,11 @@ external bool ss_runtime_load_ssab_borrow(
   int len,
 );
 
+/// # Security and Validation
+/// To maximize performance and minimize binary size, `libssruntime` **does not validate** the input `.ssab` data.
+/// Passing corrupted or maliciously crafted data will cause undefined behavior (e.g., out-of-bounds reads).
+/// The caller MUST ensure the data is trusted or validated before passing it to this function.
+///
 /// # Safety
 ///
 /// This function is unsafe because it dereferences a raw pointer.
@@ -1045,7 +1077,8 @@ external bool ss_runtime_load_ssab_copy(
 @ffi.Native<ffi.Void Function(ffi.Pointer<ffi.Void>)>()
 external void ss_runtime_next_frame(ffi.Pointer<ffi.Void> context);
 
-/// Holds playback where it stands, keeping the current frame.
+/// Holds playback where it stands, keeping the current frame. With animation
+/// mixing it holds every track and every fade, as `ss_runtime_stop` stops them.
 ///
 /// Idempotent: pausing an already-paused animation leaves it paused.
 /// `ss_runtime_is_playing` stays true while held — a pause is a hold, not a
@@ -1289,6 +1322,15 @@ external bool ss_runtime_set_track_speed(
   double speed,
 );
 
+/// `sync` is one of `SS_RUNTIME_TRACK_SYNC_*`. Set it before laying an
+/// animation on the track; a track with nothing on it yet is created for it.
+@ffi.Native<ffi.Bool Function(ffi.Pointer<ffi.Void>, ffi.Uint32, ffi.Uint32)>()
+external bool ss_runtime_set_track_sync(
+  ffi.Pointer<ffi.Void> context,
+  int track,
+  int sync,
+);
+
 @ffi.Native<ffi.Void Function(ffi.Pointer<ffi.Void>, ffi.Int32)>()
 external void ss_runtime_set_unit(ffi.Pointer<ffi.Void> context, int unit);
 
@@ -1352,6 +1394,10 @@ const int SS_RUNTIME_LOG_WARN = 2;
 const int SS_RUNTIME_TRACK_BLEND_ADDITIVE = 1;
 
 const int SS_RUNTIME_TRACK_BLEND_MIX = 0;
+
+const int SS_RUNTIME_TRACK_SYNC_FREE = 0;
+
+const int SS_RUNTIME_TRACK_SYNC_START = 1;
 
 typedef SsLogCallback = ffi.Pointer<ffi.NativeFunction<SsLogCallbackFunction>>;
 typedef SsLogCallbackFunction =

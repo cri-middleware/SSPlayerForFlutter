@@ -2668,64 +2668,6 @@ class _LabelReader extends fb.TableReader<Label> {
     Label._(bc, offset);
 }
 
-class PartAnimationDataInstance {
-  PartAnimationDataInstance._(this._bc, this._bcOffset);
-  factory PartAnimationDataInstance(List<int> bytes) {
-    final rootRef = fb.BufferContext.fromBytes(bytes);
-    return reader.read(rootRef, 0);
-  }
-
-  static const fb.Reader<PartAnimationDataInstance> reader = _PartAnimationDataInstanceReader();
-
-  final fb.BufferContext _bc;
-  final int _bcOffset;
-
-  int get index => const fb.Uint16Reader().vTableGet(_bc, _bcOffset, 4, 0);
-  PartAttributeInstance? get value => PartAttributeInstance.reader.vTableGetNullable(_bc, _bcOffset, 6);
-
-  @override
-  String toString() {
-    return 'PartAnimationDataInstance{index: ${index}, value: ${value}}';
-  }
-}
-
-class _PartAnimationDataInstanceReader extends fb.TableReader<PartAnimationDataInstance> {
-  const _PartAnimationDataInstanceReader();
-
-  @override
-  PartAnimationDataInstance createObject(fb.BufferContext bc, int offset) => 
-    PartAnimationDataInstance._(bc, offset);
-}
-
-class PartAnimationDataEffect {
-  PartAnimationDataEffect._(this._bc, this._bcOffset);
-  factory PartAnimationDataEffect(List<int> bytes) {
-    final rootRef = fb.BufferContext.fromBytes(bytes);
-    return reader.read(rootRef, 0);
-  }
-
-  static const fb.Reader<PartAnimationDataEffect> reader = _PartAnimationDataEffectReader();
-
-  final fb.BufferContext _bc;
-  final int _bcOffset;
-
-  int get index => const fb.Uint16Reader().vTableGet(_bc, _bcOffset, 4, 0);
-  PartAttributeEffect? get value => PartAttributeEffect.reader.vTableGetNullable(_bc, _bcOffset, 6);
-
-  @override
-  String toString() {
-    return 'PartAnimationDataEffect{index: ${index}, value: ${value}}';
-  }
-}
-
-class _PartAnimationDataEffectReader extends fb.TableReader<PartAnimationDataEffect> {
-  const _PartAnimationDataEffectReader();
-
-  @override
-  PartAnimationDataEffect createObject(fb.BufferContext bc, int offset) => 
-    PartAnimationDataEffect._(bc, offset);
-}
-
 class PartAnimationData {
   PartAnimationData._(this._bc, this._bcOffset);
   factory PartAnimationData(List<int> bytes) {
