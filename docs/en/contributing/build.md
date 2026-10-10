@@ -65,11 +65,11 @@ scripts/run-web.sh             # default CanvasKit renderer
 scripts/run-web.sh --wasm      # Skwasm renderer (WebAssembly build mode)
 ```
 
-!!! warning "🚧 Developer preview"
+!!! warning "Developer preview"
     The web **runtime backend** is wired: `lib/src/runtime_api.dart` is the seam, with a `dart:ffi`
     backend (`native_runtime.dart`) and a `dart:js_interop` backend (`web_runtime.dart`) selected by
     conditional export, so Layer 2 (`internal_player.dart` etc.) compiles without `dart:ffi`.
-    `flutter build web` / `flutter run -d chrome` now build and render — every render kind
+    `flutter build web` / `flutter run -d chrome` build and render — every render kind
     (Normal / Shape / Mesh / Effect / Instance), the shader paths (PartColor / mask), framebuffer
     blend, and the timeline event callbacks (UserData / Signal / Audio) are verified on CanvasKit.
     Web stays a **debug-grade `drawVertices` path** (mobile / desktop are the ones headed for
@@ -82,8 +82,8 @@ scripts/run-web.sh --wasm      # Skwasm renderer (WebAssembly build mode)
 
 ## Code generation (committed; regenerate on change)
 
-Generated code is **committed** so a normal checkout / pub.dev consumer builds without ffigen or
-flatc. Regenerate and commit after the corresponding change:
+Generated code is **committed** so a normal checkout, and an app depending on the packages, builds
+without ffigen or flatc. Regenerate and commit after the corresponding change:
 
 - **ffigen bindings** (`lib/src/*_bindings.g.dart`) — after a C-API change, run
   `scripts/generate-ffigen-code.sh` and commit. This is **standalone** — `build-runtime` does *not*

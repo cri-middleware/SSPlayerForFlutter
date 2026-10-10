@@ -1,8 +1,8 @@
 # 📦 Packages
 
-This monorepo will publish the following packages 🚧 (not yet on pub.dev — see
-[Installation](guide/install.md)). `ssplayer_flutter` is the one most apps depend on; the rest are
-pulled in transitively or used for specific needs.
+This monorepo releases the following packages (see [Installation](guide/install.md)).
+`ssplayer_flutter` is the one most apps depend on; the rest are pulled in transitively or used for
+specific needs.
 
 Both players have a live demo you can open in a browser: the widget one at
 [demo/flutter/](demo/flutter/) and the Flame one at [demo/flame/](demo/flame/).

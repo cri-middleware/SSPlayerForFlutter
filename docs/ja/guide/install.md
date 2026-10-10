@@ -12,39 +12,39 @@ Flutter アプリに SpriteStudio Player for Flutter を追加する手順です
 | その他 | Windows / Linux はソースからビルド、Web は開発者プレビュー |
 | ネイティブツールチェーン | 不要 —— Brain は `ssruntime_dart` のビルドフックがプリビルドを取得 |
 
-## インストール方法
+## 依存を追加する
 
-パッケージを追加する方法は 2 通りあります。最初の pub.dev 公開までは、**GitHub Releases のバンドル**（方法 1）を使ってください。
-
-### 方法 1 — GitHub Releases のバンドル（推奨・現在利用可能）
-
-1. [**GitHub Releases**](https://github.com/cri-middleware/SSPlayerForFlutter/releases/latest) から最新バンドルをダウンロードします。
-2. プロジェクト内（例: `vendor/`）に展開します。
-3. アプリの `pubspec.yaml` に `path:` 依存として記述します。
+パッケージは、リリースのタグを指す git 依存として追加します。リリースはパッケージごとに `<package>-v<version>` のタグを付けます。パッケージの [**Releases**](https://github.com/cri-middleware/SSPlayerForFlutter/releases?q=ssplayer_flutter&expanded=true) からバージョンを選び、そのタグを `ref` に書きます。
 
 ```yaml
 dependencies:
   ssplayer_flutter:
-    # 展開したバンドルは packages/ レイアウトを保つので、推移依存の
-    # ssruntime_dart も自動で解決されます。
-    path: vendor/SSPlayerForFlutter/packages/ssplayer_flutter
+    git:
+      url: https://github.com/cri-middleware/SSPlayerForFlutter.git
+      ref: ssplayer_flutter-v7.0.0-beta.1
+      path: packages/ssplayer_flutter
+
+dependency_overrides:
+  ssruntime_dart:
+    git:
+      url: https://github.com/cri-middleware/SSPlayerForFlutter.git
+      ref: ssplayer_flutter-v7.0.0-beta.1
+      path: packages/ssruntime_dart
 ```
 
-4. `flutter pub get` を実行します。
+続けて `flutter pub get` を実行します。
 
-[Flame](https://flame-engine.org/) でゲームを作る場合は、同じバンドルの `ssplayer_flame` も追加します（[Flame 連携](flame.md)）。
+パッケージどうしはバージョンで依存し合っているので、依存したパッケージが引き込むこのリポジトリのパッケージは、すべて同じ形で `dependency_overrides` に書きます。どれも**同じ 1 つのタグ**から取ってください。タグには、リリースが一緒に検査したときのままの全パッケージが入っています。
 
-### 方法 2 — pub.dev から
+| 依存するパッケージ | `dependency_overrides` に足すもの |
+|---|---|
+| `ssplayer_flutter` | `ssruntime_dart` |
+| `ssplayer_flame` —— [Flame 連携](flame.md) | `ssplayer_flutter`、`ssruntime_dart` |
+| `ssconverter_dart`（dev）—— `ssconvert` CLI、[アセットの準備](conversion.md) | —— |
+| `ssgen_flutter`（dev）—— [ライブリロード](live-reload.md) | `ssplayer_flutter`、`ssgen_dart`、`ssconverter_dart`、`ssruntime_dart` |
 
-公開後は、`vendor/` の手順なしで 1 行のホスト依存として記述できます。
-
-```yaml
-dependencies:
-  ssplayer_flutter: ^x.y.z
-```
-
-!!! warning "🚧 工事中"
-    パッケージはまだ pub.dev に公開されていないため、この方法は利用できません。当面は **方法 1** を使ってください。最初のリリース公開後に、実際のバージョンとともにこの節を記載します。
+!!! note "Web ターゲット"
+    Web のランタイム（`packages/ssplayer_flutter/assets/runtime-web/`）はビルド生成物でリポジトリに含まれないため、git 依存には入っておらず、`loadSsRuntime()` が読み込むものがありません。Web 向けにビルドするときは、タグをクローンしてその中で `scripts/download-web-runtime.sh`（Windows では `.ps1`）を 1 回実行し、そのパッケージを `path:` で依存してください。`dependency_overrides` も `path:` で書きます。
 
 !!! tip "コアを開発する場合"
     `libssruntime` を Rust ソースからビルドしたり Player 本体に手を入れる作業は、

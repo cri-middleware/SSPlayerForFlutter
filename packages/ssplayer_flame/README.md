@@ -19,11 +19,31 @@ Flame; an app opts in by depending on `ssplayer_flame`.
 
 ## Install
 
+Take it as a git dependency on a release tag, `ssplayer_flame-v<version>` on
+[Releases](https://github.com/cri-middleware/SSPlayerForFlutter/releases?q=ssplayer_flame&expanded=true),
+with `ssplayer_flutter` and `ssruntime_dart` from the same tag under `dependency_overrides`, since
+the packages name one another by version ([Installation](https://cri-middleware.github.io/SSPlayerForFlutter/guide/install/)):
+
 ```yaml
 dependencies:
   flame: ^1.38.0
   ssplayer_flame:
-    path: ../packages/ssplayer_flame   # or a pub.dev version once published
+    git:
+      url: https://github.com/cri-middleware/SSPlayerForFlutter.git
+      ref: ssplayer_flame-v7.0.0-beta.1
+      path: packages/ssplayer_flame
+
+dependency_overrides:
+  ssplayer_flutter:
+    git:
+      url: https://github.com/cri-middleware/SSPlayerForFlutter.git
+      ref: ssplayer_flame-v7.0.0-beta.1
+      path: packages/ssplayer_flutter
+  ssruntime_dart:
+    git:
+      url: https://github.com/cri-middleware/SSPlayerForFlutter.git
+      ref: ssplayer_flame-v7.0.0-beta.1
+      path: packages/ssruntime_dart
 ```
 
 `ssplayer_flame` re‑exports the entire `ssplayer_flutter` API, so a single

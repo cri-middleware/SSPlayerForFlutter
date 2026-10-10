@@ -15,15 +15,25 @@ framework to embed, no `DynamicLibrary` path, and no Rust toolchain.
 
 ## Install
 
-Until the first pub.dev release, take the packages from the
-[GitHub Releases bundle](https://github.com/cri-middleware/SSPlayerForFlutter/releases/latest)
-and reference the extracted folder:
+Take it as a git dependency on a release tag, `ssplayer_flutter-v<version>` on
+[Releases](https://github.com/cri-middleware/SSPlayerForFlutter/releases?q=ssplayer_flutter&expanded=true),
+with `ssruntime_dart` from the same tag under `dependency_overrides`, since `ssplayer_flutter` names
+it by version ([Installation](https://cri-middleware.github.io/SSPlayerForFlutter/guide/install/)):
 
 ```yaml
 dependencies:
   ssplayer_flutter:
-    # The bundle keeps the packages/ layout, so ssruntime_dart resolves with it.
-    path: vendor/SSPlayerForFlutter/packages/ssplayer_flutter
+    git:
+      url: https://github.com/cri-middleware/SSPlayerForFlutter.git
+      ref: ssplayer_flutter-v7.0.0-beta.1
+      path: packages/ssplayer_flutter
+
+dependency_overrides:
+  ssruntime_dart:
+    git:
+      url: https://github.com/cri-middleware/SSPlayerForFlutter.git
+      ref: ssplayer_flutter-v7.0.0-beta.1
+      path: packages/ssruntime_dart
 ```
 
 Needs **Flutter 3.47+ / Dart 3.13+** — native assets is stable and default-on, and the
@@ -100,7 +110,7 @@ class _MyState extends State<MyWidget> with SingleTickerProviderStateMixin {
 
 ## More
 
-* [Documentation](https://cri-middleware.github.io/SSPlayerForFlutter/) — 🚧 live after the first release
-* [Live Web demo](https://cri-middleware.github.io/SSPlayerForFlutter/demo/flutter/) — this API running in a browser — 🚧 live after the first release
+* [Documentation](https://cri-middleware.github.io/SSPlayerForFlutter/)
+* [Live Web demo](https://cri-middleware.github.io/SSPlayerForFlutter/demo/flutter/) — this API running in a browser
 * [What is and is not supported](https://cri-middleware.github.io/SSPlayerForFlutter/limitations/)
 * [Repository](https://github.com/cri-middleware/SSPlayerForFlutter) · example app under [`examples/overall`](../../examples/overall)

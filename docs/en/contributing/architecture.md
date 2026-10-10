@@ -40,7 +40,7 @@ It is a **strict downward dependency**; layers below are nearer the Brain. Each 
 - **Flame L4** — `ssplayer_flame` (a separate package so the core never pulls in `flame`).
 - **Converter** — `ssconverter_dart` (host `.sspj` → `.ssab`, desktop-only).
 
-See [Packages](../packages.md) for the full list and their pub.dev roles.
+See [Packages](../packages.md) for the full list and their roles.
 
 ## Rendering model
 

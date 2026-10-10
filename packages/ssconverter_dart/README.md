@@ -11,13 +11,16 @@ toolchain, no separate binary to install**.
 
 ## Install
 
-Until the first pub.dev release, take it from the
-[GitHub Releases bundle](https://github.com/cri-middleware/SSPlayerForFlutter/releases/latest):
+Take it as a git dependency on a release tag, `ssconverter_dart-v<version>` on
+[Releases](https://github.com/cri-middleware/SSPlayerForFlutter/releases?q=ssconverter_dart&expanded=true):
 
 ```yaml
 dev_dependencies:
   ssconverter_dart:
-    path: vendor/SSPlayerForFlutter/packages/ssconverter_dart
+    git:
+      url: https://github.com/cri-middleware/SSPlayerForFlutter.git
+      ref: ssconverter_dart-v7.0.0-beta.1
+      path: packages/ssconverter_dart
 ```
 
 A `dev_dependency` is usually right: nothing in a shipped app calls the
@@ -59,6 +62,6 @@ final out = await const SsConverter()
 
 ## More
 
-* [Preparing assets (`.sspj` → `.ssab`)](https://cri-middleware.github.io/SSPlayerForFlutter/guide/conversion/) — 🚧 live after the first release
-* [Live Web demos](https://cri-middleware.github.io/SSPlayerForFlutter/demo/) — packs built by this converter, playing — 🚧 live after the first release
+* [Preparing assets (`.sspj` → `.ssab`)](https://cri-middleware.github.io/SSPlayerForFlutter/guide/conversion/)
+* [Live Web demos](https://cri-middleware.github.io/SSPlayerForFlutter/demo/) — packs built by this converter, playing
 * [Repository](https://github.com/cri-middleware/SSPlayerForFlutter)
