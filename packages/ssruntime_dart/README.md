@@ -17,13 +17,16 @@ SpriteStudio-SDK release and verifies it against that release's `SHA256SUMS`.
 
 ## Install
 
-Until the first pub.dev release, take it from the
-[GitHub Releases bundle](https://github.com/cri-middleware/SSPlayerForFlutter/releases/latest):
+Take it as a git dependency on a release tag, `ssruntime_dart-v<version>` on
+[Releases](https://github.com/cri-middleware/SSPlayerForFlutter/releases?q=ssruntime_dart&expanded=true):
 
 ```yaml
 dependencies:
   ssruntime_dart:
-    path: vendor/SSPlayerForFlutter/packages/ssruntime_dart
+    git:
+      url: https://github.com/cri-middleware/SSPlayerForFlutter.git
+      ref: ssruntime_dart-v7.0.0-beta.1
+      path: packages/ssruntime_dart
 ```
 
 Needs **Dart 3.10+** (native assets stable). Most apps get this package
@@ -59,7 +62,7 @@ generated FlatBuffers accessors for the plan the Brain emits.
 
 ## More
 
-* [Documentation](https://cri-middleware.github.io/SSPlayerForFlutter/) — 🚧 live after the first release
-* [Live Web demos](https://cri-middleware.github.io/SSPlayerForFlutter/demo/) — what this runtime draws, one layer up — 🚧 live after the first release
+* [Documentation](https://cri-middleware.github.io/SSPlayerForFlutter/)
+* [Live Web demos](https://cri-middleware.github.io/SSPlayerForFlutter/demo/) — what this runtime draws, one layer up
 * [Architecture](https://cri-middleware.github.io/SSPlayerForFlutter/contributing/architecture/) — where Layer 1 sits
 * [Repository](https://github.com/cri-middleware/SSPlayerForFlutter)

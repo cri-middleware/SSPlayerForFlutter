@@ -94,7 +94,7 @@ desktop GUI, and a CLI — all producing the same `.ssab`. Pick the one that fit
 | Route | Best for | Getting it |
 |---|---|---|
 | [**Auto importer (Live Reload)**](#auto-importer-live-reload) | Iterating during development — auto-convert on save, no manual step | Built in: [`ssgen_flutter`](live-reload.md) |
-| [**ssconverter-web**](#ssconverter-web-browser) | A quick one-off in the browser, no install | 🚧 Not yet published (Chromium-only) |
+| [**ssconverter-web**](#ssconverter-web-browser) | A quick one-off in the browser, no install | [Open in the browser](https://cri-middleware.github.io/SSPlayerForWeb/ssconverter/) (Chromium-only) |
 | [**SSConverter GUI**](#ssconverter-gui-desktop-gui) | A simple desktop GUI — drag & drop, batch, embedded toggle | [Download a binary](https://github.com/cri-middleware/SSConverterGUI/releases) |
 | [**ssconverter-cli**](#ssconverter-cli) | CI / build-time / reproducibility — including the in-workspace Dart `ssconvert` | [SDK Releases](https://github.com/cri-middleware/SpriteStudio-SDK/releases) · `dart run ssconverter_dart:ssconvert` |
 
@@ -116,10 +116,10 @@ loop, provided by `ssgen_flutter`. See [Live Reload](live-reload.md).
 Convert a `.sspj` in the browser and download the result — no install. It runs the WebAssembly build
 of the converter client-side. Then [deploy](#deploy-the-ssab-manual-routes) the downloaded `.ssab`.
 
-!!! note "🚧 Not yet published"
-    Once released it will be hosted on GitHub Pages
-    (<https://cri-middleware.github.io/SSPlayerForWeb/ssconverter/>). Folder selection uses the **File
-    System Access API**, so a **Chromium-based browser (Chrome / Edge)** is required.
+!!! note "Chromium-based browsers only"
+    It is hosted on GitHub Pages: <https://cri-middleware.github.io/SSPlayerForWeb/ssconverter/>.
+    Folder selection uses the **File System Access API**, so a
+    **Chromium-based browser (Chrome / Edge)** is required.
 
 ## SSConverter GUI (desktop GUI)
 
@@ -138,7 +138,8 @@ the same `.ssab`.
 
 This repo ships the converter as the
 [`ssconverter_dart`](https://github.com/cri-middleware/SSPlayerForFlutter/tree/main/packages/ssconverter_dart)
-package, which exposes the `ssconvert` CLI and an `SsConverter` library. Its native `libssconverter`
+package — a dev dependency, added as on [Installation](install.md) — which exposes the `ssconvert` CLI
+and an `SsConverter` library. Its native `libssconverter`
 is auto-downloaded by the package build hook, so it works out of the box — **no Rust toolchain, no
 separate binary**. It is a **desktop-only** host tool (macOS / Windows / Linux):
 
@@ -162,8 +163,8 @@ does for the example apps. The same engine is also available programmatically vi
 The SpriteStudio-SDK distributes a standalone native CLI (the same `libssconverter`) for
 language-agnostic CI, non-Dart pipelines, and reproducibility independent of the Dart toolchain.
 
-- **Prebuilt binary** — download the Windows / macOS / Linux build from
-  [**SpriteStudio-SDK Releases**](https://github.com/cri-middleware/SpriteStudio-SDK/releases).
+- **Prebuilt binary** — download `ssconverter-cli-<platform>.zip` (Windows / macOS / Linux) from the
+  **Assets** of a [**SpriteStudio-SDK Release**](https://github.com/cri-middleware/SpriteStudio-SDK/releases).
 - **Build from source** — with a Rust toolchain, `cargo install --path cli` at the SDK repo root.
 
 ```bash

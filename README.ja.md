@@ -4,7 +4,7 @@
 
 **エディタで作り込んだ 2D ラスターアニメーションを、あなたの Flutter アプリへ。アーティストがリグを組み、あなたはウィジェット 1 個で再生。アニメーションコードは一切不要です。**
 
-▶️ **[サンプルアプリを試す](./examples/overall/)** — 同梱の SpriteStudio アニメを Flutter の Canvas に直接描画します。🚧 プリビルドのネイティブは最初の SDK リリース公開後に自動ダウンロードされます。
+▶️ **[サンプルアプリを試す](./examples/overall/)** — 同梱の SpriteStudio アニメを Flutter の Canvas に直接描画します。プリビルドのネイティブは自動ダウンロードされます。
 
 **[SpriteStudio](https://www.webtech.co.jp/spritestudio/)** のアニメーション（`.ssab`）を [Flutter](https://flutter.dev/) でそのまま再生するプレイヤーです。SpriteStudio はプロ向けの 2D **ラスター**（スプライト）アニメーションエディタ —— スプライト素材にボーン・メッシュ変形・パーティクルを載せてモーションを作れます。アーティストが動きを視覚的に作り、プレイヤーは完成ファイルを再生するだけ。Flutter の `Canvas` にネイティブ描画するので、手書きの `AnimationController` も、スプライトシートの切り出しも、動画のデコードも要りません。
 
@@ -20,12 +20,12 @@
 
 インストール、アセットパイプライン、API リファレンスは MkDocs ドキュメントサイトを参照してください。
 
-- [**ドキュメントサイト（ホスト版）**](https://cri-middleware.github.io/SSPlayerForFlutter/ja/) — 🚧 最初のリリース後に公開
-- [**Web デモ**](https://cri-middleware.github.io/SSPlayerForFlutter/demo/) — `ssplayer_flutter` と `ssplayer_flame` がブラウザで動きます — 🚧 最初のリリース後に公開
+- [**ドキュメントサイト（ホスト版）**](https://cri-middleware.github.io/SSPlayerForFlutter/ja/)
+- [**Web デモ**](https://cri-middleware.github.io/SSPlayerForFlutter/demo/) — `ssplayer_flutter` と `ssplayer_flame` がブラウザで動きます
 - [**Documentation (English)**](./docs/en/index.md)
 - [**ドキュメント (日本語)**](./docs/ja/index.md)
-- [**AI アシスタント向け**](https://cri-middleware.github.io/SSPlayerForFlutter/ja/llms.txt) — このドキュメントを Markdown で提供します。`llms.txt` はページの目次、`llms-full.txt` は全ページを 1 ファイルにまとめたものです — 🚧 初回リリース後に公開
-- [**SpriteStudio Docs（ポータル）**](https://cri-middleware.github.io/SpriteStudio-Docs/ja/) — SDK と全公式 Player の入口 — 🚧 最初のリリース後に公開
+- [**AI アシスタント向け**](https://cri-middleware.github.io/SSPlayerForFlutter/ja/llms.txt) — このドキュメントを Markdown で提供します。`llms.txt` はページの目次、`llms-full.txt` は全ページを 1 ファイルにまとめたものです
+- [**SpriteStudio Docs（ポータル）**](https://cri-middleware.github.io/SpriteStudio-Docs/ja/) — SDK と全公式 Player の入口
 
 ### クイックリンク
 - [インストール](docs/ja/guide/install.md)
@@ -43,18 +43,26 @@
 
 ### セットアップ
 
-依存を追加します。**pub.dev 公開までは**、[GitHub Releases](https://github.com/cri-middleware/SSPlayerForFlutter/releases/latest) から最新バンドルをダウンロードし、プロジェクト内（例: `vendor/`）に展開して、path 依存で参照してください。
+依存は、リリースのタグを指す git 依存として追加します。タグは `<package>-v<version>` の形で、パッケージの [Releases](https://github.com/cri-middleware/SSPlayerForFlutter/releases?q=ssplayer_flutter&expanded=true) に並んでいます。
 
 ```yaml
 # pubspec.yaml
 dependencies:
   ssplayer_flutter:
-    # GitHub Releases のバンドルをプロジェクトに展開したもの。packages/ レイアウトを保つので、
-    # 推移依存の ssruntime_dart も自動で解決されます。
-    path: vendor/SSPlayerForFlutter/packages/ssplayer_flutter
+    git:
+      url: https://github.com/cri-middleware/SSPlayerForFlutter.git
+      ref: ssplayer_flutter-v7.0.0-beta.1
+      path: packages/ssplayer_flutter
+
+dependency_overrides:
+  ssruntime_dart:
+    git:
+      url: https://github.com/cri-middleware/SSPlayerForFlutter.git
+      ref: ssplayer_flutter-v7.0.0-beta.1
+      path: packages/ssruntime_dart
 ```
 
-> 🚧 Releases からのダウンロードは最初のリリース公開後に有効になります。pub.dev 公開後は、通常の `ssplayer_flutter: ^x.y.z` に置き換わります。
+`ssplayer_flutter` は `ssruntime_dart` をバージョンで指定しているので、`dependency_overrides` で同じタグから取らせます。Flame・コンバータ・ライブリロードを使う場合に足す行は[インストール](docs/ja/guide/install.md)にあります。
 
 `.ssab` アニメを組み込む最小コードです（`.ssab` は事前に用意します —— [自分の `.sspj` を変換する](#自分の-sspj-を変換する)参照）:
 
@@ -78,7 +86,7 @@ SpriteStudioAnimation.asset(
 
 ### チェックアウトから動かしてみる
 
-> 🚧 pub.dev 公開までは、これが動いているところを見る方法です。上のインストール手順の一部ではなくチェックアウトなので、パッケージを使うだけなら不要です。
+> これは上のインストール手順の一部ではなくチェックアウトなので、パッケージを使うだけなら不要です。
 
 同梱のサンプルを起動して動作を確認します。**Rust ツールチェーンは不要** —— 各パッケージの
 `hook/build.dart` が、ピン留めした SDK リリースからプリビルド（`libssruntime` / `libssconverter`）を自動ダウンロードして同梱します。
@@ -144,7 +152,7 @@ cd examples\overall; flutter run
 
 ## 📦 パッケージ
 
-このモノレポが pub.dev に公開するものです 🚧。アニメーションを再生するだけなら最初の 1 行で足り、残りはその土台と周辺ツールです。
+このモノレポがリリースするものです。アニメーションを再生するだけなら最初の 1 行で足り、残りはその土台と周辺ツールです。
 
 | 目的 | パッケージ | 種別 |
 |---|---|---|

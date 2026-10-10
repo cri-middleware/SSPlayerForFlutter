@@ -4,7 +4,7 @@
 
 **Give your Flutter app editor-crafted 2D raster animation — rigged by an artist, played with a single widget, and not one line of animation code.**
 
-▶️ **[Try the example app](./examples/overall/)** — the bundled SpriteStudio animations rendered straight onto the Flutter canvas. 🚧 Prebuilt binaries download automatically once the first SDK release is published.
+▶️ **[Try the example app](./examples/overall/)** — the bundled SpriteStudio animations rendered straight onto the Flutter canvas. Prebuilt binaries download automatically.
 
 A player that renders **[SpriteStudio](https://www.webtech.co.jp/spritestudio/)** animations (`.ssab`) directly in [Flutter](https://flutter.dev/). SpriteStudio is a professional 2D **raster** (sprite) animation editor — bone rigs, mesh deformation, and particle effects over hand-drawn sprite art. Your artist builds the motion visually; this player just plays the finished file, drawing it natively to the Flutter `Canvas` — no `AnimationController` to hand-write, no spritesheet to slice, no video to decode.
 
@@ -20,12 +20,12 @@ A player that renders **[SpriteStudio](https://www.webtech.co.jp/spritestudio/)*
 
 For installation, the asset pipeline, and API references, see the MkDocs documentation site.
 
-- [**Documentation site (hosted)**](https://cri-middleware.github.io/SSPlayerForFlutter/) — 🚧 live after the first release
-- [**Live Web demos**](https://cri-middleware.github.io/SSPlayerForFlutter/demo/) — `ssplayer_flutter` and `ssplayer_flame` running in a browser — 🚧 live after the first release
+- [**Documentation site (hosted)**](https://cri-middleware.github.io/SSPlayerForFlutter/)
+- [**Live Web demos**](https://cri-middleware.github.io/SSPlayerForFlutter/demo/) — `ssplayer_flutter` and `ssplayer_flame` running in a browser
 - [**Documentation (English)**](./docs/en/index.md)
 - [**ドキュメント (日本語)**](./docs/ja/index.md)
-- [**For AI assistants**](https://cri-middleware.github.io/SSPlayerForFlutter/llms.txt) — these docs as Markdown: `llms.txt` indexes the pages and `llms-full.txt` holds all of them in one file — 🚧 live after the first release
-- [**SpriteStudio Docs (portal)**](https://cri-middleware.github.io/SpriteStudio-Docs/) — the SDK and every official player in one place — 🚧 live after the first release
+- [**For AI assistants**](https://cri-middleware.github.io/SSPlayerForFlutter/llms.txt) — these docs as Markdown: `llms.txt` indexes the pages and `llms-full.txt` holds all of them in one file
+- [**SpriteStudio Docs (portal)**](https://cri-middleware.github.io/SpriteStudio-Docs/) — the SDK and every official player in one place
 
 ### Quick Links
 - [Installation](docs/en/guide/install.md)
@@ -45,21 +45,29 @@ further in, on the [documentation site](docs/en/index.md).
 
 ### Setup
 
-Add the dependency. **Until the packages are on pub.dev**, download the latest bundle from
-[GitHub Releases](https://github.com/cri-middleware/SSPlayerForFlutter/releases/latest), extract it
-into your project (e.g. `vendor/`), and reference it with a path dependency:
+Add the dependency as a git dependency on a release tag — `<package>-v<version>`, listed on the
+package's [Releases](https://github.com/cri-middleware/SSPlayerForFlutter/releases?q=ssplayer_flutter&expanded=true):
 
 ```yaml
 # pubspec.yaml
 dependencies:
   ssplayer_flutter:
-    # From the GitHub Releases bundle, extracted into your project. The packages/ layout is
-    # preserved, so the transitive ssruntime_dart dependency resolves automatically.
-    path: vendor/SSPlayerForFlutter/packages/ssplayer_flutter
+    git:
+      url: https://github.com/cri-middleware/SSPlayerForFlutter.git
+      ref: ssplayer_flutter-v7.0.0-beta.1
+      path: packages/ssplayer_flutter
+
+dependency_overrides:
+  ssruntime_dart:
+    git:
+      url: https://github.com/cri-middleware/SSPlayerForFlutter.git
+      ref: ssplayer_flutter-v7.0.0-beta.1
+      path: packages/ssruntime_dart
 ```
 
-> 🚧 The Releases download goes live once the first release is published. Once the packages are on
-> pub.dev, this becomes a plain `ssplayer_flutter: ^x.y.z`.
+`ssplayer_flutter` names `ssruntime_dart` by version, so `dependency_overrides` takes it from the same
+tag. Flame, the converter and live reload need a few more lines — see
+[Installation](docs/en/guide/install.md).
 
 The minimal code to embed a `.ssab` animation (you supply the `.ssab` — see [Convert your own](#convert-your-own-sspj)):
 
@@ -88,8 +96,7 @@ events, or stick a widget to a part? Build a `SpriteStudioPlayer` and hand it to
 
 ### See it running from a checkout
 
-> 🚧 Until the packages are on pub.dev, this is how to watch the player work. It is a
-> checkout, not part of the install above — you do not need it to use the package.
+> This is a checkout, not part of the install above — you do not need it to use the package.
 
 Run the bundled example to confirm the player works. **No Rust toolchain required** — each package's
 `hook/build.dart` downloads the prebuilt native libraries (`libssruntime` / `libssconverter`) from
@@ -161,7 +168,7 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) for building and testing from a checkou
 
 ## 📦 Packages
 
-What this monorepo publishes to pub.dev 🚧 — you need only the first row to play an animation; the rest are what it is built on and the tooling around it.
+What this monorepo releases — you need only the first row to play an animation; the rest are what it is built on and the tooling around it.
 
 | Purpose | Package | Kind |
 |---|---|---|

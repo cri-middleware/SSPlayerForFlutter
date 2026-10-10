@@ -13,43 +13,47 @@ delivered automatically through Dart **native assets** — there is no CocoaPods
 | Other platforms | Windows / Linux build from source; Web is a developer preview |
 | Native toolchain | None — the Brain is downloaded prebuilt by the `ssruntime_dart` build hook |
 
-## Installation methods
+## Add the dependency
 
-There are two ways to add the packages. Until the first pub.dev release, use the **GitHub Releases
-bundle** (Method 1).
-
-### Method 1 — GitHub Releases bundle (recommended, available now)
-
-1. Download the latest bundle from
-   [**GitHub Releases**](https://github.com/cri-middleware/SSPlayerForFlutter/releases/latest).
-2. Extract it into your project (e.g. into a `vendor/` folder).
-3. Reference it with a `path:` dependency in your app's `pubspec.yaml`:
+Add the packages as git dependencies on a release tag. A release tags each package it releases
+`<package>-v<version>`: pick the version from the package's
+[**Releases**](https://github.com/cri-middleware/SSPlayerForFlutter/releases?q=ssplayer_flutter&expanded=true)
+and use its tag as the `ref`.
 
 ```yaml
 dependencies:
   ssplayer_flutter:
-    # The extracted bundle keeps the packages/ layout, so the transitive
-    # ssruntime_dart dependency resolves automatically.
-    path: vendor/SSPlayerForFlutter/packages/ssplayer_flutter
+    git:
+      url: https://github.com/cri-middleware/SSPlayerForFlutter.git
+      ref: ssplayer_flutter-v7.0.0-beta.1
+      path: packages/ssplayer_flutter
+
+dependency_overrides:
+  ssruntime_dart:
+    git:
+      url: https://github.com/cri-middleware/SSPlayerForFlutter.git
+      ref: ssplayer_flutter-v7.0.0-beta.1
+      path: packages/ssruntime_dart
 ```
 
-4. Run `flutter pub get`.
+Then run `flutter pub get`.
 
-Building a game with [Flame](https://flame-engine.org/)? Also add `ssplayer_flame` from the same
-bundle (see [Flame Integration](flame.md)).
+The packages name one another by version, so every package of this repository that yours pull in
+goes under `dependency_overrides` the same way. Take them all from **one tag**: a tag holds every
+package as the release checked them together.
 
-### Method 2 — From pub.dev
+| You depend on | Also under `dependency_overrides` |
+|---|---|
+| `ssplayer_flutter` | `ssruntime_dart` |
+| `ssplayer_flame` — [Flame Integration](flame.md) | `ssplayer_flutter`, `ssruntime_dart` |
+| `ssconverter_dart` (dev) — the `ssconvert` CLI, [Preparing Assets](conversion.md) | — |
+| `ssgen_flutter` (dev) — [Live Reload](live-reload.md) | `ssplayer_flutter`, `ssgen_dart`, `ssconverter_dart`, `ssruntime_dart` |
 
-Once the packages are published, installation becomes a single hosted dependency — no `vendor/` step:
-
-```yaml
-dependencies:
-  ssplayer_flutter: ^x.y.z
-```
-
-!!! warning "🚧 Under construction"
-    The packages are not on pub.dev yet, so this method is not available. Use **Method 1** for now —
-    this section will be filled in with the real version once the first release is published.
+!!! note "The web target"
+    The web runtime (`packages/ssplayer_flutter/assets/runtime-web/`) is build output, not part of
+    the repository, so a git dependency carries none and `loadSsRuntime()` has nothing to load. To
+    build for the web, clone the tag, run `scripts/download-web-runtime.sh` (`.ps1` on Windows) in
+    it once, and depend on its packages by `path:` — the `dependency_overrides` by `path:` too.
 
 !!! tip "Developing the core?"
     Building `libssruntime` from Rust source, or hacking on the Player itself, is covered separately

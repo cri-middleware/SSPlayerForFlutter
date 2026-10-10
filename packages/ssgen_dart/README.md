@@ -16,13 +16,25 @@ runtime an app ships stays converter-free.
 
 ## Install
 
-Until the first pub.dev release, take it from the
-[GitHub Releases bundle](https://github.com/cri-middleware/SSPlayerForFlutter/releases/latest):
+Take it as a git dependency on a release tag, `ssgen_dart-v<version>` on
+[Releases](https://github.com/cri-middleware/SSPlayerForFlutter/releases?q=ssgen_dart&expanded=true),
+with `ssconverter_dart` from the same tag under `dependency_overrides`, since `ssgen_dart` names it
+by version ([Installation](https://cri-middleware.github.io/SSPlayerForFlutter/guide/install/)):
 
 ```yaml
 dev_dependencies:
   ssgen_dart:
-    path: vendor/SSPlayerForFlutter/packages/ssgen_dart
+    git:
+      url: https://github.com/cri-middleware/SSPlayerForFlutter.git
+      ref: ssgen_dart-v7.0.0-beta.1
+      path: packages/ssgen_dart
+
+dependency_overrides:
+  ssconverter_dart:
+    git:
+      url: https://github.com/cri-middleware/SSPlayerForFlutter.git
+      ref: ssgen_dart-v7.0.0-beta.1
+      path: packages/ssconverter_dart
 ```
 
 ## Use
@@ -51,6 +63,6 @@ a `spritestudio.yaml` beside the sources. `reconvert()` takes `projectRoot` /
 
 ## More
 
-* [Live reload](https://cri-middleware.github.io/SSPlayerForFlutter/guide/live-reload/) — the loop this package sits in — 🚧 live after the first release
-* [Live Web demos](https://cri-middleware.github.io/SSPlayerForFlutter/demo/) — 🚧 live after the first release
+* [Live reload](https://cri-middleware.github.io/SSPlayerForFlutter/guide/live-reload/) — the loop this package sits in
+* [Live Web demos](https://cri-middleware.github.io/SSPlayerForFlutter/demo/)
 * [Repository](https://github.com/cri-middleware/SSPlayerForFlutter)

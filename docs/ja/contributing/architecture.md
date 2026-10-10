@@ -35,7 +35,7 @@ flowchart TD
 - **Flame L4** —— `ssplayer_flame`（コアが `flame` を巻き込まないよう別パッケージ）。
 - **コンバータ** —— `ssconverter_dart`（ホスト `.sspj` → `.ssab`、デスクトップ専用）。
 
-一覧と pub.dev 上の役割は [パッケージ](../packages.md) を参照してください。
+一覧と役割は [パッケージ](../packages.md) を参照してください。
 
 ## 描画モデル
 

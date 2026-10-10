@@ -1,10 +1,7 @@
 # 📖 API リファレンス
 
 クラスレベルの API リファレンスは、Dart のドキュメントコメントから
-[`dart doc`](https://dart.dev/tools/dart-doc) が生成します。パッケージが pub.dev に公開されると、各パッケージの API は `pub.dev/documentation/<package>` で自動的にホストされます。
-
-!!! note "🚧 最初のリリース前"
-    ホスト版の API リンクは pub.dev 公開とともに有効になります。それまではローカルで生成してください。
+[`dart doc`](https://dart.dev/tools/dart-doc) が生成します。
 
 ## ローカルで生成する
 

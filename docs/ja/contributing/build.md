@@ -60,7 +60,7 @@ scripts/run-web.sh             # 既定 CanvasKit レンダラ
 scripts/run-web.sh --wasm      # Skwasm レンダラ（WebAssembly ビルドモード）
 ```
 
-!!! warning "🚧 開発者プレビュー"
+!!! warning "開発者プレビュー"
     web の**ランタイムバックエンド**は配線済みです。継ぎ目は `lib/src/runtime_api.dart` で、`dart:ffi`
     バックエンド（`native_runtime.dart`）と `dart:js_interop` バックエンド（`web_runtime.dart`）を条件付き export で切り替えるため、Layer 2（`internal_player.dart` ほか）は `dart:ffi` 無しでコンパイルできます。`flutter build web` / `flutter run -d chrome` はビルド・描画まで通り、全描画
     kind（Normal / Shape / Mesh / Effect / Instance）、シェーダ経路（PartColor / マスク）、framebuffer
@@ -75,7 +75,7 @@ scripts/run-web.sh --wasm      # Skwasm レンダラ（WebAssembly ビルドモ�
 
 ## コード生成（コミット済み・変更時に再生成）
 
-生成コードは**コミット済み**なので、通常のチェックアウトや pub.dev 利用者は ffigen / flatc なしでビルドできます。対応する変更をしたら再生成してコミットします:
+生成コードは**コミット済み**なので、通常のチェックアウトも、パッケージに依存するアプリも、ffigen / flatc なしでビルドできます。対応する変更をしたら再生成してコミットします:
 
 - **ffigen バインディング**（`lib/src/*_bindings.g.dart`）—— C-API を変えたら
   `scripts/generate-ffigen-code.sh` を実行してコミット。**スタンドアロン**で、`build-runtime` は実行しません。

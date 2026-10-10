@@ -24,7 +24,7 @@
 
 ## 有効化（レシピ）
 
-1. アプリの `dev_dependencies` に `ssgen_flutter` を追加。
+1. アプリの `dev_dependencies` に `ssgen_flutter` を追加。[インストール](install.md)にある、これに要る `dependency_overrides` も書きます。
 2. アプリ側には何も書きません。アセットキーでパックを読み込んだプレイヤー —— すべての `SpriteStudioAnimation` と、`loadAsset` した `SpriteStudioPlayer` —— は自分で push を受け取ります。
 3. `sswatch` を実行します。ツールも機構（VM Service push）も一つで、**起動の仕方だけ**選びます（`SS_LIVE_RELOAD` define で opt-in。define なしの素の `flutter run` はアートを再変換しません）。
 

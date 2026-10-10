@@ -12,14 +12,21 @@ receiving end comes up only in a debug build launched for it.
 
 ## Install
 
-Until the first pub.dev release, take it from the
-[GitHub Releases bundle](https://github.com/cri-middleware/SSPlayerForFlutter/releases/latest):
+Take it as a git dependency on a release tag, `ssgen_flutter-v<version>` on
+[Releases](https://github.com/cri-middleware/SSPlayerForFlutter/releases?q=ssgen_flutter&expanded=true):
 
 ```yaml
 dev_dependencies:
   ssgen_flutter:
-    path: vendor/SSPlayerForFlutter/packages/ssgen_flutter
+    git:
+      url: https://github.com/cri-middleware/SSPlayerForFlutter.git
+      ref: ssgen_flutter-v7.0.0-beta.1
+      path: packages/ssgen_flutter
 ```
+
+The packages name one another by version, so `ssplayer_flutter`, `ssgen_dart`, `ssconverter_dart`
+and `ssruntime_dart` go under `dependency_overrides` the same way, from the same tag — see
+[Installation](https://cri-middleware.github.io/SSPlayerForFlutter/guide/install/).
 
 ## Use
 
@@ -48,6 +55,6 @@ dart run ssgen_flutter:sswatch --run -d <emulator> --device  # device
 
 ## More
 
-* [Live reload](https://cri-middleware.github.io/SSPlayerForFlutter/guide/live-reload/) — the full setup — 🚧 live after the first release
-* [Live Web demos](https://cri-middleware.github.io/SSPlayerForFlutter/demo/) — 🚧 live after the first release
+* [Live reload](https://cri-middleware.github.io/SSPlayerForFlutter/guide/live-reload/) — the full setup
+* [Live Web demos](https://cri-middleware.github.io/SSPlayerForFlutter/demo/)
 * [Repository](https://github.com/cri-middleware/SSPlayerForFlutter)

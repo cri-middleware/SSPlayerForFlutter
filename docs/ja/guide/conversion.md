@@ -79,7 +79,7 @@ GUI・CLI といった形で提供され、いずれも同じ `.ssab` を生成�
 | ルート | 向いている用途 | 入手方法 |
 |---|---|---|
 | [**オートインポート（ライブリロード）**](#オートインポートライブリロード) | 開発中の反復 —— 保存で自動変換、手動ステップなし | 標準搭載: [`ssgen_flutter`](live-reload.md) |
-| [**ssconverter-web**](#ssconverter-webブラウザ) | ブラウザで単発、インストール不要 | 🚧 未公開（Chromium 専用） |
+| [**ssconverter-web**](#ssconverter-webブラウザ) | ブラウザで単発、インストール不要 | [ブラウザで開く](https://cri-middleware.github.io/SSPlayerForWeb/ssconverter/)（Chromium 専用） |
 | [**SSConverter GUI**](#ssconverter-guiデスクトップ-gui) | シンプルなデスクトップ GUI —— ドラッグ&ドロップ・バッチ・embedded 切替 | [バイナリをダウンロード](https://github.com/cri-middleware/SSConverterGUI/releases) |
 | [**ssconverter-cli**](#ssconverter-cli) | CI / ビルド時 / 再現性 —— ワークスペース同梱の Dart 製 `ssconvert` を含む | [SDK Releases](https://github.com/cri-middleware/SpriteStudio-SDK/releases) · `dart run ssconverter_dart:ssconvert` |
 
@@ -97,9 +97,8 @@ Unity のインポータの高速反復ループに相当し、`ssgen_flutter` �
 
 ブラウザで `.sspj` を変換して結果をダウンロード —— インストール不要。コンバータの WebAssembly ビルドをクライアント側で実行します。その後、ダウンロードした `.ssab` を[配置](#ssab-を配置する手動ルート)します。
 
-!!! note "🚧 未公開"
-    公開後は GitHub Pages でホストされます（<https://cri-middleware.github.io/SSPlayerForWeb/ssconverter/>）。フォルダ選択に **File System
-    Access API** を使うため、**Chromium 系ブラウザ（Chrome / Edge）**が必要です。
+!!! note "Chromium 系ブラウザ専用"
+    GitHub Pages でホストしています（<https://cri-middleware.github.io/SSPlayerForWeb/ssconverter/>）。フォルダ選択に **File System Access API** を使うため、**Chromium 系ブラウザ**（Chrome / Edge）が必要です。
 
 ## SSConverter GUI（デスクトップ GUI）
 
@@ -116,7 +115,7 @@ embedded 出力の切替ができます。OS 向けバイナリを
 
 このリポジトリはコンバータを
 [`ssconverter_dart`](https://github.com/cri-middleware/SSPlayerForFlutter/tree/main/packages/ssconverter_dart)
-パッケージとして同梱し、`ssconvert` CLI と `SsConverter` ライブラリを提供します。ネイティブ
+パッケージとして同梱し（[インストール](install.md)のとおり dev 依存として追加します）、`ssconvert` CLI と `SsConverter` ライブラリを提供します。ネイティブ
 `libssconverter` はパッケージのビルドフックが自動ダウンロードするので、そのまま動きます ——
 **Rust ツールチェーン不要・別バイナリ不要**。**デスクトップ専用**のホストツールです（macOS / Windows / Linux）。
 
@@ -137,8 +136,7 @@ dart run ssconverter_dart:ssconvert -e -o out_emb/ path/to/project.sspj  # embed
 
 SpriteStudio-SDK が配布するスタンドアロンのネイティブ CLI（同じ `libssconverter`）。言語非依存の CI、非 Dart パイプライン、Dart ツールチェーンに依存しない再現性が必要な場面に向きます。
 
-- **プリビルドバイナリ** —— Windows / macOS / Linux ビルドを
-  [**SpriteStudio-SDK Releases**](https://github.com/cri-middleware/SpriteStudio-SDK/releases) から。
+- **プリビルドバイナリ** —— [**SpriteStudio-SDK の Release**](https://github.com/cri-middleware/SpriteStudio-SDK/releases) の **Assets** から `ssconverter-cli-<platform>.zip`（Windows / macOS / Linux）をダウンロード。
 - **ソースからビルド** —— Rust ツールチェーンで、SDK リポジトリルートで `cargo install --path cli`。
 
 ```bash

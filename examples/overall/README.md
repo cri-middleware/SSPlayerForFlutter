@@ -46,14 +46,12 @@ bash scripts/setup-mobile.sh --android    # android だけ
 pwsh scripts/setup-mobile.ps1             # Windows（android のみ。iOS は Xcode が要る）
 ```
 
-ネイティブ Brain は `hook/build.dart` がピン留めした SDK リリースから落としますが、**そのリリースはまだ公開されていません**。初回リリースまでは、この 2 つのプラットフォームはローカルのクロスビルドだけが経路です（Rust と各ターゲット、Android は実在する NDK が要る）。
+ネイティブ Brain は `hook/build.dart` がピン留めした SDK リリースから自動で取得します。手元のクロスビルドを使う場合は、リポジトリルートで次を実行します（Rust と各ターゲット、Android は実在する NDK が要る）。`setup-mobile` は、手元のライブラリが無いときにこのコマンドを表示します。
 
 ```sh
 bash scripts/build-runtime.sh platform=android   # リポジトリルートで
 bash scripts/build-runtime.sh platform=ios
 ```
-
-生成していないと、Gradle の中で HTTP 404 として 90 秒後に落ちます。`setup-mobile` はその場で気づけるよう、ライブラリが無ければ上のコマンドを表示します。
 
 ### flutter_gpu（Impeller）で動かす
 
