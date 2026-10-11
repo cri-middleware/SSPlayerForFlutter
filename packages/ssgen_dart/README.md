@@ -26,14 +26,14 @@ dev_dependencies:
   ssgen_dart:
     git:
       url: https://github.com/cri-middleware/SSPlayerForFlutter.git
-      ref: ssgen_dart-v7.0.0-beta.1
+      ref: ssgen_dart-v<version>
       path: packages/ssgen_dart
 
 dependency_overrides:
   ssconverter_dart:
     git:
       url: https://github.com/cri-middleware/SSPlayerForFlutter.git
-      ref: ssgen_dart-v7.0.0-beta.1
+      ref: ssgen_dart-v<version>
       path: packages/ssconverter_dart
 ```
 

@@ -19,7 +19,7 @@ dev_dependencies:
   ssconverter_dart:
     git:
       url: https://github.com/cri-middleware/SSPlayerForFlutter.git
-      ref: ssconverter_dart-v7.0.0-beta.1
+      ref: ssconverter_dart-v<version>
       path: packages/ssconverter_dart
 ```
 

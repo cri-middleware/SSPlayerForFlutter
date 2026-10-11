@@ -20,7 +20,7 @@ dev_dependencies:
   ssgen_flutter:
     git:
       url: https://github.com/cri-middleware/SSPlayerForFlutter.git
-      ref: ssgen_flutter-v7.0.0-beta.1
+      ref: ssgen_flutter-v<version>
       path: packages/ssgen_flutter
 ```
 
