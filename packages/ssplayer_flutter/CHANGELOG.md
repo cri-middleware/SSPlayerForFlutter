@@ -16,3 +16,5 @@ All notable changes to `ssplayer_flutter` are documented here. The format is bas
 - **Flip & offset** (`SpriteStudioPlayer.flipX` / `flipY` / `offset`): mirror or shift what the
   player draws without touching the widget tree. Part anchors follow the mirrored pose, and can keep
   their own child upright (`SpriteStudioAnchorMirror.cancel`).
+
+[7.0.0-beta.1]: https://github.com/cri-middleware/SSPlayerForFlutter/releases/tag/ssplayer_flutter-v7.0.0-beta.1

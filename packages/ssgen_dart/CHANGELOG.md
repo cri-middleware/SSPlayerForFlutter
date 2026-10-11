@@ -9,3 +9,5 @@ All notable changes to `ssgen_dart` are documented here. The format is based on
 ### Added
 - **First release.** Host-side reconvert orchestration (`SsProjectSync`): watch a SpriteStudio
   source tree, reconvert what went stale, and report what changed.
+
+[7.0.0-beta.1]: https://github.com/cri-middleware/SSPlayerForFlutter/releases/tag/ssgen_dart-v7.0.0-beta.1
