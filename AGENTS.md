@@ -87,7 +87,7 @@ renders `.ssab` animations by driving the Rust `libssruntime` over `dart:ffi`. T
 *   **Integration shaders (`SHDR`) are a per-part attribute, not a draw kind.** The Brain does not split
     batches by it, so peel shader parts out of Normal batches as PartColor ones are peeled. `ss-blur` skips
     the PartColor fold, a masked part drops its shader, and `map0` / `map1` and shader parts on
-    Mesh/Shape/Effect are out of scope — matching both siblings.
+    Mesh/Shape/Effect are out of scope — matching SSPlayerForWgpu.
 *   **dart:ui shaders are not full GLSL.** Canvas runtime effects take no per-vertex varyings and
     `impellerc` rejects bitwise ops and `discard` — **a rejected shader fails silently**, which is why
     Canvas uses one program per effect. `test/part_shader_test.dart` pins the uniform float count; that test
