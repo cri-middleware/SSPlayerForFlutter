@@ -241,6 +241,10 @@ abstract interface class SsRuntime {
   /// Fetches the active `EventEffect` for [slotIndex] (== part index) against
   /// [context] and steps [slot] one frame. The active-event fetch is fused in so
   /// the backend's by-value event/result structs never cross this boundary.
+  ///
+  /// [draw] is whether the part is in this frame's `draw_order`. With false the
+  /// slot keeps time and builds no plan, and the next step with true returns the
+  /// plan it would have had anyway.
   SsEffectStep stepEffectSlot(
     SsEffectSlot slot,
     SsContext context,
@@ -251,6 +255,7 @@ abstract interface class SsRuntime {
     required bool parentLooped,
     required bool yFlip,
     required int vertStride,
+    required bool draw,
   });
 
   // --- Instance slots ----------------------------------------------------

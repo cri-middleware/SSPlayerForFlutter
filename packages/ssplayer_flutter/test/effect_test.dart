@@ -343,6 +343,109 @@ void main() {
         reason: 'sub-frame was switched off but the frozen frame still shows '
             'the particles simulated at the fractional frame');
   });
+
+  test('a hidden effect part builds no particles, and shown again draws what '
+      'a never-hidden one draws', () {
+    final ssabPath = _firstExisting([
+      'examples/overall/assets/spritestudio/overall/Effect.ssab',
+      '../../examples/overall/assets/spritestudio/overall/Effect.ssab',
+    ]);
+    if (ssabPath == null) {
+      markTestSkipped('Effect.ssab missing — run deploy-examples.sh');
+      return;
+    }
+
+    final bytes = Uint8List.fromList(File(ssabPath).readAsBytesSync());
+    final effects = EffectPart.readAll(bytes);
+    final anim = SsAnimeInfo(bytes).animationNames.first;
+    SpriteStudioInternalPlayer start() {
+      final p = SpriteStudioInternalPlayer.load(bytes);
+      addTearDown(p.dispose);
+      expect(p.setupAnimation(anim), isTrue);
+      p.play();
+      return p;
+    }
+
+    final shown = start();
+    final hidden = start();
+    var builtWhileHidden = 0;
+    var compared = 0;
+    for (var f = 0; f < 90; f++) {
+      // Part 0 is the root, so cascading hides every effect part with it.
+      if (f == 10) {
+        expect(hidden.setPartVisibilityOverrideByIndex(0, true, cascade: true),
+            isTrue);
+      }
+      if (f == 50) expect(hidden.clearPartVisibilityOverrideByIndex(0), isTrue);
+      shown.update(const Duration(microseconds: 16667));
+      hidden.update(const Duration(microseconds: 16667));
+
+      if (f >= 10 && f < 50) {
+        expect(_drawnEffectParts(hidden), isEmpty);
+        for (final e in effects) {
+          expect(hidden.effectPlanFor(e.partIndex), isNull,
+              reason: 'frame $f: a hidden effect part built particles');
+          if (_planValues(shown.effectPlanFor(e.partIndex)) case final v?
+              when v.isNotEmpty) {
+            builtWhileHidden++;
+          }
+        }
+        continue;
+      }
+      if (f < 60) continue;
+
+      final drawn = _drawnEffectParts(shown);
+      expect(_drawnEffectParts(hidden), drawn);
+      for (final e in effects) {
+        final expected = _planValues(shown.effectPlanFor(e.partIndex));
+        expect(_planValues(hidden.effectPlanFor(e.partIndex)), expected,
+            reason: 'frame $f, part ${e.partIndex}: the effect lost the time '
+                'it spent hidden');
+        if (drawn.contains(e.partIndex) && (expected?.isNotEmpty ?? false)) {
+          compared++;
+        }
+      }
+    }
+    expect(builtWhileHidden, greaterThan(0),
+        reason: 'the never-hidden player drew no particle in the hidden '
+            'stretch, so nothing was skipped');
+    expect(compared, greaterThan(0),
+        reason: 'no particle was drawn after the hidden stretch');
+  });
+}
+
+/// The effect parts in [p]'s Effect batches on its current frame.
+Set<int> _drawnEffectParts(SpriteStudioInternalPlayer p) {
+  final fd = p.getFrameData(p.frameNo);
+  final order = fd?.drawOrder;
+  final batches = fd?.drawBatches;
+  if (order == null || batches == null) return const <int>{};
+  return <int>{
+    for (final b in batches)
+      if (b.kind == fbs.DrawBatchKind.Effect)
+        for (var k = 0; k < b.count; k++) order[b.startRank + k],
+  };
+}
+
+/// Everything [plan] hands `paint`, flattened — a copy, since the plan is only
+/// valid until its slot steps again. Null for no plan, empty for no particles.
+List<num>? _planValues(efbs.EffectDrawPlan? plan) {
+  if (plan == null) return null;
+  final commands = plan.commands ?? const <efbs.EffectDrawCommand>[];
+  if (commands.every((c) => c.quadCount == 0)) return const <num>[];
+  return <num>[
+    plan.vertStride,
+    for (final c in commands) ...<num>[
+      c.cellmapHash,
+      c.quadCount,
+      c.particleOffset,
+      c.blend,
+    ],
+    ...?plan.verts,
+    ...?plan.uvs,
+    ...?plan.colors,
+    ...?plan.indices,
+  ];
 }
 
 String? _firstExisting(List<String> paths) {
