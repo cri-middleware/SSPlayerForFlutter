@@ -139,11 +139,10 @@ void main() {
 
     test('a follower and the paint see one overwrite-on-next-keyframe override',
         () {
-      // The Brain skips such an override's own keyframe on its first
-      // evaluation only, so a second evaluation of one update hands the cell
-      // back to the animation: the follower would see the override, and the
-      // paint the animation. Apple's cell is keyed at frame 0, so the override
-      // goes in before the first update leaves it.
+      // Apple's cell is keyed at frame 0, and the override goes in before the
+      // first update leaves it, so it holds only because the Brain skips its
+      // own keyframe through that update. The follower and the paint both read
+      // that update, and both must see the override.
       final p = _load();
       if (p == null) return;
       addTearDown(p.dispose);
