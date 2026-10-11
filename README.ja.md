@@ -51,14 +51,14 @@ dependencies:
   ssplayer_flutter:
     git:
       url: https://github.com/cri-middleware/SSPlayerForFlutter.git
-      ref: ssplayer_flutter-v7.0.0-beta.1
+      ref: ssplayer_flutter-v<version>
       path: packages/ssplayer_flutter
 
 dependency_overrides:
   ssruntime_dart:
     git:
       url: https://github.com/cri-middleware/SSPlayerForFlutter.git
-      ref: ssplayer_flutter-v7.0.0-beta.1
+      ref: ssplayer_flutter-v<version>
       path: packages/ssruntime_dart
 ```
 

@@ -30,19 +30,19 @@ dependencies:
   ssplayer_flame:
     git:
       url: https://github.com/cri-middleware/SSPlayerForFlutter.git
-      ref: ssplayer_flame-v7.0.0-beta.1
+      ref: ssplayer_flame-v<version>
       path: packages/ssplayer_flame
 
 dependency_overrides:
   ssplayer_flutter:
     git:
       url: https://github.com/cri-middleware/SSPlayerForFlutter.git
-      ref: ssplayer_flame-v7.0.0-beta.1
+      ref: ssplayer_flame-v<version>
       path: packages/ssplayer_flutter
   ssruntime_dart:
     git:
       url: https://github.com/cri-middleware/SSPlayerForFlutter.git
-      ref: ssplayer_flame-v7.0.0-beta.1
+      ref: ssplayer_flame-v<version>
       path: packages/ssruntime_dart
 ```
 

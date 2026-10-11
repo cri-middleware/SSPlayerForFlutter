@@ -14,21 +14,21 @@ Flutter アプリに SpriteStudio Player for Flutter を追加する手順です
 
 ## 依存を追加する
 
-パッケージは、リリースのタグを指す git 依存として追加します。リリースはパッケージごとに `<package>-v<version>` のタグを付けます。パッケージの [**Releases**](https://github.com/cri-middleware/SSPlayerForFlutter/releases?q=ssplayer_flutter&expanded=true) からバージョンを選び、そのタグを `ref` に書きます。
+パッケージは、リリースのタグを指す git 依存として追加します。リリースはパッケージごとに `<package>-v<version>` のタグを付けます。パッケージの [**Releases**](https://github.com/cri-middleware/SSPlayerForFlutter/releases?q=ssplayer_flutter&expanded=true) からバージョンを選び、すべての `ref` の `<version>` をそれに置き換えます。
 
 ```yaml
 dependencies:
   ssplayer_flutter:
     git:
       url: https://github.com/cri-middleware/SSPlayerForFlutter.git
-      ref: ssplayer_flutter-v7.0.0-beta.1
+      ref: ssplayer_flutter-v<version>
       path: packages/ssplayer_flutter
 
 dependency_overrides:
   ssruntime_dart:
     git:
       url: https://github.com/cri-middleware/SSPlayerForFlutter.git
-      ref: ssplayer_flutter-v7.0.0-beta.1
+      ref: ssplayer_flutter-v<version>
       path: packages/ssruntime_dart
 ```
 

@@ -25,7 +25,7 @@ dependencies:
   ssruntime_dart:
     git:
       url: https://github.com/cri-middleware/SSPlayerForFlutter.git
-      ref: ssruntime_dart-v7.0.0-beta.1
+      ref: ssruntime_dart-v<version>
       path: packages/ssruntime_dart
 ```
 
