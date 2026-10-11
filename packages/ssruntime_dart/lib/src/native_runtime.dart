@@ -475,6 +475,8 @@ class _NativeRuntime implements SsRuntime {
       parentLooped,
       yFlip,
       vertStride,
+      // draw: effects step in update, before this frame's draw_order exists.
+      true,
     );
     final hasPlan =
         r.visible && r.draw_plan_buf != ffi.nullptr && r.draw_plan_len > 0;

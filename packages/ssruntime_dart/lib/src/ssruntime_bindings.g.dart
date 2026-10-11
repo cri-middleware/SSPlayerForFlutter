@@ -67,6 +67,12 @@ external void ss_effect_slot_reset(ffi.Pointer<ffi.Void> slot);
 /// `2` packs (x, y) pairs (Godot, pixi.js, wgpu); `3` packs (x, y, 0) triples
 /// (Unity Mesh, Unreal procedural mesh). Other values fall back to `2`.
 ///
+/// `draw` is whether the part is in this frame's `draw_order`. Step a hidden
+/// part's slot anyway, with `draw = false`: it keeps the effect's clock and
+/// transitions moving and builds no plan, and the next drawn step builds the
+/// plan an always-drawn slot would. A caller that steps before it has this
+/// frame's `draw_order` passes `true`.
+///
 /// Returns `EffectDrawPlan` FlatBuffer pointer + length when visible. Buffer
 /// is valid only until the next call on the same slot.
 @ffi.Native<
@@ -79,6 +85,7 @@ external void ss_effect_slot_reset(ffi.Pointer<ffi.Void> slot);
     ffi.Bool,
     ffi.Bool,
     ffi.Uint8,
+    ffi.Bool,
   )
 >()
 external ss_effect_step_result ss_effect_slot_step(
@@ -90,6 +97,7 @@ external ss_effect_step_result ss_effect_slot_step(
   bool parent_looped,
   bool y_flip,
   int vert_stride,
+  bool draw,
 );
 
 /// Create a fresh InstanceSlot. Slots are stateless at construction (no
