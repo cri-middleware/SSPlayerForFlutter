@@ -536,11 +536,8 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   /// it within the current frame.
   ///
   /// Asked for the same frame again before the clock moves or an override
-  /// changes the pose, this returns the frame it already evaluated. Evaluating
-  /// it again costs the Brain the whole frame, and is not always the same
-  /// frame: the Brain skips an [SsOverridePriority.overwriteOnNextKeyframe]
-  /// override's own keyframe on its first evaluation only, so evaluating one
-  /// update twice can hand the override back to the animation early.
+  /// changes the pose, this returns the frame it already evaluated: evaluating
+  /// it again would cost the Brain the whole frame for the same result.
   fbs.FrameData? getFrameData(double frameNo) {
     _ensureAlive();
     if (_frameData != null && frameNo == _frameDataNo) return _frameData;
