@@ -31,13 +31,13 @@
 # What this does NOT do is set a version or push a tag. Those are decisions:
 # scripts/set-versions.dart makes the first, release.yml the second.
 #
-# A package still carrying `publish_to: none` is not published: publish.yml skips
-# its tag and `dart pub publish` refuses it outright. That one line is the on/off
-# switch for pub.dev. While it is still there
-# on every package, skipping them would leave this script with nothing to do, so
-# a private package is PREVIEWED instead -- the line is lifted for the length of
-# the dry run (and put straight back), everything that would block its publish is
-# reported, and none of it fails the run.
+# A package carrying `publish_to: none` is not published: publish.yml skips its
+# tag and `dart pub publish` refuses it outright. That one line is the on/off
+# switch for pub.dev. Such a package is PREVIEWED rather than skipped, so what
+# would block it is known before it opts in -- the line is lifted for the length
+# of the dry run (and put straight back), everything that would block its
+# publish is reported, and none of it fails the run. Every other package is
+# checked for real, with warnings fatal exactly as `dart pub publish` has them.
 #
 # Prerequisites: Dart/Flutter SDK, git, tar (Windows 10 1803+ ships bsdtar).
 
