@@ -987,8 +987,8 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   /// draws still point at: a disposed coverage bitmap, or a pooled shader whose
   /// uniforms are overwritten before it rasterises. The visible result is the
   /// wrong mask or tint in the first view, or "Image has been disposed". Give
-  /// each view its own player; they are cheap next to the textures, and a shared
-  /// [TextureRegistry] passed to both `load`s keeps the atlases single-copy.
+  /// each view its own player: players of one pack share its parse and its
+  /// decoded atlases, so another one costs little more than its playback state.
   void paint(ui.Canvas canvas, {ui.Rect? dst, ui.Size? sourceSize}) {
     _ensureAlive();
     // Dispose shaders orphaned by a runtime texture replacement since the last

@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
-import 'package:flutter/foundation.dart' show isCanvasKit, kIsWeb;
+import 'package:flutter/foundation.dart'
+    show isCanvasKit, kIsWeb, visibleForTesting;
 
 /// Texture store for the Player: a `cellmap` texture
 /// hash → decoded [ui.Image] map, plus a cached identity [ui.ImageShader] per
@@ -21,6 +23,12 @@ class TextureRegistry {
   final Map<int, ui.Image> _images = {};
   final Map<int, _Sampling> _sampling = {};
   final Map<int, ui.ImageShader> _shaders = {};
+
+  /// The entries of [_images] this registry borrows from [SharedImages]
+  /// instead of owning: released there, never disposed here.
+  final Map<int, _SharedImage> _shared = {};
+
+  bool _disposed = false;
 
   /// Runtime texture replacements (ForGodot's
   /// `setCellMapOverrideTexture`). Keyed by the same `texture_hash` as [_images];
@@ -50,9 +58,10 @@ class TextureRegistry {
   /// `Paint.filterQuality`, which defaults to [ui.FilterQuality.none] and makes
   /// every scaled/rotated sprite jaggy.
   ///
-  /// Replacing an existing hash disposes what it replaces, so the caller must
-  /// not re-register a texture that an already-recorded (but not yet rasterised)
-  /// picture still draws with. Load-time registration is always safe; a live
+  /// Replacing an existing hash disposes what it replaces (or lets go of it,
+  /// when [SharedImages] decoded it), so the caller must not re-register a
+  /// texture that an already-recorded (but not yet rasterised) picture still
+  /// draws with. Load-time registration is always safe; a live
   /// swap must go through a fresh registry, which is what [reload] does.
   void register(
     int textureHash,
@@ -61,13 +70,29 @@ class TextureRegistry {
     ui.TileMode tileMode = ui.TileMode.clamp,
   }) {
     final previous = _images[textureHash];
+    final previousShared = _shared.remove(textureHash);
     _images[textureHash] = image;
     _sampling[textureHash] = _Sampling(filterQuality, tileMode);
     // Invalidate the stale cached shader — and release it, along with the image
     // it sampled. Nothing else holds either, so dropping the reference alone
     // would leak the decoded bitmap until (if ever) the GC got to it.
     _shaders.remove(textureHash)?.dispose();
-    if (previous != null && !identical(previous, image)) previous.dispose();
+    if (previousShared != null) {
+      previousShared.release();
+    } else if (previous != null && !identical(previous, image)) {
+      previous.dispose();
+    }
+  }
+
+  /// [register] for an image borrowed from [SharedImages]. A registry already
+  /// disposed lets go of it at once.
+  void _registerShared(int textureHash, _SharedImage shared) {
+    if (_disposed) {
+      shared.release();
+      return;
+    }
+    register(textureHash, shared.image!);
+    _shared[textureHash] = shared;
   }
 
   /// The effective image for [textureHash] — the runtime [setOverride] if one is
@@ -174,7 +199,14 @@ class TextureRegistry {
   /// Drops every entry **without** releasing it — for a registry whose images
   /// are owned elsewhere. Prefer [dispose] unless the caller is handing the
   /// textures on to something else.
+  ///
+  /// An image [SharedImages] decoded is that cache's, and this registry's hold
+  /// on it is let go of here: nothing could hand it on safely.
   void clear() {
+    for (final shared in _shared.values) {
+      shared.release();
+    }
+    _shared.clear();
     _images.clear();
     _sampling.clear();
     _shaders.clear();
@@ -196,11 +228,13 @@ class TextureRegistry {
   ///
   /// Idempotent — safe to call twice, and safe on an already-cleared registry.
   void dispose() {
+    _disposed = true;
     for (final shader in _shaders.values) {
       shader.dispose();
     }
-    for (final image in _images.values) {
-      image.dispose();
+    for (final MapEntry(:key, :value) in _images.entries) {
+      // A shared image is released by [clear] below.
+      if (!_shared.containsKey(key)) value.dispose();
     }
     clear();
   }
@@ -219,4 +253,99 @@ class _Sampling {
 
   final ui.FilterQuality filterQuality;
   final ui.TileMode tileMode;
+}
+
+/// Decoded images that registries share, keyed by the encoded bytes they were
+/// decoded from.
+///
+/// Every player that loads its own textures has a registry of its own, so its
+/// runtime replacements stay its own, yet the atlas under them is the same
+/// bitmap for every player of a pack: decoding it once per player held one
+/// copy each. An image is decoded the first time a registry asks for those
+/// bytes, and disposed when the last registry holding it lets go. Matching on
+/// the bytes rather than a path lets embedded and referenced atlases share
+/// alike, and gives an image changed on disk, a live reload's, a decode of its
+/// own.
+abstract final class SharedImages {
+  static final Map<int, List<_SharedImage>> _byLength =
+      <int, List<_SharedImage>>{};
+
+  /// Registers in [registry], under [textureHash], the image [encoded] decodes
+  /// to with [decode], decoding it only when no registry holds one decoded from
+  /// the same bytes. Throws what [decode] throws.
+  static Future<void> register(
+    TextureRegistry registry,
+    int textureHash,
+    Uint8List encoded,
+    Future<ui.Image> Function(Uint8List) decode,
+  ) async {
+    final shared = _find(encoded) ?? _add(encoded, decode);
+    // Held before the decode is awaited, so no other registry's release can
+    // dispose the image in the meantime.
+    shared._holders++;
+    try {
+      shared.image = await shared._decoded;
+    } catch (_) {
+      shared.release();
+      rethrow;
+    }
+    registry._registerShared(textureHash, shared);
+  }
+
+  /// How many decoded images are shared, for tests.
+  @visibleForTesting
+  static int get debugCount =>
+      _byLength.values.fold(0, (n, list) => n + list.length);
+
+  static _SharedImage? _find(Uint8List encoded) {
+    for (final shared in _byLength[encoded.length] ?? const <_SharedImage>[]) {
+      if (_sameBytes(shared.encoded, encoded)) return shared;
+    }
+    return null;
+  }
+
+  static _SharedImage _add(
+      Uint8List encoded, Future<ui.Image> Function(Uint8List) decode) {
+    final shared = _SharedImage(encoded, decode(encoded));
+    (_byLength[encoded.length] ??= <_SharedImage>[]).add(shared);
+    return shared;
+  }
+
+  static void _remove(_SharedImage shared) {
+    final list = _byLength[shared.encoded.length];
+    if (list == null) return;
+    list.remove(shared);
+    if (list.isEmpty) _byLength.remove(shared.encoded.length);
+  }
+
+  static bool _sameBytes(Uint8List a, Uint8List b) {
+    if (identical(a, b)) return true;
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
+}
+
+/// One image [SharedImages] decoded, and how many holds there are on it.
+final class _SharedImage {
+  _SharedImage(this.encoded, this._decoded) {
+    // A decode that fails before anyone awaits it must not surface as an
+    // unhandled error; every holder still sees it through [_decoded].
+    _decoded.ignore();
+  }
+
+  final Uint8List encoded;
+  final Future<ui.Image> _decoded;
+  ui.Image? image;
+  int _holders = 0;
+
+  void release() {
+    assert(_holders > 0, 'a shared image released more often than held');
+    if (--_holders > 0) return;
+    SharedImages._remove(this);
+    image?.dispose();
+    image = null;
+  }
 }

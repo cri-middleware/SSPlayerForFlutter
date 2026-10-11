@@ -1,10 +1,11 @@
 // A pack is parsed once however many players read it: players handed the same
-// bytes, and the instance children of one pack, bind one SsabPack. Runs
-// against real converter output and skips when the example assets have not
-// been prepared.
+// bytes, and the instance children of one pack, bind one SsabPack, and its
+// atlases are decoded once for all of them. Runs against real converter output
+// and skips when the example assets have not been prepared.
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:flutter/services.dart' show ByteData, CachingAssetBundle;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ssplayer_flutter/ssplayer_flutter.dart';
 // ignore: implementation_imports
@@ -138,6 +139,31 @@ void main() {
     expect(SsabPack.debugOpenCount, open);
   });
 
+  test('players of one pack share its decoded atlases', () async {
+    final root = _assetRoot();
+    if (root == null) {
+      markTestSkipped('example assets missing — run deploy-examples.sh');
+      return;
+    }
+    final bundle = _DiskBundle(root);
+    final a = SpriteStudioPlayer();
+    final b = SpriteStudioPlayer();
+    addTearDown(a.dispose);
+    addTearDown(b.dispose);
+    await Future.wait([
+      a.loadAsset('Ringo/Ringo.ssab', bundle: bundle),
+      b.loadAsset('Ringo/Ringo.ssab', bundle: bundle),
+    ]);
+    expect(a.lastTextureReport!.isComplete, isTrue);
+    final hash = a.cellmapTextureHash('Ringo')!;
+    final atlas = a.textures.imageFor(hash);
+    expect(atlas, isNotNull);
+    expect(b.textures.imageFor(hash), same(atlas));
+    // Each player keeps a registry of its own, so a replacement does not
+    // reach the other.
+    expect(b.textures, isNot(same(a.textures)));
+  });
+
   test('a pack that fails to load leaves nothing open', () {
     final open = SsabPack.debugOpenCount;
     expect(() => SpriteStudioInternalPlayer.load(Uint8List(64)),
@@ -147,12 +173,29 @@ void main() {
 }
 
 Uint8List? _asset(String path) {
+  final root = _assetRoot();
+  if (root == null) return null;
+  final f = File('$root/$path');
+  return f.existsSync() ? Uint8List.fromList(f.readAsBytesSync()) : null;
+}
+
+String? _assetRoot() {
   for (final root in const [
     'examples/overall/assets/spritestudio',
     '../../examples/overall/assets/spritestudio',
   ]) {
-    final f = File('$root/$path');
-    if (f.existsSync()) return Uint8List.fromList(f.readAsBytesSync());
+    if (Directory(root).existsSync()) return root;
   }
   return null;
+}
+
+/// Serves asset keys from the example assets on disk.
+class _DiskBundle extends CachingAssetBundle {
+  _DiskBundle(this.root);
+
+  final String root;
+
+  @override
+  Future<ByteData> load(String key) async =>
+      ByteData.sublistView(await File('$root/$key').readAsBytes());
 }
