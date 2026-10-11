@@ -72,6 +72,11 @@ jobs:
       - name: Build the Brain (Linux)
         run: bash scripts/build-runtime.sh
 
+      # Without the converted packs the tests that play an animation report
+      # skipped instead of running.
+      - name: Generate the example data
+        run: bash scripts/deploy-examples.sh
+
       - name: Analyze, test and pack every package
         run: ./scripts/build-release.sh out=release-dist packages=all checks=full codegen=skip sdk=build verify=yes clean=yes
 
