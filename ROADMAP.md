@@ -111,3 +111,18 @@ areas, and a UI-state map.
   overlapping parts could still batch if the emitter proved their quads disjoint.
   Bounded cost — 3 draws per Sub/Invert part — so it is only worth doing for a pack
   that leans on those modes heavily.
+- [ ] **Reuse the GPU mask coverage texture** — `FlutterGpuBackend.renderCoverage`
+  creates the coverage texture for every frame that writes a mask, and leaves the
+  last one to the GC. A ring of them, as `TargetRing` keeps the offscreen targets,
+  would stop that; only packs with masks pay it.
+- [ ] **Keep a Mesh run's static UVs and indices** — every frame, the Mesh bake
+  copies each vertex's UV and rebases each index, though both stay the same while
+  the run's parts do; only the positions and the alpha change. Mesh takes about a
+  quarter of a Ringo frame on Canvas, but `ui.Vertices.raw` takes every array each
+  time, so only the Dart-side copy can go: about half of the Mesh bake, by
+  estimate, not measured.
+- [ ] **One `.ssab` buffer per pack in L3** — `SpriteStudioPlayer` keeps the bytes
+  it loaded (`SsAnimeInfo`), 140 KB for each Ringo player, though L2's `SsabPack`
+  already holds one buffer for every player of the pack. Reading the pack's buffer
+  instead needs L3 to reach it, which means a public getter on
+  `SpriteStudioInternalPlayer`.

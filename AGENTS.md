@@ -45,9 +45,11 @@ workspace that drives the Rust `libssruntime` over `dart:ffi`.
     raw `uint64` and bitwise-AND.
 *   **Pass `local_uvs` straight to `drawVertices`.** They are texture pixels, which is what it takes; do not
     normalize them as the porting guide does for other engines.
-*   **Keep the `.ssab` buffer alive as long as its resource.**
+*   **Never change bytes once a load has them.** Players share a pack's parse and its decoded images by
+    matching bytes, and a pack goes on reading the first holder's buffer.
 *   **No per-frame heap allocations in the playback hot path.** Consume SoA views and `DrawBatch` plans as
-    they are, and bake into `GeometryBuilder`'s grow-only scratch.
+    they are, and bake into `GeometryBuilder`'s grow-only scratch. The flutter_gpu backend puts a frame's
+    vertices, indices and uniforms in its `UploadRing`, never in a buffer made per draw or a `HostBuffer`.
 *   **Never re-implement FNV-1a in Dart**; use the pre-baked `name_hash` / `texture_hash`.
 *   **Runtime texture replacement is `TextureRegistry`, keyed by `texture_hash`**, not the Override Layer.
     It retires the old `ImageShader` at the next `flushRetired`, never on the spot.
