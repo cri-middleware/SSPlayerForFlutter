@@ -15,8 +15,8 @@ bool _probe() {
   try {
     final ctx = gpu.gpuContext;
     // A trivial allocation confirms the context is actually usable, not merely
-    // constructed. HostBuffer is a cheap CPU-visible bump allocator.
-    ctx.createHostBuffer();
+    // constructed. Sixteen bytes: a HostBuffer would set aside 4 MB.
+    ctx.createDeviceBuffer(gpu.StorageMode.hostVisible, 16);
     return true;
   } catch (_) {
     return false;
