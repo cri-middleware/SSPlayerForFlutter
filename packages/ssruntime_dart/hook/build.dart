@@ -44,7 +44,10 @@ void main(List<String> args) async {
     if (!input.config.buildCodeAssets) return;
 
     final target = _targetFor(input.config.code);
-    final file = await _resolveLibrary(input, output, target);
+    var file = await _resolveLibrary(input, output, target);
+    if (input.config.code.targetOS == OS.macOS) {
+      file = await _macOsSlice(input, output, file, target.outName);
+    }
     output.assets.code.add(
       CodeAsset(
         package: input.packageName,
@@ -378,7 +381,41 @@ Future<void> _streamTo(HttpClient client, Uri url, File dest) async {
 Future<void> _sign(String path) =>
     _run('codesign', ['--sign', '-', '--force', path]);
 
-Future<void> _run(String exe, List<String> args) async {
+/// A universal macOS app is built one architecture at a time, and Flutter
+/// `lipo`s the per-architecture code assets into one. The package-local
+/// libssruntime and the release's are one Mach-O for every architecture, so handing
+/// it back as it is gives lipo the same file twice, and it refuses ("same
+/// architectures"). This cuts the build's own slice out of it instead; a file
+/// that already holds that slice alone is used as it is.
+Future<Uri> _macOsSlice(
+  BuildInput input,
+  BuildOutputBuilder output,
+  Uri file,
+  String outName,
+) async {
+  final arch = switch (input.config.code.targetArchitecture) {
+    Architecture.x64 => 'x86_64',
+    Architecture.arm64 => 'arm64',
+    final a => a.name,
+  };
+  final lipo = await _run('lipo', ['-archs', file.toFilePath()]);
+  final archs = lipo.trim().split(RegExp(r'\s+'));
+  if (archs.length == 1 && archs.single == arch) return file;
+  if (!archs.contains(arch)) {
+    throw StateError(
+      'ssruntime_dart: ${file.toFilePath()} holds ${archs.join(' + ')}, not $arch. '
+      'A universal macOS build needs a universal library: '
+      'scripts/build-runtime.sh platform=macos arch=universal.',
+    );
+  }
+  output.dependencies.add(file);
+  final out = File.fromUri(input.outputDirectory.resolve('$arch/$outName'));
+  out.parent.createSync(recursive: true);
+  await _run('lipo', [file.toFilePath(), '-thin', arch, '-output', out.path]);
+  return out.uri;
+}
+
+Future<String> _run(String exe, List<String> args) async {
   final r = await Process.run(exe, args);
   if (r.exitCode != 0) {
     throw ProcessException(
@@ -390,4 +427,5 @@ Future<void> _run(String exe, List<String> args) async {
       r.exitCode,
     );
   }
+  return '${r.stdout}';
 }
