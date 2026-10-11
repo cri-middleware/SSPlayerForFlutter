@@ -118,16 +118,6 @@ abstract class RenderBackend {
   // Do not reintroduce it without a spec change; a tint that needs isolation is
   // the shape of the bug, not of the feature.
 
-  /// Drops any backend-side cache of the texture registered under [textureHash]
-  /// so the next draw re-reads it from [RenderHost.textures]. Called when a
-  /// runtime texture replacement changes what that hash resolves to.
-  ///
-  /// The Canvas backend reads the registry every draw (its shaders come from
-  /// `TextureRegistry.shaderFor`, already override-aware), so its implementation
-  /// is a no-op. The GPU backend uploads to a `gpu.Texture` cache keyed by hash
-  /// and must evict the stale entry.
-  void invalidateTexture(int textureHash);
-
   /// Releases backend-owned GPU/Canvas resources. Called from the player's
   /// `dispose()`.
   void dispose();

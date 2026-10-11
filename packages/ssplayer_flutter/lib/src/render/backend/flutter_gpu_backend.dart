@@ -15,6 +15,7 @@ import '../part_shader.dart';
 import '../root_transform.dart';
 import 'render_backend.dart';
 import 'render_host.dart';
+import 'shared_uploads.dart';
 import 'target_ring.dart';
 import 'upload_ring.dart';
 
@@ -385,17 +386,10 @@ class FlutterGpuBackend implements RenderBackend {
   /// frame.
   final List<gpu.Texture> _frameCoverages = <gpu.Texture>[];
 
-  /// hash → uploaded sampled texture. A hash absent here that is in [_uploading]
-  /// is mid-flight (async `toByteData`); a part using it is skipped until ready.
-  final Map<int, gpu.Texture> _gpuTextures = <int, gpu.Texture>{};
-  final Set<int> _uploading = <int>{};
-
-  /// Per-hash upload generation, bumped by [invalidateTexture] when a runtime
-  /// texture replacement changes what a hash resolves to. An in-flight [_upload]
-  /// captures the generation it started under and commits only if it still
-  /// matches — so a replacement issued while the OLD image was uploading can
-  /// never land the stale bitmap in [_gpuTextures].
-  final Map<int, int> _texGeneration = <int, int>{};
+  /// The sampled texture of every decoded image any backend draws, one upload
+  /// per image (see [SharedUploads]).
+  static final SharedUploads<gpu.Texture> _textures =
+      SharedUploads<gpu.Texture>();
 
   /// A shared opaque-white texel for the **fallback** Shape path (sprite + white,
   /// `texel * colour` collapsing to the per-vertex colour) used only when the
@@ -667,7 +661,7 @@ class FlutterGpuBackend implements RenderBackend {
     // One texture per batch; its size normalises the UVs.
     final image = host.textures.imageFor(batch.textureHash);
     if (image == null) return;
-    final tex = _gpuTextureFor(batch.textureHash, image);
+    final tex = _gpuTextureFor(image);
     if (tex == null) return; // still uploading — skip this frame
 
     final texW = image.width.toDouble();
@@ -967,58 +961,31 @@ class FlutterGpuBackend implements RenderBackend {
     }
   }
 
-  @override
-  void invalidateTexture(int textureHash) {
-    // Evict the cached upload so the next [_gpuTextureFor] re-uploads from the
-    // registry's now-current image, and bump the generation so any in-flight
-    // upload of the old image discards itself on completion. Dropping the map
-    // entry is enough to release the old `gpu.Texture` — it is GC-managed (no
-    // explicit destroy), like every texture this backend allocates.
-    _gpuTextures.remove(textureHash);
-    _uploading.remove(textureHash);
-    _texGeneration[textureHash] = (_texGeneration[textureHash] ?? 0) + 1;
-  }
-
-  /// Returns the uploaded GPU texture for [hash], or null while it uploads.
+  /// The uploaded GPU texture for [image], or null while it uploads.
   ///
   /// Upload is async (`Image.toByteData`), so the first frame(s) after a texture
-  /// is first needed skip the parts using it; a playing animation re-paints and
-  /// picks it up once ready.
-  gpu.Texture? _gpuTextureFor(int hash, ui.Image image) {
-    final ready = _gpuTextures[hash];
-    if (ready != null) return ready;
-    if (!_uploading.contains(hash)) {
-      _uploading.add(hash);
-      _upload(hash, image, _texGeneration[hash] ?? 0);
-    }
-    return null;
-  }
+  /// is first needed skip the parts using it. Once it lands, every backend that
+  /// drew without it is asked for another paint: a paused / seeked / single-shot
+  /// player has no next frame of its own to correct it ([onResourcesReady]). A
+  /// failed upload leaves the parts skipping, and the next frame tries again.
+  ///
+  /// Keyed on the image, not its hash: a runtime replacement is another image,
+  /// so the next draw finds it with nothing to evict.
+  gpu.Texture? _gpuTextureFor(ui.Image image) =>
+      _textures.lookup(image, () => _upload(image), _resourceReady);
 
-  Future<void> _upload(int hash, ui.Image image, int generation) async {
-    var ready = false;
-    try {
-      // rawRgba is premultiplied — matches the sprite.frag / bake convention.
-      final bytes = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
-      if (bytes == null) return;
-      // A runtime replacement issued while we awaited invalidated this upload;
-      // drop the stale result rather than caching it under the current hash.
-      if ((_texGeneration[hash] ?? 0) != generation) return;
-      // Default coordinate system (renderToTexture, top-left) matches toByteData's
-      // top-to-bottom rows and the Brain's top-left UVs, so no vertical flip.
-      final tex = gpu.gpuContext.createTexture(
-          gpu.StorageMode.hostVisible, image.width, image.height);
-      tex.overwrite(bytes); // throws on failure (caught below)
-      _gpuTextures[hash] = tex;
-      ready = true;
-    } catch (_) {
-      // Leave it absent; the part keeps skipping (or the Canvas backend is used).
-    } finally {
-      _uploading.remove(hash);
-      // Ask for another paint: the frame that triggered this upload drew without
-      // the texture, and a paused / seeked / single-shot player has no next frame
-      // of its own to correct it. See [onResourcesReady].
-      if (ready) _onResourcesReady?.call();
-    }
+  void _resourceReady() => _onResourcesReady?.call();
+
+  static Future<gpu.Texture?> _upload(ui.Image image) async {
+    // rawRgba is premultiplied — matches the sprite.frag / bake convention.
+    final bytes = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
+    if (bytes == null) return null;
+    // Default coordinate system (renderToTexture, top-left) matches toByteData's
+    // top-to-bottom rows and the Brain's top-left UVs, so no vertical flip.
+    final tex = gpu.gpuContext.createTexture(
+        gpu.StorageMode.hostVisible, image.width, image.height);
+    tex.overwrite(bytes); // throws on failure, which forgets the upload
+    return tex;
   }
 
   /// The shared white texel, or null until [_uploadWhite] finishes (one frame
@@ -1134,7 +1101,7 @@ class FlutterGpuBackend implements RenderBackend {
     if (count == 0) return;
     final image = host.textures.imageFor(batch.textureHash);
     if (image == null) return;
-    final tex = _gpuTextureFor(batch.textureHash, image);
+    final tex = _gpuTextureFor(image);
     if (tex == null) return; // still uploading
 
     final texW = image.width.toDouble();
@@ -1393,7 +1360,7 @@ class FlutterGpuBackend implements RenderBackend {
           i++;
           continue;
         }
-        final tex = _gpuTextureFor(first.cellmapHash, image);
+        final tex = _gpuTextureFor(image);
         if (tex == null) {
           i++;
           continue; // cellmap still uploading
@@ -1510,7 +1477,7 @@ class FlutterGpuBackend implements RenderBackend {
           final hash = textureByRank[writer.drawRank];
           final image = hash == null ? null : host.textures.imageFor(hash);
           if (image == null) continue;
-          final tex = _gpuTextureFor(hash!, image);
+          final tex = _gpuTextureFor(image);
           if (tex == null) continue; // cell still uploading
           writerTex = tex;
           threshold = writer.threshold;
@@ -1580,7 +1547,7 @@ class FlutterGpuBackend implements RenderBackend {
           final hash = bw.textureHash;
           final image = hash == null ? null : bw.textures.imageFor(hash);
           if (image == null) continue;
-          final tex = _gpuTextureFor(hash!, image);
+          final tex = _gpuTextureFor(image);
           if (tex == null) continue; // cell still uploading
           writerTex = tex;
           threshold = bw.threshold;
@@ -1789,9 +1756,8 @@ class FlutterGpuBackend implements RenderBackend {
     _libraryWaiters.remove(this);
     // gpu.Texture / DeviceBuffer are GC-managed (no explicit destroy in the
     // flutter_gpu API); drop references so they can be collected.
-    _gpuTextures.clear();
-    _uploading.clear();
-    _texGeneration.clear();
+    // A paint asked for by an upload landing would come too late.
+    _onResourcesReady = null;
     _whiteTexture = null;
     _whiteUploading = false;
     _dummyCoverage = null;

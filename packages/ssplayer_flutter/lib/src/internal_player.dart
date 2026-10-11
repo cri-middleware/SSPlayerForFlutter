@@ -958,8 +958,8 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   // owned by the Brain). This is a pure Body concern: [textures] maps
   // `texture_hash → image` and the draw loop already binds by
   // `DrawBatch.texture_hash`, so a swap "just draws" — for both backends (Canvas
-  // reads the registry every draw; the GPU backend is told to evict its upload
-  // cache via [RenderBackend.invalidateTexture]).
+  // reads the registry every draw; the GPU backend keys its uploads on the image
+  // the registry hands it, so a replacement is an upload of its own).
   //
   // Address by the registry key: [SsAnimeInfo.textureHashForName] resolves a
   // cellmap/external-texture NAME to it, and L3 [SpriteStudioPlayer] carries the
@@ -989,9 +989,6 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
     } else if (!textures.clearOverride(textureHash)) {
       return false;
     }
-    // The GPU backend caches uploads by hash; evict so it re-reads the registry.
-    // The whole tree draws through this player's backend, so one call covers it.
-    _backend.invalidateTexture(textureHash);
     return true;
   }
 
