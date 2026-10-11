@@ -1,0 +1,243 @@
+name: CI
+
+# Two tiers, as in SpriteStudio-SDK. Every pull request builds the Brain for
+# Linux from the SDK submodule (scripts/build-runtime.sh, whose libraries the
+# packages' build hooks take before any download), then runs
+# scripts/build-release.sh as release.yml does, with the analyzer and the tests
+# (checks=full) and the web Brain compiled from the submodule too (sdk=build).
+# The weekly run and a dispatch also build the overall example for Android, iOS,
+# macOS, Linux, Windows and the Web, and build the Pages site. main takes every
+# pull request and a release is dispatched from it, so there is no release PR to
+# run the weekly tier on.
+on:
+  pull_request:
+    paths-ignore:
+      - '**/*.md'
+      - '.gitignore'
+      - 'LICENSE*'
+  # The weekly run also writes the main caches that PRs restore from, since PRs
+  # do not save.
+  schedule:
+    - cron: '0 0 * * 0'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  packages:
+    name: 📦 Analyze, test and pack
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout (with the SpriteStudio-SDK submodule)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+
+      # Same pin as release.yml and pages.yml. The SDK is cached under its
+      # version; a key that already exists is not saved again.
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          flutter-version: 3.47.1
+          channel: stable
+          cache: true
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master
+        with:
+          # Pinned by SHA, so the channel must be named explicitly here.
+          toolchain: stable
+          targets: wasm32-unknown-unknown
+
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: SpriteStudio-SDK
+          # Only main writes caches. A PR's cache is visible to that PR alone, so
+          # saving one per PR would only fill the 10 GB quota and evict the main
+          # caches every PR restores from.
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      # sdk=build compiles the web Brain with wasm-pack.
+      - name: Install wasm-pack
+        uses: taiki-e/install-action@83ac0ad63c0167e6f06796fab0fce28db1bf3db0 # v2.87.22
+        with:
+          tool: wasm-pack
+
+      - name: Build the Brain (Linux)
+        run: bash scripts/build-runtime.sh
+
+      # Without the converted packs the tests that play an animation report
+      # skipped instead of running.
+      - name: Generate the example data
+        run: bash scripts/deploy-examples.sh
+
+      - name: Analyze, test and pack every package
+        run: ./scripts/build-release.sh out=release-dist packages=all checks=full codegen=skip sdk=build verify=yes clean=yes
+
+  # The weekly tier.
+  example:
+    name: ${{ matrix.name }}
+    if: github.event_name != 'pull_request'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: 🤖 Example (Android)
+            os: ubuntu-latest
+            platform: android
+            runtime: platform=android
+            build: apk
+
+          - name: 🍏 Example (iOS)
+            os: macos-latest
+            platform: ios
+            runtime: platform=ios
+            build: ios --no-codesign
+
+          - name: 🍎 Example (macOS)
+            os: macos-latest
+            platform: macos
+            # A release macOS app is universal, so the Brain has to be too.
+            runtime: platform=macos arch=universal
+            build: macos
+
+          - name: 🐧 Example (Linux)
+            os: ubuntu-latest
+            platform: linux
+            runtime: platform=linux
+            build: linux
+
+          - name: 🏁 Example (Windows)
+            os: windows-latest
+            platform: windows
+            build: windows
+
+          - name: 🌐 Example (Web)
+            os: ubuntu-latest
+            platform: web
+            runtime: platform=web
+            build: web
+
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout (with the SpriteStudio-SDK submodule)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          flutter-version: 3.47.1
+          channel: stable
+          cache: true
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master
+        with:
+          toolchain: stable
+
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: SpriteStudio-SDK
+          # The key is the job id and the runner OS, which the jobs of this
+          # matrix share. Without the platform only the first to finish could
+          # save, and the others would restore its target dir.
+          key: ${{ matrix.platform }}
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      # The toolchains the SDK's release scripts need, which build-runtime.sh
+      # runs for Android and iOS, as SpriteStudio-SDK's release.yml installs them.
+      - name: Setup Android NDK
+        if: matrix.platform == 'android'
+        uses: nttld/setup-ndk@ed92fe6cadad69be94a966a7ee3271275e62f779 # v1.6.0
+        with:
+          ndk-version: r23c
+          link-to-sdk: true
+
+      - name: Install targets and tools
+        run: |
+          case "${{ matrix.platform }}" in
+            android) cargo install cargo-ndk --locked
+                     rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android ;;
+            ios)     rustup target add aarch64-apple-ios aarch64-apple-ios-sim x86_64-apple-ios ;;
+            macos)   rustup target add aarch64-apple-darwin x86_64-apple-darwin ;;
+            web)     rustup target add wasm32-unknown-unknown
+                     cargo install wasm-pack --locked ;;
+            linux)   sudo apt-get update
+                     sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev ;;
+          esac
+
+      - name: Build the Brain
+        if: matrix.platform != 'windows'
+        run: bash scripts/build-runtime.sh ${{ matrix.runtime }}
+
+      - name: Build the Brain (Windows)
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: ./scripts/build-runtime.ps1 platform=windows
+
+      - name: Generate the example data
+        if: matrix.platform != 'windows'
+        run: bash scripts/deploy-examples.sh
+
+      - name: Generate the example data (Windows)
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: ./scripts/deploy-examples.ps1
+
+      # The platform runners are not committed; these are the commands
+      # scripts/run-example.sh uses to create them.
+      - name: Create the platform runner
+        working-directory: examples/overall
+        run: |
+          case "${{ matrix.platform }}" in
+            macos)       bash scripts/setup-macos.sh ;;
+            android|ios) bash ../scripts/setup-mobile.sh overall --${{ matrix.platform }} ;;
+            *)           flutter create --platforms=${{ matrix.platform }} . ;;
+          esac
+
+      - name: Build the example
+        working-directory: examples/overall
+        run: flutter build ${{ matrix.build }}
+
+  # The site pages.yml publishes, built the same way, so a broken page surfaces
+  # here rather than when a release is published.
+  docs:
+    name: 📚 Pages site
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: 3.x
+          cache: pip
+          cache-dependency-path: docs/requirements.txt
+
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          flutter-version: 3.47.1
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: ./scripts/prepare-docs.sh
+
+      - name: Build the Pages tree (docs both locales + Web demo)
+        run: ./scripts/build-pages.sh prepare=no docs=yes demo=build sdk=download "base=/${{ github.event.repository.name }}/" serve=no
