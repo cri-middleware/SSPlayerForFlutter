@@ -195,9 +195,10 @@ matrix you are actually holding, with `determinant()`.
 
 ## Timing and accuracy
 
-The reads re-sample **the same frame the paint path draws** — fractional when sub-frame sampling is
+The reads sample **the same frame the paint path draws** — fractional when sub-frame sampling is
 on, floored otherwise — so the pose always matches the image on screen within one frame. No manual
-ordering against the draw is needed.
+ordering against the draw is needed, and a read adds nothing to the paint: the two share one
+evaluation of the frame.
 
 Unlike the part overrides, these are **pure reads and notify no listeners** (nothing changed). Drive
 them from a listener on the player so you re-read right after each advance, when the frame's
