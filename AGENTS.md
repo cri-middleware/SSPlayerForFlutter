@@ -61,6 +61,8 @@ renders `.ssab` animations by driving the Rust `libssruntime` over `dart:ffi`. T
     fixed-stride 24.
 *   **FFI pointers are borrows valid only until the next `update`.** Call `get_frame_data(frame)` *before*
     reading SoA getters, and keep the `.ssab` buffer alive past the resource.
+*   **No per-frame heap allocations in the playback hot path.** Consume the SoA views and `DrawBatch`
+    plans as they are, and bake into `GeometryBuilder`'s grow-only scratch, never a fresh typed list.
 *   **Texture key = `cellmap.name_hash` == `DrawBatch.texture_hash`** — use the pre-baked hash, never
     re-implement FNV-1a in Dart. **It spans two hash spaces**, so `SsTextureLoader` loads `cellmaps()`
     (required) *and* `external_textures()` (best-effort, a superset): a batch binds the second on the frames
