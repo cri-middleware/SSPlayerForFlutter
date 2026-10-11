@@ -505,20 +505,23 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
       // draw pass and therefore needs an `is_independent` probe to stop its
       // redraw dedup from also skipping simulation ticks. Flutter's Ticker
       // drives update→paint 1:1, so stepping here keeps the clock honest with
-      // no such workaround. The visible difference is a *hidden* independent
-      // effect: ForGodot freezes its clock (no batch → no step), we keep it
-      // running. Synced effects are unaffected — their frame is a pure function
-      // of the parent's.
+      // no such workaround.
+      //
+      // Sample the same frame `paint` will draw, or the effect and the rest
+      // of the animation disagree by up to a frame with sub-frame off.
+      final sampled = subFrameEnabled ? frame : frame.floorToDouble();
       _effects.step(
         _context,
-        // Sample the same frame `paint` will draw, or the effect and the rest
-        // of the animation disagree by up to a frame with sub-frame off.
-        parentFrame: subFrameEnabled ? frame : frame.floorToDouble(),
+        parentFrame: sampled,
         deltaSeconds: deltaMs / 1000.0,
         // The animation's authored fps (converts the delta to frames for
         // independent slots), NOT the display's.
         fps: frameRate > 0 ? frameRate.toDouble() : 60.0,
         parentLooped: looped,
+        // Which effect parts that frame draws: a hidden one keeps time without
+        // building the particles `paint` would skip. `paint` then draws this
+        // same evaluation ([getFrameData]).
+        frame: getFrameData(sampled),
       );
     }
     if (!_instances.isEmpty) {
@@ -628,7 +631,8 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   List<EffectPart> get effectParts => _effects.parts;
 
   /// The particle plan for effect part [partIndex] as of the last [update], or
-  /// null when that slot drew nothing (dead, unstarted, or past its lifetime).
+  /// null when that slot drew nothing (dead, unstarted, past its lifetime, or
+  /// its part hidden).
   ///
   /// Like the SoA views this aliases the Brain's memory: it is only valid until
   /// that slot is stepped again, i.e. until the next [update].

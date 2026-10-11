@@ -665,6 +665,7 @@ class _WebRuntime implements SsRuntime {
     required bool parentLooped,
     required bool yFlip,
     required int vertStride,
+    required bool draw,
   }) {
     final s = (slot as _WebEffectSlot).js;
     // `step` borrows the event; the allocation is ours to release (see
@@ -672,9 +673,8 @@ class _WebRuntime implements SsRuntime {
     final ev = _ctx(context).get_active_effect_event(slotIndex);
     final bool visible;
     try {
-      // draw: effects step in update, before this frame's draw_order exists.
       visible = s.step(ev, parentFrame, deltaSeconds, fps, parentLooped, yFlip,
-          vertStride, true);
+          vertStride, draw);
     } finally {
       ev.free();
     }

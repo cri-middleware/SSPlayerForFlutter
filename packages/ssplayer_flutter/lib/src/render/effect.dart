@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:ssruntime_dart/effect_draw_plan.dart' as efbs;
+import 'package:ssruntime_dart/framedata.dart' as fbs;
 import 'package:ssruntime_dart/ssruntime_dart.dart';
 
 import '../ssab/ssab.g.dart' as ssab;
@@ -63,7 +64,8 @@ class EffectSlots {
   bool get isEmpty => parts.isEmpty;
 
   /// The plan for [partIndex] as of the last [step], or null when that slot was
-  /// invisible (dead, not yet started, or out of its lifetime).
+  /// invisible (dead, not yet started, or out of its lifetime) or its part
+  /// hidden.
   efbs.EffectDrawPlan? planFor(int partIndex) => _plans[partIndex];
 
   /// Advances every slot one frame.
@@ -74,13 +76,21 @@ class EffectSlots {
   /// [parentFrame]; synced slots are the reverse. [parentLooped] is the parent's
   /// loop **edge** for this update (`ss_runtime_just_looped` is reset at the top of
   /// each update), which re-arms a synced effect so it re-fires next cycle.
+  ///
+  /// [frame] is the `FrameData` at [parentFrame], which says which effect parts
+  /// `paint` will draw. A hidden one is still stepped, or an independent effect
+  /// would freeze while hidden, but builds no particles; shown again, it draws
+  /// what it would have had it never been hidden. With null, every slot steps
+  /// as drawn.
   void step(
     SsContext context, {
     required double parentFrame,
     required double deltaSeconds,
     required double fps,
     required bool parentLooped,
+    required fbs.FrameData? frame,
   }) {
+    final states = frame?.parts;
     for (final part in parts) {
       final slot = _slotFor(part);
       if (slot == null) continue;
@@ -95,6 +105,7 @@ class EffectSlots {
         parentLooped: parentLooped,
         yFlip: true, // Flutter is Y-Down; the Brain mirrors the particles once
         vertStride: 2, // (x, y) pairs — read plan.vertStride back to be sure
+        draw: _drawn(states, part.partIndex),
       );
 
       final plan = result.drawPlan;
@@ -118,6 +129,16 @@ class EffectSlots {
       if (slot != null) ssRuntime.resetEffectSlot(slot);
     }
     _plans.clear();
+  }
+
+  // Whether effect part [partIndex] is in the frame's draw order, which leaves
+  // out exactly the hidden ones. `parts` comes in part-index order; a part not
+  // found where its index says steps as drawn, which costs only particles
+  // nobody draws.
+  static bool _drawn(List<fbs.PartState>? states, int partIndex) {
+    if (states == null || partIndex >= states.length) return true;
+    final state = states[partIndex];
+    return state.partIndex != partIndex || !state.$hide;
   }
 
   SsEffectSlot? _slotFor(EffectPart part) =>
