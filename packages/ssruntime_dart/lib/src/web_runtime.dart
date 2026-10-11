@@ -344,10 +344,9 @@ class _WebRuntime implements SsRuntime {
       _ctx(context).set_coordinate_system(system);
 
   @override
-  void registerForGc(Object owner,
-      {required SsContext context, required SsResource resource}) {
-    _finalizer.attach(owner, _ctx(context), detach: owner);
-    _finalizer.attach(owner, _res(resource), detach: owner);
+  void registerForGc(Object owner, {SsContext? context, SsResource? resource}) {
+    if (context != null) _finalizer.attach(owner, _ctx(context), detach: owner);
+    if (resource != null) _finalizer.attach(owner, _res(resource), detach: owner);
   }
 
   @override

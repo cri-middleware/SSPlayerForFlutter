@@ -21,38 +21,43 @@ import 'render/mask_context.dart';
 import 'render/part_color.dart';
 import 'render/part_override.dart';
 import 'render/root_transform.dart';
+import 'ssab_pack.dart';
 import 'package:ssruntime_dart/framedata.dart' as fbs;
 import 'texture_registry.dart';
 
 /// Layer 2 — the Widget-agnostic drawing engine (ports the SDK's
 /// `SSInternalPlayer`).
 ///
-/// Owns the FFI [Resource]/[Context] lifecycle, advances time, pulls the
-/// per-frame `FrameData` + SoA buffers from the Brain, and drives a
+/// Owns the FFI [Context] and a hold on the shared [SsabPack], advances time,
+/// pulls the per-frame `FrameData` + SoA buffers from the Brain, and drives a
 /// [RenderBackend] (Canvas or flutter_gpu) to turn each `DrawBatch` into pixels.
 /// It is `dispose`-able and reusable from higher layers (Player) or headless
 /// tests. As [RenderHost] it exposes the per-player data the backend draws from.
 class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   SpriteStudioInternalPlayer._(
     this._context,
-    this._resource,
+    this._pack,
     this.textures,
-    this._maskFlags,
-    this._partNames,
     this._effects,
     this._backend,
     this._ownsTextures,
-  ) {
-    // Backstop finalizers: if the caller forgets dispose(), the Brain-side
-    // Context/Resource are still reclaimed on GC. The Arc refcount inside the
-    // runtime makes destroy order irrelevant. The Brain owns its own copy of
-    // the `.ssab` bytes (copy mode), so there is no Body-side buffer to keep
-    // alive or leak on the GC-only path.
-    ssRuntime.registerForGc(this, context: _context, resource: _resource);
+  )   : _maskFlags = _pack.maskFlags,
+        _partNames = _pack.partNames {
+    // Backstop finalizer: if the caller forgets dispose(), the Brain-side
+    // Context is still reclaimed on GC, and the pack's parse goes with the last
+    // player that held it. The Arc refcount inside the runtime makes destroy
+    // order irrelevant.
+    ssRuntime.registerForGc(this, context: _context);
   }
 
   SsContext _context;
-  SsResource _resource;
+
+  /// The `.ssab` this player binds, shared with every other player of the same
+  /// bytes, its own instance children among them.
+  final SsabPack _pack;
+
+  @visibleForTesting
+  SsabPack get pack => _pack;
 
   /// texture_hash → decoded image / shader. Populated by the caller. Public as
   /// part of [RenderHost].
@@ -187,8 +192,9 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   /// Loads `ssab` into a fresh Context, binds it, and recursively spawns any
   /// instance children.
   ///
-  /// Steps: parse the static Dart-side tables → create resource → create
-  /// context → bind → set coordinate system. The Brain does NOT validate the
+  /// Steps: open the pack (the static Dart-side tables and the runtime's parse,
+  /// shared with every open player of the same bytes) → create context → bind →
+  /// set coordinate system. The Brain does NOT validate the
   /// `.ssab` (unchecked parse, undefined behaviour on malformed input);
   /// [SsRuntime.createResourceCopy] rejects a non-`.ssab` header, but that is an
   /// identify check, not full validation. Do not load `.ssab` from untrusted
@@ -208,39 +214,22 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
     SpriteStudioBackend backend = SpriteStudioBackend.auto,
     @visibleForTesting RenderBackend? renderBackendOverride,
   }) {
-    // Parse the static Dart-side tables first. These are pure, bounds-checked
-    // FlatBuffers reads that throw on a corrupt pack — doing them BEFORE any
-    // native allocation means a malformed pack fails here and leaks no Brain-side
-    // Context/Resource. Mask roles and part names live in the static
-    // `.ssab` PartData, the effect bindings in the effect block — all read once
-    // here rather than per frame; the effect/instance slots themselves are lazy.
-    final maskFlags = MaskPartFlags.readAll(ssab);
-    final partNames = PartNameTable.readAll(ssab);
-    final effectParts = EffectPart.readAll(ssab);
-    final instanceParts = InstancePart.readAll(ssab);
-    final ownPackHash = InstancePart.packHashOf(ssab);
-
-    // Copy mode: the Brain copies the bytes onto its own heap and retains no
-    // pointer into `ssab` (the native backend does a zero-copy leaf hand-off).
-    // Copy is also the only mode that works on the Web/WASM path, where the
-    // Body's and Brain's memory spaces differ. Rejects a non-`.ssab` header.
-    final resource = ssRuntime.createResourceCopy(ssab);
-    if (resource == null) {
-      throw StateError('ss_resource_create_copy returned null (bad .ssab?)');
-    }
+    // Throws on a malformed pack before the runtime allocates anything.
+    final pack = SsabPack.open(ssab);
 
     final context = ssRuntime.createContext();
     if (context == null) {
-      ssRuntime.destroyResource(resource);
+      pack.close();
       throw StateError('ss_runtime_create returned null');
     }
 
     final registry = textures ?? TextureRegistry();
-    // Until the constructor attaches the GC finalizer, the Context+Resource are
-    // owned by nothing, so any throw in between must destroy them by hand.
+    // Until the constructor attaches the GC finalizer, the Context and the hold
+    // on the pack are owned by nothing, so any throw in between must release
+    // them by hand.
     late final SpriteStudioInternalPlayer player;
     try {
-      if (!ssRuntime.bindResource(context, resource)) {
+      if (!ssRuntime.bindResource(context, pack.resource)) {
         throw StateError('ss_runtime_bind_resource failed');
       }
       // Direct render mode (the default): the Brain fills the SoA buffers this
@@ -264,11 +253,9 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
               : CanvasBackend());
       player = SpriteStudioInternalPlayer._(
         context,
-        resource,
+        pack,
         registry,
-        maskFlags,
-        partNames,
-        EffectSlots(resource, effectParts),
+        EffectSlots(pack.resource, pack.effectParts),
         renderBackend,
         textures == null, // we built `registry`, so we release it
       );
@@ -277,7 +264,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
       renderBackend.onResourcesReady = () => player.onNeedsRepaint?.call();
     } catch (_) {
       ssRuntime.destroyContext(context);
-      ssRuntime.destroyResource(resource);
+      pack.close();
       rethrow;
     }
 
@@ -293,12 +280,15 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
     // recurses until it exhausts the stack; the per-child guard below then unwinds
     // it, skipping the offending child rather than crashing the load.
     player._instances = InstanceSlots<SpriteStudioInternalPlayer>.build(
-      instanceParts,
+      pack.instanceParts,
       (part) {
         final bytes = InstancePart.resolvePack(
           part,
-          ownBytes: ssab,
-          ownPackHash: ownPackHash,
+          // The pack's buffer rather than [ssab], which another player's may
+          // have matched: a same-pack child then finds the pack by identity
+          // instead of comparing every byte.
+          ownBytes: pack.bytes,
+          ownPackHash: pack.packHash,
           packs: instancePacks,
         );
         if (bytes == null) return null; // unresolved external pack
@@ -1495,8 +1485,9 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
     // The backend owns the coverage bitmap + shader pools (and any GPU
     // resources); release them.
     _backend.dispose();
-    // The slots borrow `_resource`; they must go first. Instance children own
-    // their own Context/Resource and are torn down recursively from here.
+    // The slots borrow the pack's resource; they must go first. Instance
+    // children own their own Context and hold on the pack, and are torn down
+    // recursively from here.
     _effects.dispose();
     _instances.dispose();
     // Decoded atlases are native bitmap memory the GC cannot see, so a dropped
@@ -1505,7 +1496,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
     if (_ownsTextures) textures.dispose();
     ssRuntime.unregisterFromGc(this);
     ssRuntime.destroyContext(_context);
-    ssRuntime.destroyResource(_resource);
+    _pack.close();
   }
 }
 

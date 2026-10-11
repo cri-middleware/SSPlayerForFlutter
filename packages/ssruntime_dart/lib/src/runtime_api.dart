@@ -62,12 +62,11 @@ abstract interface class SsRuntime {
   void setRenderMode(SsContext context, int mode);
   void setCoordinateSystem(SsContext context, int system);
 
-  /// Registers `owner` so the Brain-side [context]/[resource] are reclaimed when
-  /// `owner` is GC'd even if `dispose` was skipped (a backstop, never the primary
-  /// path). Native uses a `NativeFinalizer`; web a `dart:core` `Finalizer`.
-  /// [unregisterFromGc] detaches on explicit dispose.
-  void registerForGc(Object owner,
-      {required SsContext context, required SsResource resource});
+  /// Registers `owner` so the Brain-side [context] and/or [resource] are
+  /// reclaimed when `owner` is GC'd even if `dispose` was skipped (a backstop,
+  /// never the primary path). Native uses a `NativeFinalizer`; web a `dart:core`
+  /// `Finalizer`. [unregisterFromGc] detaches on explicit dispose.
+  void registerForGc(Object owner, {SsContext? context, SsResource? resource});
   void unregisterFromGc(Object owner);
 
   // --- Setup / transport -------------------------------------------------

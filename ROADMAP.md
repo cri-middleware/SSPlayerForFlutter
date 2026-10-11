@@ -104,10 +104,6 @@ areas, and a UI-state map.
 
 ## Backlog
 
-- [ ] **Instance child `Resource` sharing** — each Instance part owns its own
-  `Resource`; the parsed `.ssab` should be shared across children of the same pack
-  (each child's `Context` stays separate for its own clock). A Body-local dedup is
-  possible without the SDK shared-resource registry.
 - [ ] **Batch the Canvas `Sub` / `Invert` reconstruction** — those two modes have no
   stock `ui.BlendMode`, so the Canvas backend rebuilds them from three passes over
   one part's geometry (`blendPassesFor`), which also forces each such part out of

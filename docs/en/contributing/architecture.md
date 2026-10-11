@@ -25,7 +25,7 @@ It is a **strict downward dependency**; layers below are nearer the Brain. Each 
 |---|---|---|
 | **L4** | Drawing adapters — `SpriteStudioView` (a `RenderBox`) and the Flame `SpriteStudioComponent` | `ssplayer_flutter`, `ssplayer_flame` |
 | **L3** | `SpriteStudioPlayer` — transport / events; a `Ticker` in vsync mode, or externally clocked via `advance` | `ssplayer_flutter` |
-| **L2** | `SpriteStudioInternalPlayer` — FFI Resource/Context lifecycle, SoA → geometry bake (`ui.Vertices` for Canvas / interleaved VBO for GPU), `paint` = `DrawBatch.kind` dispatch | `ssplayer_flutter` |
+| **L2** | `SpriteStudioInternalPlayer` — FFI Context lifecycle over one `.ssab` parse shared by every player of the same bytes, SoA → geometry bake (`ui.Vertices` for Canvas / interleaved VBO for GPU), `paint` = `DrawBatch.kind` dispatch | `ssplayer_flutter` |
 | **L1** | ffigen `@Native` C-API bindings + runtime FlatBuffers | `ssruntime_dart` |
 
 **L2 is kept Widget-free** so it is reusable headless / from Flame / by either render backend

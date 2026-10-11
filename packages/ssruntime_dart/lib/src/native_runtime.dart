@@ -112,11 +112,14 @@ class _NativeRuntime implements SsRuntime {
       ss_runtime_set_coordinate_system(_ctx(context), system);
 
   @override
-  void registerForGc(Object owner,
-      {required SsContext context, required SsResource resource}) {
+  void registerForGc(Object owner, {SsContext? context, SsResource? resource}) {
     final token = _GcToken();
-    _ctxFinalizer.attach(token, _ctx(context).cast(), detach: token);
-    _resFinalizer.attach(token, _res(resource).cast(), detach: token);
+    if (context != null) {
+      _ctxFinalizer.attach(token, _ctx(context).cast(), detach: token);
+    }
+    if (resource != null) {
+      _resFinalizer.attach(token, _res(resource).cast(), detach: token);
+    }
     _gcTokens[owner] = token;
   }
 
