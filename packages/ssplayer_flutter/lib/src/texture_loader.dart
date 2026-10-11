@@ -26,7 +26,9 @@ class TextureLoadReport {
 /// Routing is per-cellmap: embedded wins when present, otherwise the reference
 /// path is tried. Each decoded [ui.Image] is registered under
 /// `cellmap.nameHash`, which equals `DrawBatch.texture_hash` — so no Dart-side
-/// re-hashing (which would risk diverging from the Brain's FNV-1a).
+/// re-hashing (which would risk diverging from the Brain's FNV-1a). The image is
+/// decoded once for every registry loading the same image bytes, and borrowed
+/// from [SharedImages] rather than owned by any of them.
 ///
 /// It then loads `external_textures()` the same way, keyed by their own
 /// `name_hash`: the second hash space `texture_hash` spans (a TextureChange binds
@@ -79,7 +81,8 @@ class SsTextureLoader {
       final asset = embedded[cm.imagePathHash];
       final data = asset?.data;
       if (data != null && data.isNotEmpty) {
-        registry.register(cm.nameHash, await decodeImage(_asBytes(data)));
+        await SharedImages.register(
+            registry, cm.nameHash, _asBytes(data), decodeImage);
         return;
       }
       // 2. Reference: resolve the sibling image from the asset bundle.
@@ -88,7 +91,8 @@ class SsTextureLoader {
         final assetPath = _joinAsset(baseAssetDir, path);
         try {
           final bytes = (await bnd.load(assetPath)).buffer.asUint8List();
-          registry.register(cm.nameHash, await decodeImage(bytes));
+          await SharedImages.register(
+              registry, cm.nameHash, bytes, decodeImage);
           return;
         } catch (_) {
           unresolved.add(assetPath);
@@ -115,7 +119,8 @@ class SsTextureLoader {
       // Embedded bytes are keyed by name hash, same as a cellmap's image.
       final data = embedded[ext.nameHash]?.data;
       if (data != null && data.isNotEmpty) {
-        registry.register(ext.nameHash, await decodeImage(_asBytes(data)));
+        await SharedImages.register(
+            registry, ext.nameHash, _asBytes(data), decodeImage);
         return;
       }
       // Reference: the external texture's own name is the sibling file name.
@@ -124,7 +129,8 @@ class SsTextureLoader {
         try {
           final assetPath = _joinAsset(baseAssetDir, name);
           final bytes = (await bnd.load(assetPath)).buffer.asUint8List();
-          registry.register(ext.nameHash, await decodeImage(bytes));
+          await SharedImages.register(
+              registry, ext.nameHash, bytes, decodeImage);
         } catch (_) {
           // Silent: a superset entry, not a shippable requirement.
         }
