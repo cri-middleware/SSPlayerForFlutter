@@ -16,6 +16,7 @@ import '../root_transform.dart';
 import 'render_backend.dart';
 import 'render_host.dart';
 import 'target_ring.dart';
+import 'upload_ring.dart';
 
 RenderBackend createFlutterGpuBackend() => FlutterGpuBackend();
 
@@ -408,8 +409,36 @@ class FlutterGpuBackend implements RenderBackend {
   /// sampler when a part is not masked (a sampler must always be bound).
   gpu.Texture? _dummyCoverage;
 
-  /// Reused uniform bump allocator (aligned per platform). Reset each frame.
-  gpu.HostBuffer? _hostBuffer;
+  /// Where every frame's vertices, indices and uniforms go, four frames deep
+  /// like flutter_gpu's own `HostBuffer` (see [UploadRing]).
+  late final UploadRing<gpu.DeviceBuffer> _uploads =
+      UploadRing<gpu.DeviceBuffer>(
+    4,
+    create: (size) =>
+        gpu.gpuContext.createDeviceBuffer(gpu.StorageMode.hostVisible, size),
+    write: (buffer, bytes, offset) {
+      if (!buffer.overwrite(bytes, destinationOffsetInBytes: offset)) {
+        throw StateError('DeviceBuffer.overwrite failed');
+      }
+      // A no-op where host memory is coherent; elsewhere the GPU sees nothing
+      // without it.
+      buffer.flush(offsetInBytes: offset, lengthInBytes: bytes.lengthInBytes);
+    },
+  );
+
+  late final int _uniformAlignment = gpu.gpuContext.minimumUniformByteAlignment;
+
+  /// A uniform block in [_uploads], aligned as a uniform binding must be.
+  gpu.BufferView _uniform(TypedData data) =>
+      _view(_uploads.put(ByteData.sublistView(data), _uniformAlignment));
+
+  /// Vertex or index data in [_uploads].
+  gpu.BufferView _vertexData(TypedData data) =>
+      _view(_uploads.put(ByteData.sublistView(data), 16));
+
+  static gpu.BufferView _view(UploadSlice<gpu.DeviceBuffer> slice) =>
+      gpu.BufferView(slice.buffer,
+          offsetInBytes: slice.offset, lengthInBytes: slice.length);
 
   ui.VoidCallback? _onResourcesReady;
 
@@ -451,7 +480,7 @@ class FlutterGpuBackend implements RenderBackend {
     return dpr.clamp(1.0, 4.0);
   }
 
-  /// The current player-local→NDC matrix's emplaced view — the top of the
+  /// The current player-local→NDC matrix's uploaded view — the top of the
   /// transform stack — re-bound to whichever pipeline's `FrameInfo` slot each draw
   /// uses. Instance recursion pushes composed matrices onto the stacks.
   gpu.BufferView? _mvpView;
@@ -551,14 +580,13 @@ class FlutterGpuBackend implements RenderBackend {
       );
       _pass!.setColorBlendEnable(true);
 
-      _hostBuffer ??= gpu.gpuContext.createHostBuffer();
-      _hostBuffer!.reset();
+      _uploads.beginFrame();
       // Player-local (Y-Down, origin centre) → NDC — the base of the transform
       // stack. Built from the LOGICAL box (not the device pixel count): NDC maps
       // to the full render target either way. Each draw re-binds the top to its
       // pipeline's FrameInfo slot.
       final mvp = _orthoMvp(logical.width, logical.height, root, _orthoMvpScratch);
-      final baseView = _hostBuffer!.emplace(ByteData.sublistView(mvp));
+      final baseView = _uniform(mvp);
       _matStack
         ..clear()
         ..add(mvp);
@@ -788,15 +816,8 @@ class FlutterGpuBackend implements RenderBackend {
           pipeline.vertexShader.getUniformSlot('FrameInfo'), _mvpView!);
       pass.setColorBlendEquation(blend);
 
-      final vb = gpu.gpuContext
-          .createDeviceBufferWithCopy(ByteData.sublistView(geo.vertices));
-      final ib = gpu.gpuContext
-          .createDeviceBufferWithCopy(ByteData.sublistView(geo.indices));
-      pass.bindVertexBuffer(
-          gpu.BufferView(vb, offsetInBytes: 0, lengthInBytes: vb.sizeInBytes));
-      pass.bindIndexBuffer(
-          gpu.BufferView(ib, offsetInBytes: 0, lengthInBytes: ib.sizeInBytes),
-          gpu.IndexType.int16);
+      pass.bindVertexBuffer(_vertexData(geo.vertices));
+      pass.bindIndexBuffer(_vertexData(geo.indices), gpu.IndexType.int16);
       pass.bindTexture(
         pipeline.fragmentShader.getUniformSlot('u_texture'),
         tex,
@@ -877,18 +898,11 @@ class FlutterGpuBackend implements RenderBackend {
       pass.bindUniform(
           pipeline.vertexShader.getUniformSlot('FrameInfo'), _mvpView!);
       pass.bindUniform(pipeline.fragmentShader.getUniformSlot('ShaderInfo'),
-          _hostBuffer!.emplace(ByteData.sublistView(info)));
+          _uniform(info));
       pass.setColorBlendEquation(blend);
 
-      final vb = gpu.gpuContext
-          .createDeviceBufferWithCopy(ByteData.sublistView(geo.vertices));
-      final ib = gpu.gpuContext
-          .createDeviceBufferWithCopy(ByteData.sublistView(geo.indices));
-      pass.bindVertexBuffer(
-          gpu.BufferView(vb, offsetInBytes: 0, lengthInBytes: vb.sizeInBytes));
-      pass.bindIndexBuffer(
-          gpu.BufferView(ib, offsetInBytes: 0, lengthInBytes: ib.sizeInBytes),
-          gpu.IndexType.int16);
+      pass.bindVertexBuffer(_vertexData(geo.vertices));
+      pass.bindIndexBuffer(_vertexData(geo.indices), gpu.IndexType.int16);
       pass.bindTexture(
         pipeline.fragmentShader.getUniformSlot('u_texture'),
         tex,
@@ -937,15 +951,8 @@ class FlutterGpuBackend implements RenderBackend {
       pass.bindUniform(
           pipeline.vertexShader.getUniformSlot('FrameInfo'), _mvpView!);
       pass.setColorBlendEquation(blend);
-      final vb = gpu.gpuContext.createDeviceBufferWithCopy(
-          ByteData.sublistView(geo.vertices));
-      final ib = gpu.gpuContext.createDeviceBufferWithCopy(
-          ByteData.sublistView(geo.indices));
-      pass.bindVertexBuffer(
-          gpu.BufferView(vb, offsetInBytes: 0, lengthInBytes: vb.sizeInBytes));
-      pass.bindIndexBuffer(
-          gpu.BufferView(ib, offsetInBytes: 0, lengthInBytes: ib.sizeInBytes),
-          gpu.IndexType.int16);
+      pass.bindVertexBuffer(_vertexData(geo.vertices));
+      pass.bindIndexBuffer(_vertexData(geo.indices), gpu.IndexType.int16);
       pass.bindTexture(
         pipeline.fragmentShader.getUniformSlot('u_texture'),
         tex,
@@ -1242,15 +1249,8 @@ class FlutterGpuBackend implements RenderBackend {
           pipeline.vertexShader.getUniformSlot('FrameInfo'), _mvpView!);
       pass.setColorBlendEquation(blend);
 
-      final vb = gpu.gpuContext
-          .createDeviceBufferWithCopy(ByteData.sublistView(geo.vertices));
-      final ib = gpu.gpuContext
-          .createDeviceBufferWithCopy(ByteData.sublistView(geo.indices));
-      pass.bindVertexBuffer(
-          gpu.BufferView(vb, offsetInBytes: 0, lengthInBytes: vb.sizeInBytes));
-      pass.bindIndexBuffer(
-          gpu.BufferView(ib, offsetInBytes: 0, lengthInBytes: ib.sizeInBytes),
-          gpu.IndexType.int16);
+      pass.bindVertexBuffer(_vertexData(geo.vertices));
+      pass.bindIndexBuffer(_vertexData(geo.indices), gpu.IndexType.int16);
       pass.bindTexture(
         pipeline.fragmentShader.getUniformSlot('u_texture'),
         tex,
@@ -1351,18 +1351,11 @@ class FlutterGpuBackend implements RenderBackend {
       pass.bindUniform(
           pipeline.vertexShader.getUniformSlot('FrameInfo'), _mvpView!);
       pass.bindUniform(pipeline.fragmentShader.getUniformSlot('MaskInfo'),
-          _hostBuffer!.emplace(ByteData.sublistView(ubo)));
+          _uniform(ubo));
       pass.setColorBlendEquation(blend);
 
-      final vb = gpu.gpuContext
-          .createDeviceBufferWithCopy(ByteData.sublistView(geo.vertices));
-      final ib = gpu.gpuContext
-          .createDeviceBufferWithCopy(ByteData.sublistView(geo.indices));
-      pass.bindVertexBuffer(
-          gpu.BufferView(vb, offsetInBytes: 0, lengthInBytes: vb.sizeInBytes));
-      pass.bindIndexBuffer(
-          gpu.BufferView(ib, offsetInBytes: 0, lengthInBytes: ib.sizeInBytes),
-          gpu.IndexType.int16);
+      pass.bindVertexBuffer(_vertexData(geo.vertices));
+      pass.bindIndexBuffer(_vertexData(geo.indices), gpu.IndexType.int16);
       pass.bindTexture(
           pipeline.fragmentShader.getUniformSlot('u_coverage'), coverage);
       pass.drawIndexed(geo.indexCount);
@@ -1450,7 +1443,7 @@ class FlutterGpuBackend implements RenderBackend {
     if (!_active) return null;
     final pipeline = _ensureMaskWritePipeline();
     final dummyTex = _ensureDummyCoverage(); // "no cell" bind for shape/mesh writers
-    if (pipeline == null || dummyTex == null || _hostBuffer == null) return null;
+    if (pipeline == null || dummyTex == null) return null;
 
     final bounds = plan.bounds;
     if (bounds.width <= 0 || bounds.height <= 0) return null;
@@ -1478,13 +1471,13 @@ class FlutterGpuBackend implements RenderBackend {
 
       // Player-local -> coverage NDC per tile, built from the SAME
       // uvBasis/uvOffset the main-pass shader samples with, so the two are
-      // guaranteed to agree. Emplaced once per tile in use.
+      // guaranteed to agree. Uploaded once per tile in use.
       final tileMvps = <Float32List>[];
       final tileMvpViews = <gpu.BufferView>[];
       for (var t = 0; t < plan.tileCount; t++) {
         final m = Float32List.fromList(_coverageMvp(plan, t));
         tileMvps.add(m);
-        tileMvpViews.add(_hostBuffer!.emplace(ByteData.sublistView(m)));
+        tileMvpViews.add(_uniform(m));
       }
       final mvpSlot = pipeline.vertexShader.getUniformSlot('MaskFrame');
       final bitSlot = pipeline.fragmentShader.getUniformSlot('MaskBit');
@@ -1545,20 +1538,13 @@ class FlutterGpuBackend implements RenderBackend {
           indices = _quadIndices;
         }
 
-        final vb = gpu.gpuContext
-            .createDeviceBufferWithCopy(ByteData.sublistView(verts));
-        final ib = gpu.gpuContext
-            .createDeviceBufferWithCopy(ByteData.sublistView(indices));
         _beginDraw(pass, pipeline);
         pass.bindUniform(mvpSlot, tileMvpViews[writer.bit ~/ kMaskTileBits]);
         pass.bindUniform(bitSlot,
-            _hostBuffer!.emplace(ByteData.sublistView(_bitColor(writer.bit, threshold))));
+            _uniform(_bitColor(writer.bit, threshold)));
         pass.setColorBlendEquation(_additive); // bit accumulator: alpha adds too
-        pass.bindVertexBuffer(
-            gpu.BufferView(vb, offsetInBytes: 0, lengthInBytes: vb.sizeInBytes));
-        pass.bindIndexBuffer(
-            gpu.BufferView(ib, offsetInBytes: 0, lengthInBytes: ib.sizeInBytes),
-            gpu.IndexType.int16);
+        pass.bindVertexBuffer(_vertexData(verts));
+        pass.bindIndexBuffer(_vertexData(indices), gpu.IndexType.int16);
         pass.bindTexture(texSlot, writerTex); // nearest (cutout threshold on raw texel)
         pass.drawIndexed(indices.length);
         wrote = true;
@@ -1569,8 +1555,8 @@ class FlutterGpuBackend implements RenderBackend {
       // in this player's coverage (the owner-local MVP folds the slot in, where
       // the Canvas path applies it on the canvas transform stack).
       for (final bw in plan.bubbled) {
-        final childMvpView = _hostBuffer!.emplace(ByteData.sublistView(
-            _mul4Col(tileMvps[bw.bit ~/ kMaskTileBits], bw.slot)));
+        final childMvpView =
+            _uniform(_mul4Col(tileMvps[bw.bit ~/ kMaskTileBits], bw.slot));
         Float32List verts;
         Uint16List indices;
         var threshold = -1.0;
@@ -1622,20 +1608,13 @@ class FlutterGpuBackend implements RenderBackend {
           indices = _quadIndices;
         }
 
-        final vb = gpu.gpuContext
-            .createDeviceBufferWithCopy(ByteData.sublistView(verts));
-        final ib = gpu.gpuContext
-            .createDeviceBufferWithCopy(ByteData.sublistView(indices));
         _beginDraw(pass, pipeline);
         pass.bindUniform(mvpSlot, childMvpView);
         pass.bindUniform(bitSlot,
-            _hostBuffer!.emplace(ByteData.sublistView(_bitColor(bw.bit, threshold))));
+            _uniform(_bitColor(bw.bit, threshold)));
         pass.setColorBlendEquation(_additive);
-        pass.bindVertexBuffer(
-            gpu.BufferView(vb, offsetInBytes: 0, lengthInBytes: vb.sizeInBytes));
-        pass.bindIndexBuffer(
-            gpu.BufferView(ib, offsetInBytes: 0, lengthInBytes: ib.sizeInBytes),
-            gpu.IndexType.int16);
+        pass.bindVertexBuffer(_vertexData(verts));
+        pass.bindIndexBuffer(_vertexData(indices), gpu.IndexType.int16);
         pass.bindTexture(texSlot, writerTex);
         pass.drawIndexed(indices.length);
         wrote = true;
@@ -1654,7 +1633,7 @@ class FlutterGpuBackend implements RenderBackend {
   /// Column-major 4×4 product `a · b` — the owner-local→NDC coverage matrix
   /// composed with a descendant writer's descendant-local→owner-local slot, so
   /// its geometry projects straight into the owner's coverage. Fresh list
-  /// (not a scratch): each bubbled writer emplaces its own before the next.
+  /// (not a scratch): each bubbled writer uploads its own before the next.
   static Float32List _mul4Col(Float32List a, Float64List b) {
     final out = Float32List(16);
     for (var c = 0; c < 4; c++) {
@@ -1732,7 +1711,7 @@ class FlutterGpuBackend implements RenderBackend {
   /// One writer's bit as the `MaskBit` uniform: rgb = the bit in its owning R/G/B
   /// channel (8 bits × 3 = 24 writers per coverage tile), a = the cutout
   /// threshold.
-  /// Written into [_bitColorScratch] — the caller emplaces it (which copies)
+  /// Written into [_bitColorScratch] — the caller uploads it (which copies)
   /// before the next writer refills it.
   Float32List _bitColor(int bit, double threshold) {
     bit %= kMaskTileBits; // the tile is chosen by where it is drawn
@@ -1747,7 +1726,7 @@ class FlutterGpuBackend implements RenderBackend {
 
   @override
   void pushTransform(ui.Canvas canvas, Float64List world) {
-    if (!_active || _hostBuffer == null || _matStack.isEmpty) return;
+    if (!_active || _matStack.isEmpty) return;
     // Compose the child→parent world transform into the current projection:
     // gl_Position = (baseMvp · … · world) · localPos.
     // Depth-keyed buffer: the whole stack stays live until its pops, so this is
@@ -1759,7 +1738,7 @@ class FlutterGpuBackend implements RenderBackend {
       _matPool.add(Float32List(16));
     }
     final composed = _mul4x4(_matStack.last, world, _matPool[depth]);
-    final view = _hostBuffer!.emplace(ByteData.sublistView(composed));
+    final view = _uniform(composed);
     _matStack.add(composed);
     _viewStack.add(view);
     _mvpView = view;
@@ -1793,7 +1772,7 @@ class FlutterGpuBackend implements RenderBackend {
 
   @override
   void rewindShaderPools() {
-    // No shader pools — each frame builds fresh device buffers.
+    // No shader pools; a frame's buffers come round in [_uploads].
   }
 
   @override
@@ -1820,7 +1799,7 @@ class FlutterGpuBackend implements RenderBackend {
     _mvpView = null;
     _matStack.clear();
     _viewStack.clear();
-    _hostBuffer = null;
+    _uploads.clear();
     _target = null;
     _targets.clear();
     _cmd = null;
