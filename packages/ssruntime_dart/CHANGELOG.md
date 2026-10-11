@@ -12,3 +12,5 @@ All notable changes to `ssruntime_dart` are documented here. The format is based
   backend.
 - **Native delivery via Dart native assets**: the runtime is bundled automatically, with no
   CocoaPods and no vendored framework.
+
+[7.0.0-beta.1]: https://github.com/cri-middleware/SSPlayerForFlutter/releases/tag/ssruntime_dart-v7.0.0-beta.1

@@ -8,7 +8,6 @@ description: >-
   a dev_dependency — the ssplayer_flutter runtime itself stays converter-free.
 version: 7.0.0-beta.1
 repository: https://github.com/cri-middleware/SSPlayerForFlutter
-publish_to: none # not yet published to pub.dev
 
 # Part of the repo-root pub workspace (see ../../pubspec.yaml).
 resolution: workspace

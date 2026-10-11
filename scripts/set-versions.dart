@@ -7,12 +7,16 @@
 // the `version:` of that package, raises the `^` constraint every other package
 // under packages/ has on it (the examples depend by path), and turns the
 // `## [Unreleased]` notes in its CHANGELOG.md into `## [<version>] - <date>` under
-// a fresh, empty `## [Unreleased]`: the changelog is where the notes are, and
-// `dart pub publish` warns about one that does not mention the version, and a
-// warning fails it. Nothing else moves, so a dependent gets a new version only
-// when it is named too. release.yml runs this with its `versions` input; run it
-// locally to see what a release would check, and `git checkout -- packages` to
-// put the tree back.
+// a fresh, empty `## [Unreleased]`, with the heading's `[<version>]:` link to the
+// version's Release at the foot of the file: the changelog is where the notes
+// are, and `dart pub publish` warns about one that does not mention the version,
+// and a warning fails it. A package's first changelog carries that link already,
+// written by hand: until the first release it is all that mentions the version
+// the pubspec has, and scripts/build-release.sh dry-runs the publish of every
+// package without `publish_to: none`. Nothing else moves, so a dependent gets a
+// new version only when it is named too. release.yml runs this with its
+// `versions` input; run it locally to see what a release would check, and
+// `git checkout -- packages` to put the tree back.
 //
 // Every argument is checked, and every edit made in memory, before anything is
 // written. A version may not go backwards: pub.dev keeps every version it is
@@ -158,6 +162,13 @@ void main(List<String> args) {
       );
       continue;
     }
+    final repository = field(read(pubspec), 'repository');
+    if (repository == null) {
+      errors.add(
+        '$name: its pubspec has no `repository:` to link the version to its Release',
+      );
+      continue;
+    }
 
     final raised = <String>[];
     if (order > 0) {
@@ -195,6 +206,21 @@ void main(List<String> args) {
       '',
       '## [$version] - $today',
     ]);
+    // Keep a Changelog's links sit at the foot, newest first.
+    final link = '[$version]: $repository/releases/tag/$name-v$version';
+    if (!lines.any((l) => l.startsWith('[$version]: '))) {
+      final links = lines.indexWhere(
+        (l) => RegExp(r'^\[[^\]]+\]: ').hasMatch(l),
+      );
+      if (links >= 0) {
+        lines.insert(links, link);
+      } else {
+        while (lines.isNotEmpty && lines.last.trim().isEmpty) {
+          lines.removeLast();
+        }
+        lines.addAll(['', link, '']);
+      }
+    }
     pending[changelog.path] = lines.join('\n');
 
     summary.add(

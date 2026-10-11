@@ -8,6 +8,6 @@
 // `--run` launches `flutter run` for you (one-command session); otherwise launch
 // the app yourself (IDE Run/Debug, or `flutter run --vmservice-out-file=<path>
 // --dart-define=SS_LIVE_RELOAD=true`) and attach — so the IDE debugger stays.
-import 'package:ssgen_flutter/sswatch.dart' show runSsWatch;
+import 'package:ssgen_flutter/ssgen_flutter.dart' show runSsWatch;
 
 Future<void> main(List<String> args) => runSsWatch(args);
