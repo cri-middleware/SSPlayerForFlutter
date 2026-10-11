@@ -546,6 +546,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
     if (_frameData != null && frameNo == _frameDataNo) return _frameData;
     final bytes = ssRuntime.getFrameData(_context, frameNo);
     _frameDataNo = frameNo;
+    _debugEvaluations++;
     // Zero-copy typed view over the Brain buffer; FrameData reads it in place.
     return _frameData = bytes == null ? null : fbs.FrameData(bytes);
   }
@@ -554,6 +555,13 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   // may have changed since: the clock moved ([_stepSlots]) or an override was
   // set or cleared.
   fbs.FrameData? _frameData;
+
+  int _debugEvaluations = 0;
+
+  /// How many times [getFrameData] has asked the Brain to evaluate a frame,
+  /// for tests.
+  @visibleForTesting
+  int get debugEvaluations => _debugEvaluations;
   double _frameDataNo = 0.0;
 
   // --- SoA buffers (zero-copy typed views, valid until next update) -------
@@ -859,10 +867,11 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   // composed pose out, so a Body-side follower — the [SpriteStudioPartAnchor]
   // widget, a Flame component — can stick to a part (ForUnity's part tracker /
   // ForGodot's part attachment, done the Flutter way). No C-API of its own: the
-  // Brain already emits a world matrix per part every update; these just
-  // re-sample the current frame and slice it. Address parts by index (resolve a
-  // name once through [findPartIndex]); the results are borrows recomputed per
-  // call, so read them within the frame.
+  // Brain already emits a world matrix per part every update; these read the
+  // current frame, which [paint] then draws without evaluating it again, and
+  // slice it. Address parts by index (resolve a name once through
+  // [findPartIndex]); the results are built per call from borrows, so read them
+  // within the frame.
 
   /// The current-frame world transform of [partIndex] as a [Matrix4] in
   /// player-local (animation) space, or null when the index is out of range or
@@ -886,10 +895,11 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   /// the *product* of this flip and any mirroring authored on the part, so the
   /// two cancel in pairs — never infer it from the flip settings.
   ///
-  /// Re-reads `getFrameData` for the current (sub-)frame first: the SoA world
-  /// buffer reflects whichever frame was last parsed (call `get_frame_data`
-  /// before any SoA getter), and this samples the same frame [paint] draws
-  /// (fractional when [subFrameEnabled], else floored) so the pose matches on screen.
+  /// Reads `getFrameData` for the current (sub-)frame first: the SoA world
+  /// buffer reflects whichever frame was last evaluated, and this samples the
+  /// same frame [paint] draws (fractional when [subFrameEnabled], else floored)
+  /// so the pose matches on screen. Until the clock moves, the read and [paint]
+  /// share one evaluation.
   Matrix4? partWorldMatrix(int partIndex) {
     _ensureAlive();
     if (partIndex < 0) return null;

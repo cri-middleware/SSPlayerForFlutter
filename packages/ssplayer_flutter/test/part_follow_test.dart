@@ -11,6 +11,7 @@
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
+import 'dart:ui' as ui;
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -80,6 +81,107 @@ void main() {
       // `apple` is drawn in Ringo's first animation, so it is present and shown.
       expect(p.partHidden(apple), isFalse);
       expect(p.partHidden(-1), isFalse);
+    });
+  });
+
+  // A follower reads the frame after an advance and before paint draws it, so
+  // each read used to evaluate the whole frame again.
+  group('a frame is evaluated once however often it is read (real Brain)', () {
+    test('a follower read before paint costs paint nothing', () {
+      final p = _load();
+      if (p == null) return;
+      addTearDown(p.dispose);
+      p.play();
+      p.update(const Duration(milliseconds: 16));
+      final apple = p.findPartIndex('apple');
+
+      final before = p.debugEvaluations;
+      p.partWorldMatrix(apple);
+      p.partHidden(apple);
+      _paint(p);
+      expect(p.debugEvaluations, before + 1);
+
+      p.update(const Duration(milliseconds: 16));
+      p.partWorldMatrix(apple);
+      _paint(p);
+      expect(p.debugEvaluations, before + 2);
+    });
+
+    test('an override shows on the next read of the same frame', () {
+      final p = _load();
+      if (p == null) return;
+      addTearDown(p.dispose);
+      p.update(const Duration(milliseconds: 16));
+      final apple = p.findPartIndex('apple');
+      int partColorOf() {
+        final sampled =
+            p.subFrameEnabled ? p.frameNo : p.frameNo.floorToDouble();
+        return p
+            .getFrameData(sampled)!
+            .parts!
+            .firstWhere((s) => s.partIndex == apple)
+            .partColor;
+      }
+
+      expect(p.partHidden(apple), isFalse);
+      expect(p.setPartVisibilityOverrideByIndex(apple, true), isTrue);
+      expect(p.partHidden(apple), isTrue);
+      expect(p.clearPartVisibilityOverrideByIndex(apple), isTrue);
+      expect(p.partHidden(apple), isFalse);
+
+      expect(partColorOf(), lessThan(0));
+      expect(
+          p.setPartColorOverrideByIndex(apple, const Color(0xFFFF0000)), isTrue);
+      expect(partColorOf(), greaterThanOrEqualTo(0));
+      expect(p.clearAllPartOverrides(), isTrue);
+      expect(partColorOf(), lessThan(0));
+    });
+
+    test('a follower and the paint see one overwrite-on-next-keyframe override',
+        () {
+      // The Brain skips such an override's own keyframe on its first
+      // evaluation only, so a second evaluation of one update hands the cell
+      // back to the animation: the follower would see the override, and the
+      // paint the animation. Apple's cell is keyed at frame 0, so the override
+      // goes in before the first update leaves it.
+      final p = _load();
+      if (p == null) return;
+      addTearDown(p.dispose);
+      final apple = p.findPartIndex('apple');
+      Float32List uvs() {
+        final sampled =
+            p.subFrameEnabled ? p.frameNo : p.frameNo.floorToDouble();
+        p.getFrameData(sampled);
+        return Float32List.fromList(
+            p.localUvs().sublist(apple * 10, apple * 10 + 10));
+      }
+
+      p.play();
+      final animation = uvs();
+      expect(
+          p.setPartCellOverrideByIndex(apple, 'Ringo', 'effect3',
+              priority: SsOverridePriority.overwriteOnNextKeyframe),
+          isTrue);
+      p.update(const Duration(milliseconds: 16));
+      final follower = uvs();
+      expect(follower, isNot(equals(animation)));
+      expect(uvs(), follower);
+    });
+
+    test('a new animation is evaluated afresh at the same frame number', () {
+      final names = _animations();
+      if (names.length < 2) return;
+      final p = _load();
+      if (p == null) return;
+      addTearDown(p.dispose);
+      final apple = p.findPartIndex('apple');
+      p.partWorldMatrix(apple); // the first animation's frame 0
+
+      expect(p.setupAnimation(names[1]), isTrue);
+      final fresh = _load()!;
+      addTearDown(fresh.dispose);
+      expect(fresh.setupAnimation(names[1]), isTrue);
+      expect(p.partWorldMatrix(apple), fresh.partWorldMatrix(apple));
     });
   });
 
@@ -316,6 +418,12 @@ Uint8List? _ringo() {
 }
 
 /// A loaded Ringo player set up on its first animation.
+void _paint(SpriteStudioInternalPlayer p) {
+  final recorder = ui.PictureRecorder();
+  p.paint(ui.Canvas(recorder), dst: const ui.Rect.fromLTWH(0, 0, 256, 256));
+  recorder.endRecording().dispose();
+}
+
 SpriteStudioInternalPlayer? _load() {
   final bytes = _ringo();
   if (bytes == null) return null;
