@@ -45,9 +45,6 @@ workspace that drives the Rust `libssruntime` over `dart:ffi`.
     raw `uint64` and bitwise-AND.
 *   **Pass `local_uvs` straight to `drawVertices`.** They are texture pixels, which is what it takes; do not
     normalize them as the porting guide does for other engines.
-*   **Per-kind geometry**: Normal and Shape vertices are local (apply the world matrix); Mesh and Effect
-    vertices are world / simulation space (do not). Effect UVs are normalized, Mesh is CSR-sliced, Shape
-    is fixed-stride 24.
 *   **Keep the `.ssab` buffer alive as long as its resource.**
 *   **No per-frame heap allocations in the playback hot path.** Consume SoA views and `DrawBatch` plans as
     they are, and bake into `GeometryBuilder`'s grow-only scratch.
