@@ -239,7 +239,7 @@ extension type _JsOwned(JSObject _) implements JSObject {
 
 extension type _JsEffect(JSObject _) implements JSObject {
   external bool step(JSObject ev, double parentFrame, double deltaSeconds,
-      double fps, bool parentLooped, bool yFlip, int vertStride);
+      double fps, bool parentLooped, bool yFlip, int vertStride, bool draw);
   external int get_draw_plan_buf();
   external int get_draw_plan_len();
   external void reset();
@@ -672,8 +672,9 @@ class _WebRuntime implements SsRuntime {
     final ev = _ctx(context).get_active_effect_event(slotIndex);
     final bool visible;
     try {
-      visible = s.step(
-          ev, parentFrame, deltaSeconds, fps, parentLooped, yFlip, vertStride);
+      // draw: effects step in update, before this frame's draw_order exists.
+      visible = s.step(ev, parentFrame, deltaSeconds, fps, parentLooped, yFlip,
+          vertStride, true);
     } finally {
       ev.free();
     }
