@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:ssgen_flutter/sswatch.dart';
+import 'package:ssgen_flutter/ssgen_flutter.dart';
 
 void main() {
   group('--run passthrough', () {
