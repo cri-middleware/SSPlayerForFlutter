@@ -495,6 +495,8 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   /// advanced instead) — both need their effects and nested instances ticked,
   /// and neither should duplicate the rules for doing it.
   void _stepSlots(double frame, double deltaMs, bool looped) {
+    // Every caller has just moved the clock, or the frame `paint` samples.
+    _frameData = null;
     if (!_effects.isEmpty) {
       // Effects simulate themselves rather than riding the SoA, so they are
       // stepped here, where the delta is known; `paint` then draws the plans.
@@ -539,13 +541,27 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   /// Parses the FlatBuffers `FrameData` for [frameNo]. The returned view aliases
   /// the Brain's internal buffer and is only valid until the next update — read
   /// it within the current frame.
+  ///
+  /// Asked for the same frame again before the clock moves or an override
+  /// changes the pose, this returns the frame it already evaluated. Evaluating
+  /// it again costs the Brain the whole frame, and is not always the same
+  /// frame: the Brain skips an [SsOverridePriority.overwriteOnNextKeyframe]
+  /// override's own keyframe on its first evaluation only, so evaluating one
+  /// update twice can hand the override back to the animation early.
   fbs.FrameData? getFrameData(double frameNo) {
     _ensureAlive();
+    if (_frameData != null && frameNo == _frameDataNo) return _frameData;
     final bytes = ssRuntime.getFrameData(_context, frameNo);
-    if (bytes == null) return null;
+    _frameDataNo = frameNo;
     // Zero-copy typed view over the Brain buffer; FrameData reads it in place.
-    return fbs.FrameData(bytes);
+    return _frameData = bytes == null ? null : fbs.FrameData(bytes);
   }
+
+  // What [getFrameData] last evaluated, and at which frame. Null when the pose
+  // may have changed since: the clock moved ([_stepSlots]) or an override was
+  // set or cleared.
+  fbs.FrameData? _frameData;
+  double _frameDataNo = 0.0;
 
   // --- SoA buffers (zero-copy typed views, valid until next update) -------
 
@@ -668,9 +684,8 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   // [partNames] is read from the pack and so works either way, which is
   // exactly how a caller ends up with a valid index and a failing set.
   //
-  // Unlike the Unity player there is no frame cache to invalidate here: [paint]
-  // re-reads `getFrameData` every frame, so a set/clear shows up on the next
-  // paint. What a paused player DOES need is a repaint — L3
+  // Each set/clear drops the frame [getFrameData] keeps, so it shows up on the
+  // next paint. What a paused player also needs is that repaint — L3
   // `SpriteStudioPlayer` notifies its listeners for exactly that reason.
 
   /// Pack-level part names / name→index lookup. Indices are stable
@@ -694,6 +709,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
       {bool cascade = false}) {
     _ensureAlive();
     if (partIndex < 0) return false;
+    _frameData = null;
     // force: 0 = clear/revert, 1 = force-hide (2 = force-visible is reserved).
     return ssRuntime.setPartVisibilityOverride(
         _context, partIndex, hide ? 1 : 0,
@@ -709,6 +725,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   bool clearPartVisibilityOverrideByIndex(int partIndex) {
     _ensureAlive();
     if (partIndex < 0) return false;
+    _frameData = null;
     return ssRuntime.clearPartVisibilityOverride(_context, partIndex);
   }
 
@@ -729,6 +746,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
       SsOverridePriority priority = SsOverridePriority.holdUntilNextAnimation}) {
     _ensureAlive();
     if (partIndex < 0) return false;
+    _frameData = null;
     return ssRuntime.setPartColorOverride(
         _context, partIndex, blendOp.value, packRgba(color), priority.value);
   }
@@ -757,6 +775,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
       ..[1] = packRgba(corners.rightTop)
       ..[2] = packRgba(corners.leftBottom)
       ..[3] = packRgba(corners.rightBottom);
+    _frameData = null;
     return ssRuntime.setPartColorOverrideCorners(
         _context, partIndex, blendOp.value, packed, priority.value);
   }
@@ -775,6 +794,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   bool clearPartColorOverrideByIndex(int partIndex) {
     _ensureAlive();
     if (partIndex < 0) return false;
+    _frameData = null;
     return ssRuntime.clearPartColorOverride(_context, partIndex);
   }
 
@@ -796,6 +816,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
     if (partIndex < 0) return false;
     // (0, 0) is the Brain's "follow the animation" sentinel, and an empty name
     // hashes to 0 — so empty/empty reverts, exactly as documented.
+    _frameData = null;
     return ssRuntime.setPartCellOverride(
         _context,
         partIndex,
@@ -816,6 +837,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   bool clearPartCellOverrideByIndex(int partIndex) {
     _ensureAlive();
     if (partIndex < 0) return false;
+    _frameData = null;
     return ssRuntime.clearPartCellOverride(_context, partIndex);
   }
 
@@ -828,6 +850,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   /// and therefore its own override table.
   bool clearAllPartOverrides() {
     _ensureAlive();
+    _frameData = null;
     return ssRuntime.clearAllPartOverrides(_context);
   }
 
