@@ -19,6 +19,11 @@ analyzer:
     # The generated FlatBuffers code trips a few lints; keep them quiet here
     # rather than editing generated output.
     unused_import: ignore
+    # The shader bundle the pubspec lists under build/shaderbundles/ is written
+    # by hook/build.dart when the package is built, so a fresh checkout has
+    # none. Reported, it fails `flutter analyze` here and the analysis inside
+    # `dart pub publish --dry-run`, both of which run before anything builds it.
+    asset_does_not_exist: ignore
 
 linter:
   rules:
