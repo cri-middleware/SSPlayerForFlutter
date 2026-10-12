@@ -301,7 +301,7 @@ class SpriteStudioPlayer extends ChangeNotifier {
   /// Registry-key form of [setCellmapTexture] (skip the name lookup when you
   /// already hold the hash from [cellmapTextureHash] / [SsAnimeInfo]).
   bool setCellmapTextureByHash(int textureHash, ui.Image? image) =>
-      _override((i) => i.setCellmapTexture(textureHash, image));
+      _changed((i) => i.setCellmapTexture(textureHash, image));
 
   /// The override image currently set for the texture named [name] (the OVERRIDE
   /// value only, never the loaded original — mirrors ForGodot's
@@ -1095,14 +1095,17 @@ class SpriteStudioPlayer extends ChangeNotifier {
   // repaint (nothing changed), and they no-op to null / false before [load] or
   // for an unknown part. Drive them from a listener on this player so a follower
   // re-reads right after each [advance], when the world matrices are final.
+  // They report the frame the last tick built ([advance], [seek],
+  // [setAnimation]) and build none of their own, so an override shows in them
+  // from the next tick, together with the drawing.
 
-  /// The current-frame world transform of the part named [partName] as a
-  /// [Matrix4] in player-local space, or null before [load] / for an unknown
-  /// part. It is the pose as drawn: the flip, the offset and, under a view
+  /// The world transform of the part named [partName], on the frame the last
+  /// tick built, as a [Matrix4] in player-local space, or null before [load] /
+  /// for an unknown part. It is the pose as drawn: the flip, the offset and, under a view
   /// that fits, the fit ([place]) are folded in, measured from the centre of
   /// the view's box. See [SpriteStudioInternalPlayer.partWorldMatrix] for the
   /// affine contract (2D affine, Y-flip already baked in — pass straight to a
-  /// `Transform` widget) and the same-frame sampling.
+  /// `Transform` widget) and the frame it reads.
   Matrix4? partTransform(String partName) {
     final internal = _internal;
     if (internal == null) return null;
@@ -1114,9 +1117,9 @@ class SpriteStudioPlayer extends ChangeNotifier {
   Matrix4? partTransformByIndex(int partIndex) =>
       _internal?.partWorldMatrix(partIndex);
 
-  /// Whether the part named [partName] is hidden on the current frame (keyframe
-  /// hide composed with any visibility override), or false before [load] / for
-  /// an unknown part.
+  /// Whether the part named [partName] is hidden on the frame the last tick
+  /// built (keyframe hide composed with any visibility override), or false
+  /// before [load] / for an unknown part. An override shows from the next tick.
   bool isPartHidden(String partName) {
     final internal = _internal;
     if (internal == null) return false;
@@ -1252,16 +1255,43 @@ class SpriteStudioPlayer extends ChangeNotifier {
   /// Clears every per-part override on this player.
   bool clearAllPartOverrides() => _override((i) => i.clearAllPartOverrides());
 
-  /// Runs one override call against the live engine and repaints on success.
-  /// Returns false (without notifying) before [load], after [dispose], or when
-  /// the Brain rejected the call.
+  /// Runs one per-part override against the live engine. It shows from the next
+  /// tick, in the drawing and the part reads alike, so a player whose [Ticker]
+  /// is stopped gets one: see [_tickOnceIfStopped].
   bool _override(bool Function(SpriteStudioInternalPlayer) apply) {
+    if (!_changed(apply)) return false;
+    _tickOnceIfStopped();
+    return true;
+  }
+
+  /// Runs one call against the live engine and repaints on success. Returns
+  /// false (without notifying) before [load], after [dispose], or when the Brain
+  /// rejected the call.
+  bool _changed(bool Function(SpriteStudioInternalPlayer) apply) {
     final internal = _internal;
     if (internal == null || internal.isDisposed || _disposed) return false;
     if (!apply(internal)) return false;
     notifyListeners();
     return true;
   }
+
+  /// Runs one zero-length [advance] on the next frame when this player's
+  /// [Ticker] is stopped (paused, stopped or finished), so an override set
+  /// meanwhile shows without waiting for playback to resume. The tick comes
+  /// before that frame's build and paint, so a follower and the drawing see the
+  /// override together. An externally-clocked player gets its tick from the
+  /// host's next [advance].
+  void _tickOnceIfStopped() {
+    final ticker = _ticker;
+    if (ticker == null || ticker.isActive || _tickScheduled) return;
+    _tickScheduled = true;
+    SchedulerBinding.instance.scheduleFrameCallback((_) {
+      _tickScheduled = false;
+      advance(Duration.zero);
+    });
+  }
+
+  bool _tickScheduled = false;
 
   SpriteStudioInternalPlayer _requireInternal() =>
       _internal ?? (throw StateError('SpriteStudioPlayer.load() not called'));
