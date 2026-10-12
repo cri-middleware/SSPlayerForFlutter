@@ -165,6 +165,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
     // toggle would otherwise not show until something advances the clock.
     // ForGodot's `setSubFrameEnabled` re-resolves for the same reason.
     _stepSlots(frameNo, 0.0, false);
+    _buildFrame();
   }
 
   bool _subFrame = true;
@@ -355,6 +356,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
       // missing from that pose until something advances the clock. ForGodot
       // ends its `_fetchAnimation` with the same re-resolve.
       _stepSlots(frameNo, 0.0, false);
+      _buildFrame();
     }
     return ok;
   }
@@ -441,6 +443,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
     // Read the frame back rather than reusing the argument: the Brain confines a
     // seek to the animation section, and the slots must see where it landed.
     _stepSlots(frameNo, 0.0, false);
+    _buildFrame();
   }
 
   /// Restricts playback to `[startFrame, endFrame]` of the current animation.
@@ -475,6 +478,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
     // `just_looped` is per-update (cleared at the top of each update), so it is
     // the loop *edge* the slots want, not "looping is enabled".
     _stepSlots(frame, deltaMs, justLooped);
+    _buildFrame();
     return frame;
   }
 
@@ -535,9 +539,10 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   /// the Brain's internal buffer and is only valid until the next update — read
   /// it within the current frame.
   ///
-  /// Asked for the same frame again before the clock moves or an override
-  /// changes the pose, this returns the frame it already evaluated: evaluating
-  /// it again would cost the Brain the whole frame for the same result.
+  /// Asked for the same frame again before the clock moves, this returns the
+  /// frame it already evaluated: evaluating it again would cost the Brain the
+  /// whole frame for the same result. An override does not change that; it
+  /// waits for the next frame built ([_buildFrame]).
   fbs.FrameData? getFrameData(double frameNo) {
     _ensureAlive();
     if (_frameData != null && frameNo == _frameDataNo) return _frameData;
@@ -548,9 +553,20 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
     return _frameData = bytes == null ? null : fbs.FrameData(bytes);
   }
 
-  // What [getFrameData] last evaluated, and at which frame. Null when the pose
-  // may have changed since: the clock moved ([_stepSlots]) or an override was
-  // set or cleared.
+  /// Builds the frame at the playhead, sampled as [paint] samples it.
+  ///
+  /// Every call that moves this player's pose ends here — [updateMs], [seek],
+  /// [setupAnimation], the [subFrameEnabled] toggle — so [paint] draws that frame
+  /// and the part reads report it without building one of their own. An
+  /// override therefore shows from the next of them, as in every sibling. A read
+  /// that built a frame would also change what the next update builds: an
+  /// `overwriteOnNextKeyframe` override set right after [play] or [seek] goes
+  /// back to the animation if any frame is built before that update.
+  void _buildFrame() =>
+      getFrameData(subFrameEnabled ? frameNo : frameNo.floorToDouble());
+
+  // What [getFrameData] last evaluated, and at which frame. Null when the clock
+  // has moved since ([_stepSlots]) and nothing has built the new frame yet.
   fbs.FrameData? _frameData;
 
   int _debugEvaluations = 0;
@@ -683,9 +699,10 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   // [partNames] is read from the pack and so works either way, which is
   // exactly how a caller ends up with a valid index and a failing set.
   //
-  // Each set/clear drops the frame [getFrameData] keeps, so it shows up on the
-  // next paint. What a paused player also needs is that repaint — L3
-  // `SpriteStudioPlayer` notifies its listeners for exactly that reason.
+  // A set or clear shows from the next frame this player builds ([updateMs],
+  // [seek], [setupAnimation]); until then [paint] and the part reads keep the
+  // frame they have. L3 `SpriteStudioPlayer` runs a zero-length tick for a
+  // player whose Ticker is stopped, so a paused one shows it on the next frame.
 
   /// Pack-level part names / name→index lookup. Indices are stable
   /// within one `.ssab`; resolve once and reuse.
@@ -708,7 +725,6 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
       {bool cascade = false}) {
     _ensureAlive();
     if (partIndex < 0) return false;
-    _frameData = null;
     // force: 0 = clear/revert, 1 = force-hide (2 = force-visible is reserved).
     return ssRuntime.setPartVisibilityOverride(
         _context, partIndex, hide ? 1 : 0,
@@ -724,7 +740,6 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   bool clearPartVisibilityOverrideByIndex(int partIndex) {
     _ensureAlive();
     if (partIndex < 0) return false;
-    _frameData = null;
     return ssRuntime.clearPartVisibilityOverride(_context, partIndex);
   }
 
@@ -745,7 +760,6 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
       SsOverridePriority priority = SsOverridePriority.holdUntilNextAnimation}) {
     _ensureAlive();
     if (partIndex < 0) return false;
-    _frameData = null;
     return ssRuntime.setPartColorOverride(
         _context, partIndex, blendOp.value, packRgba(color), priority.value);
   }
@@ -774,7 +788,6 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
       ..[1] = packRgba(corners.rightTop)
       ..[2] = packRgba(corners.leftBottom)
       ..[3] = packRgba(corners.rightBottom);
-    _frameData = null;
     return ssRuntime.setPartColorOverrideCorners(
         _context, partIndex, blendOp.value, packed, priority.value);
   }
@@ -793,7 +806,6 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   bool clearPartColorOverrideByIndex(int partIndex) {
     _ensureAlive();
     if (partIndex < 0) return false;
-    _frameData = null;
     return ssRuntime.clearPartColorOverride(_context, partIndex);
   }
 
@@ -815,7 +827,6 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
     if (partIndex < 0) return false;
     // (0, 0) is the Brain's "follow the animation" sentinel, and an empty name
     // hashes to 0 — so empty/empty reverts, exactly as documented.
-    _frameData = null;
     return ssRuntime.setPartCellOverride(
         _context,
         partIndex,
@@ -836,7 +847,6 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   bool clearPartCellOverrideByIndex(int partIndex) {
     _ensureAlive();
     if (partIndex < 0) return false;
-    _frameData = null;
     return ssRuntime.clearPartCellOverride(_context, partIndex);
   }
 
@@ -849,7 +859,6 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   /// and therefore its own override table.
   bool clearAllPartOverrides() {
     _ensureAlive();
-    _frameData = null;
     return ssRuntime.clearAllPartOverrides(_context);
   }
 
@@ -892,16 +901,13 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   /// the *product* of this flip and any mirroring authored on the part, so the
   /// two cancel in pairs — never infer it from the flip settings.
   ///
-  /// Reads `getFrameData` for the current (sub-)frame first: the SoA world
-  /// buffer reflects whichever frame was last evaluated, and this samples the
-  /// same frame [paint] draws (fractional when [subFrameEnabled], else floored)
-  /// so the pose matches on screen. Until the clock moves, the read and [paint]
-  /// share one evaluation.
+  /// Reads the frame this player last built ([updateMs], [seek],
+  /// [setupAnimation]), which is the frame [paint] draws, and builds none of its
+  /// own: an override shows from the next frame built. Null before any frame
+  /// has been built.
   Matrix4? partWorldMatrix(int partIndex) {
     _ensureAlive();
-    if (partIndex < 0) return null;
-    final sampled = subFrameEnabled ? frameNo : frameNo.floorToDouble();
-    if (getFrameData(sampled) == null) return null;
+    if (partIndex < 0 || _frameData == null) return null;
     final w = worldMatrices();
     final m = partIndex * DrawFrame.worldStride;
     if (m + DrawFrame.worldStride > w.length) return null;
@@ -919,16 +925,17 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
     return rootTransform.compose(world);
   }
 
-  /// Whether [partIndex] is hidden on the current frame — the keyframe `hide`
-  /// composed with any visibility override, read from the same FrameData
-  /// the draw path consumes. A part absent from this frame's `parts` reads as not
-  /// hidden (its world matrix is still valid), matching ForGodot's and
-  /// ForUnity's followers. Out-of-range → false.
+  /// Whether [partIndex] is hidden on the frame this player last built — the
+  /// keyframe `hide` composed with any visibility override, read from the
+  /// FrameData [paint] draws. Like [partWorldMatrix] it builds nothing: an
+  /// override shows from the next frame built, and before any frame has been
+  /// built every part reads as not hidden. A part absent from the frame's `parts`
+  /// reads as not hidden (its world matrix is still valid), matching ForGodot's
+  /// and ForUnity's followers. Out-of-range → false.
   bool partHidden(int partIndex) {
     _ensureAlive();
     if (partIndex < 0) return false;
-    final sampled = subFrameEnabled ? frameNo : frameNo.floorToDouble();
-    final parts = getFrameData(sampled)?.parts;
+    final parts = _frameData?.parts;
     if (parts == null) return false;
     for (final p in parts) {
       if (p.partIndex == partIndex) return p.$hide;

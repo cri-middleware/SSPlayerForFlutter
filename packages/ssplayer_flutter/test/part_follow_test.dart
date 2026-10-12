@@ -84,18 +84,19 @@ void main() {
     });
   });
 
-  // A follower reads the frame after an advance and before paint draws it, so
-  // each read used to evaluate the whole frame again.
-  group('a frame is evaluated once however often it is read (real Brain)', () {
-    test('a follower read before paint costs paint nothing', () {
+  // A follower reads the frame after an advance and before paint draws it. The
+  // tick builds that frame; the reads and paint use it and build none.
+  group('a tick builds its frame once, and the reads build none (real Brain)',
+      () {
+    test('the reads and paint add no evaluation to the tick', () {
       final p = _load();
       if (p == null) return;
       addTearDown(p.dispose);
       p.play();
-      p.update(const Duration(milliseconds: 16));
       final apple = p.findPartIndex('apple');
 
       final before = p.debugEvaluations;
+      p.update(const Duration(milliseconds: 16));
       p.partWorldMatrix(apple);
       p.partHidden(apple);
       _paint(p);
@@ -103,38 +104,65 @@ void main() {
 
       p.update(const Duration(milliseconds: 16));
       p.partWorldMatrix(apple);
+      p.partHidden(apple);
       _paint(p);
       expect(p.debugEvaluations, before + 2);
     });
 
-    test('an override shows on the next read of the same frame', () {
+    test('an override shows from the next update, however often it is read',
+        () {
       final p = _load();
       if (p == null) return;
       addTearDown(p.dispose);
       p.update(const Duration(milliseconds: 16));
       final apple = p.findPartIndex('apple');
-      int partColorOf() {
-        final sampled =
-            p.subFrameEnabled ? p.frameNo : p.frameNo.floorToDouble();
-        return p
-            .getFrameData(sampled)!
-            .parts!
-            .firstWhere((s) => s.partIndex == apple)
-            .partColor;
+
+      expect(p.setPartVisibilityOverrideByIndex(apple, true), isTrue);
+      final evaluations = p.debugEvaluations;
+      for (var i = 0; i < 3; i++) {
+        expect(p.partHidden(apple), isFalse,
+            reason: 'read ${i + 1} before the update');
+      }
+      expect(p.debugEvaluations, evaluations, reason: 'a read builds nothing');
+      p.update(Duration.zero);
+      expect(p.partHidden(apple), isTrue);
+
+      expect(p.clearPartVisibilityOverrideByIndex(apple), isTrue);
+      expect(p.partHidden(apple), isTrue);
+      p.update(Duration.zero);
+      expect(p.partHidden(apple), isFalse);
+    });
+
+    test('a read before the first update keeps an override set after play', () {
+      // Apple's cell is keyed at frame 0, and the first update after play
+      // passes frame 0. An overwrite-on-next-keyframe override set there holds
+      // only if that update is the first to evaluate it, so a read that built
+      // a frame before the update would hand it back to the animation.
+      if (_ringo() == null) return;
+      Float32List firstFrameUvs({required bool read, bool override = true}) {
+        final p = _load()!;
+        addTearDown(p.dispose);
+        final apple = p.findPartIndex('apple');
+        p.play();
+        if (override) {
+          expect(
+              p.setPartCellOverrideByIndex(apple, 'Ringo', 'effect3',
+                  priority: SsOverridePriority.overwriteOnNextKeyframe),
+              isTrue);
+        }
+        if (read) {
+          p.partHidden(apple);
+          p.partWorldMatrix(apple);
+        }
+        p.update(const Duration(milliseconds: 16));
+        return Float32List.fromList(
+            p.localUvs().sublist(apple * 10, apple * 10 + 10));
       }
 
-      expect(p.partHidden(apple), isFalse);
-      expect(p.setPartVisibilityOverrideByIndex(apple, true), isTrue);
-      expect(p.partHidden(apple), isTrue);
-      expect(p.clearPartVisibilityOverrideByIndex(apple), isTrue);
-      expect(p.partHidden(apple), isFalse);
-
-      expect(partColorOf(), lessThan(0));
-      expect(
-          p.setPartColorOverrideByIndex(apple, const Color(0xFFFF0000)), isTrue);
-      expect(partColorOf(), greaterThanOrEqualTo(0));
-      expect(p.clearAllPartOverrides(), isTrue);
-      expect(partColorOf(), lessThan(0));
+      final unread = firstFrameUvs(read: false);
+      expect(firstFrameUvs(read: false, override: false), isNot(equals(unread)),
+          reason: 'the override must actually take, or the test proves nothing');
+      expect(firstFrameUvs(read: true), unread);
     });
 
     test('a follower and the paint see one overwrite-on-next-keyframe override',
@@ -247,6 +275,25 @@ void main() {
       expect(player.isPartSkinnedMesh('no-such-part'), isFalse);
       expect(player.isPartSkinnedMeshByIndex(-1), isFalse);
       expect(player.isPartSkinnedMeshByIndex(1 << 20), isFalse);
+    });
+  });
+
+  group('an override on a player whose Ticker is stopped (L3)', () {
+    testWidgets('shows on the next frame, in the reads', (tester) async {
+      final bytes = _ringo();
+      if (bytes == null) return;
+      final player = SpriteStudioPlayer(vsync: tester);
+      addTearDown(player.dispose);
+      await player.load(bytes,
+          animationName: _animations().first, loadTextures: false);
+
+      expect(player.setPartVisibilityOverride('apple', true), isTrue);
+      expect(player.isPartHidden('apple'), isFalse,
+          reason: 'it shows from the next tick, not at the call');
+      await tester.pump();
+      expect(player.isPartHidden('apple'), isTrue,
+          reason: 'a stopped Ticker gets one zero-length tick for it');
+      expect(player.isPlaying, isFalse, reason: 'the tick does not play');
     });
   });
 

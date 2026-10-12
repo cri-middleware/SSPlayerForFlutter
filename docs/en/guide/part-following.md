@@ -139,9 +139,9 @@ if (pose != null && !_player.isPartHiddenByIndex(partIndex)) {
 |---|---|
 | `findPartIndex(name)` | Part index, or `-1` if the pack has no such part |
 | `partNames` | Part-name list and name↔index lookup (`PartNameTable`) |
-| `partTransform(name)` | The part's transform for the current frame as a `Matrix4?` (player-local). Null before `load()` or for an unknown part |
+| `partTransform(name)` | The part's transform on the frame the last tick built, as a `Matrix4?` (player-local). Null before `load()` or for an unknown part |
 | `partTransformByIndex(index)` | Index form of `partTransform` (skips the name lookup) |
-| `isPartHidden(name)` | Whether the part is hidden on the current frame. `false` before `load()` or for an unknown part |
+| `isPartHidden(name)` | Whether the part is hidden on the frame the last tick built. `false` before `load()` or for an unknown part |
 | `isPartHiddenByIndex(index)` | Index form of `isPartHidden` |
 | `isPartSkinnedMesh(name)` | Whether the part is a bone-bound (skinned) mesh — a **poor follow target** (see the warning above). `false` before `load()`, for an unknown part, and for a rigid mesh |
 | `isPartSkinnedMeshByIndex(index)` | Index form of `isPartSkinnedMesh` |
@@ -195,10 +195,11 @@ matrix you are actually holding, with `determinant()`.
 
 ## Timing and accuracy
 
-The reads sample **the same frame the paint path draws** — fractional when sub-frame sampling is
-on, floored otherwise — so the pose always matches the image on screen within one frame. No manual
-ordering against the draw is needed, and a read adds nothing to the paint: the two share one
-evaluation of the frame.
+The reads report **the frame the last tick built**, which is the frame the paint path draws —
+fractional when sub-frame sampling is on, floored otherwise — so the pose always matches the image
+on screen. No manual ordering against the draw is needed, and a read builds no frame of its own, so
+it adds nothing to the paint. An override shows in the reads from the next tick, together with the
+drawing: a paused `SpriteStudioPlayer` runs one zero-length tick on the next frame for it.
 
 Unlike the part overrides, these are **pure reads and notify no listeners** (nothing changed). Drive
 them from a listener on the player so you re-read right after each advance, when the frame's

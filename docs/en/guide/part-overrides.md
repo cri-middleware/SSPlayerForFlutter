@@ -59,9 +59,11 @@ Each method takes a **part name**; the `ByIndex`-suffixed form takes a **part in
     Reach for that one when driving the player headless or from your own drawing adapter (see
     [Architecture](../contributing/architecture.md) for the layering).
 
-    The only difference is **repaint notification**: `SpriteStudioPlayer` notifies its listeners when
-    a set or clear succeeds, while `SpriteStudioInternalPlayer` does not, so repainting is the
-    caller's responsibility there.
+    The differences are **when the change shows and who repaints**. An override shows from the
+    player's next tick. `SpriteStudioPlayer` notifies its listeners when a set or clear succeeds, and
+    a paused one runs one zero-length tick on the next frame. `SpriteStudioInternalPlayer` does
+    neither: there the override shows from the next `update`, `seek` or `setupAnimation` you make,
+    and repainting is your responsibility.
 
 The cellmap / cell names a cell override accepts can be enumerated from the player:
 
@@ -125,9 +127,9 @@ _player.setPartColorOverride(partName, Colors.red, blendOp: SsBlendOp.mul);
 
 !!! note "Takes effect even while paused"
     An override changes what is drawn without changing the frame number, so in other player
-    implementations setting one while stopped may not update the screen. `SpriteStudioPlayer`
-    notifies its listeners whenever a set or clear succeeds, so a paused player repaints immediately.
-    No extra step is needed.
+    implementations setting one while stopped may not update the screen. An override shows from the
+    next tick, and a paused `SpriteStudioPlayer` runs one zero-length tick on the next frame for it,
+    so the drawing and the part reads change together. No extra step is needed.
 
 ## Using it from Flame
 
