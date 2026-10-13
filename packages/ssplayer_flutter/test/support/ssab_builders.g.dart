@@ -3424,8 +3424,8 @@ class InitialPartAttributesBuilder {
     fbBuilder.addFloat32(13, localAlpha);
     return fbBuilder.offset;
   }
-  int addPriority(double? priority) {
-    fbBuilder.addFloat32(14, priority);
+  int addPriority(int? priority) {
+    fbBuilder.addInt32(14, priority);
     return fbBuilder.offset;
   }
   int addFlipH(bool? flipH) {
@@ -3549,7 +3549,7 @@ class InitialPartAttributesObjectBuilder extends fb.ObjectBuilder {
   final double? _localScaleY;
   final double? _alpha;
   final double? _localAlpha;
-  final double? _priority;
+  final int? _priority;
   final bool? _flipH;
   final bool? _flipV;
   final bool? _$hide;
@@ -3591,7 +3591,7 @@ class InitialPartAttributesObjectBuilder extends fb.ObjectBuilder {
     double? localScaleY,
     double? alpha,
     double? localAlpha,
-    double? priority,
+    int? priority,
     bool? flipH,
     bool? flipV,
     bool? $hide,
@@ -3682,7 +3682,7 @@ class InitialPartAttributesObjectBuilder extends fb.ObjectBuilder {
     fbBuilder.addFloat32(11, _localScaleY);
     fbBuilder.addFloat32(12, _alpha);
     fbBuilder.addFloat32(13, _localAlpha);
-    fbBuilder.addFloat32(14, _priority);
+    fbBuilder.addInt32(14, _priority);
     fbBuilder.addBool(15, _flipH);
     fbBuilder.addBool(16, _flipV);
     fbBuilder.addBool(17, _$hide);

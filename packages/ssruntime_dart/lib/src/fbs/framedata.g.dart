@@ -479,7 +479,7 @@ class PartState {
   double get localScaleY => const fb.Float32Reader().read(_bc, _bcOffset + 44);
   double get alpha => const fb.Float32Reader().read(_bc, _bcOffset + 48);
   double get localAlpha => const fb.Float32Reader().read(_bc, _bcOffset + 52);
-  double get priority => const fb.Float32Reader().read(_bc, _bcOffset + 56);
+  int get priority => const fb.Int32Reader().read(_bc, _bcOffset + 56);
   double get pivotX => const fb.Float32Reader().read(_bc, _bcOffset + 60);
   double get pivotY => const fb.Float32Reader().read(_bc, _bcOffset + 64);
   double get anchorX => const fb.Float32Reader().read(_bc, _bcOffset + 68);
