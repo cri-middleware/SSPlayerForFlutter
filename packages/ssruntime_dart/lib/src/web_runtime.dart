@@ -148,6 +148,8 @@ extension type _JsCtx(JSObject _) implements JSObject {
   external void stop();
   external bool is_playing();
   external bool is_pausing();
+  external bool is_clock_playing();
+  external bool is_clock_pausing();
   external bool is_finished();
   external bool just_looped();
   external bool is_playing_forward();
@@ -440,6 +442,12 @@ class _WebRuntime implements SsRuntime {
 
   @override
   bool isPausing(SsContext context) => _ctx(context).is_pausing();
+
+  @override
+  bool isClockPlaying(SsContext context) => _ctx(context).is_clock_playing();
+
+  @override
+  bool isClockPausing(SsContext context) => _ctx(context).is_clock_pausing();
 
   @override
   bool isFinished(SsContext context) => _ctx(context).is_finished();

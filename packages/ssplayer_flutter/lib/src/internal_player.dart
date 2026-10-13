@@ -407,6 +407,16 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   /// can be read on its own.
   bool get isPausing => ssRuntime.isPausing(_context);
 
+  /// The character's clock, which every track and every fade runs on: started
+  /// by [play], stopped by [stop] and by a successful [setupAnimation]. Not
+  /// [isPlaying], which is track 0's — track 0 running out leaves it running
+  /// for the overlays and fades.
+  bool get isClockPlaying => ssRuntime.isClockPlaying(_context);
+
+  /// Whether a [pause] holds the clock, track 0 finished or not. Implies
+  /// [isClockPlaying].
+  bool get isClockPausing => ssRuntime.isClockPausing(_context);
+
   /// Every configured loop has played. Sticky until the next play/setup, so
   /// callers wanting a one-shot notification must take the rising edge.
   bool get isFinished => ssRuntime.isFinished(_context);

@@ -107,6 +107,16 @@ abstract interface class SsRuntime {
 
   bool isPlaying(SsContext context);
   bool isPausing(SsContext context);
+
+  /// The character's clock, which every track and every fade runs on: `true`
+  /// from [play] until [stop] or the next successful [setupAnimation]. Unlike
+  /// [isPlaying], which is track 0's, it stays `true` after track 0 finishes,
+  /// while an overlay or a fade still has somewhere to go.
+  bool isClockPlaying(SsContext context);
+
+  /// Whether a [pause] holds the clock, track 0 finished or not. Implies
+  /// [isClockPlaying].
+  bool isClockPausing(SsContext context);
   bool isFinished(SsContext context);
   bool justLooped(SsContext context);
 

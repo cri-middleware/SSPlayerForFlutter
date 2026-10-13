@@ -1076,6 +1076,18 @@ external void ss_runtime_get_world_matrices(
 @ffi.Native<ffi.Uint32 Function(ffi.Pointer<ffi.Char>)>()
 external int ss_runtime_hash_string(ffi.Pointer<ffi.Char> s);
 
+/// `true` while `ss_runtime_pause` holds a playing clock, after track 0 has
+/// finished as well. Implies `ss_runtime_is_clock_playing`.
+@ffi.Native<ffi.Bool Function(ffi.Pointer<ffi.Void>)>()
+external bool ss_runtime_is_clock_pausing(ffi.Pointer<ffi.Void> context);
+
+/// `true` from `ss_runtime_play` until `ss_runtime_stop` or the next setup:
+/// the character's clock, which stays `true` after track 0 finishes while
+/// the other tracks and the fades run on. `ss_runtime_is_playing` reads
+/// track 0's state instead.
+@ffi.Native<ffi.Bool Function(ffi.Pointer<ffi.Void>)>()
+external bool ss_runtime_is_clock_playing(ffi.Pointer<ffi.Void> context);
+
 /// Returns `true` once the configured loops have completed, staying `true`
 /// until the next `ss_runtime_play` / `ss_runtime_setup_animation`. Always
 /// `false` under an infinite loop count, and never raised by
