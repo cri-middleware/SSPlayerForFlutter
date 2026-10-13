@@ -684,6 +684,16 @@ if [ "$VERIFY" = "yes" ] && [ -n "$ARCHIVES" ]; then
       has "hook/build.dart" || fail "$archive has no hook/build.dart -- it would deliver no native asset"
     fi
 
+    # The documentation. packages/<name>/doc is a symlink to docs/en in git, and
+    # pub packs what it points at. A checkout without symlinks (Windows, unless
+    # they are enabled) has a one-line text file there instead, which packs as
+    # exactly that.
+    if git -C "$ROOT_DIR" ls-files -s -- "packages/$name/doc" | grep -q '^120000'; then
+      has "doc/index.md" || fail "$archive has no doc/index.md -- packages/$name/doc is a symlink to docs/en,
+      and this checkout has it as a plain file. Enable symlinks (git config core.symlinks
+      true; on Windows, Developer Mode as well), check the file out again, and rerun."
+    fi
+
     # packages/*/native is git-ignored build output. If one leaks into an
     # archive, every consumer gets one host's dylib instead of their own.
     if has_any "native/"; then

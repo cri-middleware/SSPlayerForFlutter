@@ -17,6 +17,10 @@ transitively via `ssplayer_flutter`, delivered by **native assets** — no
 directly was avoided on purpose: the core Widget/headless player never pays for
 Flame; an app opts in by depending on `ssplayer_flame`.
 
+The [documentation](https://cri-middleware.github.io/SSPlayerForFlutter/) covers both packages. The
+same pages for this version are in this package's `doc/` as Markdown, readable offline: start at
+`doc/index.md`, and the Flame page is `doc/guide/flame.md`.
+
 ## Install
 
 Take it as a git dependency on a release tag, `ssplayer_flame-v<version>` on

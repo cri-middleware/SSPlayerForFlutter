@@ -110,7 +110,8 @@ class _MyState extends State<MyWidget> with SingleTickerProviderStateMixin {
 
 ## More
 
-* [Documentation](https://cri-middleware.github.io/SSPlayerForFlutter/)
+* [Documentation](https://cri-middleware.github.io/SSPlayerForFlutter/) — and the same pages for
+  this version, as Markdown, in this package's `doc/` (start at `doc/index.md`), readable offline
 * [Live Web demo](https://cri-middleware.github.io/SSPlayerForFlutter/demo/flutter/) — this API running in a browser
 * [What is and is not supported](https://cri-middleware.github.io/SSPlayerForFlutter/limitations/)
 * [Repository](https://github.com/cri-middleware/SSPlayerForFlutter) · example app under [`examples/overall`](../../examples/overall)
