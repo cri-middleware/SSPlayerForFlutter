@@ -458,7 +458,7 @@ class PartStateBuilder {
 
   final fb.Builder fbBuilder;
 
-  int finish(UpdateAttributeFlags updateFlag, double positionX, double positionY, double positionZ, double rotationX, double rotationY, double rotationZ, double scaleX, double scaleY, double localScaleX, double localScaleY, double alpha, double localAlpha, double priority, double pivotX, double pivotY, double anchorX, double anchorY, double sizeX, double sizeY, double uvTranslationX, double uvTranslationY, double uvRotationZ, double uvScaleX, double uvScaleY, double boundingRadius, double mask, double skewX, double skewY, int texture, int partIndex, int cell, int partColor, int shader, int vertex, int deform, bool flipH, bool flipV, bool $hide, bool imgFlipH, bool imgFlipV) {
+  int finish(UpdateAttributeFlags updateFlag, double positionX, double positionY, double positionZ, double rotationX, double rotationY, double rotationZ, double scaleX, double scaleY, double localScaleX, double localScaleY, double alpha, double localAlpha, int priority, double pivotX, double pivotY, double anchorX, double anchorY, double sizeX, double sizeY, double uvTranslationX, double uvTranslationY, double uvRotationZ, double uvScaleX, double uvScaleY, double boundingRadius, double mask, double skewX, double skewY, int texture, int partIndex, int cell, int partColor, int shader, int vertex, int deform, bool flipH, bool flipV, bool $hide, bool imgFlipH, bool imgFlipV) {
     fbBuilder.pad(3);
     fbBuilder.putBool(imgFlipV);
     fbBuilder.putBool(imgFlipH);
@@ -487,7 +487,7 @@ class PartStateBuilder {
     fbBuilder.putFloat32(anchorX);
     fbBuilder.putFloat32(pivotY);
     fbBuilder.putFloat32(pivotX);
-    fbBuilder.putFloat32(priority);
+    fbBuilder.putInt32(priority);
     fbBuilder.putFloat32(localAlpha);
     fbBuilder.putFloat32(alpha);
     fbBuilder.putFloat32(localScaleY);
@@ -520,7 +520,7 @@ class PartStateObjectBuilder extends fb.ObjectBuilder {
   final double _localScaleY;
   final double _alpha;
   final double _localAlpha;
-  final double _priority;
+  final int _priority;
   final double _pivotX;
   final double _pivotY;
   final double _anchorX;
@@ -563,7 +563,7 @@ class PartStateObjectBuilder extends fb.ObjectBuilder {
     required double localScaleY,
     required double alpha,
     required double localAlpha,
-    required double priority,
+    required int priority,
     required double pivotX,
     required double pivotY,
     required double anchorX,
@@ -665,7 +665,7 @@ class PartStateObjectBuilder extends fb.ObjectBuilder {
     fbBuilder.putFloat32(_anchorX);
     fbBuilder.putFloat32(_pivotY);
     fbBuilder.putFloat32(_pivotX);
-    fbBuilder.putFloat32(_priority);
+    fbBuilder.putInt32(_priority);
     fbBuilder.putFloat32(_localAlpha);
     fbBuilder.putFloat32(_alpha);
     fbBuilder.putFloat32(_localScaleY);

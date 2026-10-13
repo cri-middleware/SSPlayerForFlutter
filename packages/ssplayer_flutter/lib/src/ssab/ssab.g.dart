@@ -2349,7 +2349,7 @@ class InitialPartAttributes {
   double get localScaleY => const fb.Float32Reader().vTableGet(_bc, _bcOffset, 26, 1.0);
   double get alpha => const fb.Float32Reader().vTableGet(_bc, _bcOffset, 28, 1.0);
   double get localAlpha => const fb.Float32Reader().vTableGet(_bc, _bcOffset, 30, 1.0);
-  double get priority => const fb.Float32Reader().vTableGet(_bc, _bcOffset, 32, 0.0);
+  int get priority => const fb.Int32Reader().vTableGet(_bc, _bcOffset, 32, 0);
   bool get flipH => const fb.BoolReader().vTableGet(_bc, _bcOffset, 34, false);
   bool get flipV => const fb.BoolReader().vTableGet(_bc, _bcOffset, 36, false);
   bool get $hide => const fb.BoolReader().vTableGet(_bc, _bcOffset, 38, false);
