@@ -269,6 +269,44 @@ void main() {
     expect(player.frameNo, running);
   });
 
+  testWidgets('with a transition a switch crossfades, and the prop goes back',
+      (tester) async {
+    if (assetDir == null) {
+      markTestSkipped('overall assets missing');
+      return;
+    }
+    SpriteStudioPlayer? seen;
+    final bundle = _DirBundle(assetDir);
+    Widget build(String? animation) => wrap(SpriteStudioAnimation.asset(
+          'assets/x/PartsColor.ssab',
+          animation: animation,
+          transition: const Duration(milliseconds: 300),
+          bundle: bundle,
+          onPlayerCreated: (p) => seen = p,
+        ));
+    await tester.pumpWidget(build(null));
+    await pumpUntil(tester, () => _drawing);
+    final player = seen!;
+    final names = player.animationNames;
+    expect(names, hasLength(greaterThanOrEqualTo(2)));
+    // The first selection is always a switch: there is nothing to fade from.
+    expect(player.trackFadeProgress(0), isNull);
+    await pumpFrames(tester, 5);
+
+    await tester.pumpWidget(build(names[1]));
+    expect(player.currentAnimation, names[1]);
+    expect(player.trackFadeProgress(0), isNotNull, reason: 'it crossfades');
+    expect(player.isPlaying, isTrue);
+
+    // Back by the prop, mid-fade. Had the crossfade left the old name
+    // recorded, this would read as no change and stay.
+    await tester.pumpWidget(build(names[0]));
+    expect(player.currentAnimation, names[0]);
+    await pumpFrames(tester, 30);
+    expect(player.trackFadeProgress(0), isNull);
+    expect(player.isPlaying, isTrue);
+  });
+
   testWidgets('a one-shot switch plays out and hands back, props alone',
       (tester) async {
     if (assetDir == null) {

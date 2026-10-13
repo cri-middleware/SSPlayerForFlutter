@@ -32,6 +32,7 @@ nav:
   - 🎬 Workflow:
       - Quick Start: guide/quickstart.md
       - Playback & Events: guide/playback.md
+      - Motion Blending: guide/motion-blending.md
       - Part Following: guide/part-following.md
       - Part Overrides: guide/part-overrides.md
       - Texture Replacement: guide/textures.md

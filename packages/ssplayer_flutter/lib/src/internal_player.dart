@@ -666,14 +666,230 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
 
   // --- Events (polling) ----------------------------------------------------
 
-  /// Indices, into the ssab `events()` table, that were passed on the last
+  /// Indices, into an ssab `events()` table, that were passed on the last
   /// update. The caller resolves user data / signals / audio from the ssab.
+  ///
+  /// Each index addresses the table of **the animation of the source that
+  /// fired it** — [passedEventSourceHandles] at the same position, resolved by
+  /// [sourceAnimationIndex]. Until a crossfade on track 0 that is the animation
+  /// [setupAnimation] chose; from the crossfade on it is the incoming one, and
+  /// an outgoing side or another track may fire too.
   List<int> passedEventIndices() {
     _ensureAlive();
     final count = ssRuntime.passedEventCount(_context);
     if (count <= 0) return const [];
     return List<int>.generate(
         count, (i) => ssRuntime.passedEventIndex(_context, i));
+  }
+
+  /// The source that fired each of [passedEventIndices], in the same order;
+  /// `-1` where the Brain names none.
+  List<int> passedEventSourceHandles() {
+    _ensureAlive();
+    final count = ssRuntime.passedEventCount(_context);
+    if (count <= 0) return const [];
+    return List<int>.generate(count,
+        (i) => ssRuntime.passedEventSourceHandle(_context, i) ?? -1);
+  }
+
+  // --- Animation mixing (the track stack) ----------------------------------
+  //
+  // Pass-throughs to the Brain's tracks and sources on this player's context.
+  // Tracks fold onto the setup pose in ascending order: a track's alpha is its
+  // strength, and a source's weight only sets proportions among the
+  // animations sharing one track. [setupAnimation] folds the stack back to
+  // track 0 alone.
+  //
+  // Like an override, a change here shows from the next frame this player
+  // builds; L3 ticks a stopped player once so it does. Instance children are
+  // not layered: they run their own contexts, driven by their slots from this
+  // player's frame.
+  //
+  // A read of a track or source that does not exist is null. A setter returns
+  // false when the Brain refused it, and [lastErrorMessage] says why.
+
+  bool setTrackAnimation(int track, String name) {
+    _ensureAlive();
+    return ssRuntime.setTrackAnimation(_context, track, name);
+  }
+
+  int get trackCount => ssRuntime.trackCount(_context);
+
+  bool clearTrack(int track) {
+    _ensureAlive();
+    return ssRuntime.clearTrack(_context, track);
+  }
+
+  bool setTrackAlpha(int track, double alpha) {
+    _ensureAlive();
+    return ssRuntime.setTrackAlpha(_context, track, alpha);
+  }
+
+  double? trackAlpha(int track) => ssRuntime.trackAlpha(_context, track);
+
+  bool setTrackBlend(int track, SsTrackBlend blend) {
+    _ensureAlive();
+    return ssRuntime.setTrackBlend(_context, track, blend.value);
+  }
+
+  SsTrackBlend? trackBlend(int track) {
+    final blend = ssRuntime.trackBlend(_context, track);
+    return blend == null ? null : SsTrackBlend.fromValue(blend);
+  }
+
+  bool setTrackSync(int track, SsTrackSync sync) {
+    _ensureAlive();
+    return ssRuntime.setTrackSync(_context, track, sync.value);
+  }
+
+  SsTrackSync? trackSync(int track) {
+    final sync = ssRuntime.trackSync(_context, track);
+    return sync == null ? null : SsTrackSync.fromValue(sync);
+  }
+
+  bool crossfade(int track, String name, Duration duration) {
+    _ensureAlive();
+    return ssRuntime.crossfade(
+        _context, track, name, duration.inMicroseconds / 1000.0);
+  }
+
+  bool fadeTrack(int track, double targetAlpha, Duration duration) {
+    _ensureAlive();
+    return ssRuntime.fadeTrack(
+        _context, track, targetAlpha, duration.inMicroseconds / 1000.0);
+  }
+
+  double? trackFadeProgress(int track) =>
+      ssRuntime.trackFadeProgress(_context, track);
+
+  bool cancelTrackFade(int track) {
+    _ensureAlive();
+    return ssRuntime.cancelTrackFade(_context, track);
+  }
+
+  bool setTrackFrame(int track, double frame) {
+    _ensureAlive();
+    return ssRuntime.setTrackFrame(_context, track, frame);
+  }
+
+  double? trackFrame(int track) => ssRuntime.trackFrame(_context, track);
+
+  bool setTrackSpeed(int track, double speed) {
+    _ensureAlive();
+    return ssRuntime.setTrackSpeed(_context, track, speed);
+  }
+
+  double? trackSpeed(int track) => ssRuntime.trackSpeed(_context, track);
+
+  bool setTrackFrameRate(int track, int fps) {
+    _ensureAlive();
+    return ssRuntime.setTrackFrameRate(_context, track, fps);
+  }
+
+  int? trackFrameRate(int track) => ssRuntime.trackFrameRate(_context, track);
+
+  bool setTrackFrameSkipEnabled(int track, bool skip) {
+    _ensureAlive();
+    return ssRuntime.setTrackSkipFrames(_context, track, skip);
+  }
+
+  bool? trackFrameSkipEnabled(int track) =>
+      ssRuntime.trackSkipFrames(_context, track);
+
+  bool setTrackPlaybackDirection(
+      int track, SsPlaybackDirection direction, SsPlaybackStyle style) {
+    _ensureAlive();
+    return ssRuntime.setTrackPlaybackDirection(
+        _context, track, direction.value, style.value);
+  }
+
+  SsPlaybackDirection? trackPlaybackDirection(int track) {
+    final direction = ssRuntime.trackPlaybackDirection(_context, track);
+    return direction == null ? null : SsPlaybackDirection.fromValue(direction);
+  }
+
+  SsPlaybackStyle? trackPlaybackStyle(int track) {
+    final style = ssRuntime.trackPlaybackStyle(_context, track);
+    return style == null ? null : SsPlaybackStyle.fromValue(style);
+  }
+
+  bool setTrackLoopCount(int track, int count) {
+    _ensureAlive();
+    return ssRuntime.setTrackLoopCount(_context, track, count);
+  }
+
+  int? trackLoopCount(int track) => ssRuntime.trackLoopCount(_context, track);
+
+  bool isTrackFinished(int track) => ssRuntime.isTrackFinished(_context, track);
+
+  /// A pulse, like [justLooped]: the Brain clears it on entry to every update,
+  /// so it describes the last one.
+  bool trackJustLooped(int track) => ssRuntime.trackJustLooped(_context, track);
+
+  bool setTrackOutgoingEventThreshold(int track, double threshold) {
+    _ensureAlive();
+    return ssRuntime.setTrackOutgoingEventThreshold(_context, track, threshold);
+  }
+
+  double? trackOutgoingEventThreshold(int track) =>
+      ssRuntime.trackOutgoingEventThreshold(_context, track);
+
+  int? trackMainSource(int track) => ssRuntime.trackMainSource(_context, track);
+
+  int? addTrackSource(int track, String name, double weight) {
+    _ensureAlive();
+    return ssRuntime.addTrackSource(_context, track, name, weight);
+  }
+
+  bool setSourceWeight(int source, double weight) {
+    _ensureAlive();
+    return ssRuntime.setSourceWeight(_context, source, weight);
+  }
+
+  double? sourceWeight(int source) => ssRuntime.sourceWeight(_context, source);
+
+  bool setSourceFrame(int source, double frame) {
+    _ensureAlive();
+    return ssRuntime.setSourceFrame(_context, source, frame);
+  }
+
+  double? sourceFrame(int source) => ssRuntime.sourceFrame(_context, source);
+
+  bool setSourceEventThreshold(int source, double threshold) {
+    _ensureAlive();
+    return ssRuntime.setSourceEventThreshold(_context, source, threshold);
+  }
+
+  double? sourceEventThreshold(int source) =>
+      ssRuntime.sourceEventThreshold(_context, source);
+
+  /// Index into the pack's animations of what [source] plays — the table its
+  /// passed events address.
+  int? sourceAnimationIndex(int source) =>
+      ssRuntime.sourceAnimationIndex(_context, source);
+
+  /// Index into the pack's animations of what track 0's main source plays:
+  /// the animation [setupAnimation] chose, or what a crossfade or track
+  /// animation on track 0 handed over to.
+  int? get currentAnimationIndex => ssRuntime.currentAnimationIndex(_context);
+
+  /// Whether anything beyond track 0's own animation still moves the pose: a
+  /// fade in flight, or an overlay that has not played its loops out.
+  ///
+  /// The Brain keeps its clock running after track 0 finishes, and these keep
+  /// moving on it, so a host that stops ticking on track 0's finish asks this
+  /// first.
+  bool get hasMovingTracks {
+    final count = trackCount;
+    for (var track = 0; track < count; track++) {
+      if (trackFadeProgress(track) != null) return true;
+      if (track > 0 &&
+          trackMainSource(track) != null &&
+          !isTrackFinished(track)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   // --- Part overrides (Override Layer) -------------------------------------

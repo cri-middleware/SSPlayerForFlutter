@@ -34,8 +34,10 @@ typedef SsEventCallback = void Function(List<int> passedEventIndices);
 /// `update(dt)`, or a headless test). Everything else — [load], transport,
 /// events — is identical in both modes.
 ///
-/// Cross-fade / blend transitions between animations are not currently
-/// supported: [setAnimation] switches instantly.
+/// **Motion blending.** [setAnimation] switches instantly; [crossfade] fades
+/// from one animation to another, and the track calls ([setTrackAnimation],
+/// [addTrackSource] and the rest) lay animations over each other — an aim
+/// over a walk, a run blended into a walk by speed.
 class SpriteStudioPlayer extends ChangeNotifier {
   SpriteStudioPlayer({
     TickerProvider? vsync,
@@ -64,6 +66,19 @@ class SpriteStudioPlayer extends ChangeNotifier {
   bool _disposed = false;
   bool _prevFinished = false;
   bool _subFrame = true;
+
+  /// The Brain's clock for the whole character, mirrored: started by [play],
+  /// stopped by [stop] and by a new setup, held by [pause] and released by
+  /// [resume]. The clock runs while started and not held.
+  ///
+  /// It is not [isPlaying], which is track 0's. Track 0 running out does not
+  /// stop the clock — overlays and fades carry on — so the [Ticker] that
+  /// stops on track 0's finish starts again when a track call gives the clock
+  /// something to move, and [resume] restarts it after such a finish.
+  bool _clockStarted = false;
+  bool _clockHeld = false;
+
+  bool get _clockRunning => _clockStarted && !_clockHeld;
 
   // Transport state cached on the Player (not just the internal) so it survives
   // a resource swap in [reload] and can be set before the first [load].
@@ -198,10 +213,21 @@ class SpriteStudioPlayer extends ChangeNotifier {
   /// Invoked (on the UI isolate) with the raw event indices passed each frame.
   /// Low-level escape hatch; most callers want the decoded [onUserData] /
   /// [onSignal] / [onAudio] callbacks below instead.
+  ///
+  /// Each index addresses the `events()` of the animation of the source that
+  /// fired it ([SpriteStudioInternalPlayer.passedEventSourceHandles]), which
+  /// the decoded callbacks look up for you. Read raw, they are only safe
+  /// against [currentAnimation] while nothing but track 0's own animation can
+  /// fire.
   SsEventCallback? onEvents;
 
   /// Fired (on the UI isolate) for each **UserData** marker crossed this frame,
-  /// decoded from the pack for [currentAnimation].
+  /// decoded from the pack for the animation that fired it.
+  ///
+  /// By default only track 0's animation fires — the incoming one from the
+  /// moment a [crossfade] begins. Others join when asked: an overlay through
+  /// [setSourceEventThreshold], the outgoing side of a crossfade through
+  /// [setTrackOutgoingEventThreshold]. Each event carries its source.
   SsUserDataCallback? onUserData;
 
   /// Fired for each active **Signal** crossed this frame. Inactive
@@ -322,9 +348,11 @@ class SpriteStudioPlayer extends ChangeNotifier {
   String? soundFilePath(int soundNameHash) =>
       _animeInfo?.soundFilePath(soundNameHash);
 
-  /// The animation currently selected via [load] or [setAnimation] (null
-  /// before any is chosen). [reload] uses it to restore selection across a
-  /// resource swap.
+  /// The animation track 0 plays (null before any is chosen): the one [load]
+  /// or [setAnimation] selected, or the one a [crossfade] or
+  /// [setTrackAnimation] on track 0 handed over to — **from the call on**, not
+  /// when the fade completes. [canvasSize] follows it, and [reload] uses it to
+  /// restore selection across a resource swap.
   String? get currentAnimation => _currentAnimation;
 
   /// The authored design-canvas size (SpriteStudio `<canvasSize>`) of the
@@ -439,6 +467,7 @@ class SpriteStudioPlayer extends ChangeNotifier {
     // gap. Callers resume playback explicitly via `play`/`resume` (the ticker
     // then restarts with a fresh `_lastElapsed`, so no delta jump).
     if (_ticker?.isActive ?? false) _ticker!.stop();
+    _clockStarted = _clockHeld = false;
     _internal?.dispose();
     _internal = null;
     _lastTextureReport = null;
@@ -456,6 +485,7 @@ class SpriteStudioPlayer extends ChangeNotifier {
       }
     }
     _reportedMissingAnimation = null;
+    _reportedRefusals.clear();
     _animeInfo = SsAnimeInfo(ssab);
     _canvasRect = null;
 
@@ -645,6 +675,13 @@ class SpriteStudioPlayer extends ChangeNotifier {
   /// To restart, call [play], which heads out. To drop the overrides, call
   /// [clearAllPartOverrides]. To drop a playback section, set one covering the
   /// whole animation.
+  ///
+  /// **A switch folds the track stack back to track 0 alone**: overlays,
+  /// fades and sources go, and so do every track's alpha, blend and
+  /// [SsTrackSync] — set them again after it. Track 0's playback settings
+  /// stay. The animation a [crossfade] left is [currentAnimation], so naming
+  /// it does nothing, and naming the one the crossfade left behind switches
+  /// back to it.
   bool setAnimation(String name) {
     final internal = _requireInternal();
     // Against what is actually selected, which [load] resets — so a second pack
@@ -655,6 +692,9 @@ class SpriteStudioPlayer extends ChangeNotifier {
     if (!ok) {
       _reportMissingAnimation(name);
     } else {
+      // The setup stops the Brain's clock along with track 0: choosing and
+      // playing are separate calls.
+      _clockStarted = _clockHeld = false;
       _currentAnimation = name;
       _reportedMissingAnimation = null;
       _latchCanvas(name);
@@ -696,21 +736,28 @@ class SpriteStudioPlayer extends ChangeNotifier {
   /// becomes the reference the loop count counts from, which is why it is an
   /// argument here rather than a [seek] before the call — a seek would be
   /// undone by the rewind.
+  ///
+  /// Only track 0 heads out; the other tracks keep their places. The clock it
+  /// starts is the whole character's, so they move with it.
   void play([double? startFrame]) {
     final internal = _requireInternal();
     internal.play(startFrame);
+    _clockStarted = true;
+    _clockHeld = false;
     _prevFinished = false;
     _startTicker();
     onAnimationStarted?.call();
     notifyListeners();
   }
 
-  /// Pauses playback in place. The Brain's `pause` is one-way and idempotent,
-  /// and ignores a request made while nothing is playing, so no gate is needed.
+  /// Pauses playback in place — every track and every fade. The Brain's
+  /// `pause` is one-way and idempotent, and ignores a request made while
+  /// nothing is playing, so no gate is needed.
   void pause() {
     final internal = _internal;
     if (internal == null) return;
     internal.pause();
+    if (_clockStarted) _clockHeld = true;
     if (_ticker?.isActive ?? false) _ticker!.stop();
     notifyListeners();
   }
@@ -729,9 +776,14 @@ class SpriteStudioPlayer extends ChangeNotifier {
     final internal = _internal;
     if (internal == null) return;
     internal.resume();
+    _clockHeld = false;
     // The Brain ignores a resume while nothing is playing, so read the state
     // back rather than starting a ticker that would have nothing to advance.
-    if (!internal.isPlaying) return;
+    // Track 0 having finished is not "nothing": an overlay or a fade the pause
+    // held carries on.
+    if (!internal.isPlaying && !(_clockStarted && internal.hasMovingTracks)) {
+      return;
+    }
     _startTicker();
     notifyListeners();
   }
@@ -751,11 +803,13 @@ class SpriteStudioPlayer extends ChangeNotifier {
     }
   }
 
-  /// Ends playback. The playhead **stays where it stands** — nothing rewinds,
-  /// so the widget keeps painting the frame it stopped on. [play] is what
-  /// returns to the head; [frameNo] seeks anywhere else.
+  /// Ends playback — every track and every fade. The playhead **stays where it
+  /// stands** — nothing rewinds, so the widget keeps painting the frame it
+  /// stopped on. [play] is what returns to the head; [frameNo] seeks anywhere
+  /// else.
   void stop() {
     _requireInternal().stop();
+    _clockStarted = _clockHeld = false;
     if (_ticker?.isActive ?? false) _ticker!.stop();
     notifyListeners();
   }
@@ -921,9 +975,14 @@ class SpriteStudioPlayer extends ChangeNotifier {
   bool get isPausing => _internal?.isPausing ?? false;
 
   /// Whether every configured loop has played. **Sticky** until the next [play]
-  /// or [setAnimation], so polling it tells you the run is over but not when
-  /// it ended — take the rising edge, or just use [onAnimationFinished]. Always false
-  /// while [loopCount] is infinite.
+  /// or switch of track 0's animation ([setAnimation], or a [crossfade] or
+  /// [setTrackAnimation] on track 0), so polling it tells you the run is over
+  /// but not when it ended — take the rising edge, or just use
+  /// [onAnimationFinished]. Always false while [loopCount] is infinite.
+  ///
+  /// It is track 0's, and from the moment a crossfade begins it is the
+  /// incoming animation's: the outgoing one running out mid-fade does not
+  /// finish the character. Other tracks report through [isTrackFinished].
   bool get isFinished => _internal?.isFinished ?? false;
 
   /// Whether the most recent advance crossed a loop boundary. This is the loop
@@ -954,6 +1013,360 @@ class SpriteStudioPlayer extends ChangeNotifier {
   /// `true` before anything has played: forward is the resting state, so the
   /// gate above does not silence a host on its first frame.
   bool get isPlayingForward => _internal?.isPlayingForward ?? true;
+
+  // --- Motion blending (the track stack) -----------------------------------
+  //
+  // Thin transport over Layer 2's tracks and sources. Tracks fold onto the
+  // setup pose in ascending order: track 0 carries the animation [setAnimation]
+  // chose, and each track above it is laid over what the ones below produced,
+  // by its alpha and its [SsTrackBlend]. A track can carry several animations
+  // ("sources") mixed by weight.
+  //
+  // Like the part overrides, every call no-ops (returning false or null)
+  // before [load] or after [dispose], and never throws: a change made while
+  // the pack loads is not a bug. One that changes the pose notifies listeners
+  // and ticks a stopped player once, so a paused view shows it. A read of a
+  // track or source that does not exist is null.
+  //
+  // Three calls hand track 0 to another animation: [setAnimation], and a
+  // [crossfade] or [setTrackAnimation] on track 0. The last two do it from the
+  // call on — [currentAnimation], [isFinished], the frame read-outs and the
+  // events are the incoming animation's from the first frame of the fade —
+  // and keep the stack. Durations are wall time, like [advance]'s.
+
+  /// Lays [animationName] on [track], replacing what it was playing. On a
+  /// track above 0 it plays over the ones below; on track 0 it hands the
+  /// character over, as [crossfade] does with no fade.
+  ///
+  /// It starts per the track's [setTrackSync], with the track's playback
+  /// settings, and loops forever — set [setTrackLoopCount] after laying it.
+  /// On track 0 the player puts its [loopCount] back on it.
+  bool setTrackAnimation(int track, String animationName) =>
+      _mix('setTrackAnimation',
+          (i) => i.setTrackAnimation(track, animationName),
+          track: track, animation: animationName, switchesTrackZero: true);
+
+  /// How many tracks the stack has, track 0 included; 0 before [load].
+  int get trackCount => _live?.trackCount ?? 0;
+
+  /// Empties [track]. Track 0 is refused — fade it with [fadeTrack] instead.
+  bool clearTrack(int track) =>
+      _mix('clearTrack', (i) => i.clearTrack(track), track: track);
+
+  /// How much of [track] survives onto the pose the tracks below it produced:
+  /// `1` covers them, `0` leaves them as they are.
+  bool setTrackAlpha(int track, double alpha) =>
+      _mix('setTrackAlpha', (i) => i.setTrackAlpha(track, alpha), track: track);
+
+  /// See [setTrackAlpha].
+  double? trackAlpha(int track) => _live?.trackAlpha(track);
+
+  /// How [track] folds onto what is below it. See [SsTrackBlend].
+  bool setTrackBlend(int track, SsTrackBlend blend) =>
+      _mix('setTrackBlend', (i) => i.setTrackBlend(track, blend), track: track);
+
+  /// See [setTrackBlend].
+  SsTrackBlend? trackBlend(int track) => _live?.trackBlend(track);
+
+  /// Where the animations laid on [track] from now on start. Set it **before**
+  /// laying them; a track with nothing on it is created for it. Reset by
+  /// [setAnimation], like the alpha and the blend.
+  bool setTrackSync(int track, SsTrackSync sync) =>
+      _setting('setTrackSync', (i) => i.setTrackSync(track, sync),
+          track: track);
+
+  /// See [setTrackSync].
+  SsTrackSync? trackSync(int track) => _live?.trackSync(track);
+
+  /// Fades [track] from whatever it plays to [animationName] over [duration].
+  ///
+  /// Everything on the track — every source, and a fade still in flight with
+  /// the proportions it had reached — fades out as one, so the pose never
+  /// jumps, not even on a crossfade called again mid-fade.
+  ///
+  /// On track 0 the incoming animation takes over **from the call on**:
+  /// [currentAnimation] names it, [isFinished] and the frame read-outs are its,
+  /// it fires the events (the outgoing side falls silent unless
+  /// [setTrackOutgoingEventThreshold] says otherwise), and its discrete
+  /// attributes — cells, hides, part colours — show from the first frame. It
+  /// plays with the speed, direction and frame rate track 0 already had, and
+  /// with this player's [loopCount]. Its playback section is the whole
+  /// animation.
+  bool crossfade(int track, String animationName, Duration duration) =>
+      _mix('crossfade', (i) => i.crossfade(track, animationName, duration),
+          track: track, animation: animationName, switchesTrackZero: true);
+
+  /// Drives [track]'s alpha to [targetAlpha] over [duration]. Fading track 0 to
+  /// 0 settles the pose onto the setup pose.
+  bool fadeTrack(int track, double targetAlpha, Duration duration) =>
+      _mix('fadeTrack', (i) => i.fadeTrack(track, targetAlpha, duration),
+          track: track);
+
+  /// How far the fade on [track] has come, `0` to `1`, or null when it is not
+  /// fading.
+  double? trackFadeProgress(int track) => _live?.trackFadeProgress(track);
+
+  /// Stops the fade on [track] at the weights it has reached. What is left of
+  /// the outgoing side fades out with the next [crossfade].
+  bool cancelTrackFade(int track) =>
+      _mix('cancelTrackFade', (i) => i.cancelTrackFade(track), track: track);
+
+  /// Seeks [track]'s animation — how a continuous control is driven: author
+  /// it as an animation, give the track a speed of 0, and scrub it here.
+  bool setTrackFrame(int track, double frame) =>
+      _mix('setTrackFrame', (i) => i.setTrackFrame(track, frame), track: track);
+
+  /// See [setTrackFrame].
+  double? trackFrame(int track) => _live?.trackFrame(track);
+
+  // A track's playback settings are the track's, not its animation's: they
+  // reach every animation on it, both sides of a fade included, and every one
+  // laid on it later. Track 0's are [speedScale], [frameRate],
+  // [frameSkipEnabled] and [setPlaybackDirection]; these address any track,
+  // and on track 0 write the same values. The loop count is the exception:
+  // it belongs to the animation, and laying another one loops forever again.
+
+  /// [speedScale] for one track. A track with nothing on it is created for it.
+  bool setTrackSpeed(int track, double speed) => _setting('setTrackSpeed', (i) {
+        if (!i.setTrackSpeed(track, speed)) return false;
+        // [setAnimation] puts the cached value back.
+        if (track == 0) _speed = speed;
+        return true;
+      }, track: track);
+
+  /// See [setTrackSpeed]. A speed set below 0 reads back as the `0` it became.
+  double? trackSpeed(int track) => _live?.trackSpeed(track);
+
+  /// [frameRate] for one track.
+  bool setTrackFrameRate(int track, int fps) =>
+      _setting('setTrackFrameRate', (i) {
+        if (!i.setTrackFrameRate(track, fps)) return false;
+        if (track == 0) _frameRate = fps;
+        return true;
+      }, track: track);
+
+  /// The rate [track]'s animation plays at: the override, or the authored
+  /// rate; `0` for a track with neither.
+  int? trackFrameRate(int track) => _live?.trackFrameRate(track);
+
+  /// [frameSkipEnabled] for one track.
+  bool setTrackFrameSkipEnabled(int track, bool enabled) =>
+      _setting('setTrackFrameSkipEnabled', (i) {
+        if (!i.setTrackFrameSkipEnabled(track, enabled)) return false;
+        if (track == 0) _skipFrames = enabled;
+        return true;
+      }, track: track);
+
+  /// See [setTrackFrameSkipEnabled].
+  bool? trackFrameSkipEnabled(int track) => _live?.trackFrameSkipEnabled(track);
+
+  /// [setPlaybackDirection] for one track.
+  bool setTrackPlaybackDirection(
+          int track, SsPlaybackDirection direction, SsPlaybackStyle style) =>
+      _setting('setTrackPlaybackDirection',
+          (i) => i.setTrackPlaybackDirection(track, direction, style),
+          track: track);
+
+  /// See [setTrackPlaybackDirection].
+  SsPlaybackDirection? trackPlaybackDirection(int track) =>
+      _live?.trackPlaybackDirection(track);
+
+  /// See [setTrackPlaybackDirection].
+  SsPlaybackStyle? trackPlaybackStyle(int track) =>
+      _live?.trackPlaybackStyle(track);
+
+  /// How many times [track]'s animation plays before it holds its last frame;
+  /// `-1` (or `0`) loops forever. Set it **after** laying the animation, which
+  /// is laid looping forever. A finished track keeps mixing its last frame in
+  /// until you fade or clear it.
+  ///
+  /// On track 0 this is [loopCount]: the player keeps the count and puts it
+  /// back on every animation laid there.
+  bool setTrackLoopCount(int track, int count) =>
+      _setting('setTrackLoopCount', (i) {
+        if (!i.setTrackLoopCount(track, count)) return false;
+        // Written past the kept count, the next switch of track 0 would put
+        // the old one back.
+        if (track == 0) _loop = count;
+        return true;
+      }, track: track);
+
+  /// `-1` for a track that loops forever, null for one with no animation.
+  int? trackLoopCount(int track) => _live?.trackLoopCount(track);
+
+  /// Whether [track]'s animation has played its loop count out. A state, as
+  /// [isFinished] is for track 0; only track 0's finish ends the character's
+  /// playback.
+  bool isTrackFinished(int track) => _live?.isTrackFinished(track) ?? false;
+
+  /// Whether the last [advance] wrapped [track]'s animation back to its
+  /// start, as [justLooped] is for track 0.
+  bool trackJustLooped(int track) => _live?.trackJustLooped(track) ?? false;
+
+  /// How far into a [crossfade] on [track] the outgoing animation keeps firing
+  /// events: while its share of the track, `1 - progress`, is at least
+  /// [threshold]. The default, infinity, silences it the moment the fade
+  /// begins, when the incoming one starts firing; `0.5` keeps it firing for
+  /// the first half. Kept by the track, across [setAnimation] too on track 0.
+  bool setTrackOutgoingEventThreshold(int track, double threshold) =>
+      _setting('setTrackOutgoingEventThreshold',
+          (i) => i.setTrackOutgoingEventThreshold(track, threshold),
+          track: track);
+
+  /// See [setTrackOutgoingEventThreshold].
+  double? trackOutgoingEventThreshold(int track) =>
+      _live?.trackOutgoingEventThreshold(track);
+
+  // --- Sources: several animations on one track ------------------------------
+  //
+  // Each animation on a track is a source, named by the handle these return. A
+  // handle stays valid until its source is released — a crossfade completing,
+  // [clearTrack], [setAnimation] — and is then reused, so do not hold one past
+  // that.
+
+  /// The source carrying [track]'s animation — the one [setTrackAnimation],
+  /// [crossfade] or [setAnimation] put there — or null for an empty track.
+  int? trackMainSource(int track) => _live?.trackMainSource(track);
+
+  /// Lays [animationName] on [track] beside what it carries, at [weight], and
+  /// returns its handle (null when refused). On an empty track it becomes the
+  /// main source. It starts per the track's [setTrackSync].
+  int? addTrackSource(int track, String animationName, double weight) {
+    int? handle;
+    _mix('addTrackSource', (i) {
+      handle = i.addTrackSource(track, animationName, weight);
+      return handle != null;
+    }, track: track, animation: animationName);
+    return handle;
+  }
+
+  /// A source's share **within its track**: weights are ratios, so 0.7 / 0.3
+  /// and 7 / 3 mix alike. The track's strength is [setTrackAlpha].
+  bool setSourceWeight(int source, double weight) =>
+      _mix('setSourceWeight', (i) => i.setSourceWeight(source, weight),
+          source: source);
+
+  /// See [setSourceWeight].
+  double? sourceWeight(int source) => _live?.sourceWeight(source);
+
+  /// Seeks one source. Sources of different lengths drift apart; this is how
+  /// to keep them in step.
+  bool setSourceFrame(int source, double frame) =>
+      _mix('setSourceFrame', (i) => i.setSourceFrame(source, frame),
+          source: source);
+
+  /// See [setSourceFrame].
+  double? sourceFrame(int source) => _live?.sourceFrame(source);
+
+  /// The weight at or above which [source] fires its events. Only track 0's
+  /// main source fires by default (the default is infinity); lower this to the
+  /// source's weight or below to have it fire too.
+  bool setSourceEventThreshold(int source, double threshold) =>
+      _setting('setSourceEventThreshold',
+          (i) => i.setSourceEventThreshold(source, threshold),
+          source: source);
+
+  /// See [setSourceEventThreshold].
+  double? sourceEventThreshold(int source) =>
+      _live?.sourceEventThreshold(source);
+
+  /// The live engine, or null before [load] / after [dispose].
+  SpriteStudioInternalPlayer? get _live {
+    final internal = _internal;
+    if (internal == null || internal.isDisposed || _disposed) return null;
+    return internal;
+  }
+
+  /// Runs a track call that changes the pose, as [_override] runs an override,
+  /// and wakes the [Ticker] when the clock has something new to move.
+  ///
+  /// With [switchesTrackZero], a call on track 0 hands the character to
+  /// [animation]; that is recorded **before** the listeners hear of the change.
+  ///
+  /// [call], [track], [source] and [animation] describe the call for
+  /// [_reportRefused], should the Brain refuse it.
+  bool _mix(String call, bool Function(SpriteStudioInternalPlayer) apply,
+      {int? track,
+      int? source,
+      String? animation,
+      bool switchesTrackZero = false}) {
+    final internal = _live;
+    if (internal == null) return false;
+    if (!apply(internal)) {
+      _reportRefused(call, track: track, source: source, animation: animation);
+      return false;
+    }
+    if (switchesTrackZero && track == 0 && animation != null) {
+      _trackZeroSwitched(internal, animation);
+    }
+    notifyListeners();
+    _tickOnceIfStopped();
+    if (_clockRunning) _startTicker();
+    return true;
+  }
+
+  /// Runs a track call that changes no pixel — a setting read when an
+  /// animation is laid, or by the next [advance]. Reports a refusal as
+  /// [_mix] does.
+  bool _setting(String call, bool Function(SpriteStudioInternalPlayer) apply,
+      {int? track, int? source}) {
+    final internal = _live;
+    if (internal == null) return false;
+    if (apply(internal)) return true;
+    _reportRefused(call, track: track, source: source);
+    return false;
+  }
+
+  /// Says that the Brain refused a track call, and why.
+  ///
+  /// A `false` nobody has to read is not a report: a misspelt animation handed
+  /// to [crossfade] leaves the previous one playing with nothing said — and
+  /// under [SpriteStudioAnimation.transition] the same misspelling that
+  /// [setAnimation] reports would go quiet. Once per call, target and name,
+  /// because these sit on per-frame paths ([setSourceWeight] from the
+  /// character's speed) and a refusal repeats every frame. A second wrong
+  /// name still gets its own line. Before [load] nothing reports: that is not
+  /// a refusal, and a UI that fires while the pack loads is not a bug.
+  void _reportRefused(String call,
+      {int? track, int? source, String? animation}) {
+    final target = track != null ? 'track $track' : 'source $source';
+    final key = '$call|$target|${animation ?? ''}';
+    if (!_reportedRefusals.add(key)) return;
+    final where = _sourceLabel ?? 'the loaded pack';
+    final reason = _internal?.lastErrorMessage;
+    final because = reason == null ? '' : ' — $reason';
+    final hint = animation == null
+        ? ''
+        : ' Check animationNames for what it does have.';
+    debugPrint('SpriteStudioPlayer: $where refused $call on $target'
+        '${animation == null ? '' : ' with animation "$animation"'}'
+        '$because.$hint');
+  }
+
+  /// What [_reportRefused] has already said since the last [load].
+  final Set<String> _reportedRefusals = <String>{};
+
+  /// Records that track 0 now plays [name], handed over by a [crossfade] or
+  /// [setTrackAnimation] on track 0.
+  ///
+  /// Recording it at the call is what lets [setAnimation] go back to the
+  /// animation the crossfade left: compared against a [currentAnimation] that
+  /// still named it, the switch back would be taken for a no-op. The instance
+  /// children and effect slots stay as they are — they come from the pack's
+  /// parts, which every animation of it shares.
+  void _trackZeroSwitched(SpriteStudioInternalPlayer internal, String name) {
+    _currentAnimation = name;
+    _reportedMissingAnimation = null;
+    _latchCanvas(name);
+    // The incoming animation's finish is reported on its own edge. No start is
+    // reported: a switch carries on whatever state track 0 was in, it is not a
+    // [play].
+    _prevFinished = false;
+    // The one setting the Brain does not carry across the switch, on purpose:
+    // the switch is what states a count.
+    final loop = _loop;
+    if (loop != null) internal.loopCount = loop;
+  }
 
   /// Draws the current frame — delegates to Layer 2's single paint path.
   ///
@@ -1007,7 +1420,7 @@ class SpriteStudioPlayer extends ChangeNotifier {
     final passed = internal.passedEventIndices();
     if (passed.isNotEmpty) {
       onEvents?.call(passed);
-      _dispatchDecodedEvents(passed);
+      _dispatchDecodedEvents(internal, passed);
     }
 
     // `justLooped` is a pulse the runtime clears on entry to every update, so it
@@ -1016,39 +1429,71 @@ class SpriteStudioPlayer extends ChangeNotifier {
     if (internal.justLooped) onAnimationLooped?.call();
 
     final finished = internal.isFinished;
-    if (finished && !_prevFinished) {
-      onAnimationFinished?.call();
-      if (_ticker?.isActive ?? false) _ticker!.stop();
-    }
+    if (finished && !_prevFinished) onAnimationFinished?.call();
     _prevFinished = finished;
+
+    // Track 0's finish does not stop the Brain's clock: an overlay or a fade
+    // keeps moving on it, so the Ticker stops only once nothing does. Read
+    // after the callback, which may well have started something new.
+    if (internal.isFinished &&
+        (_ticker?.isActive ?? false) &&
+        !internal.hasMovingTracks) {
+      _ticker!.stop();
+    }
 
     notifyListeners();
   }
 
-  /// Decodes the raw [passed] event indices for [currentAnimation] and fires
-  /// the per-event callbacks. Skips the decode entirely when no
-  /// decoded callback is registered, and when no animation is selected (the
-  /// indices are relative to the current animation's `events()`).
-  void _dispatchDecodedEvents(List<int> passed) {
+  /// Decodes the raw [passed] event indices and fires the per-event callbacks.
+  /// Skips the decode entirely when no decoded callback is registered.
+  ///
+  /// Each index is looked up in the `events()` of the animation of the source
+  /// that fired it. Reading them all against [currentAnimation] reported a
+  /// different event, or none, as soon as anything else could fire: the
+  /// outgoing side of a crossfade, an overlay with its threshold lowered.
+  void _dispatchDecodedEvents(
+      SpriteStudioInternalPlayer internal, List<int> passed) {
     if (onUserData == null && onSignal == null && onAudio == null) return;
-    final anim = _currentAnimation;
     final info = _animeInfo;
-    if (anim == null || info == null) return;
+    if (info == null) return;
 
-    final decoded =
-        info.decodePassedEvents(anim, passed, partNames: partNames);
+    final sources = internal.passedEventSourceHandles();
+    final userData = <SsUserData>[];
+    final signals = <SsSignal>[];
+    final audios = <SsAudioEvent>[];
+    // A run of events from one source is decoded in one go — in practice the
+    // whole frame, since track 0's animation is the only one firing by default.
+    var start = 0;
+    while (start < passed.length) {
+      final source = sources[start];
+      var end = start + 1;
+      while (end < passed.length && sources[end] == source) {
+        end++;
+      }
+      final index = source < 0 ? null : internal.sourceAnimationIndex(source);
+      final anim = index == null ? null : info.animationNameAt(index);
+      if (anim != null) {
+        final decoded = info.decodePassedEvents(
+            anim, passed.sublist(start, end),
+            partNames: partNames, source: source);
+        userData.addAll(decoded.userData);
+        signals.addAll(decoded.signals);
+        audios.addAll(decoded.audios);
+      }
+      start = end;
+    }
     if (onUserData != null) {
-      for (final u in decoded.userData) {
+      for (final u in userData) {
         onUserData!(u);
       }
     }
     if (onSignal != null) {
-      for (final s in decoded.signals) {
+      for (final s in signals) {
         onSignal!(s);
       }
     }
     if (onAudio != null) {
-      for (final a in decoded.audios) {
+      for (final a in audios) {
         onAudio!(a);
       }
     }

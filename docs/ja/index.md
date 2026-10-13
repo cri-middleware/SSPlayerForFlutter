@@ -45,6 +45,7 @@
 *   **ネイティブ GPU 描画:** `dart:ffi` で Rust ランタイムを駆動し、Flutter 自身のレンダラで描画（Impeller では `flutter_gpu`、それ以外は `Canvas.drawVertices`）。WebView でも動画デコードでもありません。
 *   **ウィジェットツリーに、[Flame](guide/flame.md) にも合成:** `SpriteStudioView` は普通の `RenderBox`。`ssplayer_flame` パッケージが `SpriteStudioComponent` を追加します。
 *   **ランタイムのテクスチャ差し替え（着せ替え・カラバリ）:** セルマップが参照するビットマップを実行時に差し替え —— カラーバリエーション・装備変更・表情差分を [`setCellmapTexture()`](guide/textures.md) で。組み合わせごとのアニメーションは不要です。
+*   **モーションブレンド:** アニメ同士をカットせず[クロスフェード](guide/motion-blending.md)でつなぎ、歩きの上に狙いやリアクションを重ね、歩きと走りを weight で混ぜる —— どれも別々に作ったアニメから組み立てられます。
 *   **滑らかなサブフレーム補間:** ディスプレイのリフレッシュレートに追従（固定 fps ではありません）—— スローモーションでもカクつきません。
 *   **自分の素材を、ライブリロードで:** `.sspj` → `.ssab` を [CLI / CI](guide/conversion.md) で変換し、エディタでの編集を **[ライブリロード](guide/live-reload.md)** で実行中アプリへそのまま反映。
 *   **超高速・省メモリ:** SIMD 最適化ランタイムとパース不要なバイナリ形式（`.ssab`）。ネイティブランタイムは native assets により自動同梱 —— CocoaPods も手動リンクも不要です。

@@ -27,7 +27,7 @@ _player.play();                    // 先頭から再生
 | `isPlaying` / `isPausing` | `bool`（読取） | 現在のトランスポート状態 |
 | `isFinished` / `justLooped` | `bool`（読取） | 全ループを再生し終えた（sticky）/ 直前の進行でループ境界を跨いだ（エッジ） |
 | `isPlayingForward` | `bool`（読取） | 再生ヘッドが**実際に**どちら向きに進んでいるか。設定値である `playbackDirection` とは別物で、ピンポンの戻りでは `playbackDirection` が `forward` のままこちらは `false` になります。**音声はこれで抑止してください** |
-| `frameNo` / `currentAnimation` | 読取 | 現在フレーム / 再生中のアニメ名 |
+| `frameNo` / `currentAnimation` | 読取 | 現在フレーム / track 0 が再生しているアニメ名。[クロスフェード](motion-blending.md)では呼んだ時点で入ってくる側の名前になります |
 | `startFrame` / `endFrame` / `totalFrames` | `int`（読取） | 再生対象のフレーム区間とその長さ。`totalFrames` はスクラバに渡す用 |
 
 ### `setAnimation` をまたいで残るもの
@@ -110,6 +110,8 @@ _player..loopCount = 3..speedScale = 1.5..play();
 
 利用可能なアニメ名は `animationNames`（または `SsAnimeInfo(bytes).animationNames`）で取得します。
 
+切り替えずにフェードでつなぐ、あるアニメの上に別のアニメを重ねる、といったことは[モーションブレンド](motion-blending.md)を参照してください。`setAnimation` はその重ねたトラックを track 0 だけに戻します。
+
 ## クロックの駆動
 
 - **vsync モード** —— `SpriteStudioPlayer(vsync: this)` で生成すると、プレイヤーが自前の `Ticker`
@@ -131,10 +133,9 @@ _player..loopCount = 3..speedScale = 1.5..play();
 | `onAnimationLooped` | `VoidCallback` | ループ境界を跨いだとき（最終周は代わりに `onAnimationFinished` が発火） |
 | `onEvents` | `void Function(List<int> passedEventIndices)` | 低レベルの逃げ道。デコード前の生の index がそのフレーム分だけ渡される |
 
-通常はデコード済みの `onUserData` / `onSignal` / `onAudio` を使ってください。`onEvents` が渡すのは現在のアニメのイベントテーブルへの index で、デコードは呼び出し側の仕事になります。デコードは
-3 つのデコード済みコールバックがどれも未設定なら丸ごとスキップされるので、`onEvents` だけを登録しても余計なコストはかかりません。
+通常はデコード済みの `onUserData` / `onSignal` / `onAudio` を使ってください。`onEvents` が渡すのは index だけで、デコードは呼び出し側の仕事になります。index は**それを発火したアニメ**のイベントテーブルを指し、track 0 を[クロスフェード](motion-blending.md)した後は `setAnimation` で選んだアニメとは限りません。デコード済みのコールバックは、イベントごとに正しいテーブルで引きます。デコードは 3 つのデコード済みコールバックがどれも未設定なら丸ごとスキップされるので、`onEvents` だけを登録しても余計なコストはかかりません。
 
-デコード済みの 3 つはいずれも `partIndex` / `partName` / `frameNo` を持ちます。`frameNo` はキーが**置かれている** フレームであって、検出されたフレームとは限りません。1 回の `advance` で複数フレームをまたぐことがあり、その間のキーはすべてそこで発火するため、プレイヤーの現在フレームとは一致しません。
+デコード済みの 3 つはいずれも `partIndex` / `partName` / `frameNo` / `source` を持ちます。`frameNo` はキーが**置かれている** フレームであって、検出されたフレームとは限りません。1 回の `advance` で複数フレームをまたぐことがあり、その間のキーはすべてそこで発火するため、プレイヤーの現在フレームとは一致しません。`source` は発火した[ソース](motion-blending.md#sources)のハンドルです。既定では track 0 のアニメだけが発火するので、オーバーレイやクロスフェードの出ていく側にも発火させない限り `trackMainSource(0)` になります。
 
 ### 例: ユーザーデータを受け取る
 

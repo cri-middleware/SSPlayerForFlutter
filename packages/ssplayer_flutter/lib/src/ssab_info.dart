@@ -144,12 +144,20 @@ class SsAnimeInfo {
           .toList(growable: false) ??
       const <String>[];
 
+  /// The name of the animation at [index] in pack order — the index the Brain
+  /// reports a source's animation by — or null when out of range.
+  String? animationNameAt(int index) {
+    final anims = _root.animations;
+    if (anims == null || index < 0 || index >= anims.length) return null;
+    return anims[index].name;
+  }
+
   // --- Events --------------------------------------------------------------
 
-  // The passed-event indices the Brain reports are relative to the *current*
-  // animation's `events()` list, so resolution is per animation. Cache the last
-  // lookup: events are polled every frame that carries one, always for the same
-  // animation until it is switched.
+  // The passed-event indices the Brain reports are relative to the `events()`
+  // list of the animation that fired them, so resolution is per animation.
+  // Cache the last lookup: events are polled every frame that carries one,
+  // almost always for the same animation until it is switched.
   String? _lastAnimName;
   ssab.AnimationData? _lastAnim;
 
@@ -175,8 +183,11 @@ class SsAnimeInfo {
   /// flat, per-event lists. Unknown animations, out-of-range
   /// indices, and inactive signals are dropped. Returns empty lists when there
   /// is nothing to decode.
+  ///
+  /// [source] is the handle of the source that fired them, stamped on each
+  /// decoded event; null when the caller has none to give.
   SsPassedEvents decodePassedEvents(String animationName, List<int> indices,
-      {PartNameTable partNames = PartNameTable.empty}) {
+      {PartNameTable partNames = PartNameTable.empty, int? source}) {
     if (indices.isEmpty) return _emptyEvents;
     final events = _animationByName(animationName)?.events;
     if (events == null) return _emptyEvents;
@@ -190,20 +201,21 @@ class SsAnimeInfo {
       final us = frame.users;
       if (us != null) {
         for (final u in us) {
-          userData.add(_decodeUser(u, partNames, frame.frameIndex));
+          userData.add(_decodeUser(u, partNames, frame.frameIndex, source));
         }
       }
       final sigs = frame.signals;
       if (sigs != null) {
         for (final s in sigs) {
-          final decoded = _decodeSignal(s, partNames, frame.frameIndex);
+          final decoded =
+              _decodeSignal(s, partNames, frame.frameIndex, source);
           if (decoded != null) signals.add(decoded);
         }
       }
       final auds = frame.audios;
       if (auds != null) {
         for (final a in auds) {
-          final decoded = _decodeAudio(a, partNames, frame.frameIndex);
+          final decoded = _decodeAudio(a, partNames, frame.frameIndex, source);
           if (decoded != null) audios.add(decoded);
         }
       }
@@ -217,8 +229,8 @@ class SsAnimeInfo {
     audios: <SsAudioEvent>[],
   );
 
-  static SsUserData _decodeUser(
-      ssab.EventUserData e, PartNameTable partNames, int frameNo) {
+  static SsUserData _decodeUser(ssab.EventUserData e, PartNameTable partNames,
+      int frameNo, int? source) {
     final v = e.value;
     final r = v?.rect;
     final p = v?.point;
@@ -230,11 +242,12 @@ class SsAnimeInfo {
       rect: r == null ? null : ui.Rect.fromLTRB(r.left, r.top, r.right, r.bottom),
       point: p == null ? null : ui.Offset(p.v1, p.v2),
       string: v?.str,
+      source: source,
     );
   }
 
-  static SsSignal? _decodeSignal(
-      ssab.EventSignal e, PartNameTable partNames, int frameNo) {
+  static SsSignal? _decodeSignal(ssab.EventSignal e, PartNameTable partNames,
+      int frameNo, int? source) {
     final v = e.value;
     // Match the sibling players: an inactive signal is not surfaced.
     if (v == null || !v.active) return null;
@@ -253,6 +266,7 @@ class SsAnimeInfo {
       frameNo: frameNo,
       commandId: v.commandId ?? '',
       params: params,
+      source: source,
     );
   }
 
@@ -266,8 +280,8 @@ class SsAnimeInfo {
     return null; // None / unset
   }
 
-  static SsAudioEvent? _decodeAudio(
-      ssab.EventAudio e, PartNameTable partNames, int frameNo) {
+  static SsAudioEvent? _decodeAudio(ssab.EventAudio e, PartNameTable partNames,
+      int frameNo, int? source) {
     final v = e.value;
     if (v == null) return null;
     return SsAudioEvent(
@@ -278,6 +292,7 @@ class SsAnimeInfo {
       soundNameHash: v.soundNameHash,
       soundListNameHash: v.soundListNameHash,
       loopNum: v.loopNum,
+      source: source,
     );
   }
 

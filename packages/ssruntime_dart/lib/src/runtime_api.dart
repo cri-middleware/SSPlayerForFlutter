@@ -173,6 +173,94 @@ abstract interface class SsRuntime {
   int passedEventCount(SsContext context);
   int passedEventIndex(SsContext context, int index);
 
+  /// The source that fired passed event [index], or null when there is none.
+  /// The event's index addresses the `events()` of **that source's**
+  /// animation ([sourceAnimationIndex]), which after a crossfade on track 0 is
+  /// not the animation `setupAnimation` chose.
+  int? passedEventSourceHandle(SsContext context, int index);
+
+  // --- Animation mixing (the track stack) --------------------------------
+  //
+  // Thin pass-throughs to the Brain's tracks and sources. The two backends
+  // report "nothing there" in their own ways — native with NaN, -1 or
+  // `SS_RUNTIME_INVALID_HANDLE`, the wasm face with `undefined` — and both
+  // become null here. A setter returns false when the Brain refused it, and
+  // [lastErrorMessage] says why. Durations are milliseconds, as [update] takes.
+
+  bool setTrackAnimation(SsContext context, int track, String name);
+  int trackCount(SsContext context);
+  bool clearTrack(SsContext context, int track);
+
+  bool setTrackAlpha(SsContext context, int track, double alpha);
+  double? trackAlpha(SsContext context, int track);
+
+  /// `blend`: 0 = mix, 1 = additive.
+  bool setTrackBlend(SsContext context, int track, int blend);
+  int? trackBlend(SsContext context, int track);
+
+  /// `sync`: 0 = free, 1 = start at track 0's phase.
+  bool setTrackSync(SsContext context, int track, int sync);
+  int? trackSync(SsContext context, int track);
+
+  bool crossfade(SsContext context, int track, String name, double durationMs);
+  bool fadeTrack(
+      SsContext context, int track, double targetAlpha, double durationMs);
+
+  /// `[0, 1]` while the track fades, null otherwise.
+  double? trackFadeProgress(SsContext context, int track);
+  bool cancelTrackFade(SsContext context, int track);
+
+  bool setTrackFrame(SsContext context, int track, double frame);
+  double? trackFrame(SsContext context, int track);
+
+  bool setTrackSpeed(SsContext context, int track, double speed);
+  double? trackSpeed(SsContext context, int track);
+
+  bool setTrackFrameRate(SsContext context, int track, int fps);
+
+  /// The override, or the authored rate; `0` for a track with neither.
+  int? trackFrameRate(SsContext context, int track);
+
+  bool setTrackSkipFrames(SsContext context, int track, bool skip);
+  bool? trackSkipFrames(SsContext context, int track);
+
+  /// Same values as [setPlaybackDirection].
+  bool setTrackPlaybackDirection(
+      SsContext context, int track, int direction, int style);
+  int? trackPlaybackDirection(SsContext context, int track);
+  int? trackPlaybackStyle(SsContext context, int track);
+
+  bool setTrackLoopCount(SsContext context, int track, int count);
+
+  /// `-1` for a track that loops forever, null for one with no animation.
+  int? trackLoopCount(SsContext context, int track);
+
+  bool isTrackFinished(SsContext context, int track);
+  bool trackJustLooped(SsContext context, int track);
+
+  bool setTrackOutgoingEventThreshold(
+      SsContext context, int track, double threshold);
+  double? trackOutgoingEventThreshold(SsContext context, int track);
+
+  int? trackMainSource(SsContext context, int track);
+
+  /// The new source's handle, or null when the Brain refused it.
+  int? addTrackSource(SsContext context, int track, String name, double weight);
+
+  bool setSourceWeight(SsContext context, int source, double weight);
+  double? sourceWeight(SsContext context, int source);
+  bool setSourceFrame(SsContext context, int source, double frame);
+  double? sourceFrame(SsContext context, int source);
+  bool setSourceEventThreshold(SsContext context, int source, double threshold);
+  double? sourceEventThreshold(SsContext context, int source);
+
+  /// Index into the pack's `animations()` of what [source] plays.
+  int? sourceAnimationIndex(SsContext context, int source);
+
+  /// Index into the pack's `animations()` of what track 0's main source plays,
+  /// or null before anything is set up.
+  int? currentAnimationIndex(SsContext context);
+
   // --- Part overrides (Override Layer) -----------------------------------
 
   /// Per-part overrides are applied by the Brain at the seam *after* the

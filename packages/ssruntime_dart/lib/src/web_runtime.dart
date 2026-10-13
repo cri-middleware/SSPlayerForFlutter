@@ -199,6 +199,49 @@ extension type _JsCtx(JSObject _) implements JSObject {
   external int get_shape_vertex_counts_len();
   external int get_passed_event_count();
   external int get_passed_event_index(int index);
+  external int get_passed_event_source_handle(int index);
+  // Animation mixing (web/mod.rs). A Rust `Option` arrives as `undefined` and a
+  // `Result` error as a throw; the callers below map both to the C-API's shape.
+  external void set_track_animation(int track, String name);
+  external int get_track_count();
+  external void clear_track(int track);
+  external void set_track_alpha(int track, double alpha);
+  external double? get_track_alpha(int track);
+  external void set_track_blend(int track, int blend);
+  external int? get_track_blend(int track);
+  external void set_track_sync(int track, int sync);
+  external int? get_track_sync(int track);
+  external void crossfade(int track, String name, double durationMs);
+  external void fade_track(int track, double targetAlpha, double durationMs);
+  external double? get_track_fade_progress(int track);
+  external void cancel_track_fade(int track);
+  external void set_track_frame(int track, double frame);
+  external double? get_track_frame(int track);
+  external void set_track_speed(int track, double speed);
+  external double? get_track_speed(int track);
+  external void set_track_frame_rate(int track, int fps);
+  external int? get_track_frame_rate(int track);
+  external void set_track_skip_frames(int track, bool skip);
+  external bool? get_track_skip_frames(int track);
+  external void set_track_playback_direction(int track, int direction, int style);
+  external int? get_track_playback_direction(int track);
+  external int? get_track_playback_style(int track);
+  external void set_track_loop_count(int track, int count);
+  external int? get_track_loop_count(int track);
+  external bool is_track_finished(int track);
+  external bool track_just_looped(int track);
+  external void set_track_outgoing_event_threshold(int track, double threshold);
+  external double? get_track_outgoing_event_threshold(int track);
+  external int? get_track_main_source(int track);
+  external int add_track_source(int track, String name, double weight);
+  external void set_source_weight(int handle, double weight);
+  external double? get_source_weight(int handle);
+  external void set_source_frame(int handle, double frame);
+  external double? get_source_frame(int handle);
+  external void set_source_event_threshold(int handle, double threshold);
+  external double? get_source_event_threshold(int handle);
+  external int? get_source_animation_index(int handle);
+  external int? get_current_animation_index();
   // Both return the event **owned** (a plain Rust value → a fresh wasm-heap
   // allocation behind a JS wrapper), while the `step` that consumes it takes it
   // by reference. See [_JsOwned]: the caller must free it.
@@ -565,6 +608,210 @@ class _WebRuntime implements SsRuntime {
   @override
   int passedEventIndex(SsContext context, int index) =>
       _ctx(context).get_passed_event_index(index);
+
+  @override
+  int? passedEventSourceHandle(SsContext context, int index) {
+    final handle = _ctx(context).get_passed_event_source_handle(index);
+    // The wasm face answers u32::MAX for an index with no event, as C does.
+    return handle == 0xFFFFFFFF ? null : handle;
+  }
+
+  // --- Animation mixing --------------------------------------------------
+  //
+  // Every setter goes through [_tracked], which keeps what the wasm face threw
+  // so [lastErrorMessage] answers for these as the native side does.
+
+  static bool _tracked(SsContext context, void Function() call) {
+    final ctx = context as _WebContext;
+    try {
+      call();
+      ctx.lastError = null;
+      return true;
+    } catch (e) {
+      ctx.lastError = e.toString();
+      return false;
+    }
+  }
+
+  @override
+  bool setTrackAnimation(SsContext context, int track, String name) =>
+      _tracked(context, () => _ctx(context).set_track_animation(track, name));
+
+  @override
+  int trackCount(SsContext context) => _ctx(context).get_track_count();
+
+  @override
+  bool clearTrack(SsContext context, int track) =>
+      _tracked(context, () => _ctx(context).clear_track(track));
+
+  @override
+  bool setTrackAlpha(SsContext context, int track, double alpha) =>
+      _tracked(context, () => _ctx(context).set_track_alpha(track, alpha));
+
+  @override
+  double? trackAlpha(SsContext context, int track) =>
+      _ctx(context).get_track_alpha(track);
+
+  @override
+  bool setTrackBlend(SsContext context, int track, int blend) =>
+      _tracked(context, () => _ctx(context).set_track_blend(track, blend));
+
+  @override
+  int? trackBlend(SsContext context, int track) =>
+      _ctx(context).get_track_blend(track);
+
+  @override
+  bool setTrackSync(SsContext context, int track, int sync) =>
+      _tracked(context, () => _ctx(context).set_track_sync(track, sync));
+
+  @override
+  int? trackSync(SsContext context, int track) =>
+      _ctx(context).get_track_sync(track);
+
+  @override
+  bool crossfade(
+          SsContext context, int track, String name, double durationMs) =>
+      _tracked(
+          context, () => _ctx(context).crossfade(track, name, durationMs));
+
+  @override
+  bool fadeTrack(SsContext context, int track, double targetAlpha,
+          double durationMs) =>
+      _tracked(context,
+          () => _ctx(context).fade_track(track, targetAlpha, durationMs));
+
+  @override
+  double? trackFadeProgress(SsContext context, int track) =>
+      _ctx(context).get_track_fade_progress(track);
+
+  @override
+  bool cancelTrackFade(SsContext context, int track) =>
+      _tracked(context, () => _ctx(context).cancel_track_fade(track));
+
+  @override
+  bool setTrackFrame(SsContext context, int track, double frame) =>
+      _tracked(context, () => _ctx(context).set_track_frame(track, frame));
+
+  @override
+  double? trackFrame(SsContext context, int track) =>
+      _ctx(context).get_track_frame(track);
+
+  @override
+  bool setTrackSpeed(SsContext context, int track, double speed) =>
+      _tracked(context, () => _ctx(context).set_track_speed(track, speed));
+
+  @override
+  double? trackSpeed(SsContext context, int track) =>
+      _ctx(context).get_track_speed(track);
+
+  @override
+  bool setTrackFrameRate(SsContext context, int track, int fps) =>
+      _tracked(context, () => _ctx(context).set_track_frame_rate(track, fps));
+
+  @override
+  int? trackFrameRate(SsContext context, int track) =>
+      _ctx(context).get_track_frame_rate(track);
+
+  @override
+  bool setTrackSkipFrames(SsContext context, int track, bool skip) =>
+      _tracked(context, () => _ctx(context).set_track_skip_frames(track, skip));
+
+  @override
+  bool? trackSkipFrames(SsContext context, int track) =>
+      _ctx(context).get_track_skip_frames(track);
+
+  @override
+  bool setTrackPlaybackDirection(
+          SsContext context, int track, int direction, int style) =>
+      _tracked(
+          context,
+          () => _ctx(context)
+              .set_track_playback_direction(track, direction, style));
+
+  @override
+  int? trackPlaybackDirection(SsContext context, int track) =>
+      _ctx(context).get_track_playback_direction(track);
+
+  @override
+  int? trackPlaybackStyle(SsContext context, int track) =>
+      _ctx(context).get_track_playback_style(track);
+
+  @override
+  bool setTrackLoopCount(SsContext context, int track, int count) =>
+      _tracked(
+          context, () => _ctx(context).set_track_loop_count(track, count));
+
+  @override
+  int? trackLoopCount(SsContext context, int track) =>
+      _ctx(context).get_track_loop_count(track);
+
+  @override
+  bool isTrackFinished(SsContext context, int track) =>
+      _ctx(context).is_track_finished(track);
+
+  @override
+  bool trackJustLooped(SsContext context, int track) =>
+      _ctx(context).track_just_looped(track);
+
+  @override
+  bool setTrackOutgoingEventThreshold(
+          SsContext context, int track, double threshold) =>
+      _tracked(
+          context,
+          () => _ctx(context)
+              .set_track_outgoing_event_threshold(track, threshold));
+
+  @override
+  double? trackOutgoingEventThreshold(SsContext context, int track) =>
+      _ctx(context).get_track_outgoing_event_threshold(track);
+
+  @override
+  int? trackMainSource(SsContext context, int track) =>
+      _ctx(context).get_track_main_source(track);
+
+  @override
+  int? addTrackSource(
+      SsContext context, int track, String name, double weight) {
+    int? handle;
+    _tracked(context,
+        () => handle = _ctx(context).add_track_source(track, name, weight));
+    return handle;
+  }
+
+  @override
+  bool setSourceWeight(SsContext context, int source, double weight) =>
+      _tracked(
+          context, () => _ctx(context).set_source_weight(source, weight));
+
+  @override
+  double? sourceWeight(SsContext context, int source) =>
+      _ctx(context).get_source_weight(source);
+
+  @override
+  bool setSourceFrame(SsContext context, int source, double frame) =>
+      _tracked(context, () => _ctx(context).set_source_frame(source, frame));
+
+  @override
+  double? sourceFrame(SsContext context, int source) =>
+      _ctx(context).get_source_frame(source);
+
+  @override
+  bool setSourceEventThreshold(
+          SsContext context, int source, double threshold) =>
+      _tracked(context,
+          () => _ctx(context).set_source_event_threshold(source, threshold));
+
+  @override
+  double? sourceEventThreshold(SsContext context, int source) =>
+      _ctx(context).get_source_event_threshold(source);
+
+  @override
+  int? sourceAnimationIndex(SsContext context, int source) =>
+      _ctx(context).get_source_animation_index(source);
+
+  @override
+  int? currentAnimationIndex(SsContext context) =>
+      _ctx(context).get_current_animation_index();
 
   // --- Part overrides ----------------------------------------------------
   //

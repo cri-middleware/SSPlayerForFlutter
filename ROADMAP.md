@@ -6,16 +6,6 @@ This file lists unfinished work only. Technical constraints live in
 
 ## Playback & rendering
 
-- [ ] **Motion blending / crossfade** — layer and cross-fade animations on one
-  player through the runtime's track stack (`ss_runtime_set_track_animation`,
-  `ss_runtime_crossfade`, `ss_runtime_add_track_source`, `ss_runtime_fade_track`).
-  The runtime side is complete and the track calls are generated into the
-  `ssruntime_dart` FFI bindings, but `SsRuntime` and `SpriteStudioPlayer` expose
-  none of them. The stems follow the SDK's [Player API
-  Conventions](https://github.com/cri-middleware/SpriteStudio-SDK/blob/HEAD/libs/ssruntime/docs/20_design/30_api_conventions.md)
-  §3-2 and the design is its [Animation
-  mixing](https://github.com/cri-middleware/SpriteStudio-SDK/blob/HEAD/libs/ssruntime/docs/50_features/10_animation_mixing.md)
-  page; SpriteStudio Player for wgpu is the one official Player that surfaces it.
 - [ ] **Label playback** — set the playback section by a start and an end label, each
   with an offset. Labels already ride in the `.ssab` FlatBuffers payload, so no SDK
   change is needed; add `setAnimationSectionByLabel` on L3 beside the existing

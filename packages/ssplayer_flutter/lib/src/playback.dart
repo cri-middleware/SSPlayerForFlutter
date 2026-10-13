@@ -37,3 +37,39 @@ enum SsPlaybackStyle {
   static SsPlaybackStyle fromValue(int value) =>
       value == 1 ? pingPong : normal;
 }
+
+/// How a track folds onto the pose the tracks below it produced.
+enum SsTrackBlend {
+  /// Lerp toward the track's pose by its alpha.
+  mix(0),
+
+  /// Add the track's offset from the setup pose, leaving what is below showing
+  /// through — a breath or a recoil laid over any motion.
+  additive(1);
+
+  const SsTrackBlend(this.value);
+
+  /// Wire value handed to the Brain.
+  final int value;
+
+  /// See [SsPlaybackDirection.fromValue].
+  static SsTrackBlend fromValue(int value) => value == 1 ? additive : mix;
+}
+
+/// Where the animations laid on a track start.
+enum SsTrackSync {
+  /// From the head of their section.
+  free(0),
+
+  /// At the phase track 0's animation stands at, so a run laid over a walk
+  /// keeps its stride. Matched once, when the animation is laid.
+  start(1);
+
+  const SsTrackSync(this.value);
+
+  /// Wire value handed to the Brain.
+  final int value;
+
+  /// See [SsPlaybackDirection.fromValue].
+  static SsTrackSync fromValue(int value) => value == 1 ? start : free;
+}
