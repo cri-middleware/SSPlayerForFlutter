@@ -662,6 +662,16 @@ if ($Verify -eq "yes" -and $Archives.Count -gt 0) {
             }
         }
 
+        # The documentation. packages/<name>/doc is a symlink to docs/en in git,
+        # and pub packs what it points at. A checkout without symlinks (Windows,
+        # unless they are enabled) has a one-line text file there instead, which
+        # packs as exactly that.
+        if ((& git -C $RootDir ls-files -s -- "packages/$name/doc") -match '^120000') {
+            if (-not (Test-Entry "doc/index.md")) {
+                Add-Failure "$archive has no doc/index.md -- packages/$name/doc is a symlink to docs/en, and this checkout has it as a plain file. Enable symlinks (git config core.symlinks true; on Windows, Developer Mode as well), check the file out again, and rerun."
+            }
+        }
+
         # packages/*/native is git-ignored build output. If one leaks into an
         # archive, every consumer gets one host's dylib instead of their own.
         if (Test-EntryAny "native/") {
