@@ -67,19 +67,6 @@ class SpriteStudioPlayer extends ChangeNotifier {
   bool _prevFinished = false;
   bool _subFrame = true;
 
-  /// The Brain's clock for the whole character, mirrored: started by [play],
-  /// stopped by [stop] and by a new setup, held by [pause] and released by
-  /// [resume]. The clock runs while started and not held.
-  ///
-  /// It is not [isPlaying], which is track 0's. Track 0 running out does not
-  /// stop the clock — overlays and fades carry on — so the [Ticker] that
-  /// stops on track 0's finish starts again when a track call gives the clock
-  /// something to move, and [resume] restarts it after such a finish.
-  bool _clockStarted = false;
-  bool _clockHeld = false;
-
-  bool get _clockRunning => _clockStarted && !_clockHeld;
-
   // Transport state cached on the Player (not just the internal) so it survives
   // a resource swap in [reload] and can be set before the first [load].
   // `subFrame` above is the pre-existing precedent for this pattern.
@@ -467,7 +454,6 @@ class SpriteStudioPlayer extends ChangeNotifier {
     // gap. Callers resume playback explicitly via `play`/`resume` (the ticker
     // then restarts with a fresh `_lastElapsed`, so no delta jump).
     if (_ticker?.isActive ?? false) _ticker!.stop();
-    _clockStarted = _clockHeld = false;
     _internal?.dispose();
     _internal = null;
     _lastTextureReport = null;
@@ -692,9 +678,6 @@ class SpriteStudioPlayer extends ChangeNotifier {
     if (!ok) {
       _reportMissingAnimation(name);
     } else {
-      // The setup stops the Brain's clock along with track 0: choosing and
-      // playing are separate calls.
-      _clockStarted = _clockHeld = false;
       _currentAnimation = name;
       _reportedMissingAnimation = null;
       _latchCanvas(name);
@@ -742,8 +725,6 @@ class SpriteStudioPlayer extends ChangeNotifier {
   void play([double? startFrame]) {
     final internal = _requireInternal();
     internal.play(startFrame);
-    _clockStarted = true;
-    _clockHeld = false;
     _prevFinished = false;
     _startTicker();
     onAnimationStarted?.call();
@@ -757,7 +738,6 @@ class SpriteStudioPlayer extends ChangeNotifier {
     final internal = _internal;
     if (internal == null) return;
     internal.pause();
-    if (_clockStarted) _clockHeld = true;
     if (_ticker?.isActive ?? false) _ticker!.stop();
     notifyListeners();
   }
@@ -776,12 +756,12 @@ class SpriteStudioPlayer extends ChangeNotifier {
     final internal = _internal;
     if (internal == null) return;
     internal.resume();
-    _clockHeld = false;
     // The Brain ignores a resume while nothing is playing, so read the state
     // back rather than starting a ticker that would have nothing to advance.
     // Track 0 having finished is not "nothing": an overlay or a fade the pause
     // held carries on.
-    if (!internal.isPlaying && !(_clockStarted && internal.hasMovingTracks)) {
+    if (!internal.isPlaying &&
+        !(internal.isClockPlaying && internal.hasMovingTracks)) {
       return;
     }
     _startTicker();
@@ -809,7 +789,6 @@ class SpriteStudioPlayer extends ChangeNotifier {
   /// else.
   void stop() {
     _requireInternal().stop();
-    _clockStarted = _clockHeld = false;
     if (_ticker?.isActive ?? false) _ticker!.stop();
     notifyListeners();
   }
@@ -1301,7 +1280,10 @@ class SpriteStudioPlayer extends ChangeNotifier {
     }
     notifyListeners();
     _tickOnceIfStopped();
-    if (_clockRunning) _startTicker();
+    // The Brain's clock, not [isPlaying]: track 0 running out does not stop it,
+    // so the Ticker that stopped on that finish starts again once a track call
+    // gives the clock something to move.
+    if (internal.isClockPlaying && !internal.isClockPausing) _startTicker();
     return true;
   }
 
