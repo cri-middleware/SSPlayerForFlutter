@@ -372,6 +372,209 @@ class _NativeRuntime implements SsRuntime {
   int passedEventIndex(SsContext context, int index) =>
       ss_runtime_get_passed_event_index(_ctx(context), index);
 
+  @override
+  int? passedEventSourceHandle(SsContext context, int index) =>
+      _handle(ss_runtime_get_passed_event_source_handle(_ctx(context), index));
+
+  // --- Animation mixing --------------------------------------------------
+  //
+  // The C-API's "nothing there" values become null: NaN for a float, -1 for a
+  // signed integer, `SS_RUNTIME_INVALID_HANDLE` for a handle or an enum.
+
+  /// `SS_RUNTIME_INVALID_HANDLE`; ffigen emits no constants.
+  static const int _invalidHandle = 0xFFFFFFFF;
+
+  static int? _handle(int value) => value == _invalidHandle ? null : value;
+  static double? _float(double value) => value.isNaN ? null : value;
+  static int? _signed(int value) => value < 0 ? null : value;
+
+  T _withName<T>(String name, T Function(ffi.Pointer<ffi.Char>) call) {
+    final cName = name.toNativeUtf8();
+    try {
+      return call(cName.cast());
+    } finally {
+      malloc.free(cName);
+    }
+  }
+
+  @override
+  bool setTrackAnimation(SsContext context, int track, String name) =>
+      _withName(name,
+          (n) => ss_runtime_set_track_animation(_ctx(context), track, n));
+
+  @override
+  int trackCount(SsContext context) =>
+      ss_runtime_get_track_count(_ctx(context));
+
+  @override
+  bool clearTrack(SsContext context, int track) =>
+      ss_runtime_clear_track(_ctx(context), track);
+
+  @override
+  bool setTrackAlpha(SsContext context, int track, double alpha) =>
+      ss_runtime_set_track_alpha(_ctx(context), track, alpha);
+
+  @override
+  double? trackAlpha(SsContext context, int track) =>
+      _float(ss_runtime_get_track_alpha(_ctx(context), track));
+
+  @override
+  bool setTrackBlend(SsContext context, int track, int blend) =>
+      ss_runtime_set_track_blend(_ctx(context), track, blend);
+
+  @override
+  int? trackBlend(SsContext context, int track) =>
+      _handle(ss_runtime_get_track_blend(_ctx(context), track));
+
+  @override
+  bool setTrackSync(SsContext context, int track, int sync) =>
+      ss_runtime_set_track_sync(_ctx(context), track, sync);
+
+  @override
+  int? trackSync(SsContext context, int track) =>
+      _handle(ss_runtime_get_track_sync(_ctx(context), track));
+
+  @override
+  bool crossfade(
+          SsContext context, int track, String name, double durationMs) =>
+      _withName(name,
+          (n) => ss_runtime_crossfade(_ctx(context), track, n, durationMs));
+
+  @override
+  bool fadeTrack(SsContext context, int track, double targetAlpha,
+          double durationMs) =>
+      ss_runtime_fade_track(_ctx(context), track, targetAlpha, durationMs);
+
+  @override
+  double? trackFadeProgress(SsContext context, int track) =>
+      _float(ss_runtime_get_track_fade_progress(_ctx(context), track));
+
+  @override
+  bool cancelTrackFade(SsContext context, int track) =>
+      ss_runtime_cancel_track_fade(_ctx(context), track);
+
+  @override
+  bool setTrackFrame(SsContext context, int track, double frame) =>
+      ss_runtime_set_track_frame(_ctx(context), track, frame);
+
+  @override
+  double? trackFrame(SsContext context, int track) =>
+      _float(ss_runtime_get_track_frame(_ctx(context), track));
+
+  @override
+  bool setTrackSpeed(SsContext context, int track, double speed) =>
+      ss_runtime_set_track_speed(_ctx(context), track, speed);
+
+  @override
+  double? trackSpeed(SsContext context, int track) =>
+      _float(ss_runtime_get_track_speed(_ctx(context), track));
+
+  @override
+  bool setTrackFrameRate(SsContext context, int track, int fps) =>
+      ss_runtime_set_track_frame_rate(_ctx(context), track, fps);
+
+  @override
+  int? trackFrameRate(SsContext context, int track) =>
+      _signed(ss_runtime_get_track_frame_rate(_ctx(context), track));
+
+  @override
+  bool setTrackSkipFrames(SsContext context, int track, bool skip) =>
+      ss_runtime_set_track_skip_frames(_ctx(context), track, skip);
+
+  @override
+  bool? trackSkipFrames(SsContext context, int track) {
+    // The C-API answers `false` for a track that does not exist, which is also
+    // a real setting, so the track's existence is asked separately.
+    if (track >= trackCount(context)) return null;
+    return ss_runtime_get_track_skip_frames(_ctx(context), track);
+  }
+
+  @override
+  bool setTrackPlaybackDirection(
+          SsContext context, int track, int direction, int style) =>
+      ss_runtime_set_track_playback_direction(
+          _ctx(context), track, direction, style);
+
+  @override
+  int? trackPlaybackDirection(SsContext context, int track) =>
+      _signed(ss_runtime_get_track_playback_direction(_ctx(context), track));
+
+  @override
+  int? trackPlaybackStyle(SsContext context, int track) =>
+      _signed(ss_runtime_get_track_playback_style(_ctx(context), track));
+
+  @override
+  bool setTrackLoopCount(SsContext context, int track, int count) =>
+      ss_runtime_set_track_loop_count(_ctx(context), track, count);
+
+  @override
+  int? trackLoopCount(SsContext context, int track) {
+    // `0` is "no animation": a count reads back positive, or -1 for forever.
+    final count = ss_runtime_get_track_loop_count(_ctx(context), track);
+    return count == 0 ? null : count;
+  }
+
+  @override
+  bool isTrackFinished(SsContext context, int track) =>
+      ss_runtime_is_track_finished(_ctx(context), track);
+
+  @override
+  bool trackJustLooped(SsContext context, int track) =>
+      ss_runtime_track_just_looped(_ctx(context), track);
+
+  @override
+  bool setTrackOutgoingEventThreshold(
+          SsContext context, int track, double threshold) =>
+      ss_runtime_set_track_outgoing_event_threshold(
+          _ctx(context), track, threshold);
+
+  @override
+  double? trackOutgoingEventThreshold(SsContext context, int track) => _float(
+      ss_runtime_get_track_outgoing_event_threshold(_ctx(context), track));
+
+  @override
+  int? trackMainSource(SsContext context, int track) =>
+      _handle(ss_runtime_get_track_main_source(_ctx(context), track));
+
+  @override
+  int? addTrackSource(
+          SsContext context, int track, String name, double weight) =>
+      _handle(_withName(name,
+          (n) => ss_runtime_add_track_source(_ctx(context), track, n, weight)));
+
+  @override
+  bool setSourceWeight(SsContext context, int source, double weight) =>
+      ss_runtime_set_source_weight(_ctx(context), source, weight);
+
+  @override
+  double? sourceWeight(SsContext context, int source) =>
+      _float(ss_runtime_get_source_weight(_ctx(context), source));
+
+  @override
+  bool setSourceFrame(SsContext context, int source, double frame) =>
+      ss_runtime_set_source_frame(_ctx(context), source, frame);
+
+  @override
+  double? sourceFrame(SsContext context, int source) =>
+      _float(ss_runtime_get_source_frame(_ctx(context), source));
+
+  @override
+  bool setSourceEventThreshold(
+          SsContext context, int source, double threshold) =>
+      ss_runtime_set_source_event_threshold(_ctx(context), source, threshold);
+
+  @override
+  double? sourceEventThreshold(SsContext context, int source) =>
+      _float(ss_runtime_get_source_event_threshold(_ctx(context), source));
+
+  @override
+  int? sourceAnimationIndex(SsContext context, int source) =>
+      _signed(ss_runtime_get_source_animation_index(_ctx(context), source));
+
+  @override
+  int? currentAnimationIndex(SsContext context) =>
+      _signed(ss_runtime_get_current_animation_index(_ctx(context)));
+
   // --- Part overrides ----------------------------------------------------
 
   @override

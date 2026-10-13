@@ -26,6 +26,7 @@ class SsUserData {
     this.rect,
     this.point,
     this.string,
+    this.source,
   });
 
   /// Index of the part carrying the marker (into the pack's `parts`).
@@ -51,6 +52,12 @@ class SsUserData {
   /// The string payload, or null if none was authored.
   final String? string;
 
+  /// The source that fired it — a handle for [SpriteStudioPlayer.sourceWeight]
+  /// and its siblings — or null when the decoder was given none. Tells track
+  /// 0's animation apart from an overlay or the outgoing side of a crossfade
+  /// that fires too.
+  final int? source;
+
   @override
   String toString() => 'SsUserData(part: $partIndex, int: $integer, '
       'rect: $rect, point: $point, str: $string)';
@@ -67,6 +74,7 @@ class SsSignal {
     this.frameNo = 0,
     required this.commandId,
     required this.params,
+    this.source,
   });
 
   /// Index of the part carrying the signal.
@@ -85,6 +93,12 @@ class SsSignal {
 
   /// The command parameters, in authored order.
   final List<SsSignalParam> params;
+
+  /// The source that fired it — a handle for [SpriteStudioPlayer.sourceWeight]
+  /// and its siblings — or null when the decoder was given none. Tells track
+  /// 0's animation apart from an overlay or the outgoing side of a crossfade
+  /// that fires too.
+  final int? source;
 
   @override
   String toString() =>
@@ -121,6 +135,7 @@ class SsAudioEvent {
     required this.soundNameHash,
     required this.soundListNameHash,
     required this.loopNum,
+    this.source,
   });
 
   /// Index of the part carrying the audio trigger.
@@ -148,6 +163,12 @@ class SsAudioEvent {
   /// a repeat count, not a loop flag. Playback is
   /// the app's job; honour this count in your own audio stack.
   final int loopNum;
+
+  /// The source that fired it — a handle for [SpriteStudioPlayer.sourceWeight]
+  /// and its siblings — or null when the decoder was given none. Tells track
+  /// 0's animation apart from an overlay or the outgoing side of a crossfade
+  /// that fires too.
+  final int? source;
 
   @override
   String toString() => 'SsAudioEvent(part: $partIndex, sound: "$soundName" '

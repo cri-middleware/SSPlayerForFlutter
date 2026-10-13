@@ -32,6 +32,7 @@ nav:
   - 🎬 ワークフロー:
       - クイックスタート: guide/quickstart.md
       - 再生とイベント: guide/playback.md
+      - モーションブレンド: guide/motion-blending.md
       - パーツトラッキング: guide/part-following.md
       - パーツオーバーライド: guide/part-overrides.md
       - テクスチャ差し替え: guide/textures.md

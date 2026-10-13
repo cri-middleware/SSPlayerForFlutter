@@ -40,6 +40,7 @@ class SpriteStudioAnimation extends StatefulWidget {
     this.assetKey, {
     super.key,
     this.animation,
+    this.transition = Duration.zero,
     this.width,
     this.height,
     this.fit = BoxFit.contain,
@@ -82,7 +83,22 @@ class SpriteStudioAnimation extends StatefulWidget {
   /// Changing it switches on the same player, and while [playing] the new
   /// animation starts from its first frame — [SpriteStudioPlayer.setAnimation]
   /// alone selects and poses, which would leave a state-driven switch frozen.
+  /// With a [transition] it crossfades instead.
+  ///
+  /// **This parameter is how track 0 is switched under this widget.** Calling
+  /// [SpriteStudioPlayer.crossfade] or [SpriteStudioPlayer.setTrackAnimation]
+  /// on track 0 through [onPlayerCreated] leaves the parameter naming the old
+  /// animation, and naming that one again is then no change, so the widget
+  /// cannot go back to it. The other tracks are the player's to drive.
   final String? animation;
+
+  /// How long a change of [animation] crossfades for; zero, the default,
+  /// switches at once.
+  ///
+  /// A crossfade keeps the playhead running and the stack laid on the other
+  /// tracks, where a switch rewinds and folds the stack away. The first
+  /// selection, made when the pack loads, is always a switch.
+  final Duration transition;
 
   /// Passed to [SpriteStudioView]. Null takes it from the authored canvas, as
   /// `Image` does from its picture.
@@ -354,8 +370,19 @@ class _SpriteStudioAnimationState extends State<SpriteStudioAnimation>
   /// Heads out into the new animation only if the selection actually moved:
   /// naming the one already selected — the pack's first, made explicit — must
   /// not rewind it, and a name the pack lacks leaves the old one playing.
+  ///
+  /// With a [SpriteStudioAnimation.transition] the move is a crossfade, which
+  /// carries on whatever track 0 was doing; only a player that is not running
+  /// at all — never started, or every loop played — heads out into it.
   void _switch(SpriteStudioPlayer player) {
     final before = player.currentAnimation;
+    final transition = widget.transition;
+    final name = widget.animation;
+    if (transition > Duration.zero && before != null && name != null) {
+      if (name == before || !player.crossfade(0, name, transition)) return;
+      if (widget.playing && !player.isPlaying) player.play();
+      return;
+    }
     _select(player);
     if (widget.playing && player.currentAnimation != before) player.play();
   }

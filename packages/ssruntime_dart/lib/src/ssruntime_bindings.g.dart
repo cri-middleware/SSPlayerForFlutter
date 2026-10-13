@@ -395,6 +395,14 @@ external void ss_runtime_get_cell_meta(
 @ffi.Native<ffi.Int32 Function(ffi.Pointer<ffi.Void>)>()
 external int ss_runtime_get_coordinate_system(ffi.Pointer<ffi.Void> context);
 
+/// Which animation track 0's main source plays, as an index into the ssab's
+/// `animations()`: a crossfade or a track animation on track 0 changes it from
+/// the call on. `-1` before anything is set up.
+@ffi.Native<ffi.Int32 Function(ffi.Pointer<ffi.Void>)>()
+external int ss_runtime_get_current_animation_index(
+  ffi.Pointer<ffi.Void> context,
+);
+
 @ffi.Native<ffi.Int32 Function(ffi.Pointer<ffi.Void>)>()
 external int ss_runtime_get_end_frame(ffi.Pointer<ffi.Void> context);
 
@@ -974,11 +982,62 @@ external double ss_runtime_get_track_frame(
   int track,
 );
 
+/// The rate the track's animation plays at; `0` for a track with no animation
+/// and no override, `-1` for a track that does not exist.
+@ffi.Native<ffi.Int32 Function(ffi.Pointer<ffi.Void>, ffi.Uint32)>()
+external int ss_runtime_get_track_frame_rate(
+  ffi.Pointer<ffi.Void> context,
+  int track,
+);
+
+/// `-1` for a track that loops forever; `0` for a track with no animation.
+@ffi.Native<ffi.Int32 Function(ffi.Pointer<ffi.Void>, ffi.Uint32)>()
+external int ss_runtime_get_track_loop_count(
+  ffi.Pointer<ffi.Void> context,
+  int track,
+);
+
 /// Handle of the source carrying the track's animation, so it can be given a
 /// weight once the track holds several. `SS_RUNTIME_INVALID_HANDLE` when the
 /// track has no animation.
 @ffi.Native<ffi.Uint32 Function(ffi.Pointer<ffi.Void>, ffi.Uint32)>()
 external int ss_runtime_get_track_main_source(
+  ffi.Pointer<ffi.Void> context,
+  int track,
+);
+
+/// `NaN` for a track that does not exist.
+@ffi.Native<ffi.Float Function(ffi.Pointer<ffi.Void>, ffi.Uint32)>()
+external double ss_runtime_get_track_outgoing_event_threshold(
+  ffi.Pointer<ffi.Void> context,
+  int track,
+);
+
+/// 0 = forward, 1 = backward; `-1` for a track that does not exist.
+@ffi.Native<ffi.Int32 Function(ffi.Pointer<ffi.Void>, ffi.Uint32)>()
+external int ss_runtime_get_track_playback_direction(
+  ffi.Pointer<ffi.Void> context,
+  int track,
+);
+
+/// 0 = normal, 1 = ping-pong; `-1` for a track that does not exist.
+@ffi.Native<ffi.Int32 Function(ffi.Pointer<ffi.Void>, ffi.Uint32)>()
+external int ss_runtime_get_track_playback_style(
+  ffi.Pointer<ffi.Void> context,
+  int track,
+);
+
+/// `false` for a track that does not exist.
+@ffi.Native<ffi.Bool Function(ffi.Pointer<ffi.Void>, ffi.Uint32)>()
+external bool ss_runtime_get_track_skip_frames(
+  ffi.Pointer<ffi.Void> context,
+  int track,
+);
+
+/// What `ss_runtime_set_track_speed` stored (a negative speed reads back as
+/// `0.0`); `NaN` for a track that does not exist.
+@ffi.Native<ffi.Float Function(ffi.Pointer<ffi.Void>, ffi.Uint32)>()
+external double ss_runtime_get_track_speed(
   ffi.Pointer<ffi.Void> context,
   int track,
 );
@@ -1034,6 +1093,15 @@ external bool ss_runtime_is_playing(ffi.Pointer<ffi.Void> context);
 
 @ffi.Native<ffi.Bool Function(ffi.Pointer<ffi.Void>)>()
 external bool ss_runtime_is_playing_forward(ffi.Pointer<ffi.Void> context);
+
+/// `true` once the track's animation has played its loop count out and holds
+/// its last frame, as `ss_runtime_is_finished` is for track 0. `false` for a
+/// track with no animation.
+@ffi.Native<ffi.Bool Function(ffi.Pointer<ffi.Void>, ffi.Uint32)>()
+external bool ss_runtime_is_track_finished(
+  ffi.Pointer<ffi.Void> context,
+  int track,
+);
 
 @ffi.Native<ffi.Bool Function(ffi.Pointer<ffi.Void>)>()
 external bool ss_runtime_just_looped(ffi.Pointer<ffi.Void> context);
@@ -1323,6 +1391,52 @@ external bool ss_runtime_set_track_frame(
   double frame,
 );
 
+@ffi.Native<ffi.Bool Function(ffi.Pointer<ffi.Void>, ffi.Uint32, ffi.Int)>()
+external bool ss_runtime_set_track_frame_rate(
+  ffi.Pointer<ffi.Void> context,
+  int track,
+  int frame_rate,
+);
+
+/// How many times the track's animation plays before it holds its last frame;
+/// `0` or a negative count loops forever. It belongs to the animation on the
+/// track: laying another one there starts it looping forever again.
+@ffi.Native<ffi.Bool Function(ffi.Pointer<ffi.Void>, ffi.Uint32, ffi.Int)>()
+external bool ss_runtime_set_track_loop_count(
+  ffi.Pointer<ffi.Void> context,
+  int track,
+  int loop_count,
+);
+
+/// How far into a crossfade on `track` the outgoing side keeps firing events:
+/// it fires while its share of the track, `1 - t`, is at least `threshold`.
+/// The default, `+inf`, keeps it silent from the moment the fade begins.
+@ffi.Native<ffi.Bool Function(ffi.Pointer<ffi.Void>, ffi.Uint32, ffi.Float)>()
+external bool ss_runtime_set_track_outgoing_event_threshold(
+  ffi.Pointer<ffi.Void> context,
+  int track,
+  double threshold,
+);
+
+/// `direction`: 0 = forward, otherwise backward. `style`: 0 = normal,
+/// otherwise ping-pong; as `ss_runtime_set_playback_direction`.
+@ffi.Native<
+  ffi.Bool Function(ffi.Pointer<ffi.Void>, ffi.Uint32, ffi.Int, ffi.Int)
+>()
+external bool ss_runtime_set_track_playback_direction(
+  ffi.Pointer<ffi.Void> context,
+  int track,
+  int direction,
+  int style,
+);
+
+@ffi.Native<ffi.Bool Function(ffi.Pointer<ffi.Void>, ffi.Uint32, ffi.Bool)>()
+external bool ss_runtime_set_track_skip_frames(
+  ffi.Pointer<ffi.Void> context,
+  int track,
+  bool skip,
+);
+
 @ffi.Native<ffi.Bool Function(ffi.Pointer<ffi.Void>, ffi.Uint32, ffi.Float)>()
 external bool ss_runtime_set_track_speed(
   ffi.Pointer<ffi.Void> context,
@@ -1371,6 +1485,14 @@ external int ss_runtime_ssab_schema_version();
 
 @ffi.Native<ffi.Void Function(ffi.Pointer<ffi.Void>)>()
 external void ss_runtime_stop(ffi.Pointer<ffi.Void> context);
+
+/// `true` for the update in which the track's animation wrapped back to its
+/// start, as `ss_runtime_just_looped` is for track 0.
+@ffi.Native<ffi.Bool Function(ffi.Pointer<ffi.Void>, ffi.Uint32)>()
+external bool ss_runtime_track_just_looped(
+  ffi.Pointer<ffi.Void> context,
+  int track,
+);
 
 @ffi.Native<ffi.Float Function(ffi.Pointer<ffi.Void>, ffi.Float)>()
 external double ss_runtime_update(ffi.Pointer<ffi.Void> context, double delta);

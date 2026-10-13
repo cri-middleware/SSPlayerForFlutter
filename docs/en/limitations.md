@@ -116,3 +116,7 @@ to every official player, so the full explanations and the rest of the shared co
       yours: read `isPlayingForward` and return early. (A negative speed is not one of those cases:
       speed is a multiplier, and a negative one stops the playhead rather than turning it around, as
       does `0`.) See [Playback & Events](guide/playback.md#example-play-an-audio-trigger).
+    - **Motion blending does not reach Instance / Effect children.** The tracks blend the character
+      whose player you hold; a child runs its own playback from the character's frame. Which key
+      drives a child across a crossfade on track 0 is outside motion blending too. See
+      [Motion Blending](guide/motion-blending.md#limits).

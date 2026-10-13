@@ -54,6 +54,7 @@ animation code to write by hand.
 *   **Native GPU-accelerated drawing:** `dart:ffi` into the Rust runtime, drawn through Flutter's own renderer — `flutter_gpu` (Impeller) where available, `Canvas.drawVertices` otherwise. Not a WebView, not a video decode.
 *   **Composes with the widget tree — and [Flame](guide/flame.md):** `SpriteStudioView` is a plain `RenderBox`; the `ssplayer_flame` package adds a `SpriteStudioComponent`.
 *   **Runtime texture replacement (skins & costumes):** swap the bitmap a cellmap samples at runtime — colour variants, equipment changes, dynamic expressions — with [`setCellmapTexture()`](guide/textures.md), no per-combination animation needed.
+*   **Motion blending:** [crossfade](guide/motion-blending.md) from one animation to the next instead of cutting, lay an aim or a reaction over a walk, and blend a walk into a run by weight — all from animations authored separately.
 *   **Smooth sub-frame interpolation:** Playback follows the display refresh rate, not a fixed fps — buttery-smooth even in slow motion.
 *   **Bring your own art, with live-reload:** Convert `.sspj` → `.ssab` from a [CLI or CI](guide/conversion.md), and **[live-reload](guide/live-reload.md)** editor edits straight into the running app.
 *   **High performance & low memory:** A SIMD-optimized runtime and zero-parse binary format (`.ssab`); the native runtime is bundled automatically via native assets — no CocoaPods, no manual linking.

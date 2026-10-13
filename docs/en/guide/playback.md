@@ -28,7 +28,7 @@ _player.play();                    // start from the beginning
 | `isPlaying` / `isPausing` | `bool` (read) | Current transport state |
 | `isFinished` / `justLooped` | `bool` (read) | Every loop has played (sticky) / the last advance crossed a loop boundary (edge) |
 | `isPlayingForward` | `bool` (read) | Which way the playhead is **actually** travelling — not `playbackDirection`, which is only the configured heading. A ping-pong return leg reads `false` while that still reads `forward`. **Gate audio on it** |
-| `frameNo` / `currentAnimation` | read | Current frame / active animation name |
+| `frameNo` / `currentAnimation` | read | Current frame / the animation track 0 plays — after a [crossfade](motion-blending.md), the incoming one from the call on |
 | `startFrame` / `endFrame` / `totalFrames` | `int` (read) | The frame range being played, and its length — feed `totalFrames` to a scrubber |
 
 ### What survives `setAnimation`
@@ -122,6 +122,9 @@ _player..loopCount = 3..speedScale = 1.5..play();
 
 Use `animationNames` (or `SsAnimeInfo(bytes).animationNames`) to discover the available names.
 
+To fade from one animation to the next instead of cutting, or to lay one over another, see
+[Motion Blending](motion-blending.md). Note that `setAnimation` folds that stack back to track 0 alone.
+
 ## Driving the clock
 
 - **vsync mode** — construct with `SpriteStudioPlayer(vsync: this)` and the player runs its own
@@ -143,13 +146,18 @@ Assign callbacks on the player. They fire as playback progresses:
 | `onAnimationLooped` | `VoidCallback` | Playback crosses a loop boundary (the final cycle fires `onAnimationFinished` instead) |
 | `onEvents` | `void Function(List<int> passedEventIndices)` | Low-level escape hatch: the raw event indices passed this frame, before decoding |
 
-Prefer the decoded `onUserData` / `onSignal` / `onAudio` callbacks — `onEvents` hands you indices into
-the current animation's event table and leaves the decoding to you. The decode is skipped entirely
-when none of the three decoded callbacks is set, so registering only `onEvents` costs nothing extra.
+Prefer the decoded `onUserData` / `onSignal` / `onAudio` callbacks — `onEvents` hands you indices and
+leaves the decoding to you. Each index addresses the event table of **the animation that fired it**,
+which after a [crossfade](motion-blending.md) on track 0 is no longer the one `setAnimation` chose; the
+decoded callbacks look each one up in the right table. The decode is skipped entirely when none of the
+three decoded callbacks is set, so registering only `onEvents` costs nothing extra.
 
-All three decoded events carry `partIndex`, `partName` and `frameNo`. `frameNo` is the frame the key is
-**authored** on, which is not necessarily the frame it was noticed on — one `advance` can step across
-several frames and fires every key in between, so `frameNo` is not the player's current frame.
+All three decoded events carry `partIndex`, `partName`, `frameNo` and `source`. `frameNo` is the frame
+the key is **authored** on, which is not necessarily the frame it was noticed on — one `advance` can step
+across several frames and fires every key in between, so `frameNo` is not the player's current frame.
+`source` is the handle of the [source](motion-blending.md#sources) that fired it. By default only track
+0's animation fires, so it is `trackMainSource(0)` unless you let an overlay or the outgoing side of a
+crossfade fire too.
 
 ### Example: react to a user-data marker
 
