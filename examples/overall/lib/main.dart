@@ -448,9 +448,80 @@ class _PlayerPageState extends State<PlayerPage>
   Widget build(BuildContext context) {
     final source = _dropped ? _assetDir : 'bundled assets';
     final viewBox = _viewBox;
+    final menus = <Widget>[
+      // Menus read left→right: sspj (source project) · ssab (pack) · anime.
+      // sspj = a bundled source = a deployed project dir (overall / Ringo).
+      // Hidden once a folder is dropped (that source isn't in the map).
+      if (!_dropped)
+        _labeledMenu(
+          'sspj',
+          DropdownButton<String>(
+            value: _assetDir,
+            onChanged: (v) {
+              if (v != null) _selectSource(v);
+            },
+            items: [
+              for (final dir in _bundledSources.keys)
+                DropdownMenuItem<String>(
+                  value: dir,
+                  child: Text(dir.split('/').last),
+                ),
+            ],
+          ),
+        ),
+      // ssab = a separate .ssab pack file in the current source directory.
+      _labeledMenu(
+        'ssab',
+        DropdownButton<String>(
+          value: _pack,
+          onChanged: (v) {
+            if (v != null && v != _pack) _load(v);
+          },
+          items: [
+            for (final p in _packs)
+              DropdownMenuItem<String>(value: p, child: Text(p)),
+          ],
+        ),
+      ),
+      // anime = an animation within the current pack (player.animationNames).
+      if (_animations.isNotEmpty)
+        _labeledMenu(
+          'anime',
+          DropdownButton<String>(
+            value: _anim,
+            hint: const Text('animation'),
+            onChanged: (v) {
+              if (v != null) _selectAnimation(v);
+            },
+            items: [
+              for (final a in _animations)
+                DropdownMenuItem<String>(value: a, child: Text(a)),
+            ],
+          ),
+        ),
+    ];
     return Scaffold(
       appBar: AppBar(
-        title: const Text('ssplayer_flutter'),
+        // The menus share the title's slot, not the actions': the actions row
+        // takes its children's full width, so on a phone in portrait the menus
+        // overflow it and the last one is out of reach. Here they scroll
+        // sideways when the bar is too narrow for them, and sit at its right
+        // end when it is not.
+        title: LayoutBuilder(
+          builder: (context, constraints) => SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minWidth: constraints.maxWidth),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('ssplayer_flutter'),
+                  Row(mainAxisSize: MainAxisSize.min, children: menus),
+                ],
+              ),
+            ),
+          ),
+        ),
         actions: [
           // Reset the pan/zoom back to the whole animation, centered — the same
           // framing a fresh load gets, not 1:1 (which for a big canvas is a
@@ -467,56 +538,6 @@ class _PlayerPageState extends State<PlayerPage>
               }
             },
           ),
-          // Menus read left→right: sspj (source project) · ssab (pack) · anime.
-          // sspj = a bundled source = a deployed project dir (overall / Ringo).
-          // Hidden once a folder is dropped (that source isn't in the map).
-          if (!_dropped)
-            _labeledMenu(
-              'sspj',
-              DropdownButton<String>(
-                value: _assetDir,
-                onChanged: (v) {
-                  if (v != null) _selectSource(v);
-                },
-                items: [
-                  for (final dir in _bundledSources.keys)
-                    DropdownMenuItem<String>(
-                      value: dir,
-                      child: Text(dir.split('/').last),
-                    ),
-                ],
-              ),
-            ),
-          // ssab = a separate .ssab pack file in the current source directory.
-          _labeledMenu(
-            'ssab',
-            DropdownButton<String>(
-              value: _pack,
-              onChanged: (v) {
-                if (v != null && v != _pack) _load(v);
-              },
-              items: [
-                for (final p in _packs)
-                  DropdownMenuItem<String>(value: p, child: Text(p)),
-              ],
-            ),
-          ),
-          // anime = an animation within the current pack (player.animationNames).
-          if (_animations.isNotEmpty)
-            _labeledMenu(
-              'anime',
-              DropdownButton<String>(
-                value: _anim,
-                hint: const Text('animation'),
-                onChanged: (v) {
-                  if (v != null) _selectAnimation(v);
-                },
-                items: [
-                  for (final a in _animations)
-                    DropdownMenuItem<String>(value: a, child: Text(a)),
-                ],
-              ),
-            ),
           const SizedBox(width: 8),
         ],
       ),
