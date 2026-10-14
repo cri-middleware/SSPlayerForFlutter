@@ -1,5 +1,6 @@
 #version 460 core
 #include <flutter/runtime_effect.glsl>
+#include "part_fan.glsl"
 
 // PartColor blend + mask replay for a single Normal sprite quad.
 //
@@ -9,7 +10,8 @@
 // / UV gradient is reconstructed analytically here:
 //
 //   FlutterFragCoord()  --(CPU affine uInv)-->  quad-local (s,t) in [0,1]^2
-//   bilinear over the four corners  ->  colour, rate, texture-pixel UV
+//   the part's fan (part_fan.glsl)  ->  colour, rate
+//   bilinear over the four corners  ->  texture-pixel UV
 //
 // The world quad of a non-deformed sprite is an affine image of the unit square,
 // so the inverse map is affine and the reconstruction is exact.
@@ -145,9 +147,12 @@ void main() {
   float s = clamp(uInv.x * d.x + uInv.y * d.y, 0.0, 1.0);
   float t = clamp(uInv.z * d.x + uInv.w * d.y, 0.0, 1.0);
 
-  // Bilinear over the four corners (top = LT..RT, bottom = LB..RB).
-  vec4 col = mix(mix(uColLT, uColRT, s), mix(uColLB, uColRB, s), t);
-  float rate = mix(mix(uRate.x, uRate.y, s), mix(uRate.z, uRate.w, s), t);
+  // Colour and rate across the part's fan; the UV bilinear over the four
+  // corners (top = LT..RT, bottom = LB..RB), which an affine quad's UVs make
+  // equal to the fan's.
+  vec4 w = fanWeights(s, t);
+  vec4 col = w.x * uColLT + w.y * uColRT + w.z * uColLB + w.w * uColRB;
+  float rate = dot(w, uRate);
   vec2 uvpx =
       mix(mix(uUvA.xy, uUvA.zw, s), mix(uUvB.xy, uUvB.zw, s), t);
   vec2 uv = uvpx / uTexSize;

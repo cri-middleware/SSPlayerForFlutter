@@ -95,6 +95,8 @@ void main() {
       expect(quad.inv[3], closeTo(1 / 3, 1e-6));
       expect(quad.uvA, <double>[0, 0, 64, 0]);
       expect(quad.uvB, <double>[0, 64, 64, 64]);
+      // The centre vertex goes through the same transform; its UV stays pixels.
+      expect(quad.center, <double>[11, 21.5, 32, 32]);
 
       // Round-trip: each world corner must map to its unit-square coordinate.
       Iterable<double> st(double fx, double fy) {
@@ -130,7 +132,7 @@ void main() {
   group('GeometryBuilder.buildPartColorInterleaved', () {
     // Identity world; a unit-square local quad (lt,rt,lb,rb + center) so each
     // corner lands on its own world position, and pixel UVs on a 16px texture.
-    DrawFrame frameWith() {
+    DrawFrame frameWith({double cx = 0.5, double cy = 0.5}) {
       final world = Float32List.fromList(<double>[
         1, 0, 0, 0, //
         0, 1, 0, 0, //
@@ -138,9 +140,9 @@ void main() {
         0, 0, 0, 1, //
       ]);
       final local = Float32List.fromList(
-          <double>[0, 0, 1, 0, 0, 1, 1, 1, 0.5, 0.5]);
+          <double>[0, 0, 1, 0, 0, 1, 1, 1, cx, cy]);
       final uv = Float32List.fromList(
-          <double>[0, 0, 8, 0, 0, 8, 8, 8, 4, 4]);
+          <double>[0, 0, 8, 0, 0, 8, 8, 8, cx * 8, cy * 8]);
       return DrawFrame(
         frameData: fbs.FrameData(fbs.FrameDataObjectBuilder().toBytes()),
         drawOrder: const [0],
@@ -169,7 +171,7 @@ void main() {
           <int>[0], <PartColor>[pc], <Float32List?>[null], frameWith(),
           texWidth: 16, texHeight: 16);
       expect(g, isNotNull);
-      expect(g!.vertexCount, 4);
+      expect(g!.vertexCount, 5);
       final corners = <PartColorCorner>[pc.lt, pc.rt, pc.lb, pc.rb]; // lt,rt,lb,rb
       for (var v = 0; v < 4; v++) {
         final o = v * stride;
@@ -184,6 +186,16 @@ void main() {
         expect(g.vertices[o + 11], closeTo(corners[v].rate, 1e-6),
             reason: 'rate $v');
       }
+      // The fan's centre takes the corners' average colour and rate.
+      const o = 4 * stride;
+      expect(g.vertices[o + 4], closeTo(0.5, 1e-6));
+      expect(g.vertices[o + 5], closeTo(0.5, 1e-6));
+      expect(g.vertices[o + 6], closeTo(0.25, 1e-6));
+      expect(g.vertices[o + 7], closeTo(1, 1e-6));
+      expect(g.vertices[o + 8], closeTo(pc.coef[0], 1e-6));
+      expect(g.vertices[o + 9], closeTo(pc.coef[1], 1e-6));
+      expect(g.vertices[o + 10], closeTo(pc.coef[2], 1e-6));
+      expect(g.vertices[o + 11], closeTo(0.25, 1e-6));
     });
 
     test('positions are world-transformed and UVs normalised', () {
@@ -194,15 +206,28 @@ void main() {
       expect(g!.vertices.sublist(0, 4), <double>[0, 0, 0, 0]);
       // rt: world (1,0), pixel uv (8,0) → normalised (0.5, 0).
       expect(g.vertices.sublist(stride, stride + 4), <double>[1, 0, 0.5, 0]);
-      // The quad winding matches the shared index pattern.
-      expect(g.indices, <int>[0, 1, 2, 1, 3, 2]);
+      // centre: world (0.5,0.5), pixel uv (4,4) → (0.25, 0.25).
+      expect(g.vertices.sublist(4 * stride, 4 * stride + 4),
+          <double>[0.5, 0.5, 0.25, 0.25]);
+      // Four triangles around the centre.
+      expect(g.indices, <int>[4, 0, 1, 4, 1, 3, 4, 3, 2, 4, 2, 0]);
+    });
+
+    test('a deformed part\'s centre is its own vertex, not the corners\' mean',
+        () {
+      final g = GeometryBuilder().buildPartColorInterleaved(
+          <int>[0], <PartColor>[gradient()], <Float32List?>[null],
+          frameWith(cx: 0.25, cy: 0.75),
+          texWidth: 16, texHeight: 16);
+      expect(g!.vertices.sublist(4 * stride, 4 * stride + 4),
+          <double>[0.25, 0.75, 0.125, 0.375]);
     });
 
     test('an unmasked part writes mask enabled = 0 on every vertex', () {
       final g = GeometryBuilder().buildPartColorInterleaved(
           <int>[0], <PartColor>[gradient()], <Float32List?>[null], frameWith(),
           texWidth: 16, texHeight: 16);
-      for (var v = 0; v < 4; v++) {
+      for (var v = 0; v < 5; v++) {
         expect(g!.vertices[v * stride + 15], 0.0, reason: 'enabled of $v');
       }
     });
@@ -212,7 +237,7 @@ void main() {
       final g = GeometryBuilder().buildPartColorInterleaved(
           <int>[0], <PartColor>[gradient()], <Float32List?>[mask], frameWith(),
           texWidth: 16, texHeight: 16);
-      for (var v = 0; v < 4; v++) {
+      for (var v = 0; v < 5; v++) {
         final o = v * stride;
         expect(g!.vertices.sublist(o + 12, o + stride), mask);
       }
@@ -236,6 +261,34 @@ void main() {
               <int>[0], <PartColor>[gradient()], <Float32List?>[null], frame,
               texWidth: 16, texHeight: 16),
           isNull);
+    });
+  });
+
+  // A plain part shares the PartColor bake's fan, so a deformed one bends at
+  // its own centre whether or not it carries a PartColor.
+  group('GeometryBuilder.buildNormalInterleaved', () {
+    test('a deformed part is a fan around its own centre vertex', () {
+      final world = Float32List(16)
+        ..[0] = 1
+        ..[5] = 1
+        ..[10] = 1
+        ..[15] = 1;
+      final frame = DrawFrame(
+        frameData: fbs.FrameData(fbs.FrameDataObjectBuilder().toBytes()),
+        drawOrder: const [0],
+        partByIndex: const [],
+        world: world,
+        local: Float32List.fromList(
+            <double>[0, 0, 1, 0, 0, 1, 1, 1, 0.25, 0.75]),
+        uv: Float32List.fromList(<double>[0, 0, 8, 0, 0, 8, 8, 8, 2, 6]),
+      );
+      final g = GeometryBuilder()
+          .buildNormalInterleaved(<int>[0], frame, texWidth: 16, texHeight: 16);
+      expect(g!.vertexCount, 5);
+      expect(g.indices, <int>[4, 0, 1, 4, 1, 3, 4, 3, 2, 4, 2, 0]);
+      // centre: world (0.25,0.75), pixel uv (2,6) → (0.125, 0.375), white.
+      expect(g.vertices.sublist(4 * 8, 5 * 8),
+          <double>[0.25, 0.75, 0.125, 0.375, 1, 1, 1, 1]);
     });
   });
 

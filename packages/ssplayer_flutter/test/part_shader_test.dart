@@ -108,6 +108,7 @@ void main() {
           inv: Float32List(4),
           uvA: Float32List.fromList(<double>[0, 0, 8, 0]),
           uvB: Float32List.fromList(<double>[0, 8, 8, 8]),
+          center: Float32List.fromList(<double>[0.5, 0.5, 4, 4]),
         );
 
     PartColor gradient() => PartColor(
@@ -120,16 +121,19 @@ void main() {
 
     const stride = GeometryBuilder.ssShaderStride; // 12
 
-    test('is one quad in the ssshader.vert layout', () {
+    test('is one fan in the ssshader.vert layout', () {
       final g = GeometryBuilder()
           .buildSsShaderInterleaved(quad(), gradient(), texWidth: 16, texHeight: 16);
       expect(g, isNotNull);
-      expect(g!.vertexCount, 4);
-      expect(g.vertices.length, 4 * stride);
-      expect(g.indices, <int>[0, 1, 2, 1, 3, 2]);
+      expect(g!.vertexCount, 5);
+      expect(g.vertices.length, 5 * stride);
+      expect(g.indices, <int>[4, 0, 1, 4, 1, 3, 4, 3, 2, 4, 2, 0]);
       // lt: world (0,0), uv (0,0); rt: world (1,0), pixel uv (8,0) → (0.5, 0).
       expect(g.vertices.sublist(0, 4), <double>[0, 0, 0, 0]);
       expect(g.vertices.sublist(stride, stride + 4), <double>[1, 0, 0.5, 0]);
+      // centre: world (0.5,0.5), pixel uv (4,4) → (0.25, 0.25).
+      expect(g.vertices.sublist(4 * stride, 4 * stride + 4),
+          <double>[0.5, 0.5, 0.25, 0.25]);
     });
 
     test('each corner carries its own colour + rate (the 4-corner gradient)', () {
@@ -150,6 +154,11 @@ void main() {
         expect(g.vertices[o + 11], closeTo(corners[v].rate, 1e-6),
             reason: 'rate $v');
       }
+      // The fan's centre takes the corners' average colour and rate.
+      const o = 4 * stride;
+      expect(g!.vertices.sublist(o + 4, o + 8),
+          <double>[0.5, 0.5, 0.25, 1].map((x) => closeTo(x, 1e-6)).toList());
+      expect(g.vertices[o + 11], closeTo(0.25, 1e-6));
     });
 
     test('the stride keeps every vec4 attribute 16-byte aligned', () {

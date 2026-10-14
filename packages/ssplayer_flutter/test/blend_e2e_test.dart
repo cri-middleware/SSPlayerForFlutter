@@ -1,12 +1,14 @@
 // End-to-end guard for the framebuffer blend paths, on the real `BlendMode` pack
 // (`overall/BlendMode.ssab`) through the real Canvas backend.
 //
-// The pack is built for exactly this: an opaque 16-tile `BG` group, then one
-// Normal part per blend mode over it — `MIX`, `MUL`, `ADD`, `SUB`, `AMUL`
-// (Mulalpha), `SCR`, `EXCL`, `INV`. Because the backdrop under each test part is
-// the pack's own opaque BG, every mode is in the regime the reference GL state
-// defines, so per-mode invariants are checkable without knowing the geometry:
-// render the BG alone, render the BG plus one test part, and compare.
+// The pack is built for exactly this: a 16-tile `BG` group, then one Normal
+// part per blend mode over it — `MIX`, `MUL`, `ADD`, `SUB`, `AMUL` (Mulalpha),
+// `SCR`, `EXCL`, `INV`. The BG is opaque in one half and half transparent
+// (α 128) in the other, and every test part straddles both. Over the opaque
+// half every mode is in the regime the reference GL state defines, so the
+// checks below read only the pixels the BG left opaque, and per-mode
+// invariants are checkable without knowing the geometry: render the BG alone,
+// render the BG plus one test part, and compare.
 //
 // `blend_pixel_test.dart` proves the per-pixel maths; this proves the *plumbing*
 // — that `blendPassesFor`'s multi-pass plan survives the peel/run logic, the

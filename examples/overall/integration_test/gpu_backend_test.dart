@@ -31,12 +31,6 @@ import 'package:ssplayer_flutter/src/render/backend/gpu_capability.dart'
 // For each pack it renders the SAME frame through both backends and checks that
 // the GPU round-trip produces non-blank output that matches the Canvas reference
 // (coverage, orientation and colour) — the things a headless build can't confirm.
-// Three colour checks fail today — Shape, PartsColor, and PartsColor after a
-// reload — where the two backends draw different colours: a four-corner
-// PartColor gradient (the GPU interpolates it per triangle, Canvas bilinearly
-// per fragment) and the gradient inside a Shape. BlendMode's Mul and Mulalpha
-// parts differ too, by less than the gate. Which backend is right is not
-// established.
 // The coverage checks (gpuOpaque, matchDirect) are the ones a draw-path change
 // must keep.
 
@@ -45,10 +39,13 @@ const int _h = 256;
 
 // A pack for every kind the GPU backend draws, each meant to match Canvas.
 // BlendMode exercises the SS blend modes — Mix/Mul/Add/Sub/Mulalpha/Screen/
-// Exclusion/Invert, each over the pack's own opaque BG group — where the GPU
-// sets the reference GL state directly and Canvas maps the stock modes,
-// rebuilding Sub/Invert from several passes. The two are meant to agree there;
-// measured, all but Mul/Mulalpha do.
+// Exclusion/Invert, each part half over the pack's opaque BG and half over its
+// half-transparent BG — where the GPU sets the reference GL state directly and
+// Canvas maps the stock modes, rebuilding Sub/Invert from several passes. Over
+// the opaque BG all eight agree. Over the other, Mul and Mulalpha do not, as
+// Limitations allows: Canvas's `multiply` adds `Cs·(1-αb)` wherever the backdrop
+// is not opaque (blend.dart). That gap is why this pack's rgbMeanDiff stays
+// above the other packs'.
 const List<String> _packs = <String>[
   'Basic',
   'Mesh',

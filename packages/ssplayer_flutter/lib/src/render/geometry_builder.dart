@@ -357,7 +357,7 @@ class MeshGeometry {
 
 /// An interleaved vertex block for the flutter_gpu path — for the sprite
 /// pipeline, 8 floats per vertex `[x, y, u, v, r, g, b, a]` (world-space XY,
-/// normalised UV, premultiplied RGBA) plus 16-bit quad indices; the peeled
+/// normalised UV, premultiplied RGBA) plus 16-bit indices; the peeled
 /// PartColor bakes ([GeometryBuilder.buildPartColorInterleaved] /
 /// [GeometryBuilder.buildMeshPartColorInterleaved]) use the wider
 /// [GeometryBuilder.partColorStride] layout instead. Built by
@@ -405,7 +405,8 @@ class PartColorQuad {
     required this.inv,
     required this.uvA,
     required this.uvB,
-  });
+    Float32List? center,
+  }) : center = center ?? Float32List(4);
 
   /// World corners, 8 floats: `ltx,lty, rtx,rty, lbx,lby, rbx,rby`.
   Float32List corners;
@@ -420,6 +421,12 @@ class PartColorQuad {
   /// `(LT.u,LT.v, RT.u,RT.v)` and `(LB.u,LB.v, RB.u,RB.v)` in texture pixels.
   Float32List uvA;
   Float32List uvB;
+
+  /// The part's centre vertex, `(x, y, u, v)`: world position and texture-pixel
+  /// UV, which a vertex-deformed part moves off the corners' average. The GPU
+  /// bakes draw it as the hub of the part's fan; the Canvas shader, which sees
+  /// the quad only through the affine above, puts the hub at its middle.
+  Float32List center;
 
   /// The cell's UV rect `(minU, minV, maxU, maxV)`, **normalised** by
   /// [texWidth]/[texHeight] — the axis-aligned bounding box of the four corner
@@ -482,19 +489,26 @@ class PartColorQuad {
 ///  * each [SpriteStudioInternalPlayer] owns its own builder, so an instance
 ///    child's recursive paint never races the parent's scratch.
 class GeometryBuilder {
-  /// Two triangles per quad: `lt,rt,lb,rb` → `{lt,rt,lb, rt,rb,lb}`.
-  static const List<int> _quad = [0, 1, 2, 1, 3, 2];
+  /// A Normal part is a fan of four triangles around its centre vertex:
+  /// `lt,rt,lb,rb,centre` → `{c,lt,rt, c,rt,rb, c,rb,lb, c,lb,lt}`, in the
+  /// winding the two-triangle split had. Two triangles cut the part along one
+  /// diagonal, so a deformed part bends along it and a four-corner PartColor
+  /// shades along it; the Editor draws neither that way.
+  static const List<int> _fan = [4, 0, 1, 4, 1, 3, 4, 3, 2, 4, 2, 0];
 
-  /// Most quads one bake can index: indices are 16-bit (`ui.Vertices` and the
-  /// GPU index buffer both), and a quad is 4 vertices.
+  /// Vertices per Normal part: its four corners and the centre of [_fan].
+  static const int _fanVertices = 5;
+
+  /// Most Normal parts one bake can index: indices are 16-bit (`ui.Vertices`
+  /// and the GPU index buffer both), and a part is [_fanVertices] vertices.
   ///
   /// Past this the `vBase + q` writes wrap silently in the [Uint16List] and the
   /// batch rasterises as garbage triangles smeared across the atlas, so the
   /// bake declines instead — the same contract the mesh / shape / effect bakes
   /// already enforce with their `vTotal > 0xFFFF` guards. Unreachable for real
-  /// content (it takes a run of 16384 consecutive plain parts in one batch);
+  /// content (it takes a run of 13107 consecutive plain parts in one batch);
   /// the check is one comparison per bake against a count already in hand.
-  static const int _maxQuads = 0xFFFF ~/ 4;
+  static const int _maxQuads = 0xFFFF ~/ _fanVertices;
 
   // Grow-only scratch for the per-batch vertex arrays (see the class doc's
   // reuse/aliasing contract). Separate cells because a single bake needs
@@ -534,6 +548,7 @@ class GeometryBuilder {
   final Float32List _quadInv = Float32List(4);
   final Float32List _quadUvA = Float32List(4);
   final Float32List _quadUvB = Float32List(4);
+  final Float32List _quadCenter = Float32List(4);
   final Float32List _cellRectScratch = Float32List(4);
   late final PartColorQuad _quadScratch = PartColorQuad(
     corners: _quadCorners,
@@ -542,6 +557,7 @@ class GeometryBuilder {
     inv: _quadInv,
     uvA: _quadUvA,
     uvB: _quadUvB,
+    center: _quadCenter,
   );
 
   /// Computes [quad]'s cell UV rect into this builder's reusable scratch buffer.
@@ -583,10 +599,11 @@ class GeometryBuilder {
   }
 
   /// Bakes the given [parts] (part indices, already in draw order) into a single
-  /// indexed [ui.Vertices]: for each part transforms its 4 local corners
-  /// (lt,rt,lb,rb) by the world matrix (`x'=m0·x+m4·y+m12`, `y'=m1·x+m5·y+m13`),
-  /// copies the texture-pixel UVs as-is, sets each vertex color to white × part
-  /// alpha, and appends the quad indices. Returns null when nothing was emitted.
+  /// indexed [ui.Vertices]: for each part transforms its 4 local corners and
+  /// its centre (lt,rt,lb,rb,centre) by the world matrix (`x'=m0·x+m4·y+m12`,
+  /// `y'=m1·x+m5·y+m13`), copies the texture-pixel UVs as-is, sets each vertex
+  /// color to white × part alpha, and appends the fan's indices. Returns null
+  /// when nothing was emitted.
   ///
   /// The caller (internal player) passes a *run* of consecutive plain (non-
   /// PartColor) parts so PartColored parts can be peeled onto their own shader
@@ -600,10 +617,10 @@ class GeometryBuilder {
     final local = frame.local;
     final uv = frame.uv;
 
-    final positions = _pos(count * 4 * 2); // 4 corners × (x,y)
-    final texCoords = _uvs(count * 4 * 2);
-    final colors = _cols(count * 4);
-    final indices = _idx(count * 6); // 2 triangles per quad
+    final positions = _pos(count * _fanVertices * 2); // × (x,y)
+    final texCoords = _uvs(count * _fanVertices * 2);
+    final colors = _cols(count * _fanVertices);
+    final indices = _idx(count * _fan.length);
 
     var vBase = 0; // vertices emitted so far
     var fPos = 0; // float cursor into positions/texCoords
@@ -615,8 +632,7 @@ class GeometryBuilder {
 
       final m = p * DrawFrame.worldStride;
       final v = p * DrawFrame.vertexStride; // local vertices & UVs share stride
-      // Only the 4 corners (8 floats) are read for the Normal quad path.
-      if (m + 16 > world.length || v + 8 > local.length || v + 8 > uv.length) {
+      if (m + 16 > world.length || v + 10 > local.length || v + 10 > uv.length) {
         continue;
       }
 
@@ -627,8 +643,8 @@ class GeometryBuilder {
       final m4 = world[m + 4], m5 = world[m + 5];
       final m12 = world[m + 12], m13 = world[m + 13];
 
-      // Corners: lt=(0,1) rt=(2,3) lb=(4,5) rb=(6,7).
-      for (var c = 0; c < 4; c++) {
+      // lt=(0,1) rt=(2,3) lb=(4,5) rb=(6,7) centre=(8,9).
+      for (var c = 0; c < _fanVertices; c++) {
         final lx = local[v + c * 2];
         final ly = local[v + c * 2 + 1];
         positions[fPos] = m0 * lx + m4 * ly + m12;
@@ -638,10 +654,10 @@ class GeometryBuilder {
         fPos += 2;
         colors[cPos++] = color;
       }
-      for (final q in _quad) {
+      for (final q in _fan) {
         indices[iPos++] = vBase + q;
       }
-      vBase += 4;
+      vBase += _fanVertices;
     }
 
     if (vBase == 0) return null;
@@ -718,11 +734,11 @@ class GeometryBuilder {
   /// shader matches the Canvas `drawVertices(..., BlendMode.modulate, ...)`
   /// reference, where a premultiplied texel is scaled by the vertex alpha).
   ///
-  /// Mirrors [buildNormalParts] (same world transform `x'=m0·x+m4·y+m12`) but
-  /// packs one tightly-interleaved buffer + 16-bit quad indices, which is what a
-  /// `DeviceBuffer` binds. Returns null when nothing was emitted. The returned
-  /// views alias grow-only scratch — consume (copy into a `DeviceBuffer`) before
-  /// the next bake.
+  /// Mirrors [buildNormalParts] (same world transform `x'=m0·x+m4·y+m12`, same
+  /// fan) but packs one tightly-interleaved buffer + 16-bit indices, which is
+  /// what a `DeviceBuffer` binds. Returns null when nothing was emitted. The
+  /// returned views alias grow-only scratch — consume (copy into a
+  /// `DeviceBuffer`) before the next bake.
   InterleavedGeometry? buildNormalInterleaved(List<int> parts, DrawFrame frame,
       {required double texWidth, required double texHeight}) {
     final count = parts.length;
@@ -732,8 +748,8 @@ class GeometryBuilder {
     final local = frame.local;
     final uv = frame.uv;
 
-    final verts = _inter(count * 4 * 8); // 4 corners × 8 floats
-    final indices = _idx(count * 6);
+    final verts = _inter(count * _fanVertices * 8);
+    final indices = _idx(count * _fan.length);
     final invW = texWidth > 0 ? 1.0 / texWidth : 0.0;
     final invH = texHeight > 0 ? 1.0 / texHeight : 0.0;
 
@@ -746,7 +762,7 @@ class GeometryBuilder {
 
       final m = p * DrawFrame.worldStride;
       final v = p * DrawFrame.vertexStride;
-      if (m + 16 > world.length || v + 8 > local.length || v + 8 > uv.length) {
+      if (m + 16 > world.length || v + 10 > local.length || v + 10 > uv.length) {
         continue;
       }
 
@@ -759,7 +775,7 @@ class GeometryBuilder {
       final m4 = world[m + 4], m5 = world[m + 5];
       final m12 = world[m + 12], m13 = world[m + 13];
 
-      for (var c = 0; c < 4; c++) {
+      for (var c = 0; c < _fanVertices; c++) {
         final lx = local[v + c * 2];
         final ly = local[v + c * 2 + 1];
         verts[fp] = m0 * lx + m4 * ly + m12; // x
@@ -772,10 +788,10 @@ class GeometryBuilder {
         verts[fp + 7] = a; // a
         fp += 8;
       }
-      for (final q in _quad) {
+      for (final q in _fan) {
         indices[ip++] = vBase + q;
       }
-      vBase += 4;
+      vBase += _fanVertices;
     }
 
     if (vBase == 0) return null;
@@ -854,10 +870,10 @@ class GeometryBuilder {
   /// `PartColorVertex/Fragment` pipeline.
   ///
   /// Each vertex is self-describing ([partColorStride] floats), so a whole RUN
-  /// batches into ONE draw with no uniform array. Each part's quad takes its four
-  /// corner colours + rates straight from [pcs]`[i]` (the four corners land on the
-  /// four vertices, and the rasteriser interpolates the gradient — no
-  /// per-fragment bilinear), and its flattened mask replay set from [masks]`[i]`
+  /// batches into ONE draw with no uniform array. Each part's fan takes its four
+  /// corner colours + rates straight from [pcs]`[i]`, and its centre their
+  /// average (the rasteriser interpolates the gradient across the fan's
+  /// triangles), and its flattened mask replay set from [masks]`[i]`
   /// (null = unmasked). [pcs] / [masks] are parallel to [parts]; a part whose
   /// quad is degenerate is dropped (its [pcs]/[masks] entry with it). Views alias
   /// scratch — consume before the next bake.
@@ -867,8 +883,8 @@ class GeometryBuilder {
     final count = parts.length;
     if (count == 0 || count > _maxQuads) return null;
 
-    final verts = _inter(count * 4 * partColorStride);
-    final indices = _idx(count * 6);
+    final verts = _inter(count * _fanVertices * partColorStride);
+    final indices = _idx(count * _fan.length);
     final invW = texWidth > 0 ? 1.0 / texWidth : 0.0;
     final invH = texHeight > 0 ? 1.0 / texHeight : 0.0;
 
@@ -891,10 +907,13 @@ class GeometryBuilder {
           verts, fp, c[4], c[5], ub[0] * invW, ub[1] * invH, pc.lb, pc.coef, mask);
       fp = _writePcVertex(
           verts, fp, c[6], c[7], ub[2] * invW, ub[3] * invH, pc.rb, pc.coef, mask);
-      for (final q in _quad) {
+      final o = quad.center;
+      fp = _writeFanCentre(
+          verts, fp, partColorStride, o[0], o[1], o[2] * invW, o[3] * invH);
+      for (final q in _fan) {
         indices[ip++] = vBase + q;
       }
-      vBase += 4;
+      vBase += _fanVertices;
     }
     if (vBase == 0) return null;
     return InterleavedGeometry(
@@ -927,8 +946,8 @@ class GeometryBuilder {
   /// before the next bake.
   InterleavedGeometry? buildSsShaderInterleaved(PartColorQuad quad, PartColor pc,
       {required double texWidth, required double texHeight}) {
-    final verts = _inter(4 * ssShaderStride);
-    final indices = _idx(6);
+    final verts = _inter(_fanVertices * ssShaderStride);
+    final indices = _idx(_fan.length);
     final invW = texWidth > 0 ? 1.0 / texWidth : 0.0;
     final invH = texHeight > 0 ? 1.0 / texHeight : 0.0;
 
@@ -944,14 +963,17 @@ class GeometryBuilder {
         verts, fp, c[4], c[5], ub[0] * invW, ub[1] * invH, pc.lb, pc.coef);
     fp = _writeSsVertex(
         verts, fp, c[6], c[7], ub[2] * invW, ub[3] * invH, pc.rb, pc.coef);
+    final o = quad.center;
+    fp = _writeFanCentre(
+        verts, fp, ssShaderStride, o[0], o[1], o[2] * invW, o[3] * invH);
     var ip = 0;
-    for (final q in _quad) {
+    for (final q in _fan) {
       indices[ip++] = q;
     }
     return InterleavedGeometry(
       Float32List.view(verts.buffer, verts.offsetInBytes, fp),
       Uint16List.view(indices.buffer, indices.offsetInBytes, ip),
-      4,
+      _fanVertices,
       ip,
     );
   }
@@ -975,6 +997,34 @@ class GeometryBuilder {
     v[fp + 11] = col.rate;
     return fp + ssShaderStride;
   }
+
+  /// Writes a fan's centre vertex at [fp], after the four corners the previous
+  /// four [stride]-float vertices hold, and returns the next cursor: position
+  /// and UV from [x]/[y]/[u]/[vv], colour and rate the corners' average, and
+  /// every other lane (the blend coefficients, a mask replay) copied from the
+  /// last corner, which shares them. Both the [partColorStride] and the
+  /// [ssShaderStride] layout keep colour in lanes 4–7 and rate in lane 11.
+  static int _writeFanCentre(Float32List v, int fp, int stride, double x,
+      double y, double u, double vv) {
+    v.setRange(fp, fp + stride, v, fp - stride);
+    v[fp] = x;
+    v[fp + 1] = y;
+    v[fp + 2] = u;
+    v[fp + 3] = vv;
+    for (var lane = 4; lane < 8; lane++) {
+      v[fp + lane] = _cornerMean(v, fp, stride, lane);
+    }
+    v[fp + 11] = _cornerMean(v, fp, stride, 11);
+    return fp + stride;
+  }
+
+  /// The mean of [lane] over the four [stride]-float vertices before [fp].
+  static double _cornerMean(Float32List v, int fp, int stride, int lane) =>
+      (v[fp - 4 * stride + lane] +
+          v[fp - 3 * stride + lane] +
+          v[fp - 2 * stride + lane] +
+          v[fp - stride + lane]) *
+      0.25;
 
   /// Interleaved flutter_gpu bake of *peeled* mesh [parts] — the mesh sibling of
   /// [buildPartColorInterleaved], for a mesh part carrying PartColor and/or
@@ -1846,9 +1896,13 @@ class GeometryBuilder {
   /// per part, so a quad must not be held across one.
   PartColorQuad? buildPartColorQuad(int part, DrawFrame frame) {
     final uv = frame.uv;
+    final local = frame.local;
+    final world = frame.world;
     final v = part * DrawFrame.vertexStride;
     final corners = worldCornersOf(part, frame, _quadCorners);
-    if (corners == null || v + 8 > uv.length) return null;
+    if (corners == null || v + 10 > uv.length || v + 10 > local.length) {
+      return null;
+    }
 
     final ltx = corners[0], lty = corners[1];
     // du = rt - lt (s-axis), dv = lb - lt (t-axis).
@@ -1873,6 +1927,13 @@ class GeometryBuilder {
     _quadUvB[1] = uv[v + 5];
     _quadUvB[2] = uv[v + 6];
     _quadUvB[3] = uv[v + 7];
+
+    final m = part * DrawFrame.worldStride;
+    final cx = local[v + 8], cy = local[v + 9];
+    _quadCenter[0] = world[m] * cx + world[m + 4] * cy + world[m + 12];
+    _quadCenter[1] = world[m + 1] * cx + world[m + 5] * cy + world[m + 13];
+    _quadCenter[2] = uv[v + 8];
+    _quadCenter[3] = uv[v + 9];
 
     _quadScratch.originX = ltx;
     _quadScratch.originY = lty;

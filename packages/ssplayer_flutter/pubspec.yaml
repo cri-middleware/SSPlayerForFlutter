@@ -80,7 +80,8 @@ flutter:
   #                effect so a shader impellerc rejects (a SILENT failure that
   #                falls back to the plain path) cannot take the others with it.
   #                They share shaders/ss_shader_common.glsl, which is #included
-  #                rather than listed — it is not a program of its own.
+  #                rather than listed — it is not a program of its own. It and
+  #                partcolor share shaders/part_fan.glsl the same way.
   shaders:
     - shaders/partcolor.frag
     - shaders/mask_write.frag

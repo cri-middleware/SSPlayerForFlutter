@@ -5,8 +5,8 @@
 // corner colour + rate are pre-interpolated by the rasteriser (v_color /
 // v_coef.w), so this shader only applies the formula and the mask gate.
 // The blend maths matches shaders/partcolor.frag (the Canvas reference); the
-// 4-corner gradient is the rasteriser's per-triangle interpolation (as the
-// Godot / Web siblings do), not a per-fragment bilinear reconstruction.
+// 4-corner gradient is the rasteriser's interpolation across the part's fan (as
+// the Godot / Web siblings do), not a per-fragment reconstruction.
 
 uniform sampler2D u_texture;  // sprite atlas (bilinear)
 uniform sampler2D u_coverage; // mask coverage bits (nearest; 1x1 dummy when unmasked)

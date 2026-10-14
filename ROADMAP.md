@@ -53,18 +53,6 @@ areas, and a UI-state map.
 
 ## Distribution & verification
 
-- [ ] **Canvas and flutter_gpu draw different colours in three packs** — measured by
-  `examples/overall/integration_test/gpu_backend_test.dart` on macOS, where the two
-  agree on coverage everywhere. Which backend matches SpriteStudio is established for
-  none of them; the reference Player (ForWgpu) or the Editor decides it, and the
-  losing side is the fix.
-  A **four-corner PartColor gradient** (`PartsColor`, rgbMeanDiff 6.1; a one-colour
-  tint matches): the GPU interpolates it per triangle, Canvas bilinearly per
-  fragment. The **gradient inside a Shape** (`Shape`, 6.7), and a few of its edge
-  pixels. **`Mul` and `Mulalpha`** (`BlendMode`, 3.5, which the test's 6.0 gate
-  lets through), each over the pack's own opaque backdrop, where the other six modes
-  match — [Limitations](docs/en/limitations.md) says both backends reproduce all
-  eight there, which this contradicts.
 - [ ] **Physical iOS device and `armeabi-v7a` runtime check** — verified on the iOS
   simulator and Android emulator; a code-signed `iphoneos` slice and the 32-bit
   ARM ABI have no runtime check. Blocked on: a physical iOS device and a 32-bit

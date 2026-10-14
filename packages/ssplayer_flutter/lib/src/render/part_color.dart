@@ -29,8 +29,9 @@ class PartColorCorner {
 /// coefficient row (from [partColorCoef]) already clamps invalid `blend_type`s
 /// to Mix, so this type carries only the four PartColor-valid modes.
 ///
-/// **Normal** parts use all four corners individually (a bilinear gradient
-/// across the quad); **Shape** bypasses the formula (rate forced to 1, baked
+/// **Normal** parts use all four corners individually (a gradient across the
+/// part's fan of four triangles, whose centre takes the corners' average);
+/// **Shape** bypasses the formula (rate forced to 1, baked
 /// straight into the vertex colour); **Mesh** is *whole-only* — the `lt` corner
 /// applies to every vertex, which is what [wholeTintMatrix] evaluates. An
 /// Instance part's PartColor does not tint its child subtree; only its `lt`
