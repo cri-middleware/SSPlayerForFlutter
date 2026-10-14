@@ -45,15 +45,17 @@ through the Canvas backend.
     | `Mix`, `Add` | exact | exact |
     | `Screen`, `Screen2`, `Exclusion` | exact | exact |
     | `Mul`, `Mulalpha`, `Mul2` | exact over opaque content | exact over opaque content |
-    | `Sub`, `Invert` | exact | exact over opaque content (3 draws) |
+    | `Sub`, `Invert` | exact | exact over opaque content (4 / 3 draws) |
     | `Div2`, `Overlay2` | renders as `Mix` | renders as `Mix` |
 
     `flutter_gpu` sets the reference blend state directly, so every mode is reproduced as-is. On the
     Canvas backend, `Sub` and `Invert` have no single `ui.BlendMode` — Flutter's fixed enum has no
-    reverse-subtract and no destination-replace — so the player reconstructs them exactly from three
-    stock passes over the same geometry. The reconstruction costs two extra draws per part and prevents
-    those parts from batching, which matters only if an animation uses `Sub` / `Invert` on many parts
-    at once.
+    reverse-subtract and no destination-replace — so the player reconstructs them exactly from stock
+    passes over the same geometry, four for `Sub` and three for `Invert`. The reconstruction costs three
+    or two extra draws per part and prevents those parts from batching, which matters only if an
+    animation uses `Sub` / `Invert` on many parts at once. On Impeller, the pixels a `Sub` / `Invert`
+    part's edge crosses come out slightly off — a one-pixel fringe where the edge does not fall on a
+    pixel boundary.
 
     `Div2` / `Overlay2` matching `Mix` is intentional: they have no GPU blend mapping in the reference
     players either.

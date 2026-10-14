@@ -60,13 +60,22 @@ class CanvasBackend implements RenderBackend {
       id: _LazyProgram('packages/ssplayer_flutter/shaders/${id.asset}.frag'),
   };
 
-  /// One [ui.Paint] reused across every plain Normal/Mesh batch draw instead of
-  /// allocating one per batch. `Canvas.drawVertices` snapshots the paint's state
-  /// at the call, so a single mutable instance is safe as long as every mutated
-  /// field is re-set each time — [_paintForBatch] is its ONLY writer and always
-  /// sets both `blendMode` and `shader`. Peeled / shape / effect draws build
+  /// One [ui.Paint] reused across every textured Normal/Mesh `drawVertices`
+  /// instead of allocating one per batch. `Canvas.drawVertices` snapshots the
+  /// paint's state at the call, so a single mutable instance is safe as long as
+  /// every mutated field is re-set each time — [drawTexturedPass] is its ONLY
+  /// writer and sets every field it reads. Peeled / shape / effect draws build
   /// their own paints (different field sets) and never touch this one.
   final ui.Paint _batchPaint = ui.Paint();
+
+  /// The layer [drawTexturedPass] puts a tinted `modulate` pass on; it is the
+  /// only writer here too.
+  final ui.Paint _filterLayerPaint = ui.Paint();
+
+  /// The layer a masked Mesh part composites through, one per pass
+  /// ([_drawPeeledMesh]). Its own, so the image filter it carries never reaches
+  /// a draw that does not set one.
+  final ui.Paint _maskedMeshLayerPaint = ui.Paint();
   final ui.Paint _peeledPaint = ui.Paint();
   final ui.Paint _shapePaint = ui.Paint();
   final ui.Paint _effectPaint = ui.Paint();
@@ -488,14 +497,10 @@ class CanvasBackend implements RenderBackend {
     final run = _normalRunScratch..clear();
     void flushRun() {
       if (run.isEmpty) return;
-      // 2nd arg modulates the vertex color (white × alpha) with the texture
-      // shader; paint.blendMode is the framebuffer composite.
+      // A run holds only single-pass parts.
       final vertices = host.geometry.buildNormalParts(run, frame);
       if (vertices != null) {
-        for (final pass in passes) {
-          canvas.drawVertices(vertices, ui.BlendMode.modulate,
-              _paintForBatch(batch, host, pass));
-        }
+        _drawTexturedPass(canvas, vertices, batch, host, passes.single);
       }
       run.clear();
     }
@@ -521,12 +526,13 @@ class CanvasBackend implements RenderBackend {
       // sibling ports share.
       final sh =
           (part == null || mask != null) ? null : PartShader.read(shaders, part);
-      if (pc == null && mask == null && sh == null) {
+      // A multi-pass blend (Sub / Invert) is peeled as well. It must cover each
+      // pixel exactly once per pass, so its parts cannot share a run — two
+      // overlapping ones would invert their overlap twice and cancel it (see
+      // [blendPassesFor]). The peeled quad then filters its inversions on a
+      // direct `drawPath`, which both renderers honour.
+      if (pc == null && mask == null && sh == null && passes.length == 1) {
         run.add(p);
-        // A multi-pass blend (Sub / Invert) must cover each pixel exactly once
-        // per pass, so its parts cannot share a run — two overlapping ones would
-        // invert their overlap twice and cancel it (see [blendPassesFor]).
-        if (passes.length > 1) flushRun();
       } else {
         flushRun();
         if (sh != null) {
@@ -684,8 +690,7 @@ class CanvasBackend implements RenderBackend {
       final vertices = host.geometry.buildMeshParts(run, frame);
       if (vertices != null) {
         for (final pass in passes) {
-          canvas.drawVertices(vertices, ui.BlendMode.modulate,
-              _paintForBatch(batch, host, pass));
+          _drawTexturedPass(canvas, vertices, batch, host, pass);
         }
       }
       run.clear();
@@ -753,23 +758,20 @@ class CanvasBackend implements RenderBackend {
     final tint = matrix == null ? null : _tintFilter(matrix);
     final vertices = geometry.toVertices();
 
+    // Inflated so neither the layer nor the gate rect can shave the geometry's
+    // outermost pixel row (the bbox lands exactly on it).
+    final bounds = geometry.bounds.inflate(1.0);
     final program = mask == null ? null : _partColorProgram.get();
     if (mask == null || program == null) {
       // Unmasked (or the gate program is still compiling — draw ungated rather
-      // than dropping the part): one plain draw, tint folded into the paint.
+      // than dropping the part): one plain draw per pass, tint and all.
       for (final pass in passes) {
-        canvas.drawVertices(
-          vertices,
-          ui.BlendMode.modulate,
-          _paintForBatch(batch, host, pass, colorFilter: tint),
-        );
+        _drawTexturedPass(canvas, vertices, batch, host, pass,
+            tint: tint, bounds: bounds);
       }
       return;
     }
 
-    // Inflated so neither the layer nor the gate rect can shave the geometry's
-    // outermost pixel row (the bbox lands exactly on it).
-    final bounds = geometry.bounds.inflate(1.0);
     // The gate: `partcolor.frag` over a 1×1 white texel at rate 0 is opaque
     // white where the mask passes and transparent where it does not (the same
     // no-op configuration `_drawMaskedShape` uses), so `dstIn` keeps exactly the
@@ -789,20 +791,25 @@ class CanvasBackend implements RenderBackend {
     shader.setImageSampler(1, mask.coverage!);
 
     // A masked part composites as one layer, so a multi-pass blend records the
-    // layer once per pass — with the pass's filter on the *layer's* paint, which
-    // is where it belongs: the layer result is the part's final colour.
+    // layer once per pass — with the pass's filter, or else the tint, on the
+    // *layer's* paint, which is where it belongs: the layer result is the part's
+    // final colour. The tint may wait for the gate: the gate keeps or drops
+    // whole fragments and the tint leaves alpha alone. The filter is the
+    // layer's `imageFilter`, as [drawTexturedPass] explains, but for the black
+    // fill: its `colorFilter` reaches the layer as the image filter would.
     // `_peeledPaint` is shared with [_drawPeeledPart] / [_drawShaderPart], which
-    // set `isAntiAlias` from [_antiAliasFor] — so all three draws below state it
+    // set `isAntiAlias` from [_antiAliasFor] — so both draws below state it
     // rather than inheriting whatever the previous part (or the previous pass's
     // gate rect) happened to leave.
     for (final pass in passes) {
+      final filter = pass.filter ?? tint;
+      final black = pass.source == BlendPassSource.black;
       canvas.saveLayer(
           bounds,
-          _peeledPaint
+          _maskedMeshLayerPaint
             ..blendMode = pass.mode
-            ..colorFilter = pass.filter
-            ..isAntiAlias = true
-            ..shader = null);
+            ..colorFilter = black ? filter : null
+            ..imageFilter = black ? null : filter);
       canvas.drawVertices(
         vertices,
         ui.BlendMode.modulate,
@@ -810,7 +817,7 @@ class CanvasBackend implements RenderBackend {
           ..blendMode = ui.BlendMode.srcOver
           ..isAntiAlias = true
           ..shader = host.textures.shaderFor(batch.textureHash)
-          ..colorFilter = tint,
+          ..colorFilter = null,
       );
       canvas.drawRect(
           bounds,
@@ -900,7 +907,7 @@ class CanvasBackend implements RenderBackend {
   }
 
   /// Draws one peeled Normal part via `shaders/partcolor.frag` — the path for a
-  /// part carrying PartColor, a mask test, or both.
+  /// part carrying PartColor, a mask test, or a multi-pass blend plan.
   ///
   /// The shader can take no per-vertex varyings, so the part is drawn on its own
   /// quad and the per-corner colour/rate/UV gradient is reconstructed inside the
@@ -929,8 +936,7 @@ class CanvasBackend implements RenderBackend {
           .buildNormalParts(host.geometry.singlePart(part), frame);
       if (v != null) {
         for (final pass in passes) {
-          canvas.drawVertices(
-              v, ui.BlendMode.modulate, _paintForBatch(batch, host, pass));
+          _drawTexturedPass(canvas, v, batch, host, pass);
         }
       }
       return;
@@ -1292,23 +1298,24 @@ class CanvasBackend implements RenderBackend {
     f(threshold);
   }
 
-  /// Configures the shared [_batchPaint] for one [pass] of a batch — the pass's
-  /// framebuffer blend (`render/blend.dart`) plus the resolved texture's identity
-  /// [ui.ImageShader] — and returns it. The result aliases
-  /// [_batchPaint]; a caller must consume it (draw) before the next
-  /// [_paintForBatch] call, which every call site does within one pass's scope.
+  /// Draws one [pass] of a batch over textured [vertices] — the pass's
+  /// framebuffer blend (`render/blend.dart`) over the resolved texture's
+  /// identity [ui.ImageShader] — through [drawTexturedPass] on the shared
+  /// paints.
   ///
-  /// [colorFilter] is the whole-part PartColor tint of a peeled Mesh part
+  /// [tint] is the whole-part PartColor tint of a peeled Mesh part
   /// ([_drawPeeledMesh]). A pass that wants coverage or a flat fill overrides it
-  /// ([BlendPass.filter]); either way it is written unconditionally — like every
-  /// other field here — so a tinted part can never leak its filter into the next
-  /// draw.
-  ui.Paint _paintForBatch(fbs.DrawBatch batch, RenderHost host, BlendPass pass,
-          {ui.ColorFilter? colorFilter}) =>
-      _batchPaint
-        ..blendMode = pass.mode
-        ..shader = host.textures.shaderFor(batch.textureHash)
-        ..colorFilter = pass.filter ?? colorFilter;
+  /// ([BlendPass.filter]). [bounds] is what [vertices] cover; only a tinted
+  /// `modulate` pass reads it.
+  void _drawTexturedPass(ui.Canvas canvas, ui.Vertices vertices,
+          fbs.DrawBatch batch, RenderHost host, BlendPass pass,
+          {ui.ColorFilter? tint, ui.Rect? bounds}) =>
+      drawTexturedPass(canvas, vertices, pass,
+          host.textures.shaderFor(batch.textureHash),
+          tint: tint,
+          bounds: bounds,
+          paint: _batchPaint,
+          layerPaint: _filterLayerPaint);
 }
 
 /// A `FragmentProgram` loaded lazily from an asset and cached process-wide.
