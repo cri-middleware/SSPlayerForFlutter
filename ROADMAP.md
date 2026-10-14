@@ -42,10 +42,12 @@ vocabulary is shared with the sibling Players: a part rect read-out for hit
 areas, and a UI-state map.
 
 - [ ] **Per-part hit testing** — the view answers a hit anywhere in its box, so an
-  irregular button takes taps around its artwork too. Add `partRectOf(part)`
-  (built from the `PartState` fields the runtime already delivers every frame —
-  `size_x` / `size_y`, `anchor`, `pivot` — and the part transform), then
-  `hitTestPart(Offset)`, and answer `hitTestSelf` from it.
+  irregular button takes taps around its artwork too. Add `partRectOf(part)` to the
+  player: a pure read built from the `PartState` fields the runtime already
+  delivers every frame — `size_x` / `size_y`, `anchor`, `pivot` — and the part
+  transform. Narrowing hits to the parts the host names belongs to a separate
+  opt-in widget around the view; the view itself keeps answering over its whole
+  box, so a player that only plays pays nothing for it.
 - [ ] **UI state binding** — a widget that drives the player from
   `WidgetStatesController` (`hovered` / `pressed` / `disabled` / `focused`), each
   state mapped to an animation or a label, so a player drops into an `InkWell` or a
