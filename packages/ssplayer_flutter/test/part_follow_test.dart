@@ -195,6 +195,23 @@ void main() {
       expect(uvs(), follower);
     });
 
+    // The Brain moves the playhead to a section's head when the section is set,
+    // and nothing else is coming to build that frame on a paused player.
+    test('a section builds the frame at the head it moves the playhead to', () {
+      final p = _load();
+      if (p == null) return;
+      addTearDown(p.dispose);
+      final apple = p.findPartIndex('apple');
+      final head = p.partWorldMatrix(apple); // setup leaves it on the head
+      p.seek(p.endFrame.toDouble());
+      expect(p.partWorldMatrix(apple), isNot(head),
+          reason: 'the last frame must pose the apple elsewhere');
+
+      p.setAnimationSection(p.startFrame, p.endFrame);
+      expect(p.frameNo, p.startFrame);
+      expect(p.partWorldMatrix(apple), head);
+    });
+
     test('a new animation is evaluated afresh at the same frame number', () {
       final names = _animations();
       if (names.length < 2) return;
@@ -225,6 +242,50 @@ void main() {
       expect(player.isPartHiddenByIndex(0), isFalse);
       expect(player.isPartSkinnedMesh('apple'), isFalse);
       expect(player.isPartSkinnedMeshByIndex(0), isFalse);
+    });
+
+    // A paused player has no tick coming, so a call that moves its pose must
+    // notify for the view and its followers to show the move.
+    test('a section on a paused player notifies, and the reads report its head',
+        () async {
+      final bytes = _ringo();
+      if (bytes == null) return;
+      final player = SpriteStudioPlayer();
+      addTearDown(player.dispose);
+      await player.load(bytes,
+          animationName: _animations().first, loadTextures: false);
+      final head = player.partTransform('apple')!;
+      player
+        ..play()
+        ..advance(const Duration(milliseconds: 100))
+        ..pause()
+        ..seek(player.endFrame.toDouble());
+      expect(player.partTransform('apple')!.storage, isNot(head.storage));
+
+      var notified = 0;
+      player.addListener(() => notified++);
+      player.setAnimationSection(player.startFrame, player.endFrame);
+      expect(notified, 1);
+      expect(player.frameNo, player.startFrame);
+      expect(player.partTransform('apple')!.storage, head.storage);
+    });
+
+    test('the sub-frame toggle notifies when it changes, and only then',
+        () async {
+      final bytes = _ringo();
+      if (bytes == null) return;
+      final player = SpriteStudioPlayer();
+      addTearDown(player.dispose);
+      await player.load(bytes,
+          animationName: _animations().first, loadTextures: false);
+      var notified = 0;
+      player.addListener(() => notified++);
+
+      player.subFrameEnabled = true; // already on
+      expect(notified, 0);
+      player.subFrameEnabled = false;
+      expect(notified, 1);
+      expect(player.subFrameEnabled, isFalse);
     });
 
     test('resolve by name and by index to the same matrix after a frame',

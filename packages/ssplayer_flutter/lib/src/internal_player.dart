@@ -458,8 +458,17 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
 
   /// Restricts playback to `[startFrame, endFrame]` of the current animation.
   /// Reflected by [startFrame] / [endFrame], which report the *played* range.
-  void setAnimationSection(int startFrame, int endFrame) =>
-      ssRuntime.setAnimationSection(_context, startFrame, endFrame);
+  ///
+  /// The Brain also moves the playhead to the section's head (its tail when
+  /// playing backward), so the slots and the frame follow it as after a [seek]:
+  /// otherwise a paused or stopped player keeps drawing, and its part reads
+  /// keep reporting, the frame it left.
+  void setAnimationSection(int startFrame, int endFrame) {
+    _ensureAlive();
+    ssRuntime.setAnimationSection(_context, startFrame, endFrame);
+    _stepSlots(frameNo, 0.0, false);
+    _buildFrame();
+  }
 
   void setPlaybackDirection(SsPlaybackDirection direction,
           SsPlaybackStyle style) =>
@@ -566,9 +575,10 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   /// Builds the frame at the playhead, sampled as [paint] samples it.
   ///
   /// Every call that moves this player's pose ends here — [updateMs], [seek],
-  /// [setupAnimation], the [subFrameEnabled] toggle — so [paint] draws that frame
-  /// and the part reads report it without building one of their own. An
-  /// override therefore shows from the next of them, as in every sibling. A read
+  /// [setAnimationSection], [setupAnimation], the [subFrameEnabled] toggle — so
+  /// [paint] draws that frame and the part reads report it without building one
+  /// of their own. An override therefore shows from the next of them, as in
+  /// every sibling. A read
   /// that built a frame would also change what the next update builds: an
   /// `overwriteOnNextKeyframe` override set right after [play] or [seek] goes
   /// back to the animation if any frame is built before that update.
