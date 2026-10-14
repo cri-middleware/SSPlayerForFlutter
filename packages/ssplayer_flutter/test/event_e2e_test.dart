@@ -93,6 +93,47 @@ void main() {
     expect(player.soundFilePath(mp3.soundNameHash),
         'sound/MP3_44khz_mono_160kbps.mp3');
   });
+
+  test('a ping-pong return leg crosses the audio keys again, and '
+      'isPlayingForward tells it apart inside onAudio', () async {
+    final path = _fixture('Sound.ssab');
+    if (path == null) {
+      markTestSkipped('Sound.ssab missing — run deploy-examples.sh');
+      return;
+    }
+
+    // What a host's reverse-audio gate reads: the heading at the moment the
+    // callback runs, not the configured direction.
+    final forward = <String?>[], backward = <String?>[];
+    late final SpriteStudioPlayer player;
+    player = SpriteStudioPlayer()
+      ..onAudio = (a) =>
+          (player.isPlayingForward ? forward : backward).add(a.soundName);
+    addTearDown(player.dispose);
+
+    final bytes = Uint8List.fromList(File(path).readAsBytesSync());
+    await player.load(bytes,
+        animationName: SsAnimeInfo(bytes).animationNames.first,
+        loadTextures: false);
+    player
+      ..setPlaybackDirection(
+          SsPlaybackDirection.forward, SsPlaybackStyle.pingPong)
+      ..loopCount = 1
+      ..play();
+    var completed = false;
+    player.onAnimationFinished = () => completed = true;
+    for (var i = 0; i < 2000 && !completed; i++) {
+      player.advance(const Duration(milliseconds: 16));
+    }
+
+    // The two mid-timeline triggers, crossed once each way.
+    const mid = ['MP3_44khz_mono_160kbps', 'WAV_16khz_mono_256kbps_s16'];
+    expect(forward, containsAll(mid));
+    expect(backward, containsAll(mid),
+        reason: 'the Brain reports a key whichever way it is crossed');
+    expect(player.playbackDirection, SsPlaybackDirection.forward,
+        reason: 'only the instantaneous heading saw the return leg');
+  });
 }
 
 /// Loads [bytes] into [player] (first animation, no textures), plays it once,
