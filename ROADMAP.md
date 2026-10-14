@@ -61,10 +61,10 @@ areas, and a UI-state map.
   A **four-corner PartColor gradient** (`PartsColor`, rgbMeanDiff 6.1; a one-colour
   tint matches): the GPU interpolates it per triangle, Canvas bilinearly per
   fragment. The **gradient inside a Shape** (`Shape`, 6.7), and a few of its edge
-  pixels. **`Mul`, `Sub`, `Mulalpha` and `Invert`** (`BlendMode`, 11.7), each over
-  the pack's own opaque backdrop, where `Mix`, `Add`, `Screen` and `Exclusion` match —
-  [Limitations](docs/en/limitations.md) says both backends reproduce all eight there,
-  which this contradicts.
+  pixels. **`Mul` and `Mulalpha`** (`BlendMode`, 3.5, which the test's 6.0 gate
+  lets through), each over the pack's own opaque backdrop, where the other six modes
+  match — [Limitations](docs/en/limitations.md) says both backends reproduce all
+  eight there, which this contradicts.
 - [ ] **Physical iOS device and `armeabi-v7a` runtime check** — verified on the iOS
   simulator and Android emulator; a code-signed `iphoneos` slice and the 32-bit
   ARM ABI have no runtime check. Blocked on: a physical iOS device and a 32-bit
@@ -95,12 +95,12 @@ areas, and a UI-state map.
 ## Backlog
 
 - [ ] **Batch the Canvas `Sub` / `Invert` reconstruction** — those two modes have no
-  stock `ui.BlendMode`, so the Canvas backend rebuilds them from three passes over
-  one part's geometry (`blendPassesFor`), which also forces each such part out of
-  its batched run: the inversion passes must cover every pixel exactly once. Two
-  overlapping parts could still batch if the emitter proved their quads disjoint.
-  Bounded cost — 3 draws per Sub/Invert part — so it is only worth doing for a pack
-  that leans on those modes heavily.
+  stock `ui.BlendMode`, so the Canvas backend rebuilds them from four or three
+  passes over one part's geometry (`blendPassesFor`), which also forces each such
+  part out of its batched run: the inversion passes must cover every pixel exactly
+  once. Two overlapping parts could still batch if the emitter proved their quads
+  disjoint. Bounded cost — 4 draws per Sub part, 3 per Invert part — so it is only
+  worth doing for a pack that leans on those modes heavily.
 - [ ] **Reuse the GPU mask coverage texture** — `FlutterGpuBackend.renderCoverage`
   creates the coverage texture for every frame that writes a mask, and leaves the
   last one to the GC. A ring of them, as `TargetRing` keeps the offscreen targets,

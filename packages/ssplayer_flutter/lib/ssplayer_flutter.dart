@@ -68,6 +68,7 @@ export 'src/render/blend.dart'
         BlendPassSource,
         blendModeFor,
         blendPassesFor,
+        drawTexturedPass,
         effectBlendModeFor,
         partColorCoef;
 export 'src/render/effect.dart' show EffectPart, EffectSlots;

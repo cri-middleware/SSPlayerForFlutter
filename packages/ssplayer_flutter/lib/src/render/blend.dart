@@ -45,7 +45,7 @@ import 'package:ssruntime_dart/framedata.dart' as fbs;
 /// `Sub` / `Invert` map to `difference` (`|Cs - Cb|`), which is exact only in the
 /// narrow regime each mode is authored for (measured: `Sub` while `Cs ≤ αs·Cb`,
 /// `Invert` for an opaque white overlay). **The Canvas backend does not use that
-/// approximation** — it reconstructs both exactly out of three stock passes; see
+/// approximation** — it reconstructs both exactly out of a few stock passes; see
 /// [blendPassesFor]. [blendModeFor] keeps returning `difference` as the honest
 /// one-pass answer for callers that cannot run a multi-pass plan.
 ///
@@ -110,8 +110,10 @@ class BlendPass {
   /// What the pass draws.
   final BlendPassSource source;
 
-  /// The colour filter this pass forces onto the draw's paint, or null to keep
-  /// the draw's own (a peeled Mesh part's whole-part tint, typically).
+  /// The colour filter this pass forces onto the draw, or null to keep the
+  /// draw's own (a peeled Mesh part's whole-part tint, typically). A textured
+  /// `drawVertices` takes it through [drawTexturedPass], never as its paint's
+  /// `colorFilter`.
   ///
   /// A pass that only needs coverage may safely drop that tint: the tint is an
   /// rgb affine and cannot change *whether* a pixel is covered.
@@ -144,15 +146,19 @@ const ui.ColorFilter _blackFilter = ui.ColorFilter.matrix(<double>[
 /// geometry, in order. All but two modes are a single pass — [blendModeFor].
 ///
 /// `Sub` and `Invert` have no stock equivalent, but both are exactly
-/// reconstructible from three passes over the same geometry, because a
+/// reconstructible from a few passes over the same geometry, because a
 /// `difference` against opaque white *is* a destination inversion (`|1-Cb| =
 /// 1-Cb`) and inverting twice cancels:
 ///
 ///   * **Sub** = `max(0, Cb - Cs)`:
-///     `difference` white → `1-Cb`; `plus` the part → `clamp(1-Cb+Cs)`;
-///     `difference` white again → `1 - clamp(1-Cb+Cs)` = `max(0, Cb-Cs)`. The
-///     clamp in pass 2 is what reproduces SS's clamp-to-black, and wherever the
-///     part contributes nothing the two inversions cancel to a no-op.
+///     `difference` white → `1-Cb`; `plus` the part → `1-Cb+Cs`; `darken` white
+///     → `min(1, 1-Cb+Cs)`; `difference` white again → `max(0, Cb-Cs)`. The
+///     clamp is what reproduces SS's clamp-to-black, and it is a pass of its
+///     own because `plus` does not clamp on every target: Impeller (measured on
+///     macOS) keeps the sum above 1, and the last inversion then turns the
+///     excess into brightness. Where the target clamps, `darken` changes
+///     nothing. Wherever the part contributes nothing the two inversions cancel
+///     to a no-op.
 ///   * **Invert** = `Cs·(1-Cb)` with the destination *replaced*:
 ///     `difference` white → `1-Cb`; `modulate` the part → `Cs·(1-Cb)`;
 ///     `dstOver` opaque black restores the alpha `modulate` multiplied down.
@@ -161,7 +167,9 @@ const ui.ColorFilter _blackFilter = ui.ColorFilter.matrix(<double>[
 ///     factor does.
 ///
 /// Both are pixel-exact over an **opaque** destination — the case SS itself
-/// assumes, and already the caveat on Mul / Screen / Exclusion. Over transparency
+/// assumes, and already the caveat on Mul / Screen / Exclusion — but for the
+/// pixels the part's edge crosses on Impeller, where the inversions no longer
+/// cancel exactly (measured on macOS: a one-pixel fringe). Over transparency
 /// the rgb still matches but the inversion passes force alpha to 1 across the
 /// part's covered area (source-over is the only alpha composite a stock blend
 /// mode has), so a part hanging off the animation's opaque content reads as an
@@ -191,6 +199,7 @@ List<BlendPass> _planFor(fbs.BlendType type) {
       return const <BlendPass>[
         BlendPass(ui.BlendMode.difference, BlendPassSource.coverage),
         BlendPass(ui.BlendMode.plus),
+        BlendPass(ui.BlendMode.darken, BlendPassSource.coverage),
         BlendPass(ui.BlendMode.difference, BlendPassSource.coverage),
       ];
     case fbs.BlendType.Invert:
@@ -201,6 +210,95 @@ List<BlendPass> _planFor(fbs.BlendType type) {
       ];
     default:
       return <BlendPass>[BlendPass(blendModeFor(type))];
+  }
+}
+
+/// Draws one [pass] of a [blendPassesFor] plan as a textured `drawVertices`:
+/// [vertices] sampling [texture] (the atlas's `ImageShader`), with [tint] — a
+/// peeled Mesh part's whole-part PartColor — unless the pass brings a filter
+/// of its own.
+///
+/// The filter never goes on the textured draw's `colorFilter`: Impeller drops
+/// that from a `drawVertices` that samples an `ImageShader` (Skia applies it),
+/// which left every Sub / Invert inversion drawing the part's own colours
+/// instead of white, and a tinted Mesh part untinted. Nor on a layer's
+/// `colorFilter`: Impeller composites a second `difference` layer against the
+/// backdrop the first one read, so Sub's second inversion undid the first and
+/// dropped the part. It goes on the draw's `imageFilter`, which both renderers
+/// apply and which composites against the current backdrop. The black pass
+/// needs no texel, so it draws the bare geometry, whose vertex colours the
+/// filter does reach; an image filter would blacken its whole extent.
+///
+/// A filtered `modulate` pass (a tinted Invert) is drawn into a layer of opaque
+/// white, the identity of `modulate`: the filtered draw composites as a
+/// rectangle, and `modulate` with the transparent around the geometry would
+/// zero the destination there. [bounds], what [vertices] cover, sizes that
+/// layer; null leaves it the size of the clip.
+///
+/// [paint] and [layerPaint] are the caller's reused paints. Every field the
+/// draws read is set here.
+void drawTexturedPass(
+  ui.Canvas canvas,
+  ui.Vertices vertices,
+  BlendPass pass,
+  ui.Shader? texture, {
+  ui.ColorFilter? tint,
+  ui.Rect? bounds,
+  required ui.Paint paint,
+  required ui.Paint layerPaint,
+}) {
+  final filter = pass.filter ?? tint;
+  // `modulate` multiplies the vertex colour (white × alpha) into the texel; the
+  // paint's blend mode is the framebuffer composite. Opaque white, because with
+  // a shader bound the paint's RGB is unused but its alpha still scales it.
+  paint
+    ..color = const ui.Color(0xFFFFFFFF)
+    ..colorFilter = null
+    ..imageFilter = null;
+  if (filter == null) {
+    canvas.drawVertices(
+        vertices,
+        ui.BlendMode.modulate,
+        paint
+          ..blendMode = pass.mode
+          ..shader = texture);
+  } else if (pass.source == BlendPassSource.black) {
+    canvas.drawVertices(
+        vertices,
+        ui.BlendMode.modulate,
+        paint
+          ..blendMode = pass.mode
+          ..shader = null
+          ..colorFilter = filter);
+  } else if (pass.mode != ui.BlendMode.modulate) {
+    canvas.drawVertices(
+        vertices,
+        ui.BlendMode.modulate,
+        paint
+          ..blendMode = pass.mode
+          ..shader = texture
+          ..imageFilter = filter);
+  } else {
+    canvas
+      ..saveLayer(
+          bounds,
+          layerPaint
+            ..blendMode = ui.BlendMode.modulate
+            ..colorFilter = null
+            ..imageFilter = null)
+      ..drawPaint(paint
+        ..blendMode = ui.BlendMode.srcOver
+        ..shader = null)
+      ..drawVertices(vertices, ui.BlendMode.modulate,
+          paint..blendMode = ui.BlendMode.clear)
+      ..drawVertices(
+          vertices,
+          ui.BlendMode.modulate,
+          paint
+            ..blendMode = ui.BlendMode.srcOver
+            ..shader = texture
+            ..imageFilter = filter)
+      ..restore();
   }
 }
 

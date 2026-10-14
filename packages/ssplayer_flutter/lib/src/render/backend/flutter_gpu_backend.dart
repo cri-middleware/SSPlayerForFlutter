@@ -104,7 +104,7 @@ class FlutterGpuBackend implements RenderBackend {
       _ssBlend(gpu.BlendFactor.one, gpu.BlendFactor.one);
 
   /// SS Sub: `Cb - Cs` (reverse-subtract). One state here; the Canvas path needs
-  /// a three-pass reconstruction to reach the same pixels (`blendPassesFor`), so
+  /// a multi-pass reconstruction to reach the same pixels (`blendPassesFor`), so
   /// the two agree over an opaque destination and diverge in alpha over
   /// transparency, where that reconstruction can only force alpha to 1.
   static final gpu.ColorBlendEquation _sub = _ssBlend(
@@ -135,7 +135,7 @@ class FlutterGpuBackend implements RenderBackend {
   /// SS Invert: `Cs·(1-Cb)` with the destination **replaced** (dst factor zero) —
   /// so the part blacks out its own quad wherever its cell is transparent, which
   /// is the mode's real behaviour, not a bug. Skia has no dst-replace, hence the
-  /// Canvas path's three-pass reconstruction; same caveat as [_sub].
+  /// Canvas path's multi-pass reconstruction; same caveat as [_sub].
   static final gpu.ColorBlendEquation _invert = _ssBlend(
       gpu.BlendFactor.oneMinusDestinationColor, gpu.BlendFactor.zero);
 

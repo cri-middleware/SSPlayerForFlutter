@@ -31,11 +31,12 @@ import 'package:ssplayer_flutter/src/render/backend/gpu_capability.dart'
 // For each pack it renders the SAME frame through both backends and checks that
 // the GPU round-trip produces non-blank output that matches the Canvas reference
 // (coverage, orientation and colour) — the things a headless build can't confirm.
-// Four colour checks fail today — Shape, PartsColor, BlendMode, and PartsColor
-// after a reload — where the two backends draw different colours: a
-// four-corner PartColor gradient (the GPU interpolates it per triangle, Canvas
-// bilinearly per fragment), the gradient inside a Shape, and BlendMode's Mul,
-// Sub, Mulalpha and Invert parts. Which backend is right is not established.
+// Three colour checks fail today — Shape, PartsColor, and PartsColor after a
+// reload — where the two backends draw different colours: a four-corner
+// PartColor gradient (the GPU interpolates it per triangle, Canvas bilinearly
+// per fragment) and the gradient inside a Shape. BlendMode's Mul and Mulalpha
+// parts differ too, by less than the gate. Which backend is right is not
+// established.
 // The coverage checks (gpuOpaque, matchDirect) are the ones a draw-path change
 // must keep.
 
@@ -46,8 +47,8 @@ const int _h = 256;
 // BlendMode exercises the SS blend modes — Mix/Mul/Add/Sub/Mulalpha/Screen/
 // Exclusion/Invert, each over the pack's own opaque BG group — where the GPU
 // sets the reference GL state directly and Canvas maps the stock modes,
-// rebuilding Sub/Invert from three passes. The two are meant to agree there;
-// measured, Mix/Add/Screen/Exclusion do and Mul/Sub/Mulalpha/Invert do not.
+// rebuilding Sub/Invert from several passes. The two are meant to agree there;
+// measured, all but Mul/Mulalpha do.
 const List<String> _packs = <String>[
   'Basic',
   'Mesh',
