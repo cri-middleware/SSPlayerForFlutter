@@ -68,8 +68,8 @@ class CanvasBackend implements RenderBackend {
   /// their own paints (different field sets) and never touch this one.
   final ui.Paint _batchPaint = ui.Paint();
 
-  /// The layer [drawTexturedPass] puts a tinted `modulate` pass on; it is the
-  /// only writer here too.
+  /// The layer a `modulate` pass draws into ([openModulateLayer]), which sets
+  /// every field it reads.
   final ui.Paint _filterLayerPaint = ui.Paint();
 
   /// The layer a masked Mesh part composites through, one per pass
@@ -626,28 +626,29 @@ class CanvasBackend implements RenderBackend {
       return;
     }
 
-    final shader = _partColorShaders.next(program);
-    // A 1×1 opaque white texel + rate 0 collapses the whole PartColor formula to
-    // "pass the pixel through", i.e. opaque white — so the only thing the shader
-    // still decides is the mask test.
-    _setPartColorUniforms(shader, PartColor.identity, _unitQuad,
-        texWidth: 1.0,
-        texHeight: 1.0,
-        maskBits: mask.bits,
-        maskUvBasis: mask.uvBasis,
-        maskUvOffset: mask.uvOffset,
-        maskTilesX: mask.tilesX,
-        maskTilesY: mask.tilesY);
-    shader.setImageSampler(0, _ensureWhitePixel());
-    // The Canvas backend always provides a ui.Image coverage (only the GPU
-    // backend passes null, and it never runs this path).
-    shader.setImageSampler(1, mask.coverage!);
+    final shader = _maskGate(program, mask);
 
     // One shader instance across all passes: the pool's "distinct object per
     // draw" rule exists because uniforms are read at raster time, and every pass
     // here reads the *same* uniforms.
     final vertices = geometry.toVertices();
+    ui.Shader? hidden;
     for (final pass in passes) {
+      if (pass.mode == ui.BlendMode.modulate) {
+        // Invert's `modulate` would zero the destination wherever the mask
+        // hides the shape (see [closeModulateLayer]).
+        hidden ??= _maskGate(program, mask, hidden: true);
+        openModulateLayer(canvas, geometry.bounds.inflate(1.0),
+            paint: _shapePaint, layerPaint: _filterLayerPaint);
+        canvas
+          ..drawVertices(vertices, ui.BlendMode.modulate,
+              _shapePaint..blendMode = ui.BlendMode.clear)
+          ..drawVertices(
+              vertices, ui.BlendMode.modulate,
+              _shapePaint..blendMode = ui.BlendMode.srcOver);
+        closeModulateLayer(canvas, hidden, paint: _shapePaint);
+        continue;
+      }
       canvas.drawVertices(
           vertices,
           ui.BlendMode.modulate,
@@ -659,6 +660,30 @@ class CanvasBackend implements RenderBackend {
             ..color = const ui.Color(0xFFFFFFFF)
             ..shader = shader);
     }
+  }
+
+  /// A mask gate: `partcolor.frag` over a 1×1 opaque white texel at rate 0,
+  /// which collapses the PartColor formula to "pass the pixel through", so the
+  /// only thing the shader still decides is the mask test — opaque white where
+  /// [mask] lets a fragment through and transparent where it does not, or the
+  /// reverse when [hidden]. A fresh pool instance per call.
+  ui.Shader _maskGate(ui.FragmentProgram program, MaskDraw mask,
+      {bool hidden = false}) {
+    final shader = _partColorShaders.next(program);
+    _setPartColorUniforms(shader, PartColor.identity, _unitQuad,
+        texWidth: 1.0,
+        texHeight: 1.0,
+        maskBits: mask.bits,
+        invertMask: hidden,
+        maskUvBasis: mask.uvBasis,
+        maskUvOffset: mask.uvOffset,
+        maskTilesX: mask.tilesX,
+        maskTilesY: mask.tilesY);
+    shader.setImageSampler(0, _ensureWhitePixel());
+    // The Canvas backend always provides a ui.Image coverage (only the GPU
+    // backend passes null, and it never runs this path).
+    shader.setImageSampler(1, mask.coverage!);
+    return shader;
   }
 
   /// A degenerate quad for the mask gate: with `rate == 0` the shader never uses
@@ -772,23 +797,11 @@ class CanvasBackend implements RenderBackend {
       return;
     }
 
-    // The gate: `partcolor.frag` over a 1×1 white texel at rate 0 is opaque
-    // white where the mask passes and transparent where it does not (the same
-    // no-op configuration `_drawMaskedShape` uses), so `dstIn` keeps exactly the
-    // fragments that pass. Built once and reused across the passes below — they
-    // all read the same uniforms, which is what the pool's one-object-per-draw
-    // rule actually guards against.
-    final shader = _partColorShaders.next(program);
-    _setPartColorUniforms(shader, PartColor.identity, _unitQuad,
-        texWidth: 1.0,
-        texHeight: 1.0,
-        maskBits: mask.bits,
-        maskUvBasis: mask.uvBasis,
-        maskUvOffset: mask.uvOffset,
-        maskTilesX: mask.tilesX,
-        maskTilesY: mask.tilesY);
-    shader.setImageSampler(0, _ensureWhitePixel());
-    shader.setImageSampler(1, mask.coverage!);
+    // The gate is opaque white where the mask passes and transparent where it
+    // does not, so `dstIn` keeps exactly the fragments that pass. Built once and
+    // reused across the passes below — they all read the same uniforms, which
+    // is what the pool's one-object-per-draw rule actually guards against.
+    final shader = _maskGate(program, mask);
 
     // A masked part composites as one layer, so a multi-pass blend records the
     // layer once per pass — with the pass's filter, or else the tint, on the
@@ -801,7 +814,16 @@ class CanvasBackend implements RenderBackend {
     // set `isAntiAlias` from [_antiAliasFor] — so both draws below state it
     // rather than inheriting whatever the previous part (or the previous pass's
     // gate rect) happened to leave.
+    ui.Shader? hidden;
     for (final pass in passes) {
+      if (pass.mode == ui.BlendMode.modulate) {
+        // Invert's `modulate` composites no layer of its own: one transparent
+        // outside the part would zero the destination across [bounds].
+        hidden ??= _maskGate(program, mask, hidden: true);
+        _drawTexturedPass(canvas, vertices, batch, host, pass,
+            tint: tint, maskedOut: hidden, bounds: bounds);
+        continue;
+      }
       final filter = pass.filter ?? tint;
       final black = pass.source == BlendPassSource.black;
       canvas.saveLayer(
@@ -978,7 +1000,30 @@ class CanvasBackend implements RenderBackend {
     // inversion passes of a Sub / Invert plan cover exactly the same pixels.
     final path = _quadPath(quad);
     final antiAlias = _antiAliasFor(passes);
+    ui.Shader? hidden;
     for (final pass in passes) {
+      if (mask != null && pass.mode == ui.BlendMode.modulate) {
+        // Where the mask hides the part this shader is transparent, and
+        // Invert's `modulate` would zero the destination there (see
+        // [closeModulateLayer]).
+        hidden ??= _maskGate(program, mask, hidden: true);
+        openModulateLayer(canvas, path.getBounds().inflate(1.0),
+            paint: _peeledPaint, layerPaint: _filterLayerPaint);
+        canvas
+          ..drawPath(
+              path,
+              _peeledPaint
+                ..blendMode = ui.BlendMode.clear
+                ..isAntiAlias = antiAlias)
+          ..drawPath(
+              path,
+              _peeledPaint
+                ..blendMode = ui.BlendMode.srcOver
+                ..colorFilter = pass.filter
+                ..shader = shader);
+        closeModulateLayer(canvas, hidden, paint: _peeledPaint);
+        continue;
+      }
       canvas.drawPath(
           path,
           _peeledPaint
@@ -1117,6 +1162,7 @@ class CanvasBackend implements RenderBackend {
     required double texWidth,
     required double texHeight,
     MaskBits? maskBits,
+    bool invertMask = false,
     Float32List? maskUvBasis,
     Float32List? maskUvOffset,
     int maskTilesX = 1,
@@ -1161,8 +1207,9 @@ class CanvasBackend implements RenderBackend {
     f(quad.uvB[3]);
 
     // uMaskBits — the target's polarity, the enable flag and the coverage
-    // tile grid.
-    f(maskBits != null && maskBits.visibleInside ? 1.0 : 0.0);
+    // tile grid. [invertMask] flips the polarity, and with it the test: the
+    // shader passes a fragment exactly where the flipped one does not.
+    f(maskBits != null && maskBits.visibleInside != invertMask ? 1.0 : 0.0);
     f(maskBits != null ? 1.0 : 0.0);
     f(maskTilesX.toDouble());
     f(maskTilesY.toDouble());
@@ -1309,10 +1356,11 @@ class CanvasBackend implements RenderBackend {
   /// `modulate` pass reads it.
   void _drawTexturedPass(ui.Canvas canvas, ui.Vertices vertices,
           fbs.DrawBatch batch, RenderHost host, BlendPass pass,
-          {ui.ColorFilter? tint, ui.Rect? bounds}) =>
+          {ui.ColorFilter? tint, ui.Shader? maskedOut, ui.Rect? bounds}) =>
       drawTexturedPass(canvas, vertices, pass,
           host.textures.shaderFor(batch.textureHash),
           tint: tint,
+          maskedOut: maskedOut,
           bounds: bounds,
           paint: _batchPaint,
           layerPaint: _filterLayerPaint);

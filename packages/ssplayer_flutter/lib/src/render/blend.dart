@@ -164,7 +164,8 @@ const ui.ColorFilter _blackFilter = ui.ColorFilter.matrix(<double>[
 ///     `dstOver` opaque black restores the alpha `modulate` multiplied down.
 ///     The dst-replace shows up for free — `modulate` zeroes the destination
 ///     where the part's texel is transparent, which is exactly what a ZERO dst
-///     factor does.
+///     factor does. A fragment the part's mask hides must not reach it, which
+///     is what [openModulateLayer] is for.
 ///
 /// Both are pixel-exact over an **opaque** destination — the case SS itself
 /// assumes, and already the caveat on Mul / Screen / Exclusion — but for the
@@ -229,10 +230,11 @@ List<BlendPass> _planFor(fbs.BlendType type) {
 /// needs no texel, so it draws the bare geometry, whose vertex colours the
 /// filter does reach; an image filter would blacken its whole extent.
 ///
-/// A filtered `modulate` pass (a tinted Invert) is drawn into a layer of opaque
-/// white, the identity of `modulate`: the filtered draw composites as a
-/// rectangle, and `modulate` with the transparent around the geometry would
-/// zero the destination there. [bounds], what [vertices] cover, sizes that
+/// A filtered `modulate` pass (a tinted Invert) goes through
+/// [openModulateLayer]: the filtered draw composites as a rectangle, and
+/// `modulate` with the transparent around the geometry would zero the
+/// destination there. So does a masked part's, whose [maskedOut] is opaque white
+/// wherever the mask hides the part. [bounds], what [vertices] cover, sizes that
 /// layer; null leaves it the size of the clip.
 ///
 /// [paint] and [layerPaint] are the caller's reused paints. Every field the
@@ -243,6 +245,7 @@ void drawTexturedPass(
   BlendPass pass,
   ui.Shader? texture, {
   ui.ColorFilter? tint,
+  ui.Shader? maskedOut,
   ui.Rect? bounds,
   required ui.Paint paint,
   required ui.Paint layerPaint,
@@ -255,7 +258,21 @@ void drawTexturedPass(
     ..color = const ui.Color(0xFFFFFFFF)
     ..colorFilter = null
     ..imageFilter = null;
-  if (filter == null) {
+  if (pass.mode == ui.BlendMode.modulate &&
+      (filter != null || maskedOut != null)) {
+    openModulateLayer(canvas, bounds, paint: paint, layerPaint: layerPaint);
+    canvas
+      ..drawVertices(vertices, ui.BlendMode.modulate,
+          paint..blendMode = ui.BlendMode.clear)
+      ..drawVertices(
+          vertices,
+          ui.BlendMode.modulate,
+          paint
+            ..blendMode = ui.BlendMode.srcOver
+            ..shader = texture
+            ..imageFilter = filter);
+    closeModulateLayer(canvas, maskedOut, paint: paint);
+  } else if (filter == null) {
     canvas.drawVertices(
         vertices,
         ui.BlendMode.modulate,
@@ -270,7 +287,7 @@ void drawTexturedPass(
           ..blendMode = pass.mode
           ..shader = null
           ..colorFilter = filter);
-  } else if (pass.mode != ui.BlendMode.modulate) {
+  } else {
     canvas.drawVertices(
         vertices,
         ui.BlendMode.modulate,
@@ -278,28 +295,50 @@ void drawTexturedPass(
           ..blendMode = pass.mode
           ..shader = texture
           ..imageFilter = filter);
-  } else {
-    canvas
-      ..saveLayer(
-          bounds,
-          layerPaint
-            ..blendMode = ui.BlendMode.modulate
-            ..colorFilter = null
-            ..imageFilter = null)
-      ..drawPaint(paint
-        ..blendMode = ui.BlendMode.srcOver
-        ..shader = null)
-      ..drawVertices(vertices, ui.BlendMode.modulate,
-          paint..blendMode = ui.BlendMode.clear)
-      ..drawVertices(
-          vertices,
-          ui.BlendMode.modulate,
-          paint
-            ..blendMode = ui.BlendMode.srcOver
-            ..shader = texture
-            ..imageFilter = filter)
-      ..restore();
   }
+}
+
+/// Opens the layer a `modulate` pass (Invert's) draws a part into when the
+/// draw reaches pixels the part must leave alone. `modulate` multiplies the
+/// destination by everything the layer holds, transparent pixels included,
+/// so the layer starts as its identity, opaque white, over [bounds] (null:
+/// the clip). The caller clears the part's geometry out of it, draws the part
+/// there in source-over, and closes it with [closeModulateLayer].
+///
+/// Every field [paint] and [layerPaint] are read for is set here.
+void openModulateLayer(ui.Canvas canvas, ui.Rect? bounds,
+    {required ui.Paint paint, required ui.Paint layerPaint}) {
+  canvas
+    ..saveLayer(
+        bounds,
+        layerPaint
+          ..blendMode = ui.BlendMode.modulate
+          ..colorFilter = null
+          ..imageFilter = null)
+    ..drawPaint(paint
+      ..blendMode = ui.BlendMode.srcOver
+      ..color = const ui.Color(0xFFFFFFFF)
+      ..shader = null
+      ..colorFilter = null
+      ..imageFilter = null);
+}
+
+/// Closes [openModulateLayer]'s layer. [maskedOut], opaque white wherever the
+/// part's mask hides it and transparent elsewhere, puts the identity back
+/// there: a hidden fragment must leave the destination alone, as it does
+/// under every other mode, and `modulate` would otherwise zero it. Null for an
+/// unmasked part.
+void closeModulateLayer(ui.Canvas canvas, ui.Shader? maskedOut,
+    {required ui.Paint paint}) {
+  if (maskedOut != null) {
+    canvas.drawPaint(paint
+      ..blendMode = ui.BlendMode.srcOver
+      ..color = const ui.Color(0xFFFFFFFF)
+      ..shader = maskedOut
+      ..colorFilter = null
+      ..imageFilter = null);
+  }
+  canvas.restore();
 }
 
 /// Framebuffer blend mapping for an `EffectDrawCommand.blend`.

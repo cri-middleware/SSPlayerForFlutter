@@ -100,9 +100,11 @@ bool maskPasses() {
 }
 
 void main() {
+  // Discarded, not transparent: Invert's ZERO destination factor would black
+  // out the destination under a transparent fragment, where a hidden one must
+  // leave it alone.
   if (!maskPasses()) {
-    frag_color = vec4(0.0);
-    return;
+    discard;
   }
 
   vec4 tex = texture(u_texture, v_uv);
