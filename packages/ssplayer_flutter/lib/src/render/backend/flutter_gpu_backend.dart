@@ -504,7 +504,7 @@ class FlutterGpuBackend implements RenderBackend {
   final Float32List _shaderInfoScratch = Float32List(12);
   final Float32List _shapeMaskUboScratch =
       Float32List(MaskDraw.replayFloats);
-  final Float32List _writerVertsScratch = Float32List(16);
+  final Float32List _writerVertsScratch = Float32List(20);
   final Float32List _bitColorScratch = Float32List(4);
   final Float32List _childMvpScratch = Float32List(16);
   Float32List _posUvScratch = Float32List(0);
@@ -918,8 +918,42 @@ class FlutterGpuBackend implements RenderBackend {
     }
   }
 
-  static final Uint16List _quadIndices =
-      Uint16List.fromList(const <int>[0, 1, 2, 1, 3, 2]);
+  static final Uint16List _fanIndices =
+      Uint16List.fromList(GeometryBuilder.fanIndices);
+
+  /// A Normal mask writer's vertices, `[x, y, u, v]` each, for [_fanIndices]:
+  /// its four corners and its centre, the fan its colour pass draws. On two
+  /// triangles a deformed writer would sample its cutout texel along a different
+  /// diagonal from the one it shows, and cover a different shape.
+  ///
+  /// Written into [_writerVertsScratch], which the caller uploads before the
+  /// next writer refills it.
+  Float32List _writerFan(PartColorQuad quad, ui.Image image) {
+    final invW = image.width > 0 ? 1.0 / image.width : 0.0;
+    final invH = image.height > 0 ? 1.0 / image.height : 0.0;
+    final c = quad.corners, ua = quad.uvA, ub = quad.uvB, o = quad.center;
+    return _writerVertsScratch
+      ..[0] = c[0]
+      ..[1] = c[1]
+      ..[2] = ua[0] * invW
+      ..[3] = ua[1] * invH
+      ..[4] = c[2]
+      ..[5] = c[3]
+      ..[6] = ua[2] * invW
+      ..[7] = ua[3] * invH
+      ..[8] = c[4]
+      ..[9] = c[5]
+      ..[10] = ub[0] * invW
+      ..[11] = ub[1] * invH
+      ..[12] = c[6]
+      ..[13] = c[7]
+      ..[14] = ub[2] * invW
+      ..[15] = ub[3] * invH
+      ..[16] = o[0]
+      ..[17] = o[1]
+      ..[18] = o[2] * invW
+      ..[19] = o[3] * invH;
+  }
 
   /// Flattens a peeled part's mask replay into the [MaskDraw.replayFloats]
   /// floats the PartColor vertex carries ([MaskDraw.writeReplay], matching
@@ -1487,28 +1521,8 @@ class FlutterGpuBackend implements RenderBackend {
           if (tex == null) continue; // cell still uploading
           writerTex = tex;
           threshold = writer.threshold;
-          final invW = image.width > 0 ? 1.0 / image.width : 0.0;
-          final invH = image.height > 0 ? 1.0 / image.height : 0.0;
-          final c = quad.corners, ua = quad.uvA, ub = quad.uvB;
-          final v = _writerVertsScratch;
-          v[0] = c[0];
-          v[1] = c[1];
-          v[2] = ua[0] * invW;
-          v[3] = ua[1] * invH;
-          v[4] = c[2];
-          v[5] = c[3];
-          v[6] = ua[2] * invW;
-          v[7] = ua[3] * invH;
-          v[8] = c[4];
-          v[9] = c[5];
-          v[10] = ub[0] * invW;
-          v[11] = ub[1] * invH;
-          v[12] = c[6];
-          v[13] = c[7];
-          v[14] = ub[2] * invW;
-          v[15] = ub[3] * invH;
-          verts = v;
-          indices = _quadIndices;
+          verts = _writerFan(quad, image);
+          indices = _fanIndices;
         }
 
         _beginDraw(pass, pipeline);
@@ -1558,28 +1572,8 @@ class FlutterGpuBackend implements RenderBackend {
           if (tex == null) continue; // cell still uploading
           writerTex = tex;
           threshold = bw.threshold;
-          final invW = image.width > 0 ? 1.0 / image.width : 0.0;
-          final invH = image.height > 0 ? 1.0 / image.height : 0.0;
-          final c = quad.corners, ua = quad.uvA, ub = quad.uvB;
-          final v = _writerVertsScratch;
-          v[0] = c[0];
-          v[1] = c[1];
-          v[2] = ua[0] * invW;
-          v[3] = ua[1] * invH;
-          v[4] = c[2];
-          v[5] = c[3];
-          v[6] = ua[2] * invW;
-          v[7] = ua[3] * invH;
-          v[8] = c[4];
-          v[9] = c[5];
-          v[10] = ub[0] * invW;
-          v[11] = ub[1] * invH;
-          v[12] = c[6];
-          v[13] = c[7];
-          v[14] = ub[2] * invW;
-          v[15] = ub[3] * invH;
-          verts = v;
-          indices = _quadIndices;
+          verts = _writerFan(quad, image);
+          indices = _fanIndices;
         }
 
         _beginDraw(pass, pipeline);

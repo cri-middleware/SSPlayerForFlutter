@@ -494,9 +494,9 @@ class GeometryBuilder {
   /// winding the two-triangle split had. Two triangles cut the part along one
   /// diagonal, so a deformed part bends along it and a four-corner PartColor
   /// shades along it; the Editor draws neither that way.
-  static const List<int> _fan = [4, 0, 1, 4, 1, 3, 4, 3, 2, 4, 2, 0];
+  static const List<int> fanIndices = [4, 0, 1, 4, 1, 3, 4, 3, 2, 4, 2, 0];
 
-  /// Vertices per Normal part: its four corners and the centre of [_fan].
+  /// Vertices per Normal part: its four corners and the centre of [fanIndices].
   static const int _fanVertices = 5;
 
   /// Most Normal parts one bake can index: indices are 16-bit (`ui.Vertices`
@@ -620,7 +620,7 @@ class GeometryBuilder {
     final positions = _pos(count * _fanVertices * 2); // × (x,y)
     final texCoords = _uvs(count * _fanVertices * 2);
     final colors = _cols(count * _fanVertices);
-    final indices = _idx(count * _fan.length);
+    final indices = _idx(count * fanIndices.length);
 
     var vBase = 0; // vertices emitted so far
     var fPos = 0; // float cursor into positions/texCoords
@@ -654,7 +654,7 @@ class GeometryBuilder {
         fPos += 2;
         colors[cPos++] = color;
       }
-      for (final q in _fan) {
+      for (final q in fanIndices) {
         indices[iPos++] = vBase + q;
       }
       vBase += _fanVertices;
@@ -749,7 +749,7 @@ class GeometryBuilder {
     final uv = frame.uv;
 
     final verts = _inter(count * _fanVertices * 8);
-    final indices = _idx(count * _fan.length);
+    final indices = _idx(count * fanIndices.length);
     final invW = texWidth > 0 ? 1.0 / texWidth : 0.0;
     final invH = texHeight > 0 ? 1.0 / texHeight : 0.0;
 
@@ -788,7 +788,7 @@ class GeometryBuilder {
         verts[fp + 7] = a; // a
         fp += 8;
       }
-      for (final q in _fan) {
+      for (final q in fanIndices) {
         indices[ip++] = vBase + q;
       }
       vBase += _fanVertices;
@@ -884,7 +884,7 @@ class GeometryBuilder {
     if (count == 0 || count > _maxQuads) return null;
 
     final verts = _inter(count * _fanVertices * partColorStride);
-    final indices = _idx(count * _fan.length);
+    final indices = _idx(count * fanIndices.length);
     final invW = texWidth > 0 ? 1.0 / texWidth : 0.0;
     final invH = texHeight > 0 ? 1.0 / texHeight : 0.0;
 
@@ -910,7 +910,7 @@ class GeometryBuilder {
       final o = quad.center;
       fp = _writeFanCentre(
           verts, fp, partColorStride, o[0], o[1], o[2] * invW, o[3] * invH);
-      for (final q in _fan) {
+      for (final q in fanIndices) {
         indices[ip++] = vBase + q;
       }
       vBase += _fanVertices;
@@ -947,7 +947,7 @@ class GeometryBuilder {
   InterleavedGeometry? buildSsShaderInterleaved(PartColorQuad quad, PartColor pc,
       {required double texWidth, required double texHeight}) {
     final verts = _inter(_fanVertices * ssShaderStride);
-    final indices = _idx(_fan.length);
+    final indices = _idx(fanIndices.length);
     final invW = texWidth > 0 ? 1.0 / texWidth : 0.0;
     final invH = texHeight > 0 ? 1.0 / texHeight : 0.0;
 
@@ -967,7 +967,7 @@ class GeometryBuilder {
     fp = _writeFanCentre(
         verts, fp, ssShaderStride, o[0], o[1], o[2] * invW, o[3] * invH);
     var ip = 0;
-    for (final q in _fan) {
+    for (final q in fanIndices) {
       indices[ip++] = q;
     }
     return InterleavedGeometry(
