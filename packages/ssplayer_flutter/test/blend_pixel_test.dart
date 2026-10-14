@@ -115,7 +115,7 @@ const _texelSide = 16;
 /// covered texel, the transparent one, and the backdrop beside the quad.
 Future<(List<int>, List<int>, List<int>)> _replay(
     List<BlendPass> passes, ui.Image texture, int backdrop,
-    {ui.ColorFilter? tint}) async {
+    {ui.ColorFilter? tint, ui.Shader? maskedOut}) async {
   const w = 2.0 * _texelSide, h = 1.0 * _texelSide;
   final vertices = ui.Vertices.raw(ui.VertexMode.triangles,
       Float32List.fromList(<double>[0, 0, w, 0, 0, h, w, 0, w, h, 0, h]),
@@ -133,6 +133,7 @@ Future<(List<int>, List<int>, List<int>)> _replay(
   for (final pass in passes) {
     drawTexturedPass(canvas, vertices, pass, shader,
         tint: tint,
+        maskedOut: maskedOut,
         bounds: const ui.Rect.fromLTWH(0, 0, w, h),
         paint: paint,
         layerPaint: layerPaint);
@@ -321,6 +322,38 @@ void main() {
       texture.dispose();
     });
   }
+
+  // A masked part's: where the mask hides the part the destination stays as it
+  // was, which `modulate` with a hidden (transparent) fragment would zero.
+  test('Invert\'s modulate pass leaves alone what the mask hides', () async {
+    final texture = await _texture(255, 0x80);
+    const backdrop = 0x80;
+    final modulate = blendPassesFor(fbs.BlendType.Invert)
+        .singleWhere((pass) => pass.mode == ui.BlendMode.modulate);
+    // Opaque white over the covered texel only: the mask hides that one.
+    final hidesTexel0 = ui.Gradient.linear(
+        ui.Offset.zero,
+        const ui.Offset(2.0 * _texelSide, 0),
+        const <ui.Color>[
+          ui.Color(0xFFFFFFFF),
+          ui.Color(0xFFFFFFFF),
+          ui.Color(0x00000000),
+          ui.Color(0x00000000),
+        ],
+        const <double>[0, 0.5, 0.5, 1]);
+    final (hidden, clear, outside) = await _replay(
+        [modulate], texture, backdrop,
+        maskedOut: hidesTexel0);
+    // ±1: Impeller rounds the multiply by white down.
+    for (var channel = 0; channel < 3; channel++) {
+      expect(hidden[channel], closeTo(backdrop, 1), reason: 'channel $channel');
+    }
+    expect(hidden[3], 255);
+    // The visible transparent texel still replaces the destination.
+    expect(clear, [0, 0, 0, 0]);
+    expect(outside, [backdrop, backdrop, backdrop, 255]);
+    texture.dispose();
+  });
 
   test('every other mode stays a single pass', () async {
     for (final type in fbs.BlendType.values) {

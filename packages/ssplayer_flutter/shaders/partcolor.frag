@@ -134,8 +134,10 @@ void main() {
   vec2 frag = FlutterFragCoord().xy;
 
   // Runtime effects may not `discard`; a fully transparent fragment is the
-  // equivalent — it is a no-op under every blend mode we emit (Mix / Add /
-  // Mul / Sub all leave the destination untouched for a zero premultiplied src).
+  // equivalent — it leaves the destination untouched under every blend mode we
+  // emit but `modulate`, which zeroes it. Invert's `modulate` pass is drawn into
+  // a layer that puts the destination back wherever the mask hides the part
+  // (closeModulateLayer, blend.dart).
   if (!maskPasses(frag)) {
     fragColor = vec4(0.0);
     return;

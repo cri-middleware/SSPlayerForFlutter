@@ -137,6 +137,16 @@ void main() {
       expect(await _drew(bits: 0x3, invert: 0x3, visibleInside: true), isFalse);
       expect(await _drew(bits: 0x7, invert: 0x7, visibleInside: true), isTrue);
     });
+
+    test('outside the coverage bitmap too, so a flipped polarity is the exact '
+        'complement', () async {
+      // The Canvas backend's hidden-fragment gate for Invert is this shader with
+      // the polarity flipped, so it must answer the opposite everywhere.
+      expect(await _drew(bits: 0x1, invert: 0x1, visibleInside: false,
+          maskOffset: 2), isTrue);
+      expect(await _drew(bits: 0x1, invert: 0x1, visibleInside: true,
+          maskOffset: 2), isFalse);
+    });
   });
 
   test('the flutter_gpu twin is verified elsewhere', () {
@@ -165,12 +175,14 @@ Future<bool> _covered({
 /// Whether the fragment survived the mask test — the raw read-back.
 ///
 /// [tile1] — `(bits, increment, invert)` of a second coverage tile — splits the
-/// coverage into two tiles side by side.
+/// coverage into two tiles side by side. [maskOffset] shifts the coverage UV,
+/// past 1 putting the fragment outside the bitmap.
 Future<bool> _drew({
   required int bits,
   int increment = 0,
   int invert = 0,
   (int, int, int)? tile1,
+  double maskOffset = 0,
   required bool visibleInside,
 }) async {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -228,7 +240,7 @@ Future<bool> _drew({
   f(0);
   f(0);
   f(1 / _size);
-  f(0); // uMaskOff — …with no offset, so every fragment is inside the bitmap
+  f(maskOffset); // uMaskOff — …with no offset, every fragment is inside it
   f(0);
   // uMaskInc / uMaskInv — one set per tile.
   for (final v in <int>[increment, tile1?.$2 ?? 0, 0, 0]) {
