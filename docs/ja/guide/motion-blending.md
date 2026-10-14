@@ -156,7 +156,7 @@ if (_player.isTrackFinished(2)) {
 
 `trackJustLooped(track)` は、track 0 の `justLooped` と同じく 1 回の進行ごとのパルスです。track 1 以降の終了やループにはコールバックがありません。`onAnimationFinished` を発火し、キャラクターの再生を終わらせるのは track 0 の終了だけです。
 
-track 0 が終わっても時計は止まりません。オーバーレイとフェードは動き続け、プレイヤーもそのために Ticker を回し続けます。`pause`・`resume`・`stop` はキャラクター全体（すべてのトラックとフェード）に効き、`play` が頭出しするのは track 0 だけです。
+track 0 が終わっても時計は止まりません。オーバーレイとフェードは動き続け、プレイヤーもそのために Ticker を回し続けます。`pause`・`resume`・`stop` はキャラクター全体（すべてのトラックとフェード）に効き、`play` が頭出しするのは track 0 だけです。ただし `isPlaying` と `isPausing` は track 0 の状態を表すので、track 0 が終わった後は、一時停止中も両方 false のままです。
 
 ## トラックをスクラブする: 連続的な操作
 

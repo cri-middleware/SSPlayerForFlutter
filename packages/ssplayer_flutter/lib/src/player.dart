@@ -964,6 +964,9 @@ class SpriteStudioPlayer extends ChangeNotifier {
   bool get isPlaying => _internal?.isPlaying ?? false;
 
   /// Whether playback is paused in place (still [isPlaying], just held).
+  ///
+  /// Like [isPlaying] it is track 0's: once track 0 has finished it stays
+  /// false, even while a [pause] holds the tracks above it.
   bool get isPausing => _internal?.isPausing ?? false;
 
   /// Whether every configured loop has played. **Sticky** until the next [play]
@@ -978,8 +981,10 @@ class SpriteStudioPlayer extends ChangeNotifier {
   bool get isFinished => _internal?.isFinished ?? false;
 
   /// Whether the most recent advance crossed a loop boundary. This is the loop
-  /// *edge*, cleared at the top of every update, so it only reads true inside
-  /// the tick that crossed — poll it from a per-frame callback or use [onAnimationLooped].
+  /// *edge*: the next advance clears or sets it, and [play] and [setAnimation]
+  /// clear it, but it still reads true after a [pause], a [seek] or a [stop]
+  /// that followed the crossing. Read it once per advance, from a per-frame
+  /// callback, or use [onAnimationLooped].
   bool get justLooped => _internal?.justLooped ?? false;
 
   /// Which way the playhead is **actually** travelling this frame — not
