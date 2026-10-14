@@ -99,8 +99,14 @@ class SpriteStudioPlayer extends ChangeNotifier {
   /// FPS. Applies to the current and future loaded animations.
   bool get subFrameEnabled => _internal?.subFrameEnabled ?? _subFrame;
   set subFrameEnabled(bool value) {
+    if (value == subFrameEnabled) return;
     _subFrame = value;
-    _internal?.subFrameEnabled = value;
+    final internal = _internal;
+    if (internal == null) return;
+    // On a frame between two keys the toggle moves the pose, so a paused or
+    // stopped player repaints to show it.
+    internal.subFrameEnabled = value;
+    notifyListeners();
   }
 
   /// Mirror the drawn animation horizontally — the same idea as Flutter's own
@@ -871,13 +877,20 @@ class SpriteStudioPlayer extends ChangeNotifier {
   /// animation, so [play] / looping / ping-pong all work within that range.
   /// [startFrame] and [endFrame] report the result.
   ///
+  /// It also moves the playhead to the section's first frame (its last, playing
+  /// backward), as a [seek] would — a paused or stopped player shows that frame
+  /// at once.
+  ///
   /// Not restored across [setAnimation]: frame numbers only mean something
   /// inside the animation they were measured in, so carrying a section into a
   /// different one would clamp it to an arbitrary range. Call this again after
   /// each setup, and only once the animation is selected — a section set before
   /// [setAnimation] is wiped by it.
   void setAnimationSection(int startFrame, int endFrame) {
-    _internal?.setAnimationSection(startFrame, endFrame);
+    final internal = _internal;
+    if (internal == null) return;
+    internal.setAnimationSection(startFrame, endFrame);
+    notifyListeners();
   }
 
   /// Frames per second the animation advances at — the rate authored in the
