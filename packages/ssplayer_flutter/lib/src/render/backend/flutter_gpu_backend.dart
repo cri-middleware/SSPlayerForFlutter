@@ -506,8 +506,15 @@ class FlutterGpuBackend implements RenderBackend {
       Float32List(MaskDraw.replayFloats);
   final Float32List _writerVertsScratch = Float32List(16);
   final Float32List _bitColorScratch = Float32List(4);
-  final Float32List _coverageMvpScratch = Float32List(16);
+  final Float32List _childMvpScratch = Float32List(16);
   Float32List _posUvScratch = Float32List(0);
+
+  /// Per coverage tile, its player-local→coverage-NDC matrix and the view of
+  /// its upload. One buffer per tile because every tile's stays live through
+  /// [renderCoverage]: the bubbled writers compose onto it after the tile's
+  /// own writers drew.
+  final List<Float32List> _tileMvpPool = <Float32List>[];
+  final List<gpu.BufferView> _tileMvpViews = <gpu.BufferView>[];
 
   /// Per-slot mask replay sets for [_drawPartColorRun]. Indexed by position in
   /// the run because ALL of a run's sets are live at once (the bake reads them
@@ -1439,12 +1446,11 @@ class FlutterGpuBackend implements RenderBackend {
       // Player-local -> coverage NDC per tile, built from the SAME
       // uvBasis/uvOffset the main-pass shader samples with, so the two are
       // guaranteed to agree. Uploaded once per tile in use.
-      final tileMvps = <Float32List>[];
-      final tileMvpViews = <gpu.BufferView>[];
+      final tileMvps = _tileMvpPool;
+      final tileMvpViews = _tileMvpViews..clear();
       for (var t = 0; t < plan.tileCount; t++) {
-        final m = Float32List.fromList(_coverageMvp(plan, t));
-        tileMvps.add(m);
-        tileMvpViews.add(_uniform(m));
+        if (tileMvps.length <= t) tileMvps.add(Float32List(16));
+        tileMvpViews.add(_uniform(_coverageMvp(plan, t, tileMvps[t])));
       }
       final mvpSlot = pipeline.vertexShader.getUniformSlot('MaskFrame');
       final bitSlot = pipeline.fragmentShader.getUniformSlot('MaskBit');
@@ -1523,7 +1529,8 @@ class FlutterGpuBackend implements RenderBackend {
       // the Canvas path applies it on the canvas transform stack).
       for (final bw in plan.bubbled) {
         final childMvpView =
-            _uniform(_mul4Col(tileMvps[bw.bit ~/ kMaskTileBits], bw.slot));
+            _uniform(_mul4Col(tileMvps[bw.bit ~/ kMaskTileBits], bw.slot,
+                _childMvpScratch));
         Float32List verts;
         Uint16List indices;
         var threshold = -1.0;
@@ -1599,10 +1606,9 @@ class FlutterGpuBackend implements RenderBackend {
 
   /// Column-major 4×4 product `a · b` — the owner-local→NDC coverage matrix
   /// composed with a descendant writer's descendant-local→owner-local slot, so
-  /// its geometry projects straight into the owner's coverage. Fresh list
-  /// (not a scratch): each bubbled writer uploads its own before the next.
-  static Float32List _mul4Col(Float32List a, Float64List b) {
-    final out = Float32List(16);
+  /// its geometry projects straight into the owner's coverage. Written into
+  /// [out], which the caller uploads before the next writer composes into it.
+  static Float32List _mul4Col(Float32List a, Float64List b, Float32List out) {
     for (var c = 0; c < 4; c++) {
       for (var r = 0; r < 4; r++) {
         var s = 0.0;
@@ -1621,31 +1627,31 @@ class FlutterGpuBackend implements RenderBackend {
   /// tile's cell, `(uv + cell) / tiles`, then `ndc = uv*2 - 1`, with the Y axis
   /// carrying [_kNdcYSign].
   ///
-  /// Written into [_coverageMvpScratch] — the caller copies it.
-  Float32List _coverageMvp(MaskPlan plan, int tile) {
+  /// Written into [m], which it returns.
+  static Float32List _coverageMvp(MaskPlan plan, int tile, Float32List m) {
     final cols = plan.tilesX.toDouble(), rows = plan.tilesY.toDouble();
     final cx = (tile % plan.tilesX).toDouble();
     final cy = (tile ~/ plan.tilesX).toDouble();
     final pb = plan.uvBasis; // [m00, m01, m10, m11]
     final po = plan.uvOffset; // [x, y]
-    final b = <double>[pb[0] / cols, pb[1] / cols, pb[2] / rows, pb[3] / rows];
-    final o = <double>[(po[0] + cx) / cols, (po[1] + cy) / rows];
+    final b0 = pb[0] / cols, b1 = pb[1] / cols;
+    final b2 = pb[2] / rows, b3 = pb[3] / rows;
+    final o0 = (po[0] + cx) / cols, o1 = (po[1] + cy) / rows;
     // Every slot written, zeros included: a recycled buffer keeps nothing.
-    final m = _coverageMvpScratch;
-    m[0] = 2.0 * b[0];
-    m[1] = _kNdcYSign * 2.0 * b[2];
+    m[0] = 2.0 * b0;
+    m[1] = _kNdcYSign * 2.0 * b2;
     m[2] = 0.0;
     m[3] = 0.0;
-    m[4] = 2.0 * b[1];
-    m[5] = _kNdcYSign * 2.0 * b[3];
+    m[4] = 2.0 * b1;
+    m[5] = _kNdcYSign * 2.0 * b3;
     m[6] = 0.0;
     m[7] = 0.0;
     m[8] = 0.0;
     m[9] = 0.0;
     m[10] = 1.0;
     m[11] = 0.0;
-    m[12] = 2.0 * o[0] - 1.0;
-    m[13] = _kNdcYSign * (2.0 * o[1] - 1.0);
+    m[12] = 2.0 * o0 - 1.0;
+    m[13] = _kNdcYSign * (2.0 * o1 - 1.0);
     m[14] = 0.0;
     m[15] = 1.0;
     return m;
