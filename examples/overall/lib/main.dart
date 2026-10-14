@@ -234,13 +234,15 @@ class _PlayerPageState extends State<PlayerPage>
   // audioplayers has no "play N times", so replay on completion until spent,
   // then discard the player.
   //
-  // Audio should only play on FORWARD playback — the
-  // Brain also reports events when running in reverse, which audio backends
-  // rarely support. This demo only ever plays forward, so it needs no guard;
-  // an app that reverses would open with `if (!_player.isPlayingForward) return;`
-  // here. That read, not `playbackDirection`, is the right test: a ping-pong
-  // return leg runs backward while the configured direction still says forward.
+  // Only on FORWARD playback: SpriteStudio has no reverse audio, and the Brain
+  // reports a key whichever way it is crossed. `isPlayingForward`, not
+  // `playbackDirection`, is the test — a ping-pong return leg runs backward
+  // while the configured direction still says forward. The event line above
+  // still shows the trigger: the notification is an observation either way.
   Future<void> _playAudio(SsAudioEvent a) async {
+    // Read before the first await: it is the heading of the advance that
+    // crossed the key, which the next frame may already have turned.
+    if (!_player.isPlayingForward) return;
     // Only bundled packs ship their sounds as app assets. A drag-dropped folder
     // would need filesystem playback, which this demo skips.
     if (_dropped) return;
