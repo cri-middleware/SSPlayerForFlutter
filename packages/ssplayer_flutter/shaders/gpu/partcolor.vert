@@ -8,10 +8,11 @@
 // Metal correct here: there is no dynamically-indexed uniform array, the one
 // construct it miscompiles (`u[dynamicIndex + const]` reads 0).
 //
-// The four corner colours ride on the four corner vertices, so the rasteriser
-// interpolates the gradient for free (no per-fragment bilinear); the blend
-// rate rides in `a_coef.w` (also interpolated: rate varies per corner). The mask
-// sets are constant across a part's 4 corners and are carried `flat`.
+// The four corner colours ride on the four corner vertices, and their average
+// on the centre of the part's fan, so the rasteriser interpolates the gradient
+// for free (no per-fragment reconstruction); the blend rate rides in
+// `a_coef.w` (also interpolated: rate varies per corner). The mask sets are
+// constant across a part's vertices and are carried `flat`.
 //
 // vec4 vertex attributes MUST sit on a 16-byte boundary or Impeller misreads
 // them (the ShapeMask alignment trap), so the layout is a 128-byte (32-float)

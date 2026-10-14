@@ -298,6 +298,7 @@ void main() {
       expect(reused.uvA, fresh.uvA);
       expect(reused.uvB, fresh.uvB);
       expect(reused.inv, fresh.inv);
+      expect(reused.center, fresh.center);
       expect(reused.originX, fresh.originX);
       expect(reused.originY, fresh.originY);
       expect(builder.cellRectScratch(reused, 128, 64),

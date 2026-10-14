@@ -8,9 +8,10 @@
 // shader × mask is not combined (a masked part drops its shader and takes the
 // plain masked path, as in both sibling ports).
 //
-// The four corner colours still ride on the four corner vertices so the
-// rasteriser interpolates the PartColor gradient for free, with the blend
-// rate in `a_coef.w` (it varies per corner too).
+// The four corner colours still ride on the four corner vertices, and their
+// average on the centre of the part's fan, so the rasteriser interpolates the
+// PartColor gradient for free, with the blend rate in `a_coef.w` (it varies
+// per corner too).
 //
 // vec4 vertex attributes MUST sit on a 16-byte boundary or Impeller misreads
 // them (the ShapeMask alignment trap), so the layout is a 48-byte (12-float)

@@ -763,12 +763,12 @@ class FlutterGpuBackend implements RenderBackend {
 
   /// Max peeled parts per PartColor batch. Peeled parts carry their data
   /// per-vertex (no uniform array), so the only bound on a run is the 16-bit
-  /// index buffer: at 4 vertices per part a run stays well under the 0xFFFF
+  /// index buffer: at 5 vertices per part a run stays well under the 0xFFFF
   /// vertex limit. A longer run splits into multiple draws.
   static const int _kMaxPartColorRun = 4096;
 
   /// Draws a RUN of peeled parts (PartColor and/or mask) in ONE PartColor
-  /// pipeline call — the fan-out collapse. Each part's quad becomes 4 self-
+  /// pipeline call — the fan-out collapse. Each part becomes a fan of 5 self-
   /// describing vertices (corner colour / rate / coef / mask replay all as
   /// per-vertex attributes; no UBO), so the whole run packs into one vertex
   /// buffer. A part with a degenerate quad is dropped. Falls back to plain sprite

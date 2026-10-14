@@ -16,7 +16,8 @@
 // `shaders/partcolor.frag` uses for PartColor:
 //
 //   FlutterFragCoord()  --(CPU affine uInv)-->  quad-local (s,t) in [0,1]^2
-//   bilinear over the four corners  ->  colour, rate, texture-pixel UV
+//   the part's fan (part_fan.glsl)  ->  colour, rate
+//   bilinear over the four corners  ->  texture-pixel UV
 //
 // The world quad of a non-deformed sprite is an affine image of the unit square,
 // so the inverse map is affine and the reconstruction is exact. `SS_SETUP()`
@@ -34,6 +35,7 @@
 // the eleven effects that never sample it.
 
 #include <flutter/runtime_effect.glsl>
+#include "part_fan.glsl"
 
 uniform vec2 uOrigin;   // 0  : LT world corner (origin of the frag-space affine)
 uniform vec4 uInv;      // 1  : 2x2 inverse affine [m00,m01,m10,m11], frag -> (s,t)
@@ -93,9 +95,11 @@ void ssSetup(out vec2 uv, out vec4 color, out float rate, out vec2 px) {
   float s = clamp(uInv.x * d.x + uInv.y * d.y, 0.0, 1.0);
   float t = clamp(uInv.z * d.x + uInv.w * d.y, 0.0, 1.0);
 
-  // Bilinear over the four corners (top = LT..RT, bottom = LB..RB).
-  color = mix(mix(uColLT, uColRT, s), mix(uColLB, uColRB, s), t);
-  rate = mix(mix(uRate.x, uRate.y, s), mix(uRate.z, uRate.w, s), t);
+  // As in partcolor.frag: colour and rate across the part's fan, the UV
+  // bilinear over the four corners.
+  vec4 w = fanWeights(s, t);
+  color = w.x * uColLT + w.y * uColRT + w.z * uColLB + w.w * uColRB;
+  rate = dot(w, uRate);
   vec2 uvpx = mix(mix(uUvA.xy, uUvA.zw, s), mix(uUvB.xy, uUvB.zw, s), t);
   uv = uvpx / uTexSize;
   px = 1.0 / uTexSize;
