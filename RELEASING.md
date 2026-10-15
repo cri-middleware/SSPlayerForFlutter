@@ -56,7 +56,7 @@ gh pr merge release-notes --merge --delete-branch
 
 ### 3. Check it locally
 
-The generated code is checked here and nowhere else: CI and `release.yml` run `scripts/build-release.sh` with `codegen=skip`. CI runs the tests on every pull request; `release.yml` only analyzes (`checks=analyze`). The site is built here too: `pages.yml` builds it only once a Release is published, from its tag, and a re-run builds that same tag, so a fault in the docs or the demos found then can only be fixed in `main` and deployed from there. `scripts/build-pages.sh` builds what `pages.yml` deploys, in the same order. Run all of it from the `main` the release will be cut from, and fix a failure by a pull request into `main` before step 4.
+The generated code is checked here and nowhere else: CI and `release.yml` run `scripts/build-release.sh` with `codegen=skip`. CI runs the tests on pull requests; `release.yml` only analyzes (`checks=analyze`). The site is built here too: `pages.yml` builds it only once a Release is published, from its tag, and a re-run builds that same tag, so a fault in the docs or the demos found then can only be fixed in `main` and deployed from there. `scripts/build-pages.sh` builds what `pages.yml` deploys, in the same order. Run all of it from the `main` the release will be cut from, and fix a failure by a pull request into `main` before step 4.
 
 ```bash
 git switch main && git pull --ff-only && git submodule update --init --recursive &&
@@ -263,7 +263,7 @@ gh pr merge release-notes --merge --delete-branch
 
 ### 3. 手元で検査する
 
-生成コードを検査するのはここだけです。CI と `release.yml` は `scripts/build-release.sh` を `codegen=skip` で実行します。テストは CI がプルリクエストごとに実行し、`release.yml` は analyze だけです（`checks=analyze`）。サイトもここでビルドします。`pages.yml` がサイトをビルドするのは Release を公開したときだけで、そのタグから作ります。再実行しても同じタグをビルドするだけなので、そこで docs やデモの不具合が見つかると、`main` で直してそこからデプロイするしかありません。`scripts/build-pages.sh` は、`pages.yml` がデプロイするものを同じ順にビルドします。どれもリリースを切る `main` から実行し、失敗したら、手順 4 の前にプルリクエストで `main` を直します。
+生成コードを検査するのはここだけです。CI と `release.yml` は `scripts/build-release.sh` を `codegen=skip` で実行します。テストは CI がプルリクエストで実行し、`release.yml` は analyze だけです（`checks=analyze`）。サイトもここでビルドします。`pages.yml` がサイトをビルドするのは Release を公開したときだけで、そのタグから作ります。再実行しても同じタグをビルドするだけなので、そこで docs やデモの不具合が見つかると、`main` で直してそこからデプロイするしかありません。`scripts/build-pages.sh` は、`pages.yml` がデプロイするものを同じ順にビルドします。どれもリリースを切る `main` から実行し、失敗したら、手順 4 の前にプルリクエストで `main` を直します。
 
 ```bash
 git switch main && git pull --ff-only && git submodule update --init --recursive &&
