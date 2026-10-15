@@ -28,7 +28,7 @@ What else to add depends on what you use:
 
 | For | Add |
 |---|---|
-| [Flame Integration](flame.md) | `flutter pub add ssplayer_flame` |
+| [Flame Integration](flame.md) | `flutter pub add flame ssplayer_flame` |
 | The `ssconvert` CLI — [Preparing Assets](conversion.md) | `flutter pub add --dev ssconverter_dart` |
 | [Live Reload](live-reload.md) | `flutter pub add --dev ssgen_flutter` |
 

@@ -12,10 +12,10 @@ page, running.
 ## Add the dependency
 
 ```bash
-flutter pub add ssplayer_flame
+flutter pub add flame ssplayer_flame
 ```
 
-`ssplayer_flutter` and `ssruntime_dart` come with it; the rest of the setup is on
+`ssplayer_flutter` and `ssruntime_dart` come with `ssplayer_flame`; the rest of the setup is on
 [Installation](install.md).
 
 ## Add a component to your game

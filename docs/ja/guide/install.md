@@ -26,7 +26,7 @@ flutter pub add ssplayer_flutter
 
 | 用途 | 追加するもの |
 |---|---|
-| [Flame 連携](flame.md) | `flutter pub add ssplayer_flame` |
+| [Flame 連携](flame.md) | `flutter pub add flame ssplayer_flame` |
 | `ssconvert` CLI —— [アセットの準備](conversion.md) | `flutter pub add --dev ssconverter_dart` |
 | [ライブリロード](live-reload.md) | `flutter pub add --dev ssgen_flutter` |
 

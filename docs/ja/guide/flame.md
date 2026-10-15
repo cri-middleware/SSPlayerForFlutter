@@ -10,10 +10,10 @@
 ## 依存を追加する
 
 ```bash
-flutter pub add ssplayer_flame
+flutter pub add flame ssplayer_flame
 ```
 
-`ssplayer_flutter` と `ssruntime_dart` も一緒に入ります。そのほかの準備は[インストール](install.md)にあります。
+`ssplayer_flutter` と `ssruntime_dart` は `ssplayer_flame` と一緒に入ります。そのほかの準備は[インストール](install.md)にあります。
 
 ## ゲームにコンポーネントを追加する
 
