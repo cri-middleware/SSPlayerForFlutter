@@ -21,8 +21,7 @@ Add `ssplayer_flutter` from [pub.dev](https://pub.dev/packages/ssplayer_flutter)
 flutter pub add ssplayer_flutter
 ```
 
-`ssruntime_dart`, the runtime bindings underneath, comes with it. While the packages have only
-prerelease versions, `flutter pub add` takes the newest prerelease and writes a `^` constraint on it.
+`ssruntime_dart`, the runtime bindings underneath, comes with it.
 
 What else to add depends on what you use:
 

@@ -20,7 +20,7 @@ Flutter アプリに SpriteStudio Player for Flutter を追加する手順です
 flutter pub add ssplayer_flutter
 ```
 
-その下のランタイムバインディング `ssruntime_dart` も一緒に入ります。パッケージにプレリリース版しかない間は、`flutter pub add` がいちばん新しいプレリリースを選び、それに `^` の制約を付けて書き込みます。
+その下のランタイムバインディング `ssruntime_dart` も一緒に入ります。
 
 ほかに追加するものは、使う機能によって決まります。
 
