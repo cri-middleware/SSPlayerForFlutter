@@ -66,7 +66,7 @@ scripts/run-web.sh --wasm      # Skwasm renderer (WebAssembly build mode)
 ```
 
 !!! warning "Developer preview"
-    The web **runtime backend**: `lib/src/runtime_api.dart` is the seam, with a `dart:ffi`
+    For the web **runtime backend**, `lib/src/runtime_api.dart` is the seam, with a `dart:ffi`
     backend (`native_runtime.dart`) and a `dart:js_interop` backend (`web_runtime.dart`) selected by
     conditional export, so Layer 2 (`internal_player.dart` etc.) compiles without `dart:ffi`.
     `flutter build web` / `flutter run -d chrome` build and render — every render kind
