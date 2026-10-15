@@ -82,7 +82,8 @@ flutter create --platforms="$(carry_existing "$PLATFORMS")" .
 
 # The native Brain is the part `flutter create` cannot produce. hook/build.dart
 # prefers a local build and falls back to downloading the pinned SDK release, so
-# nothing is required here; say which of the two the build will take.
+# nothing is required here; without a local build, say the hook will download
+# it and how to build one instead.
 RT_LIBS="$ROOT_DIR/packages/ssruntime_dart/native/libs"
 for p in $(echo "$REQUESTED" | tr ',' ' '); do
   if [ ! -d "$RT_LIBS/$p" ]; then
