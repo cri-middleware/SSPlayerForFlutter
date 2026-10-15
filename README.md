@@ -45,28 +45,13 @@ further in, on the [documentation site](docs/en/index.md).
 
 ### Setup
 
-Add the dependency as a git dependency on a release tag — `<package>-v<version>`, listed on the
-package's [Releases](https://github.com/cri-middleware/SSPlayerForFlutter/releases?q=ssplayer_flutter&expanded=true):
+Add the package from [pub.dev](https://pub.dev/packages/ssplayer_flutter):
 
-```yaml
-# pubspec.yaml
-dependencies:
-  ssplayer_flutter:
-    git:
-      url: https://github.com/cri-middleware/SSPlayerForFlutter.git
-      ref: ssplayer_flutter-v<version>
-      path: packages/ssplayer_flutter
-
-dependency_overrides:
-  ssruntime_dart:
-    git:
-      url: https://github.com/cri-middleware/SSPlayerForFlutter.git
-      ref: ssplayer_flutter-v<version>
-      path: packages/ssruntime_dart
+```bash
+flutter pub add ssplayer_flutter
 ```
 
-`ssplayer_flutter` names `ssruntime_dart` by version, so `dependency_overrides` takes it from the same
-tag. Flame, the converter and live reload need a few more lines — see
+Flame, the converter and live reload are one more package each — see
 [Installation](docs/en/guide/install.md).
 
 The minimal code to embed a `.ssab` animation (you supply the `.ssab` — see [Convert your own](#convert-your-own-sspj)):

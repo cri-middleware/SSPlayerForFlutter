@@ -15,27 +15,11 @@ framework to embed, no `DynamicLibrary` path, and no Rust toolchain.
 
 ## Install
 
-Take it as a git dependency on a release tag, `ssplayer_flutter-v<version>` on
-[Releases](https://github.com/cri-middleware/SSPlayerForFlutter/releases?q=ssplayer_flutter&expanded=true),
-with `ssruntime_dart` from the same tag under `dependency_overrides`, since `ssplayer_flutter` names
-it by version ([Installation](https://cri-middleware.github.io/SSPlayerForFlutter/guide/install/)):
-
-```yaml
-dependencies:
-  ssplayer_flutter:
-    git:
-      url: https://github.com/cri-middleware/SSPlayerForFlutter.git
-      ref: ssplayer_flutter-v<version>
-      path: packages/ssplayer_flutter
-
-dependency_overrides:
-  ssruntime_dart:
-    git:
-      url: https://github.com/cri-middleware/SSPlayerForFlutter.git
-      ref: ssplayer_flutter-v<version>
-      path: packages/ssruntime_dart
+```bash
+flutter pub add ssplayer_flutter
 ```
 
+`ssruntime_dart` comes with it ([Installation](https://cri-middleware.github.io/SSPlayerForFlutter/guide/install/)).
 Needs **Flutter 3.47+ / Dart 3.13+** — native assets is stable and default-on, and the
 flutter_gpu backend needs the GPU API that landed in 3.47.
 

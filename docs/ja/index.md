@@ -23,6 +23,7 @@
 - **ワークフロー**
     - [クイックスタート](guide/quickstart.md)
     - [再生制御とイベント](guide/playback.md)
+    - [モーションブレンド](guide/motion-blending.md)
     - [パーツトラッキング](guide/part-following.md)
     - [パーツオーバーライド](guide/part-overrides.md)
     - [テクスチャ差し替え](guide/textures.md)
@@ -93,6 +94,7 @@ graph LR
 
 - [overall](https://github.com/cri-middleware/SSPlayerForFlutter/tree/main/examples/overall) — 総合的な検証アプリ（`flutter run -d macos` → `[ssplayer] OK`）。
 - [flame](https://github.com/cri-middleware/SSPlayerForFlutter/tree/main/examples/flame) — `ssplayer_flame` 経由でアニメーションを再生する `FlameGame`。
+- [part_following](https://github.com/cri-middleware/SSPlayerForFlutter/tree/main/examples/part_following) — `SpriteStudioPartAnchor` でウィジェットをパーツに追従させるサンプル。
 
 ## 関連リポジトリ
 

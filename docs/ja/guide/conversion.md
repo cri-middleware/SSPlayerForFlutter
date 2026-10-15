@@ -81,7 +81,7 @@ GUI・CLI といった形で提供され、いずれも同じ `.ssab` を生成�
 | [**オートインポート（ライブリロード）**](#オートインポートライブリロード) | 開発中の反復 —— 保存で自動変換、手動ステップなし | 標準搭載: [`ssgen_flutter`](live-reload.md) |
 | [**ssconverter-web**](#ssconverter-webブラウザ) | ブラウザで単発、インストール不要 | [ブラウザで開く](https://cri-middleware.github.io/SSPlayerForWeb/ssconverter/)（Chromium 専用） |
 | [**SSConverter GUI**](#ssconverter-guiデスクトップ-gui) | シンプルなデスクトップ GUI —— ドラッグ&ドロップ・バッチ・embedded 切替 | [バイナリをダウンロード](https://github.com/cri-middleware/SSConverterGUI/releases) |
-| [**ssconverter-cli**](#ssconverter-cli) | CI / ビルド時 / 再現性 —— ワークスペース同梱の Dart 製 `ssconvert` を含む | [SDK Releases](https://github.com/cri-middleware/SpriteStudio-SDK/releases) · `dart run ssconverter_dart:ssconvert` |
+| [**ssconverter-cli**](#ssconverter-cli) | CI / ビルド時 / 再現性 —— `ssconverter_dart` の Dart 製 `ssconvert` を含む | [SDK Releases](https://github.com/cri-middleware/SpriteStudio-SDK/releases) · `dart run ssconverter_dart:ssconvert` |
 
 !!! tip "Flutter プロジェクトは追加インストールがほぼ不要"
     このリポジトリはコンバータを Dart パッケージとして同梱しているので、`dart run
@@ -111,7 +111,7 @@ embedded 出力の切替ができます。OS 向けバイナリを
 
 `libssconverter` をラップするネイティブのビルド時 CLI。等価なフロントエンドが 2 つあり、どちらも同じ `.ssab` を生成します。
 
-### Flutter / Dart —— `dart run ssconverter_dart:ssconvert`（推奨・ワークスペース同梱）
+### Flutter / Dart —— `dart run ssconverter_dart:ssconvert`（推奨・dev 依存）
 
 このリポジトリはコンバータを
 [`ssconverter_dart`](https://github.com/cri-middleware/SSPlayerForFlutter/tree/main/packages/ssconverter_dart)

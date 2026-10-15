@@ -11,31 +11,12 @@ page, running.
 
 ## Add the dependency
 
-Add `ssplayer_flame` the way [Installation](install.md) adds `ssplayer_flutter`, with the two packages
-it pulls in under `dependency_overrides`, all from one tag. Pick the version from `ssplayer_flame`'s
-[**Releases**](https://github.com/cri-middleware/SSPlayerForFlutter/releases?q=ssplayer_flame&expanded=true)
-and write it in place of `<version>` in every `ref`:
-
-```yaml
-dependencies:
-  ssplayer_flame:
-    git:
-      url: https://github.com/cri-middleware/SSPlayerForFlutter.git
-      ref: ssplayer_flame-v<version>
-      path: packages/ssplayer_flame
-
-dependency_overrides:
-  ssplayer_flutter:
-    git:
-      url: https://github.com/cri-middleware/SSPlayerForFlutter.git
-      ref: ssplayer_flame-v<version>
-      path: packages/ssplayer_flutter
-  ssruntime_dart:
-    git:
-      url: https://github.com/cri-middleware/SSPlayerForFlutter.git
-      ref: ssplayer_flame-v<version>
-      path: packages/ssruntime_dart
+```bash
+flutter pub add ssplayer_flame
 ```
+
+`ssplayer_flutter` and `ssruntime_dart` come with it; the rest of the setup is on
+[Installation](install.md).
 
 ## Add a component to your game
 

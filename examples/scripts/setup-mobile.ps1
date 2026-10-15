@@ -49,14 +49,12 @@ try {
 finally { Pop-Location }
 
 # The native Brain is the part `flutter create` cannot produce. hook/build.dart
-# prefers a local build and falls back to downloading the pinned SDK release —
-# which is not published yet, so before the first release a local cross build is
-# the ONLY route here. Say so now rather than let the build fail 90 seconds
-# later inside Gradle with an HTTP 404.
+# prefers a local build and falls back to downloading the pinned SDK release, so
+# nothing is required here; say which of the two the build will take.
 $RtLibs = Join-Path $RootDir 'packages/ssruntime_dart/native/libs'
 if (-not (Test-Path (Join-Path $RtLibs $Platforms))) {
-    Write-Host "[setup-mobile] no libssruntime for $Platforms yet — build it with:"
-    Write-Host "[setup-mobile]   pwsh scripts/build-runtime.ps1 platform=$Platforms"
+    Write-Host "[setup-mobile] ${Platforms}: the build hook downloads the prebuilt libssruntime;"
+    Write-Host "[setup-mobile] for a local cross build instead: pwsh scripts/build-runtime.ps1 platform=$Platforms"
     Write-Host "[setup-mobile] (needs Rust + the $Platforms cross targets and a real"
     Write-Host "[setup-mobile]  NDK on `$env:ANDROID_NDK_HOME)"
 }

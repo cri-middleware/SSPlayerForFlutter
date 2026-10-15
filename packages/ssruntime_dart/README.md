@@ -17,16 +17,8 @@ SpriteStudio-SDK release and verifies it against that release's `SHA256SUMS`.
 
 ## Install
 
-Take it as a git dependency on a release tag, `ssruntime_dart-v<version>` on
-[Releases](https://github.com/cri-middleware/SSPlayerForFlutter/releases?q=ssruntime_dart&expanded=true):
-
-```yaml
-dependencies:
-  ssruntime_dart:
-    git:
-      url: https://github.com/cri-middleware/SSPlayerForFlutter.git
-      ref: ssruntime_dart-v<version>
-      path: packages/ssruntime_dart
+```bash
+dart pub add ssruntime_dart
 ```
 
 Needs **Dart 3.10+** (native assets stable). Most apps get this package
@@ -57,8 +49,6 @@ generated FlatBuffers accessors for the plan the Brain emits.
   resource that was built from them.
 * **Never re-implement FNV-1a for texture keys.** The pack carries the hashes
   the draw plan refers to; use them.
-* **Generated code is committed and never hand-edited** — regenerate the
-  bindings with `scripts/generate-ffigen-code.*` after a C-API change.
 
 ## More
 

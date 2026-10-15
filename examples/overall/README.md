@@ -1,5 +1,109 @@
 # ssplayer_flutter_example
 
+A Flutter app for verification that plays `tests/overall/overall.ssab`. The dropdown at the top
+switches between its animations (`Basic` and the rest).
+
+## Prerequisites
+
+- **Flutter / Dart** — the minimum is on [Installation](../../docs/en/guide/install.md) (an older
+  one fails `flutter pub get`).
+- The native Brain (`libssruntime`). `hook/build.dart` downloads the prebuilt from the pinned SDK
+  release and bundles it, so normally nothing needs placing first (no Rust needed).
+  - To build it from source instead: `bash scripts/build-runtime.sh` (needs Rust)
+- The example assets (`.ssab`), generated:
+
+  ```sh
+  bash scripts/deploy-examples.sh   # → writes to examples/overall/assets/spritestudio/overall/
+  ```
+
+> `libssruntime` is bundled automatically through **Native Assets**. No framework needs placing by
+> hand (`flutter run` / `flutter build` run `hook/build.dart` automatically).
+
+## Run / build (in `examples/overall/`)
+
+> From the repository root, `bash scripts/run-<platform>.sh` does the steps below (assets,
+> regenerating the runner, picking a device, launching) in one go.
+
+> ⚠️ **The platform runners are not committed.** `examples/overall/{android,ios,macos,linux,windows,web}/`
+> is in the repository's `.gitignore`, and is regenerated in each clone (see the root `.gitignore`).
+> **Regenerate it the first time, and after a `git clean`** (otherwise you get
+> `No macOS desktop project configured.`):
+>
+> ```sh
+> cd examples/overall
+> flutter create --platforms=macos .        # likewise ios,android,linux,windows,web if needed
+> ```
+
+```sh
+flutter pub get
+flutter run -d macos     # run (a macOS window opens)
+# or
+flutter build macos      # build the .app
+```
+
+### iOS / Android
+
+As with `macos/`, the runners are not committed, so generate them first.
+
+```sh
+bash scripts/setup-mobile.sh              # ios + android (android only, off macOS)
+bash scripts/setup-mobile.sh --android    # android only
+pwsh scripts/setup-mobile.ps1             # Windows (android only; iOS needs Xcode)
+```
+
+The native Brain is fetched automatically from the SDK release `hook/build.dart` pins. To use a
+local cross build instead, run the following at the repository root (it needs Rust and each target,
+and for Android an NDK that is actually installed). `setup-mobile` prints this command when there is
+no local library.
+
+```sh
+bash scripts/build-runtime.sh platform=android   # at the repository root
+bash scripts/build-runtime.sh platform=ios
+```
+
+### Running on flutter_gpu (Impeller)
+
+Switching the backend takes three switches, too long to type every time, so a wrapper bundles them.
+
+```sh
+bash scripts/run.sh -d macos                # Canvas (the default)
+bash scripts/run.sh --gpu -d macos          # flutter_gpu
+bash scripts/run.sh --gpu --watch -d macos  # flutter_gpu + live reload
+pwsh scripts/run.ps1 -Gpu -d windows        # Windows
+```
+
+`--gpu` expands to `--dart-define=SS_BACKEND=gpu --enable-impeller --enable-flutter-gpu`. Of these,
+`--enable-impeller` takes effect **only on Android** (the one target where Impeller is not the
+default), and `flutter run` ignores it on macOS / iOS — on macOS the other two alone are confirmed
+to reach `running on gpu`. All three are always passed, so that one flag is right on every target.
+Arguments other than `--gpu` pass straight through to `flutter run`.
+
+The console line at startup is the only evidence. `gpu` is only a *request*: when flutter_gpu is not
+available, it falls back to Canvas **without a word**.
+
+```
+[ssplayer] backend: requested gpu -> running on gpu (flutter_gpu available: true)
+```
+
+On success the console prints `[ssplayer] OK — playing "…" (frame=…)`. In a macOS build,
+`libssruntime` is embedded at `*.app/Contents/Frameworks/ssruntime.framework`, and the mapping is
+recorded in `flutter_assets/NativeAssetsManifest.json` (`package:ssruntime_dart/ssruntime`
+→ `ssruntime.framework/ssruntime`).
+
+## Troubleshooting
+
+- **CocoaPods is not used.** There are no plugins and the native library ships through Native
+  Assets, so a newly generated `macos/` has no `Podfile`, and the build goes through without pods
+  (the `.app` holds only the `App` / `FlutterMacOS` / `ssruntime` frameworks). If a `macos/Podfile`
+  is left over and you get `The sandbox is not in sync with the Podfile.lock`, recreate the runner:
+  `rm -rf macos && flutter create --platforms=macos .`.
+- The window stays on `loading…` because the assets were never generated: run
+  `bash scripts/deploy-examples.sh` first.
+
+---
+
+# ssplayer_flutter_example（日本語）
+
 `tests/overall/overall.ssab` を再生する検証用 Flutter アプリ。上部のドロップダウンでアニメ（`Basic` ほか）を切り替えられる。
 
 ## 前提
@@ -13,15 +117,14 @@
   bash scripts/deploy-examples.sh   # → examples/overall/assets/spritestudio/overall/ に出力
   ```
 
-> `libssruntime` は **Native Assets** で自動同梱されます。`SSRUNTIME_LIBRARY_PATH` の設定や
-> framework の手動配置は不要です（`flutter run`/`flutter build` が `hook/build.dart` を自動実行）。
+> `libssruntime` は **Native Assets** で自動同梱されます。framework の手動配置は不要です（`flutter run`/`flutter build` が `hook/build.dart` を自動実行）。
 
 ## 実行 / ビルド（`examples/overall/` で）
 
 > リポジトリのルートで `bash scripts/run-<platform>.sh` を実行すれば、以下の手順（アセット生成・runner の再生成・端末の選択・起動）を 1 回で済ませられます。
 
 > ⚠️ **プラットフォーム runner はコミットされていません。** `examples/overall/{android,ios,macos,linux,windows,web}/`
-> はリポジトリの `.gitignore` 済みで、クローン毎に再生成する方針です（ルート `.gitignore` 参照）。（旧 `example/` から `examples/overall/` へ移設済み）**初回、または `git clean` の後は必ず再生成**してください（これをしないと
+> はリポジトリの `.gitignore` 済みで、クローン毎に再生成する方針です（ルート `.gitignore` 参照）。**初回、または `git clean` の後は必ず再生成**してください（これをしないと
 > `No macOS desktop project configured.` になります）:
 >
 > ```sh
@@ -83,8 +186,6 @@ macOS / iOS では `flutter run` が無視します —— macOS では残り 2 
 
 - **CocoaPods は使いません。** プラグイン無し＋ネイティブは Native Assets 同梱なので、新規生成した
   `macos/` に `Podfile` は作られず、ビルドは pod なしで通ります（`.app` には
-  `App` / `FlutterMacOS` / `ssruntime` framework のみ）。もし旧チェックアウトに移行前の
-  `macos/Podfile` が残って `The sandbox is not in sync with the Podfile.lock` が出たら、runner を作り直してください: `rm -rf macos && flutter create --platforms=macos .`。
-- **`Could not find bin/ssconvert.dart`**（`deploy-examples.sh`）: `ssconverter_dart` の
-  CLI 未取得。リポジトリを最新化（`git pull`）してください。
+  `App` / `FlutterMacOS` / `ssruntime` framework のみ）。`macos/Podfile` が残っていて
+  `The sandbox is not in sync with the Podfile.lock` が出たら、runner を作り直してください: `rm -rf macos && flutter create --platforms=macos .`。
 - アセット未生成でウィンドウが `loading…` のまま: 先に `bash scripts/deploy-examples.sh` を実行。

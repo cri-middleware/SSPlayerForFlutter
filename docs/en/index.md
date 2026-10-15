@@ -31,6 +31,7 @@ hand-write. Playback runs through `libssruntime` provided by
 - **Workflow**
     - [Quick Start](guide/quickstart.md)
     - [Playback & Events](guide/playback.md)
+    - [Motion Blending](guide/motion-blending.md)
     - [Part Following](guide/part-following.md)
     - [Part Overrides](guide/part-overrides.md)
     - [Texture Replacement](guide/textures.md)
@@ -102,6 +103,7 @@ Sample apps live under the `examples/` folder in the repository.
 
 - [overall](https://github.com/cri-middleware/SSPlayerForFlutter/tree/main/examples/overall) — comprehensive validation app (`flutter run -d macos` → `[ssplayer] OK`).
 - [flame](https://github.com/cri-middleware/SSPlayerForFlutter/tree/main/examples/flame) — a `FlameGame` playing an animation via `ssplayer_flame`.
+- [part_following](https://github.com/cri-middleware/SSPlayerForFlutter/tree/main/examples/part_following) — a widget pinned to a part with `SpriteStudioPartAnchor`.
 
 ## Related Repositories
 

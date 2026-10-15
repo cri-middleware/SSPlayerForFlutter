@@ -9,28 +9,11 @@
 
 ## 依存を追加する
 
-[インストール](install.md)で `ssplayer_flutter` を追加するのと同じ形で `ssplayer_flame` を追加し、これが引き込む 2 つのパッケージを `dependency_overrides` に書きます。どれも同じ 1 つのタグから取ります。`ssplayer_flame` の [**Releases**](https://github.com/cri-middleware/SSPlayerForFlutter/releases?q=ssplayer_flame&expanded=true) からバージョンを選び、すべての `ref` の `<version>` をそれに置き換えます。
-
-```yaml
-dependencies:
-  ssplayer_flame:
-    git:
-      url: https://github.com/cri-middleware/SSPlayerForFlutter.git
-      ref: ssplayer_flame-v<version>
-      path: packages/ssplayer_flame
-
-dependency_overrides:
-  ssplayer_flutter:
-    git:
-      url: https://github.com/cri-middleware/SSPlayerForFlutter.git
-      ref: ssplayer_flame-v<version>
-      path: packages/ssplayer_flutter
-  ssruntime_dart:
-    git:
-      url: https://github.com/cri-middleware/SSPlayerForFlutter.git
-      ref: ssplayer_flame-v<version>
-      path: packages/ssruntime_dart
+```bash
+flutter pub add ssplayer_flame
 ```
+
+`ssplayer_flutter` と `ssruntime_dart` も一緒に入ります。そのほかの準備は[インストール](install.md)にあります。
 
 ## ゲームにコンポーネントを追加する
 

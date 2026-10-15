@@ -16,26 +16,11 @@ runtime an app ships stays converter-free.
 
 ## Install
 
-Take it as a git dependency on a release tag, `ssgen_dart-v<version>` on
-[Releases](https://github.com/cri-middleware/SSPlayerForFlutter/releases?q=ssgen_dart&expanded=true),
-with `ssconverter_dart` from the same tag under `dependency_overrides`, since `ssgen_dart` names it
-by version ([Installation](https://cri-middleware.github.io/SSPlayerForFlutter/guide/install/)):
-
-```yaml
-dev_dependencies:
-  ssgen_dart:
-    git:
-      url: https://github.com/cri-middleware/SSPlayerForFlutter.git
-      ref: ssgen_dart-v<version>
-      path: packages/ssgen_dart
-
-dependency_overrides:
-  ssconverter_dart:
-    git:
-      url: https://github.com/cri-middleware/SSPlayerForFlutter.git
-      ref: ssgen_dart-v<version>
-      path: packages/ssconverter_dart
+```bash
+dart pub add --dev ssgen_dart
 ```
+
+`ssconverter_dart` comes with it ([Installation](https://cri-middleware.github.io/SSPlayerForFlutter/guide/install/)).
 
 ## Use
 

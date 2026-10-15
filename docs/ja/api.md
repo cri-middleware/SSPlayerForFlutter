@@ -1,7 +1,7 @@
 # 📖 API リファレンス
 
 クラスレベルの API リファレンスは、Dart のドキュメントコメントから
-[`dart doc`](https://dart.dev/tools/dart-doc) が生成します。
+[`dart doc`](https://dart.dev/tools/dart-doc) が生成します。pub.dev が各パッケージのものを公開しているので、パッケージのページ（例: [`ssplayer_flutter`](https://pub.dev/packages/ssplayer_flutter)）の **API reference** から開けます。
 
 ## ローカルで生成する
 
