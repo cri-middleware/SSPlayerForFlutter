@@ -194,7 +194,7 @@ if (pose != null && !player.isPartHidden(partName)) {
 }
 ```
 
-姿勢は**プレイヤーローカル（アニメーション空間）**なので、`SpriteStudioComponent` 自体を配置したのと同じ要領で、自分のコンポーネントの空間へ変換してください。
+姿勢は**プレイヤーローカル**（アニメーション空間）なので、`SpriteStudioComponent` 自体を配置したのと同じ要領で、自分のコンポーネントの空間へ変換してください。
 
 ## 関連
 
