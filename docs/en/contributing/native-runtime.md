@@ -43,7 +43,7 @@ library:
 | macOS | one dylib; Flutter re-wraps it into `ssruntime.framework` inside the `.app` |
 | iOS | bare per-slice dylibs (device `iphoneos` / simulator `iphonesimulator`), **not** an xcframework |
 | Android | one bare `.so` per NDK ABI (`arm64-v8a`, `armeabi-v7a`, `x86_64`) |
-| Windows / Linux | one dylib/`.so` (build from source) |
+| Windows / Linux | one `.dll` / `.so` per architecture (x86_64, arm64 / aarch64) |
 
 No `pod install` plugin integration and no manual slice juggling — Flutter embeds and signs the
 chosen library automatically.

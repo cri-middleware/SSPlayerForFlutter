@@ -10,50 +10,31 @@ delivered automatically through Dart **native assets** — there is no CocoaPods
 |---|---|
 | Flutter / Dart | **Flutter 3.47+ / Dart 3.13+** (native assets is default-on from 3.38; the flutter_gpu backend sets the 3.47 floor). This page is where that floor is written down — `ssplayer_flutter`'s `environment:` enforces it, so `flutter pub get` is what tells you if yours is older |
 | Verified platforms | macOS · iOS · Android |
-| Other platforms | Windows / Linux build from source; Web is a developer preview |
+| Other platforms | Windows / Linux: the prebuilt runtime downloads as on the others, but these are not in the verified set; Web is a developer preview |
 | Native toolchain | None — the Brain is downloaded prebuilt by the `ssruntime_dart` build hook |
 
 ## Add the dependency
 
-Add the packages as git dependencies on a release tag. A release tags each package it releases
-`<package>-v<version>`: pick the version from the package's
-[**Releases**](https://github.com/cri-middleware/SSPlayerForFlutter/releases?q=ssplayer_flutter&expanded=true)
-and write it in place of `<version>` in every `ref`.
+Add `ssplayer_flutter` from [pub.dev](https://pub.dev/packages/ssplayer_flutter):
 
-```yaml
-dependencies:
-  ssplayer_flutter:
-    git:
-      url: https://github.com/cri-middleware/SSPlayerForFlutter.git
-      ref: ssplayer_flutter-v<version>
-      path: packages/ssplayer_flutter
-
-dependency_overrides:
-  ssruntime_dart:
-    git:
-      url: https://github.com/cri-middleware/SSPlayerForFlutter.git
-      ref: ssplayer_flutter-v<version>
-      path: packages/ssruntime_dart
+```bash
+flutter pub add ssplayer_flutter
 ```
 
-Then run `flutter pub get`.
+`ssruntime_dart`, the runtime bindings underneath, comes with it. While the packages have only
+prerelease versions, `flutter pub add` takes the newest prerelease and writes a `^` constraint on it.
 
-The packages name one another by version, so every package of this repository that yours pull in
-goes under `dependency_overrides` the same way. Take them all from **one tag**: a tag holds every
-package as the release checked them together.
+What else to add depends on what you use:
 
-| You depend on | Also under `dependency_overrides` |
+| For | Add |
 |---|---|
-| `ssplayer_flutter` | `ssruntime_dart` |
-| `ssplayer_flame` — [Flame Integration](flame.md) | `ssplayer_flutter`, `ssruntime_dart` |
-| `ssconverter_dart` (dev) — the `ssconvert` CLI, [Preparing Assets](conversion.md) | — |
-| `ssgen_flutter` (dev) — [Live Reload](live-reload.md) | `ssplayer_flutter`, `ssgen_dart`, `ssconverter_dart`, `ssruntime_dart` |
+| [Flame Integration](flame.md) | `flutter pub add ssplayer_flame` |
+| The `ssconvert` CLI — [Preparing Assets](conversion.md) | `flutter pub add --dev ssconverter_dart` |
+| [Live Reload](live-reload.md) | `flutter pub add --dev ssgen_flutter` |
 
 !!! note "The web target"
-    The web runtime (`packages/ssplayer_flutter/assets/runtime-web/`) is build output, not part of
-    the repository, so a git dependency carries none and `loadSsRuntime()` has nothing to load. To
-    build for the web, clone the tag, run `scripts/download-web-runtime.sh` (`.ps1` on Windows) in
-    it once, and depend on its packages by `path:` — the `dependency_overrides` by `path:` too.
+    The web runtime ships inside `ssplayer_flutter`. Call `await loadSsRuntime()` once before
+    `runApp`; on the other platforms it does nothing.
 
 !!! tip "Developing the core?"
     Building `libssruntime` from Rust source, or hacking on the Player itself, is covered separately

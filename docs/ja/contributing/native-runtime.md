@@ -38,7 +38,7 @@ hooks:
 | macOS | dylib 1 つ。Flutter が `.app` 内で `ssruntime.framework` に再ラップ |
 | iOS | スライスごとの素の dylib（デバイス `iphoneos` / シミュレータ `iphonesimulator`）。xcframework では**ない** |
 | Android | NDK ABI ごとの素の `.so`（`arm64-v8a`・`armeabi-v7a`・`x86_64`） |
-| Windows / Linux | dylib / `.so` 1 つ（ソースからビルド） |
+| Windows / Linux | アーキテクチャごとの `.dll` / `.so` 1 つ（x86_64、arm64 / aarch64） |
 
 `pod install` のプラグイン統合も、スライスの手作業も不要 —— Flutter が選ばれたライブラリを自動で埋め込み・署名します。
 

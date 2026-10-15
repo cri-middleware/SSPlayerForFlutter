@@ -43,26 +43,13 @@
 
 ### セットアップ
 
-依存は、リリースのタグを指す git 依存として追加します。タグは `<package>-v<version>` の形で、パッケージの [Releases](https://github.com/cri-middleware/SSPlayerForFlutter/releases?q=ssplayer_flutter&expanded=true) に並んでいます。
+[pub.dev](https://pub.dev/packages/ssplayer_flutter) からパッケージを追加します。
 
-```yaml
-# pubspec.yaml
-dependencies:
-  ssplayer_flutter:
-    git:
-      url: https://github.com/cri-middleware/SSPlayerForFlutter.git
-      ref: ssplayer_flutter-v<version>
-      path: packages/ssplayer_flutter
-
-dependency_overrides:
-  ssruntime_dart:
-    git:
-      url: https://github.com/cri-middleware/SSPlayerForFlutter.git
-      ref: ssplayer_flutter-v<version>
-      path: packages/ssruntime_dart
+```bash
+flutter pub add ssplayer_flutter
 ```
 
-`ssplayer_flutter` は `ssruntime_dart` をバージョンで指定しているので、`dependency_overrides` で同じタグから取らせます。Flame・コンバータ・ライブリロードを使う場合に足す行は[インストール](docs/ja/guide/install.md)にあります。
+Flame・コンバータ・ライブリロードは、それぞれパッケージを 1 つ足します（[インストール](docs/ja/guide/install.md)参照）。
 
 `.ssab` アニメを組み込む最小コードです（`.ssab` は事前に用意します —— [自分の `.sspj` を変換する](#自分の-sspj-を変換する)参照）:
 

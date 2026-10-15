@@ -12,20 +12,11 @@ receiving end comes up only in a debug build launched for it.
 
 ## Install
 
-Take it as a git dependency on a release tag, `ssgen_flutter-v<version>` on
-[Releases](https://github.com/cri-middleware/SSPlayerForFlutter/releases?q=ssgen_flutter&expanded=true):
-
-```yaml
-dev_dependencies:
-  ssgen_flutter:
-    git:
-      url: https://github.com/cri-middleware/SSPlayerForFlutter.git
-      ref: ssgen_flutter-v<version>
-      path: packages/ssgen_flutter
+```bash
+flutter pub add --dev ssgen_flutter
 ```
 
-The packages name one another by version, so `ssplayer_flutter`, `ssgen_dart`, `ssconverter_dart`
-and `ssruntime_dart` go under `dependency_overrides` the same way, from the same tag — see
+`ssplayer_flutter`, `ssgen_dart`, `ssconverter_dart` and `ssruntime_dart` come with it — see
 [Installation](https://cri-middleware.github.io/SSPlayerForFlutter/guide/install/).
 
 ## Use

@@ -40,8 +40,8 @@ animation editing gets the same fast iteration as a code hot reload.
 
 ## Enabling it (recipe)
 
-1. Add `ssgen_flutter` to your app's `dev_dependencies`, with the overrides
-   [Installation](install.md) lists for it.
+1. Add `ssgen_flutter` to your app's `dev_dependencies`: `flutter pub add --dev ssgen_flutter`
+   ([Installation](install.md)).
 2. Nothing in the app. A player that loads its pack by asset key — every `SpriteStudioAnimation`, and
    any `SpriteStudioPlayer` you `loadAsset` — takes the push by itself.
 3. Run `sswatch`. One tool, one mechanism (VM Service push) — you only choose **how you launch**

@@ -13,7 +13,7 @@ loading) is reused as‑is; only the clock differs.
 
 The heavy SpriteStudio dependency (the `dart:ffi` Rust "Brain", textures) comes
 transitively via `ssplayer_flutter`, delivered by **native assets** — no
-`SSRUNTIME_LIBRARY_PATH`, no CocoaPods. Adding this package to `ssplayer_flutter`
+CocoaPods, no framework to embed. Adding this package to `ssplayer_flutter`
 directly was avoided on purpose: the core Widget/headless player never pays for
 Flame; an app opts in by depending on `ssplayer_flame`.
 
@@ -23,33 +23,11 @@ same pages for this version are in this package's `doc/` as Markdown, readable o
 
 ## Install
 
-Take it as a git dependency on a release tag, `ssplayer_flame-v<version>` on
-[Releases](https://github.com/cri-middleware/SSPlayerForFlutter/releases?q=ssplayer_flame&expanded=true),
-with `ssplayer_flutter` and `ssruntime_dart` from the same tag under `dependency_overrides`, since
-the packages name one another by version ([Installation](https://cri-middleware.github.io/SSPlayerForFlutter/guide/install/)):
-
-```yaml
-dependencies:
-  flame: ^1.38.0
-  ssplayer_flame:
-    git:
-      url: https://github.com/cri-middleware/SSPlayerForFlutter.git
-      ref: ssplayer_flame-v<version>
-      path: packages/ssplayer_flame
-
-dependency_overrides:
-  ssplayer_flutter:
-    git:
-      url: https://github.com/cri-middleware/SSPlayerForFlutter.git
-      ref: ssplayer_flame-v<version>
-      path: packages/ssplayer_flutter
-  ssruntime_dart:
-    git:
-      url: https://github.com/cri-middleware/SSPlayerForFlutter.git
-      ref: ssplayer_flame-v<version>
-      path: packages/ssruntime_dart
+```bash
+flutter pub add flame ssplayer_flame
 ```
 
+`ssplayer_flutter` and `ssruntime_dart` come with it ([Installation](https://cri-middleware.github.io/SSPlayerForFlutter/guide/install/)).
 `ssplayer_flame` re‑exports the entire `ssplayer_flutter` API, so a single
 `import 'package:ssplayer_flame/ssplayer_flame.dart';` gives you both
 `SpriteStudioComponent` and `SpriteStudioPlayer`.
@@ -99,17 +77,7 @@ component.player?.seek(0);
   with the bytes constructor (no asset key), or when the textures live in a
   different folder (a shared atlas). Embedded‑texture packs need nothing.
 
-## Verify
-
-```sh
-# from the repo root — builds native libs (once) and stages example assets
-bash scripts/build-runtime.sh
-bash scripts/deploy-examples.sh
-
-# headless render test: loads a real .ssab, advances on the host clock, and
-# asserts a textured, non-blank frame is rasterized.
-cd packages/ssplayer_flame && flutter test
-```
+## Example
 
 For an on‑screen check, run the example app under
 [`examples/flame`](../../examples/flame).

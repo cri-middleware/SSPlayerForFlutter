@@ -81,15 +81,13 @@ cd "$EXAMPLE_DIR"
 flutter create --platforms="$(carry_existing "$PLATFORMS")" .
 
 # The native Brain is the part `flutter create` cannot produce. hook/build.dart
-# prefers a local build and falls back to downloading the pinned SDK release —
-# which is not published yet, so before the first release a local cross build is
-# the ONLY route on these two platforms. Say so here rather than let the build
-# fail 90 seconds later inside Gradle with an HTTP 404.
+# prefers a local build and falls back to downloading the pinned SDK release, so
+# nothing is required here; say which of the two the build will take.
 RT_LIBS="$ROOT_DIR/packages/ssruntime_dart/native/libs"
 for p in $(echo "$REQUESTED" | tr ',' ' '); do
   if [ ! -d "$RT_LIBS/$p" ]; then
-    echo "[setup-mobile] no libssruntime for $p yet — build it with:"
-    echo "[setup-mobile]   bash scripts/build-runtime.sh platform=$p"
+    echo "[setup-mobile] $p: the build hook downloads the prebuilt libssruntime;"
+    echo "[setup-mobile] for a local cross build instead: bash scripts/build-runtime.sh platform=$p"
     echo "[setup-mobile] (needs Rust + the $p cross targets; Android also needs"
     echo "[setup-mobile]  a real NDK on \$ANDROID_NDK_HOME)"
   fi

@@ -61,11 +61,11 @@ scripts/run-web.sh --wasm      # Skwasm レンダラ（WebAssembly ビルドモ�
 ```
 
 !!! warning "開発者プレビュー"
-    web の**ランタイムバックエンド**は配線済みです。継ぎ目は `lib/src/runtime_api.dart` で、`dart:ffi`
+    web の**ランタイムバックエンド**の継ぎ目は `lib/src/runtime_api.dart` で、`dart:ffi`
     バックエンド（`native_runtime.dart`）と `dart:js_interop` バックエンド（`web_runtime.dart`）を条件付き export で切り替えるため、Layer 2（`internal_player.dart` ほか）は `dart:ffi` 無しでコンパイルできます。`flutter build web` / `flutter run -d chrome` はビルド・描画まで通り、全描画
     kind（Normal / Shape / Mesh / Effect / Instance）、シェーダ経路（PartColor / マスク）、framebuffer
     ブレンド、タイムラインイベントのコールバック（UserData / Signal / Audio）を CanvasKit 上で確認済みです。
-    web は **デバッグ用途の `drawVertices` 経路**の位置づけ（`flutter_gpu` へ向かうのは mobile / desktop）で、
+    web では常に **Canvas（`drawVertices`）バックエンド**で描画し（`flutter_gpu` は web では使えません）、
     SIMD / nosimd の wasm はロード時に自動選択されます。Native Assets の build hook は web で正しく no-op
     します（設定不要）。
 

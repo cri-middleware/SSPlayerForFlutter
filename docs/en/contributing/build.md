@@ -66,14 +66,14 @@ scripts/run-web.sh --wasm      # Skwasm renderer (WebAssembly build mode)
 ```
 
 !!! warning "Developer preview"
-    The web **runtime backend** is wired: `lib/src/runtime_api.dart` is the seam, with a `dart:ffi`
+    The web **runtime backend**: `lib/src/runtime_api.dart` is the seam, with a `dart:ffi`
     backend (`native_runtime.dart`) and a `dart:js_interop` backend (`web_runtime.dart`) selected by
     conditional export, so Layer 2 (`internal_player.dart` etc.) compiles without `dart:ffi`.
     `flutter build web` / `flutter run -d chrome` build and render — every render kind
     (Normal / Shape / Mesh / Effect / Instance), the shader paths (PartColor / mask), framebuffer
     blend, and the timeline event callbacks (UserData / Signal / Audio) are verified on CanvasKit.
-    Web stays a **debug-grade `drawVertices` path** (mobile / desktop are the ones headed for
-    `flutter_gpu`), with the SIMD / nosimd wasm auto-selected at load. The native-assets build hooks
+    On the web every frame goes through the **Canvas (`drawVertices`) backend** — `flutter_gpu` is
+    not available there — with the SIMD / nosimd wasm auto-selected at load. The native-assets build hooks
     no-op cleanly on web (nothing to configure).
 
 !!! note "First macOS runner"

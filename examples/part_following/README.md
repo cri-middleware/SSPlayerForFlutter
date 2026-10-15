@@ -90,14 +90,81 @@ component — without the widget. The status readout shows the pull side directl
 ## The assets
 
 `assets/spritestudio/Ringo/` is **generated, not committed** (git-ignored). It is
-the same self-contained Ringo pack the `flame` and `override_ringo` examples use,
+the same self-contained Ringo pack the `flame` example uses,
 staged by `scripts/deploy-examples.sh`, which converts the SDK's `tests/Ringo`
-project with the `ssconvert` CLI (`ssconverter_dart`) — no Rust toolchain needed
-(build the native libs once with `scripts/build-runtime.sh`).
+project with the `ssconvert` CLI (`ssconverter_dart`) — no Rust toolchain needed:
+its build hook downloads the converter's native library.
 
-## v1 limits
+## Limits
 
 Tracks top-level parts only (a part nested inside an Instance part lives in a
-child player and is not addressable yet), assumes the view draws unscaled, and
-transfers only the spatial transform — not draw order, so the marker paints on
-top rather than being interleaved between the character's own parts.
+child player and cannot be followed), and transfers only the spatial transform —
+not draw order, so the marker paints on top rather than being interleaved between
+the character's own parts.
+
+---
+
+# part_following — 動いているパーツにウィジェットを貼り付ける
+
+**パーツトラッキング**を見せる、実行できる Flutter アプリです。通常の Flutter ウィジェットを SpriteStudio のパーツに貼り付け、そのパーツの**位置・回転・スケール**に毎フレーム追従させます。**Ringo** キャラクターを再生し、`SpriteStudioPartAnchor` でマーカーをパーツに固定します。
+
+[SSPlayerForUnity](https://github.com/cri-middleware/SSPlayerForUnity) のパーツトラッカー（`SpriteStudioPartTracker`）や [SSPlayerForGodot](https://github.com/cri-middleware/SSPlayerForGodot) のパーツアタッチメント（`SpriteStudioPartAttachment2D`）と同じ機能の Flutter 版で、[SSPlayerForWeb](https://github.com/cri-middleware/SSPlayerForWeb) の `examples/part-follow` をそのまま移植したものです。各エンジンは同じ機能をそれぞれの流儀で提供しており、Flutter ではツリーに置く Widget です。
+
+## 実行する
+
+リポジトリのルートで `bash scripts/run-<platform>.sh example=part_following` を実行すれば、以下の手順（アセット、プラットフォーム runner、端末）を 1 回で済ませられます。手で行う場合は次のとおりです。
+
+```sh
+# 初回 / pull の後: Ringo のアセットを配置します（下の「アセット」を参照）。
+bash scripts/deploy-examples.sh          # リポジトリのルートで
+
+cd examples/part_following
+flutter run -d windows          # または -d macos、-d chrome、-d <device>
+```
+
+キャラクターがループ再生し、星のマーカーが追従先のパーツに乗って動きます。右上の **Follow target** ピッカーでマーカーの追従先を任意のパーツに変え、下のボタンで **motion** を切り替えたり、**Attach**・**Scale follow**・**onHide: hide** をオン / オフしたりできます。
+
+## 要点 —— スキンメッシュのパーツは追従先に向きません
+
+Ringo は**スキン（ボーンにバインドされた）メッシュ**のパーツを持つリグです。手・脚・耳・しっぽがそれにあたります。スキンパーツの頂点はボーンのスキニングで描かれますが、パーツ*自身*のトランスフォームはキャラクターのルート付近に留まります。そのため、それを追従するとマーカーは見えている絵ではなくルートに飛びます。こうなるのはスキンパーツだけで、*リジッド*（変形のみ）のメッシュや、ボーン / ジョイント / NULL パーツはすべて正しく追従します。
+
+追従先ピッカーは Unity と Godot のインスペクターに倣っています。
+
+- スキンパーツは**一覧に出ますが無効（薄い表示）**なので、誤って選ぶことはありません。ドロップダウンは `player.partNames.names` から作られ、`player.isPartSkinnedMesh(name)` が true の項目は薄く表示されます。
+- 横の**テキストボックス**には、スキンパーツを含む任意の名前を入力できます。これらのエディターにある「入力すれば上書きできる」逃げ道と同じです。入力すると**操作を妨げない警告**が出ます。`isPartSkinnedMesh` は*ヒント*であって、関門ではないためです。`hand_r` と入力すると確かめられます。
+- 既定の追従先 `bone_14` は右手のチェーンにあるボーンで、推奨される種類の追従先です。
+
+API の全体と注意点は[パーツトラッキングのガイド](../../docs/ja/guide/part-following.md)を参照してください。
+
+## 読むところ
+
+デモの全体は `lib/main.dart` です。位置を揃えるためのルールは 1 つで、追従する側はアニメーションと**同じ座標空間**を共有している必要があります。ここでは `SpriteStudioView` と `SpriteStudioPartAnchor` がどちらも、変換を掛けた 1 つの `Stack` の子なので、ずらしてもスケールしても一緒に動きます。
+
+```dart
+FractionalTranslation(
+  translation: const Offset(0, 0.25),
+  child: Stack(
+    fit: StackFit.expand,
+    children: [
+      SpriteStudioView(player: player),
+      Positioned.fill(
+        child: SpriteStudioPartAnchor(
+          player: player,
+          partName: 'bone_14',
+          child: myMarker,           // 任意のウィジェット。左上がパーツに固定されます
+        ),
+      ),
+    ],
+  ),
+)
+```
+
+アンカーが使う読み取り API（`partTransform` / `isPartHidden` / `isPartSkinnedMesh` / `findPartIndex` / `partNames`）は `SpriteStudioPlayer` にあるので、ウィジェットを使わずに手でパーツを追従することもできます（たとえば Flame のコンポーネントから）。ステータス表示は取得する側をそのまま見せています。プレイヤーに対する `ListenableBuilder` で、`partTransform(name)` を毎フレーム読み直しています。
+
+## アセット
+
+`assets/spritestudio/Ringo/` は**生成物で、コミットされていません**（git-ignore 済み）。`flame` サンプルが使うのと同じ自己完結した Ringo のパックで、`scripts/deploy-examples.sh` が配置します。このスクリプトは SDK の `tests/Ringo` プロジェクトを `ssconvert` CLI（`ssconverter_dart`）で変換します。Rust ツールチェーンは不要で、ビルドフックがコンバーターのネイティブライブラリをダウンロードします。
+
+## 制限
+
+追従できるのはトップレベルのパーツだけです（Instance パーツの中にあるパーツは子プレイヤーに属するため、追従できません）。また、伝えるのは空間的なトランスフォームだけで、描画順は伝えません。そのため、マーカーはキャラクター自身のパーツの間には挟まらず、その上に描かれます。

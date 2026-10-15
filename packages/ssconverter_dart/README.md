@@ -11,16 +11,8 @@ toolchain, no separate binary to install**.
 
 ## Install
 
-Take it as a git dependency on a release tag, `ssconverter_dart-v<version>` on
-[Releases](https://github.com/cri-middleware/SSPlayerForFlutter/releases?q=ssconverter_dart&expanded=true):
-
-```yaml
-dev_dependencies:
-  ssconverter_dart:
-    git:
-      url: https://github.com/cri-middleware/SSPlayerForFlutter.git
-      ref: ssconverter_dart-v<version>
-      path: packages/ssconverter_dart
+```bash
+dart pub add --dev ssconverter_dart
 ```
 
 A `dev_dependency` is usually right: nothing in a shipped app calls the

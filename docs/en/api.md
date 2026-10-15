@@ -1,7 +1,8 @@
 # 📖 API Reference
 
 The class-level API reference is generated from the Dart doc comments by
-[`dart doc`](https://dart.dev/tools/dart-doc).
+[`dart doc`](https://dart.dev/tools/dart-doc). pub.dev publishes it for each package: open
+**API reference** on the package's page, e.g. [`ssplayer_flutter`](https://pub.dev/packages/ssplayer_flutter).
 
 ## Generate locally
 

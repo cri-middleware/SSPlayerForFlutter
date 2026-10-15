@@ -96,7 +96,7 @@ desktop GUI, and a CLI — all producing the same `.ssab`. Pick the one that fit
 | [**Auto importer (Live Reload)**](#auto-importer-live-reload) | Iterating during development — auto-convert on save, no manual step | Built in: [`ssgen_flutter`](live-reload.md) |
 | [**ssconverter-web**](#ssconverter-web-browser) | A quick one-off in the browser, no install | [Open in the browser](https://cri-middleware.github.io/SSPlayerForWeb/ssconverter/) (Chromium-only) |
 | [**SSConverter GUI**](#ssconverter-gui-desktop-gui) | A simple desktop GUI — drag & drop, batch, embedded toggle | [Download a binary](https://github.com/cri-middleware/SSConverterGUI/releases) |
-| [**ssconverter-cli**](#ssconverter-cli) | CI / build-time / reproducibility — including the in-workspace Dart `ssconvert` | [SDK Releases](https://github.com/cri-middleware/SpriteStudio-SDK/releases) · `dart run ssconverter_dart:ssconvert` |
+| [**ssconverter-cli**](#ssconverter-cli) | CI / build-time / reproducibility — including the Dart `ssconvert` from `ssconverter_dart` | [SDK Releases](https://github.com/cri-middleware/SpriteStudio-SDK/releases) · `dart run ssconverter_dart:ssconvert` |
 
 !!! tip "Flutter projects rarely install anything extra"
     This repo ships the converter as a Dart package, so `dart run ssconverter_dart:ssconvert`
@@ -134,7 +134,7 @@ converted `.ssab`.
 A native build-time CLI wrapping `libssconverter`. There are two equivalent front-ends — both produce
 the same `.ssab`.
 
-### Flutter / Dart — `dart run ssconverter_dart:ssconvert` (recommended, in-workspace)
+### Flutter / Dart — `dart run ssconverter_dart:ssconvert` (recommended, a dev dependency)
 
 This repo ships the converter as the
 [`ssconverter_dart`](https://github.com/cri-middleware/SSPlayerForFlutter/tree/main/packages/ssconverter_dart)
