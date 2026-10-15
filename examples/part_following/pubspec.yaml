@@ -33,5 +33,5 @@ flutter:
     # The Ringo pack (one .ssab holding every animation) plus its reference PNG.
     # Generated — not committed — by scripts/deploy-examples.sh, which converts
     # the SDK's tests/Ringo project and copies the result here (the same Ringo
-    # the flame / override_ringo examples use). Run that script before first run.
+    # the flame example uses). Run that script before first run.
     - assets/spritestudio/Ringo/

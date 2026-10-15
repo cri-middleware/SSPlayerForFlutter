@@ -20,13 +20,13 @@ Flutter アプリに SpriteStudio Player for Flutter を追加する手順です
 flutter pub add ssplayer_flutter
 ```
 
-その下のランタイムバインディング `ssruntime_dart` も一緒に入ります。パッケージにプレリリース版しかない間は、`flutter pub add` がいちばん新しいプレリリースを選び、それに `^` の制約を付けて書き込みます。
+その下のランタイムバインディング `ssruntime_dart` も一緒に入ります。
 
 ほかに追加するものは、使う機能によって決まります。
 
 | 用途 | 追加するもの |
 |---|---|
-| [Flame 連携](flame.md) | `flutter pub add ssplayer_flame` |
+| [Flame 連携](flame.md) | `flutter pub add flame ssplayer_flame` |
 | `ssconvert` CLI —— [アセットの準備](conversion.md) | `flutter pub add --dev ssconverter_dart` |
 | [ライブリロード](live-reload.md) | `flutter pub add --dev ssgen_flutter` |
 

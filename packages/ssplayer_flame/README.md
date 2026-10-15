@@ -27,7 +27,7 @@ same pages for this version are in this package's `doc/` as Markdown, readable o
 flutter pub add flame ssplayer_flame
 ```
 
-`ssplayer_flutter` and `ssruntime_dart` come with it ([Installation](https://cri-middleware.github.io/SSPlayerForFlutter/guide/install/)).
+`ssplayer_flutter` and `ssruntime_dart` come with `ssplayer_flame` ([Installation](https://cri-middleware.github.io/SSPlayerForFlutter/guide/install/)).
 `ssplayer_flame` re‑exports the entire `ssplayer_flutter` API, so a single
 `import 'package:ssplayer_flame/ssplayer_flame.dart';` gives you both
 `SpriteStudioComponent` and `SpriteStudioPlayer`.

@@ -21,14 +21,13 @@ Add `ssplayer_flutter` from [pub.dev](https://pub.dev/packages/ssplayer_flutter)
 flutter pub add ssplayer_flutter
 ```
 
-`ssruntime_dart`, the runtime bindings underneath, comes with it. While the packages have only
-prerelease versions, `flutter pub add` takes the newest prerelease and writes a `^` constraint on it.
+`ssruntime_dart`, the runtime bindings underneath, comes with it.
 
 What else to add depends on what you use:
 
 | For | Add |
 |---|---|
-| [Flame Integration](flame.md) | `flutter pub add ssplayer_flame` |
+| [Flame Integration](flame.md) | `flutter pub add flame ssplayer_flame` |
 | The `ssconvert` CLI — [Preparing Assets](conversion.md) | `flutter pub add --dev ssconverter_dart` |
 | [Live Reload](live-reload.md) | `flutter pub add --dev ssgen_flutter` |
 
