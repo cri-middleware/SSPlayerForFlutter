@@ -14,7 +14,7 @@ An agent can run every block. A person sorts the scan's matches in step 4 and de
 
 ### 1. Decide the versions
 
-Look at what each package gained since its previous tag. A package gets a new version only when it is named: one that depends on a package being released keeps its own version, with its constraint raised for its next release. The SDK the packages fetch is `_sdkVersion` in `packages/*/hook/build.dart`, and the bindings committed under `packages/` are generated from the `SpriteStudio-SDK` submodule, so both hooks and the submodule must name the same SDK release: point all three at it first, in an ordinary pull request into `main`; `scripts/build-release.sh` says whether the bindings need regenerating. The last two lines below print the release the hooks pin and the tag the submodule is on, and stop when it is on none.
+Look at what each package gained since its previous tag. A package gets a new version only when it is named: one that depends on a package being released keeps its own version, with its constraint raised for its next release. The SDK the packages fetch is `_sdkVersion` in `packages/*/hook/build.dart`, and the bindings committed under `packages/` are generated from the `SpriteStudio-SDK` submodule; `scripts/build-release.sh` says whether the bindings need regenerating. The last line below prints the release the hooks pin.
 
 ```bash
 git fetch origin --tags
@@ -24,7 +24,6 @@ for pkg in $(git ls-tree -r --name-only origin/main -- packages | sed -n 's|^pac
   git log --oneline ${prev:+"$prev.."}origin/main -- "packages/$pkg"
 done
 git show origin/main:packages/ssruntime_dart/hook/build.dart origin/main:packages/ssconverter_dart/hook/build.dart | grep '^const _sdkVersion'
-git -C SpriteStudio-SDK fetch -q --tags && git -C SpriteStudio-SDK describe --tags --exact-match "$(git rev-parse origin/main:SpriteStudio-SDK)"
 ```
 
 A run releases every package whose current version has no Release yet, named or not. So the first release names every package at the version it already has:
@@ -196,10 +195,10 @@ Then enable **Automated publishing** in the package's pub.dev Admin tab, with th
     `scripts/download-web-runtime.sh` inserted before the dry run. If that step ever disappears,
     `build-release.sh verify` says so rather than letting a complete-looking archive hide an empty
     `assets/runtime-web/` on pub.dev.
-*   **The toolchain is pinned** — Flutter 3.47.1 in `release.yml`, `publish.yml` and `pages.yml`, so
-    a release is checked, published and demoed by the same one. Move the three together, and never
-    below a package's declared floor: most declare one well below the pin, `ssplayer_flutter` sits at
-    Flutter `>=3.47.0` because the flutter_gpu it uses ships inside the SDK.
+*   **The toolchain is pinned** — every workflow sets the same `flutter-version`, so a release is
+    checked, published and demoed by the same one; `build-release.sh` stops when they disagree. Move
+    them together, and never below a package's declared floor: most declare one well below the pin,
+    `ssplayer_flutter` sits close to it because the flutter_gpu it uses ships inside the SDK.
 
 <br>
 
@@ -221,7 +220,7 @@ Then enable **Automated publishing** in the package's pub.dev Admin tab, with th
 
 ### 1. バージョンを決める
 
-各パッケージが前回のタグから何を得たかを見ます。新しいバージョンになるのは指定したパッケージだけです。リリースするパッケージに依存するパッケージは自分のバージョンを保ち、次のリリースに向けて制約だけが引き上げられます。パッケージが取得する SDK は `packages/*/hook/build.dart` の `_sdkVersion` で、`packages/` にコミットしてあるバインディングは `SpriteStudio-SDK` submodule から生成しています。そのため 2 つの hook と submodule は同じ SDK リリースを指す必要があります。先に、通常のプルリクエストで `main` の 3 つをそのリリースに合わせます。バインディングの再生成が要るかどうかは `scripts/build-release.sh` が示します。下のブロックの最後の 2 行は、hook が指すリリースと submodule が載っているタグを出し、submodule がどのタグにも載っていなければ止まります。
+各パッケージが前回のタグから何を得たかを見ます。新しいバージョンになるのは指定したパッケージだけです。リリースするパッケージに依存するパッケージは自分のバージョンを保ち、次のリリースに向けて制約だけが引き上げられます。パッケージが取得する SDK は `packages/*/hook/build.dart` の `_sdkVersion` で、`packages/` にコミットしてあるバインディングは `SpriteStudio-SDK` submodule から生成しています。バインディングの再生成が要るかどうかは `scripts/build-release.sh` が示します。下のブロックの最後の行は、hook が指すリリースを出します。
 
 ```bash
 git fetch origin --tags
@@ -231,7 +230,6 @@ for pkg in $(git ls-tree -r --name-only origin/main -- packages | sed -n 's|^pac
   git log --oneline ${prev:+"$prev.."}origin/main -- "packages/$pkg"
 done
 git show origin/main:packages/ssruntime_dart/hook/build.dart origin/main:packages/ssconverter_dart/hook/build.dart | grep '^const _sdkVersion'
-git -C SpriteStudio-SDK fetch -q --tags && git -C SpriteStudio-SDK describe --tags --exact-match "$(git rev-parse origin/main:SpriteStudio-SDK)"
 ```
 
 run は、指定したかどうかに関わらず、現在のバージョンにまだ Release が無いパッケージをすべて出します。そのため初回のリリースでは、全パッケージをいま持っているバージョンのまま指定します。
@@ -387,4 +385,4 @@ cd packages/<package> && dart pub publish
 *   **`dart pub publish` は警告を致命エラーとして扱います。** `--ignore-warnings` を渡すのは `-f` でも再利用ワークフローでもありません。`LICENSE` ではなく `LICENSE.md` である、`CHANGELOG.md` が無い、またはそのバージョンに触れていない、だけで publish は中断します。まだリリースしていないバージョンは、`set-versions.dart` が節に日付を入れて初めて changelog に現れるので、設定してから検査します。
 *   **ピンした SDK リリースが存在している必要があります。** `packages/*/hook/build.dart` が `_sdkVersion` のリリースから、Rust ツールチェインを持たないすべての利用者向けに `libssruntime` / `libssconverter` を取得します。2 つの hook は**同じ**リリースを指す必要があります。SDK が未タグのうち `sdk=download`（既定）が失敗するのは正しい挙動です。
 *   **Web の Brain は git 管理外のビルド生成物ですが、publish に含める必要があります。** `assets/runtime-web/{ssruntime.js,ssruntime_bg.wasm,ssruntime_bg.nosimd.wasm}` は `ssruntime_dart` の `web_runtime.dart` が名前で読み込むファイルで、pub は git が無視するものを publish しません。そのための `assets/runtime-web/.pubignore` で、pub はそのディレクトリの `.gitignore` の**代わりに**これを読みます。dart-lang の再利用ワークフローは checkout と `dart pub publish` の間に何も挟めないため、`publish.yml` の **`ssplayer_flutter` ジョブだけは手書き**です（同じ手順に `scripts/download-web-runtime.sh` を dry run の前に挿入）。この取得手順が消えた場合は `build-release.sh` の verify が指摘します。空の `assets/runtime-web/` を抱えた一見完全なアーカイブが pub.dev に上がるのを防ぐためです。
-*   **ツールチェーンは固定しています。** `release.yml`・`publish.yml`・`pages.yml` の 3 か所で Flutter 3.47.1 にしているので、検査も publish もデモも同じものが行います。3 つは一緒に動かし、パッケージが宣言する下限を下回らないようにしてください。多くのパッケージはピンよりかなり低い下限を宣言していますが、`ssplayer_flutter` は使っている flutter_gpu が SDK に同梱されるため Flutter `>=3.47.0` です。
+*   **ツールチェーンは固定しています。** どの workflow も同じ `flutter-version` を指定しているので、検査も publish もデモも同じものが行います。食い違うと `build-release.sh` が止まります。一緒に動かし、パッケージが宣言する下限を下回らないようにしてください。多くのパッケージはピンよりかなり低い下限を宣言していますが、`ssplayer_flutter` は使っている flutter_gpu が SDK に同梱されるため、ピンに近い下限です。
