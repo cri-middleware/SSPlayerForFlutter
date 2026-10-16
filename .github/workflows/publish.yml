@@ -22,11 +22,14 @@ jobs:
   # `dart pub publish` would refuse it, so its job is skipped instead of failing.
   gate:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     outputs:
       package: ${{ steps.read.outputs.package }}
       publish: ${{ steps.read.outputs.publish }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - id: read
         run: |
@@ -93,10 +96,13 @@ jobs:
     needs: gate
     if: needs.gate.outputs.package == 'ssplayer_flutter' && needs.gate.outputs.publish == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       id-token: write # OIDC: mint a short-lived pub.dev credential (no stored secret)
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       # This is the step that provisions the OIDC credential pub.dev publishes
       # on. Its `dart` is then shadowed by the Flutter SDK's below, which is

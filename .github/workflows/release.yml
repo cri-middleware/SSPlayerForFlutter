@@ -44,6 +44,7 @@ jobs:
     # Refuse to release from anywhere but main, even if dispatched on another ref.
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: write # the version commit and the draft Releases
     steps:
