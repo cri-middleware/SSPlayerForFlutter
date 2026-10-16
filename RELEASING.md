@@ -109,7 +109,7 @@ gh run list -w publish.yml -L 6                   # one run per tag; a package w
 
 ### 6. Publish the Releases
 
-**A person publishes the Releases**: a published Release is permanent. Nothing on a draft needs writing, and a version with a `-` is already marked as a pre-release. Publishing starts `pages.yml`, which deploys the [documentation site](https://cri-middleware.github.io/SSPlayerForFlutter/) and the web demos.
+**A person publishes the Releases**: a published Release is permanent. Nothing on a draft needs writing, and each is already marked by `scripts/release-channel.sh`: a pre-release when its package already has a full release, ready to become Latest otherwise. Publishing starts `pages.yml`, which deploys the [documentation site](https://cri-middleware.github.io/SSPlayerForFlutter/) and the web demos, unless the Release is a pre-release, which leaves the site as it is.
 
 ```bash
 for tag in $(gh release list --json tagName,isDraft -q '.[] | select(.isDraft) | .tagName'); do
@@ -315,7 +315,7 @@ gh run list -w publish.yml -L 6                   # タグごとに 1 つ。publ
 
 ### 6. Release を公開する
 
-**Release の公開は人が行います。** 公開した Release は取り消せないためです。下書きに書き足すものはありません。`-` を含むバージョンは、すでに pre-release になっています。公開すると `pages.yml` が動き、[ドキュメントサイト](https://cri-middleware.github.io/SSPlayerForFlutter/) と Web デモをデプロイします。
+**Release の公開は人が行います。** 公開した Release は取り消せないためです。下書きに書き足すものはありません。印は `scripts/release-channel.sh` が付けてあります。パッケージに正式版があれば pre-release、なければ Latest になります。公開すると `pages.yml` が動き、[ドキュメントサイト](https://cri-middleware.github.io/SSPlayerForFlutter/) と Web デモをデプロイします。pre-release の公開ではサイトはそのままです。
 
 ```bash
 for tag in $(gh release list --json tagName,isDraft -q '.[] | select(.isDraft) | .tagName'); do
