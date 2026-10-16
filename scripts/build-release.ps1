@@ -324,6 +324,24 @@ if ($dirty.Count -gt 0) {
 $branch = "$(Invoke-Git rev-parse --abbrev-ref HEAD)".Trim()
 if ($branch -ne "main") { Write-Host "   note: on '$branch', not main" }
 
+# --- the Flutter pin -------------------------------------------------------
+#
+# Every workflow installs Flutter by an exact version, one pin per job, so a
+# release is checked, published and demoed by one toolchain only while they
+# all say the same.
+Write-Step "the Flutter the workflows pin"
+$flutterPins = @(Get-ChildItem -LiteralPath (Join-Path $RootDir ".github/workflows") -Filter *.yml |
+    ForEach-Object { Get-Content -LiteralPath $_.FullName } |
+    ForEach-Object { if ($_ -match '^\s*flutter-version:\s*([^\s#]+)') { $Matches[1].Trim('"', "'") } } |
+    Sort-Object -Unique)
+if ($flutterPins.Count -eq 1) {
+    Write-Host "   $($flutterPins[0]), in every workflow"
+} elseif ($flutterPins.Count -eq 0) {
+    Add-Failure "no flutter-version pin found in .github/workflows"
+} else {
+    Add-Failure "the workflows pin more than one Flutter: $($flutterPins -join ' ')"
+}
+
 # --- the pinned SDK release -----------------------------------------------
 Write-Step "the SpriteStudio-SDK release the build hooks pin"
 $SdkVersion = ""

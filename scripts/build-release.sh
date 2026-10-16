@@ -355,6 +355,22 @@ fi
 BRANCH="$(git -C "$ROOT_DIR" rev-parse --abbrev-ref HEAD 2>/dev/null || echo '?')"
 [ "$BRANCH" = "main" ] || echo "   note: on '$BRANCH', not main"
 
+# --- the Flutter pin -------------------------------------------------------
+#
+# Every workflow installs Flutter by an exact version, one pin per job, so a
+# release is checked, published and demoed by one toolchain only while they
+# all say the same.
+step "the Flutter the workflows pin"
+FLUTTER_PINS="$(sed -n 's/^[[:space:]]*flutter-version:[[:space:]]*\([^[:space:]#]*\).*$/\1/p' "$ROOT_DIR"/.github/workflows/*.yml | tr -d "\"'" | sort -u)"
+FLUTTER_PIN_COUNT="$(printf '%s\n' "$FLUTTER_PINS" | grep -c . || true)"
+if [ "$FLUTTER_PIN_COUNT" = 1 ]; then
+  echo "   $FLUTTER_PINS, in every workflow"
+elif [ "$FLUTTER_PIN_COUNT" = 0 ]; then
+  fail "no flutter-version pin found in .github/workflows"
+else
+  fail "the workflows pin more than one Flutter: $(printf '%s ' $FLUTTER_PINS)"
+fi
+
 # --- the pinned SDK release -----------------------------------------------
 sdk_pin () { # <hook file>
   sed -n "s/^const _sdkVersion = '\(.*\)';.*$/\1/p" "$1" | head -1
