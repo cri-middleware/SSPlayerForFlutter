@@ -417,6 +417,16 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   /// [isClockPlaying].
   bool get isClockPausing => ssRuntime.isClockPausing(_context);
 
+  /// Whether the track stack moves the pose for a reason other than track 0's
+  /// own animation stepping: a fade in flight, or another source playing at a
+  /// speed and weight above zero on a track that is heard. The Brain's verdict,
+  /// not a copy kept here — a crossfade that completes releases its outgoing
+  /// source on its own, and a copy would keep counting it.
+  ///
+  /// It does not read the clock: pair it with [isClockPlaying] and
+  /// [isClockPausing].
+  bool get isStackInMotion => ssRuntime.isStackInMotion(_context);
+
   /// Every configured loop has played. Sticky until the next play/setup, so
   /// callers wanting a one-shot notification must take the rising edge.
   bool get isFinished => ssRuntime.isFinished(_context);
@@ -493,13 +503,45 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
 
   double updateMs(double deltaMs) {
     _ensureAlive();
+    // Read before the update: a fade or an overlay that ends on this one still
+    // moved the pose getting there, and its last frame has to be built.
+    final stackMoves =
+        isStackInMotion && isClockPlaying && !isClockPausing;
     final frame = ssRuntime.update(_context, deltaMs);
+    final rebuild = _rebuildPending;
+    _rebuildPending = false;
+    // The same frame of the same pose evaluates to the same FrameData, so a
+    // tick that moved nothing — paused, or between two frames with sub-frame
+    // off — keeps the one it has. Effects and instances simulate on their own
+    // and are stepped every tick regardless.
+    _keptFrame = !rebuild &&
+        !stackMoves &&
+        _frameData != null &&
+        (subFrameEnabled ? frame : frame.floorToDouble()) == _frameDataNo &&
+        _effects.isEmpty &&
+        _instances.isEmpty;
+    if (_keptFrame) return frame;
     // `just_looped` is per-update (cleared at the top of each update), so it is
     // the loop *edge* the slots want, not "looping is enabled".
     _stepSlots(frame, deltaMs, justLooped);
     _buildFrame();
     return frame;
   }
+
+  /// Whether a call that changes the pose without moving the clock — a track
+  /// call, a part override — still waits for the update that builds it: the
+  /// Brain applies those when it next builds a frame.
+  ///
+  /// A one-shot, cleared by that update. It is never left standing, or every
+  /// tick after it would rebuild an unchanged pose.
+  bool get isFrameInvalidated => _rebuildPending;
+
+  bool _rebuildPending = false;
+
+  /// Whether the last [updateMs] kept the frame it already had, so the pose it
+  /// leaves is the one already drawn.
+  bool get keptFrame => _keptFrame;
+  bool _keptFrame = false;
 
   /// Drives the slot-based kinds one tick at [frame].
   ///
@@ -728,28 +770,42 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   // A read of a track or source that does not exist is null. A setter returns
   // false when the Brain refused it, and [lastErrorMessage] says why.
 
+  /// Passes a pose-changing call's result through, and on success makes the
+  /// next update build its frame ([isFrameInvalidated]). The overrides below go
+  /// through it too.
+  bool _posed(bool ok) {
+    if (ok) _rebuildPending = true;
+    return ok;
+  }
+
+  /// [_posed] for a call that returns the new source, or null when refused.
+  int? _posedSource(int? source) {
+    if (source != null) _rebuildPending = true;
+    return source;
+  }
+
   bool setTrackAnimation(int track, String name) {
     _ensureAlive();
-    return ssRuntime.setTrackAnimation(_context, track, name);
+    return _posed(ssRuntime.setTrackAnimation(_context, track, name));
   }
 
   int get trackCount => ssRuntime.trackCount(_context);
 
   bool clearTrack(int track) {
     _ensureAlive();
-    return ssRuntime.clearTrack(_context, track);
+    return _posed(ssRuntime.clearTrack(_context, track));
   }
 
   bool setTrackAlpha(int track, double alpha) {
     _ensureAlive();
-    return ssRuntime.setTrackAlpha(_context, track, alpha);
+    return _posed(ssRuntime.setTrackAlpha(_context, track, alpha));
   }
 
   double? trackAlpha(int track) => ssRuntime.trackAlpha(_context, track);
 
   bool setTrackBlend(int track, SsTrackBlend blend) {
     _ensureAlive();
-    return ssRuntime.setTrackBlend(_context, track, blend.value);
+    return _posed(ssRuntime.setTrackBlend(_context, track, blend.value));
   }
 
   SsTrackBlend? trackBlend(int track) {
@@ -769,14 +825,14 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
 
   bool crossfade(int track, String name, Duration duration) {
     _ensureAlive();
-    return ssRuntime.crossfade(
-        _context, track, name, duration.inMicroseconds / 1000.0);
+    return _posed(ssRuntime.crossfade(
+        _context, track, name, duration.inMicroseconds / 1000.0));
   }
 
   bool fadeTrack(int track, double targetAlpha, Duration duration) {
     _ensureAlive();
-    return ssRuntime.fadeTrack(
-        _context, track, targetAlpha, duration.inMicroseconds / 1000.0);
+    return _posed(ssRuntime.fadeTrack(
+        _context, track, targetAlpha, duration.inMicroseconds / 1000.0));
   }
 
   double? trackFadeProgress(int track) =>
@@ -784,12 +840,12 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
 
   bool cancelTrackFade(int track) {
     _ensureAlive();
-    return ssRuntime.cancelTrackFade(_context, track);
+    return _posed(ssRuntime.cancelTrackFade(_context, track));
   }
 
   bool setTrackFrame(int track, double frame) {
     _ensureAlive();
-    return ssRuntime.setTrackFrame(_context, track, frame);
+    return _posed(ssRuntime.setTrackFrame(_context, track, frame));
   }
 
   double? trackFrame(int track) => ssRuntime.trackFrame(_context, track);
@@ -858,19 +914,19 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
 
   int? addTrackSource(int track, String name, double weight) {
     _ensureAlive();
-    return ssRuntime.addTrackSource(_context, track, name, weight);
+    return _posedSource(ssRuntime.addTrackSource(_context, track, name, weight));
   }
 
   bool setSourceWeight(int source, double weight) {
     _ensureAlive();
-    return ssRuntime.setSourceWeight(_context, source, weight);
+    return _posed(ssRuntime.setSourceWeight(_context, source, weight));
   }
 
   double? sourceWeight(int source) => ssRuntime.sourceWeight(_context, source);
 
   bool setSourceFrame(int source, double frame) {
     _ensureAlive();
-    return ssRuntime.setSourceFrame(_context, source, frame);
+    return _posed(ssRuntime.setSourceFrame(_context, source, frame));
   }
 
   double? sourceFrame(int source) => ssRuntime.sourceFrame(_context, source);
@@ -892,25 +948,6 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   /// the animation [setupAnimation] chose, or what a crossfade or track
   /// animation on track 0 handed over to.
   int? get currentAnimationIndex => ssRuntime.currentAnimationIndex(_context);
-
-  /// Whether anything beyond track 0's own animation still moves the pose: a
-  /// fade in flight, or an overlay that has not played its loops out.
-  ///
-  /// The Brain keeps its clock running after track 0 finishes, and these keep
-  /// moving on it, so a host that stops ticking on track 0's finish asks this
-  /// first.
-  bool get hasMovingTracks {
-    final count = trackCount;
-    for (var track = 0; track < count; track++) {
-      if (trackFadeProgress(track) != null) return true;
-      if (track > 0 &&
-          trackMainSource(track) != null &&
-          !isTrackFinished(track)) {
-        return true;
-      }
-    }
-    return false;
-  }
 
   // --- Part overrides (Override Layer) -------------------------------------
   //
@@ -962,9 +999,9 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
     _ensureAlive();
     if (partIndex < 0) return false;
     // force: 0 = clear/revert, 1 = force-hide (2 = force-visible is reserved).
-    return ssRuntime.setPartVisibilityOverride(
+    return _posed(ssRuntime.setPartVisibilityOverride(
         _context, partIndex, hide ? 1 : 0,
-        cascade: cascade);
+        cascade: cascade));
   }
 
   /// Index form of [setPartVisibilityOverride].
@@ -976,7 +1013,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   bool clearPartVisibilityOverrideByIndex(int partIndex) {
     _ensureAlive();
     if (partIndex < 0) return false;
-    return ssRuntime.clearPartVisibilityOverride(_context, partIndex);
+    return _posed(ssRuntime.clearPartVisibilityOverride(_context, partIndex));
   }
 
   /// Index form of [clearPartVisibilityOverride].
@@ -996,8 +1033,8 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
       SsOverridePriority priority = SsOverridePriority.holdUntilNextAnimation}) {
     _ensureAlive();
     if (partIndex < 0) return false;
-    return ssRuntime.setPartColorOverride(
-        _context, partIndex, blendOp.value, packRgba(color), priority.value);
+    return _posed(ssRuntime.setPartColorOverride(
+        _context, partIndex, blendOp.value, packRgba(color), priority.value));
   }
 
   /// Index form of [setPartColorOverride].
@@ -1024,8 +1061,8 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
       ..[1] = packRgba(corners.rightTop)
       ..[2] = packRgba(corners.leftBottom)
       ..[3] = packRgba(corners.rightBottom);
-    return ssRuntime.setPartColorOverrideCorners(
-        _context, partIndex, blendOp.value, packed, priority.value);
+    return _posed(ssRuntime.setPartColorOverrideCorners(
+        _context, partIndex, blendOp.value, packed, priority.value));
   }
 
   /// Index form of [setPartColorOverrideCorners].
@@ -1042,7 +1079,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   bool clearPartColorOverrideByIndex(int partIndex) {
     _ensureAlive();
     if (partIndex < 0) return false;
-    return ssRuntime.clearPartColorOverride(_context, partIndex);
+    return _posed(ssRuntime.clearPartColorOverride(_context, partIndex));
   }
 
   /// Index form of [clearPartColorOverride].
@@ -1063,12 +1100,12 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
     if (partIndex < 0) return false;
     // (0, 0) is the Brain's "follow the animation" sentinel, and an empty name
     // hashes to 0 — so empty/empty reverts, exactly as documented.
-    return ssRuntime.setPartCellOverride(
+    return _posed(ssRuntime.setPartCellOverride(
         _context,
         partIndex,
         _hashName(cellmapName),
         _hashName(cellName),
-        priority.value);
+        priority.value));
   }
 
   /// Index form of [setPartCellOverride].
@@ -1083,7 +1120,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   bool clearPartCellOverrideByIndex(int partIndex) {
     _ensureAlive();
     if (partIndex < 0) return false;
-    return ssRuntime.clearPartCellOverride(_context, partIndex);
+    return _posed(ssRuntime.clearPartCellOverride(_context, partIndex));
   }
 
   /// Index form of [clearPartCellOverride].
@@ -1095,7 +1132,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   /// and therefore its own override table.
   bool clearAllPartOverrides() {
     _ensureAlive();
-    return ssRuntime.clearAllPartOverrides(_context);
+    return _posed(ssRuntime.clearAllPartOverrides(_context));
   }
 
   /// FNV-1a via the Brain's own hasher, so a cell override keys on exactly the

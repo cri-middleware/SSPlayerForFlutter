@@ -196,6 +196,10 @@ class _NativeRuntime implements SsRuntime {
       ss_runtime_is_clock_pausing(_ctx(context));
 
   @override
+  bool isStackInMotion(SsContext context) =>
+      ss_runtime_is_stack_in_motion(_ctx(context));
+
+  @override
   bool isFinished(SsContext context) => ss_runtime_is_finished(_ctx(context));
 
   @override

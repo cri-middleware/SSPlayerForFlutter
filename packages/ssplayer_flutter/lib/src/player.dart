@@ -767,7 +767,7 @@ class SpriteStudioPlayer extends ChangeNotifier {
     // Track 0 having finished is not "nothing": an overlay or a fade the pause
     // held carries on.
     if (!internal.isPlaying &&
-        !(internal.isClockPlaying && internal.hasMovingTracks)) {
+        !(internal.isClockPlaying && internal.isStackInMotion)) {
       return;
     }
     _startTicker();
@@ -1415,6 +1415,16 @@ class SpriteStudioPlayer extends ChangeNotifier {
     // slips through (it would throw "used after dispose").
     if (internal == null || internal.isDisposed || _disposed) return;
 
+    // Stopped, or finished with nothing else on the clock: an update would
+    // move nothing, and a host clock (Flame) calls this every frame regardless.
+    // A track call or an override made meanwhile still gets its one update.
+    // Paused is not here: [isPlaying] holds through a pause.
+    if (!internal.isPlaying &&
+        !(internal.isClockPlaying && internal.isStackInMotion) &&
+        !internal.isFrameInvalidated) {
+      return;
+    }
+
     internal.update(delta);
 
     final passed = internal.passedEventIndices();
@@ -1437,12 +1447,23 @@ class SpriteStudioPlayer extends ChangeNotifier {
     // after the callback, which may well have started something new.
     if (internal.isFinished &&
         (_ticker?.isActive ?? false) &&
-        !internal.hasMovingTracks) {
+        !internal.isStackInMotion) {
       _ticker!.stop();
     }
 
-    notifyListeners();
+    // Listeners hear every tick — a readout of [frameNo] moves even when the
+    // pose does not — but a view need not repaint a pose it already drew.
+    _tickKeptPose = internal.keptFrame;
+    try {
+      notifyListeners();
+    } finally {
+      _tickKeptPose = false;
+    }
   }
+
+  /// True only while [advance] notifies about a tick that left the pose as it
+  /// was drawn; see [tickKeptPose].
+  bool _tickKeptPose = false;
 
   /// Decodes the raw [passed] event indices and fires the per-event callbacks.
   /// Skips the decode entirely when no decoded callback is registered.
@@ -1753,3 +1774,11 @@ class SpriteStudioPlayer extends ChangeNotifier {
     super.dispose();
   }
 }
+
+/// Whether [player] is notifying about a tick that left its pose as already
+/// drawn, so a view listening to it need not repaint. False for every other
+/// notification — a setter, a texture swap, a finished GPU upload — which may
+/// change pixels without changing the pose.
+///
+/// Not exported: only the package's own views read it.
+bool tickKeptPose(SpriteStudioPlayer player) => player._tickKeptPose;

@@ -189,7 +189,7 @@ class SpriteStudioRenderBox extends RenderBox {
   void _onPlayerChanged() {
     if (_box != _laidOutBox) {
       markNeedsLayout();
-    } else {
+    } else if (!tickKeptPose(_player)) {
       markNeedsPaint();
     }
   }

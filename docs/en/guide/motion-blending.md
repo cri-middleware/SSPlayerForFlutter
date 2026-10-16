@@ -196,8 +196,9 @@ if (_player.isTrackFinished(2)) {
 finishing or looping has no callback; only track 0's end fires `onAnimationFinished`, and only track
 0's end finishes the character.
 
-Track 0 finishing does not stop the clock, either: overlays and fades keep moving, and the player keeps
-its ticker running for them. `pause`, `resume` and `stop` act on the whole character, every track and
+Track 0 finishing does not stop the clock, either: overlays, sources added beside a main one and fades
+keep moving, and the player keeps its ticker running while any of them moves the pose. One at speed 0,
+at weight 0 or on a silent track does not, and lets the ticker stop. `pause`, `resume` and `stop` act on the whole character, every track and
 fade at once, while `play` heads out track 0 alone. `isPlaying` and `isPausing` describe track 0,
 though, so once track 0 has finished both stay false, through a pause as well.
 

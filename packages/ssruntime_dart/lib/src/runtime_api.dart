@@ -117,6 +117,13 @@ abstract interface class SsRuntime {
   /// Whether a [pause] holds the clock, track 0 finished or not. Implies
   /// [isClockPlaying].
   bool isClockPausing(SsContext context);
+
+  /// Whether the track stack would move the pose on a running clock for a
+  /// reason other than track 0's own animation stepping: a fade on any track,
+  /// or another source still playing, at a speed and weight above zero, on a
+  /// track that is heard. It does not read the clock: combine it with
+  /// [isClockPlaying] and [isClockPausing].
+  bool isStackInMotion(SsContext context);
   bool isFinished(SsContext context);
   bool justLooped(SsContext context);
 
