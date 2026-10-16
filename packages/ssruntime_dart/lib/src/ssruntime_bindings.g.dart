@@ -305,7 +305,7 @@ external bool ss_runtime_crossfade_by_hash(
 @ffi.Native<ffi.Void Function(ffi.Pointer<ffi.Void>)>()
 external void ss_runtime_destroy(ffi.Pointer<ffi.Void> context);
 
-/// The wording behind a code from [`ss_runtime_get_last_error`], as
+/// The wording behind a code from `ss_runtime_get_last_error`, as
 /// NUL-terminated UTF-8.
 ///
 /// **Takes the code, not a context**, so it is a pure lookup: no lifetime to
@@ -315,7 +315,7 @@ external void ss_runtime_destroy(ffi.Pointer<ffi.Void> context);
 ///
 /// The text carries no numbers. `InvalidVersion` reads "Invalid SSAB version";
 /// a Player that wants to say *which* versions should compare
-/// [`ss_runtime_ssab_schema_version`] against the pack's own `version` field,
+/// `ss_runtime_ssab_schema_version` against the pack's own `version` field,
 /// which gives it two integers rather than a sentence to parse.
 @ffi.Native<ffi.Pointer<ffi.Char> Function(ffi.Int32)>()
 external ffi.Pointer<ffi.Char> ss_runtime_error_message(int code);
@@ -332,6 +332,9 @@ external bool ss_runtime_fade_track(
 
 /// Resolve a part name to its `part_index` in the current primary animation.
 /// Returns `-1` on null context / null or invalid name / not found.
+///
+/// # Safety
+/// `part_name` must be null or a valid null-terminated string.
 @ffi.Native<ffi.Int32 Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Char>)>()
 external int ss_runtime_find_part_index(
   ffi.Pointer<ffi.Void> context,
@@ -374,11 +377,6 @@ external ss_event_instance_info ss_runtime_get_active_event_instance(
 /// rectangle origin in the cellmap's texture pixel space, letting a
 /// Player build a complete source rect (origin + size) without its own
 /// cellmap lookup. Parts without a current cell carry zeros.
-///
-/// # Safety
-///
-/// This function is unsafe because it dereferences raw pointers for output.
-/// The caller must ensure `out_data` and `out_len` are valid if they are not null.
 @ffi.Native<
   ffi.Void Function(
     ffi.Pointer<ffi.Void>,
@@ -406,10 +404,6 @@ external int ss_runtime_get_current_animation_index(
 @ffi.Native<ffi.Int32 Function(ffi.Pointer<ffi.Void>)>()
 external int ss_runtime_get_end_frame(ffi.Pointer<ffi.Void> context);
 
-/// # Safety
-///
-/// This function is unsafe because it dereferences raw pointers for output.
-/// The caller must ensure `out_data` and `out_len` are valid if they are not null.
 @ffi.Native<
   ffi.Void Function(
     ffi.Pointer<ffi.Void>,
@@ -431,26 +425,23 @@ external double ss_runtime_get_frame_no(ffi.Pointer<ffi.Void> context);
 @ffi.Native<ffi.Int32 Function(ffi.Pointer<ffi.Void>)>()
 external int ss_runtime_get_frame_rate(ffi.Pointer<ffi.Void> context);
 
-/// Why the last call that tracks a reason failed, as the stable code from
-/// [`crate::error::SSRuntimeError::as_code`]. `0` means the last such call
-/// succeeded, and so does a null `context`.
+/// Why the last call that tracks a reason failed, as a stable code. The codes
+/// are listed with `SSRuntimeError` in
+/// <https://github.com/cri-middleware/SpriteStudio-SDK/blob/HEAD/libs/ssruntime/src/error.rs>.
+/// `0` means the last such call succeeded, and so does a null `context`.
 ///
 /// Every fallible entry point that has a context to write to clears this on
 /// entry, so it always describes the most recent one rather than some earlier
-/// failure. The exceptions are the resource constructors
-/// (`ss_resource_create_borrow` / `ss_resource_create_copy`), which take no
-/// context and so have nowhere to record: a null return from those is all there
-/// is.
+/// failure. The exceptions are the constructors that take no context
+/// (`ss_resource_create_borrow` / `ss_resource_create_copy` and
+/// `ss_effect_slot_create`), which have nowhere to record: a null return from
+/// those is all there is.
 ///
 /// Reading does not clear it. Read it immediately after the call that returned
 /// `false`, before making another on the same context.
 @ffi.Native<ffi.Int32 Function(ffi.Pointer<ffi.Void>)>()
 external int ss_runtime_get_last_error(ffi.Pointer<ffi.Void> context);
 
-/// # Safety
-///
-/// This function is unsafe because it dereferences raw pointers for output.
-/// The caller must ensure `out_data` and `out_len` are valid if they are not null.
 @ffi.Native<
   ffi.Void Function(
     ffi.Pointer<ffi.Void>,
@@ -473,11 +464,6 @@ external void ss_runtime_get_local_uvs(
 /// flip, and per-frame vertex deformation. Parts without a current cell
 /// carry zeros. Replaces `FrameData::vertices` for renderers that consume
 /// pre-resolved SoA buffers.
-///
-/// # Safety
-///
-/// This function is unsafe because it dereferences raw pointers for output.
-/// The caller must ensure `out_data` and `out_len` are valid if they are not null.
 @ffi.Native<
   ffi.Void Function(
     ffi.Pointer<ffi.Void>,
@@ -497,11 +483,6 @@ external int ss_runtime_get_loop_count(ffi.Pointer<ffi.Void> context);
 /// CSR-style prefix sum (length = `num_parts + 1`) for the triangle indices in
 /// `ss_runtime_get_mesh_indices`. Part `p` occupies `[offsets[p], offsets[p + 1])`;
 /// non-mesh parts have an empty range.
-///
-/// # Safety
-///
-/// This function is unsafe because it dereferences raw pointers for output.
-/// The caller must ensure `out_data` and `out_len` are valid if they are not null.
 @ffi.Native<
   ffi.Void Function(
     ffi.Pointer<ffi.Void>,
@@ -518,11 +499,6 @@ external void ss_runtime_get_mesh_index_offsets(
 /// Mesh triangle indices (part-local, 0-based), concatenated across all parts.
 /// Static. Slice part `p`'s range via `ss_runtime_get_mesh_index_offsets`:
 /// `[offsets[p], offsets[p + 1])`.
-///
-/// # Safety
-///
-/// This function is unsafe because it dereferences raw pointers for output.
-/// The caller must ensure `out_data` and `out_len` are valid if they are not null.
 @ffi.Native<
   ffi.Void Function(
     ffi.Pointer<ffi.Void>,
@@ -540,11 +516,6 @@ external void ss_runtime_get_mesh_indices(
 /// `[u, v, ...]`, concatenated across all parts. Static — resolved once from
 /// each mesh part's frame-0 Cell. Sliced per-part by
 /// `ss_runtime_get_mesh_vertex_offsets`, identically to the vertex buffers.
-///
-/// # Safety
-///
-/// This function is unsafe because it dereferences raw pointers for output.
-/// The caller must ensure `out_data` and `out_len` are valid if they are not null.
 @ffi.Native<
   ffi.Void Function(
     ffi.Pointer<ffi.Void>,
@@ -559,14 +530,9 @@ external void ss_runtime_get_mesh_uvs(
 );
 
 /// CSR-style prefix sum (length = `num_parts + 1`) describing where each
-/// part's skinned mesh vertices live inside `ss_runtime_get_mesh_vertices_x`
+/// part's mesh vertices live inside `ss_runtime_get_mesh_vertices_x`
 /// / `_y`. Part `p` occupies indices `[offsets[p], offsets[p + 1])`; non-mesh
 /// parts have `offsets[p] == offsets[p + 1]`.
-///
-/// # Safety
-///
-/// This function is unsafe because it dereferences raw pointers for output.
-/// The caller must ensure `out_data` and `out_len` are valid if they are not null.
 @ffi.Native<
   ffi.Void Function(
     ffi.Pointer<ffi.Void>,
@@ -580,16 +546,11 @@ external void ss_runtime_get_mesh_vertex_offsets(
   ffi.Pointer<ffi.UintPtr> out_len,
 );
 
-/// Skinned mesh per-vertex X coordinates in world space, concatenated across all
+/// Mesh per-vertex X coordinates in world space, concatenated across all
 /// parts. Pair with `ss_runtime_get_mesh_vertex_offsets` to slice per-part
 /// ranges: part `p`'s vertices live at indices `offsets[p]..offsets[p + 1]`.
-/// Non-mesh parts contribute an empty range. Indirect render mode leaves the
+/// Non-mesh parts contribute an empty range. SceneGraph render mode leaves the
 /// buffer empty (length 0).
-///
-/// # Safety
-///
-/// This function is unsafe because it dereferences raw pointers for output.
-/// The caller must ensure `out_data` and `out_len` are valid if they are not null.
 @ffi.Native<
   ffi.Void Function(
     ffi.Pointer<ffi.Void>,
@@ -603,14 +564,9 @@ external void ss_runtime_get_mesh_vertices_x(
   ffi.Pointer<ffi.UintPtr> out_len,
 );
 
-/// Skinned mesh per-vertex Y coordinates. SoA companion to
+/// Mesh per-vertex Y coordinates. SoA companion to
 /// `ss_runtime_get_mesh_vertices_x`; sliced identically via
 /// `ss_runtime_get_mesh_vertex_offsets`.
-///
-/// # Safety
-///
-/// This function is unsafe because it dereferences raw pointers for output.
-/// The caller must ensure `out_data` and `out_len` are valid if they are not null.
 @ffi.Native<
   ffi.Void Function(
     ffi.Pointer<ffi.Void>,
@@ -632,11 +588,6 @@ external void ss_runtime_get_mesh_vertices_y(
 /// grid — the same weighting `ss_runtime_get_shape_vertex_box_coords` provides
 /// for Shape parts. A part flip is already folded in, so `fx` / `fy` always
 /// describe the drawn box.
-///
-/// # Safety
-///
-/// This function is unsafe because it dereferences raw pointers for output.
-/// The caller must ensure `out_data` and `out_len` are valid if they are not null.
 @ffi.Native<
   ffi.Void Function(
     ffi.Pointer<ffi.Void>,
@@ -653,11 +604,6 @@ external void ss_runtime_get_nines_box_coords(
 /// CSR-style prefix sum (length = `num_parts + 1`) for the triangle indices in
 /// `ss_runtime_get_nines_indices`. Part `p` occupies
 /// `[offsets[p], offsets[p + 1])`; non-nines parts have an empty range.
-///
-/// # Safety
-///
-/// This function is unsafe because it dereferences raw pointers for output.
-/// The caller must ensure `out_data` and `out_len` are valid if they are not null.
 @ffi.Native<
   ffi.Void Function(
     ffi.Pointer<ffi.Void>,
@@ -675,11 +621,6 @@ external void ss_runtime_get_nines_index_offsets(
 /// `ss_runtime_get_nines_index_offsets`. Values are **part-local**
 /// (`0..vertex_count`), so a Player passes them alongside the part's vertex
 /// slice without rebasing. Each quad is wound `LT, RT, LB / LB, RT, RB`.
-///
-/// # Safety
-///
-/// This function is unsafe because it dereferences raw pointers for output.
-/// The caller must ensure `out_data` and `out_len` are valid if they are not null.
 @ffi.Native<
   ffi.Void Function(
     ffi.Pointer<ffi.Void>,
@@ -697,11 +638,6 @@ external void ss_runtime_get_nines_indices(
 /// `[u, v, ...]`. Shares the vertex CSR of
 /// `ss_runtime_get_nines_vertex_offsets`. Divide by the texture size to
 /// normalize, the same as `ss_runtime_get_local_uvs`.
-///
-/// # Safety
-///
-/// This function is unsafe because it dereferences raw pointers for output.
-/// The caller must ensure `out_data` and `out_len` are valid if they are not null.
 @ffi.Native<
   ffi.Void Function(
     ffi.Pointer<ffi.Void>,
@@ -719,11 +655,6 @@ external void ss_runtime_get_nines_uvs(
 /// `ss_runtime_get_nines_vertices` / `_uvs` / `_box_coords`. Part `p` occupies
 /// vertices `[offsets[p], offsets[p + 1])` — multiply by 2 to index the
 /// interleaved floats. Non-nines parts have an empty range.
-///
-/// # Safety
-///
-/// This function is unsafe because it dereferences raw pointers for output.
-/// The caller must ensure `out_data` and `out_len` are valid if they are not null.
 @ffi.Native<
   ffi.Void Function(
     ffi.Pointer<ffi.Void>,
@@ -748,11 +679,6 @@ external void ss_runtime_get_nines_vertex_offsets(
 /// `ss_runtime_get_local_vertices` — so a Player just multiplies them by the
 /// part's world matrix. The grid is a 4x4 sheet for `nines_fill_mode == 0`
 /// (stretch) and independent quads per repeat for `== 1` (tile).
-///
-/// # Safety
-///
-/// This function is unsafe because it dereferences raw pointers for output.
-/// The caller must ensure `out_data` and `out_len` are valid if they are not null.
 @ffi.Native<
   ffi.Void Function(
     ffi.Pointer<ffi.Void>,
@@ -781,15 +707,17 @@ external int ss_runtime_get_passed_event_index(
 /// Which source fired the collected event at `index` — parallel to
 /// `ss_runtime_get_passed_event_index`, and read with the same index.
 ///
-/// With every source at the default event threshold (`+∞`) this is uniformly
-/// `ss_runtime_get_track_main_source` of track 0, so a Player that does not use
-/// animation mixing can ignore it. It diverges once a secondary source opts in
-/// to firing events via `ss_runtime_set_source_event_threshold`, and that is
-/// when a host needs it: without it, two blended animations' events arrive in
-/// one undifferentiated list.
+/// With every source and every track's outgoing side at the default event
+/// threshold (`+∞`) this is uniformly `ss_runtime_get_track_main_source` of
+/// track 0, so a Player that does not use animation mixing can ignore it. It
+/// diverges once a secondary source opts in to firing events via
+/// `ss_runtime_set_source_event_threshold`, or a crossfade's outgoing side via
+/// `ss_runtime_set_track_outgoing_event_threshold`, and that is when a host
+/// needs it: without it, two blended animations' events arrive in one
+/// undifferentiated list.
 ///
-/// Returns `U32_MAX` for a negative or out-of-range `index`, which no live
-/// handle ever equals.
+/// Returns `SS_RUNTIME_INVALID_HANDLE` for a negative or out-of-range `index`,
+/// which no live handle ever equals.
 @ffi.Native<ffi.Uint32 Function(ffi.Pointer<ffi.Void>, ffi.Int32)>()
 external int ss_runtime_get_passed_event_source_handle(
   ffi.Pointer<ffi.Void> context,
@@ -815,11 +743,6 @@ external int ss_runtime_get_render_mode(ffi.Pointer<ffi.Void> context);
 /// corner, regardless of pivot offset or coordinate system. Players use
 /// this to interpolate the four part-color corners without re-deriving the
 /// box layout.
-///
-/// # Safety
-///
-/// This function is unsafe because it dereferences raw pointers for output.
-/// The caller must ensure `out_data` and `out_len` are valid if they are not null.
 @ffi.Native<
   ffi.Void Function(
     ffi.Pointer<ffi.Void>,
@@ -836,11 +759,6 @@ external void ss_runtime_get_shape_vertex_box_coords(
 /// Per-part valid vertex count for `ss_runtime_get_shape_vertices`. Indexed
 /// by `part_index`. Zero for parts that are not shape parts (or shape
 /// parts whose size collapsed to zero).
-///
-/// # Safety
-///
-/// This function is unsafe because it dereferences raw pointers for output.
-/// The caller must ensure `out_data` and `out_len` are valid if they are not null.
 @ffi.Native<
   ffi.Void Function(
     ffi.Pointer<ffi.Void>,
@@ -863,11 +781,6 @@ external void ss_runtime_get_shape_vertex_counts(
 /// valid; remaining slots are zero-initialized. Non-shape parts carry zero
 /// count and zero-filled vertex slots. When no part of the pack is a shape,
 /// the buffer is empty, as is `ss_runtime_get_shape_vertex_box_coords`.
-///
-/// # Safety
-///
-/// This function is unsafe because it dereferences raw pointers for output.
-/// The caller must ensure `out_data` and `out_len` are valid if they are not null.
 @ffi.Native<
   ffi.Void Function(
     ffi.Pointer<ffi.Void>,
@@ -922,10 +835,6 @@ external double ss_runtime_get_source_weight(
 @ffi.Native<ffi.Float Function(ffi.Pointer<ffi.Void>)>()
 external double ss_runtime_get_speed_scale(ffi.Pointer<ffi.Void> context);
 
-/// # Safety
-///
-/// This function is unsafe because it dereferences raw pointers for output.
-/// The caller must ensure `out_data` and `out_len` are valid if they are not null.
 @ffi.Native<
   ffi.Void Function(
     ffi.Pointer<ffi.Void>,
@@ -1052,10 +961,6 @@ external int ss_runtime_get_track_sync(
 @ffi.Native<ffi.Int32 Function(ffi.Pointer<ffi.Void>)>()
 external int ss_runtime_get_unit(ffi.Pointer<ffi.Void> context);
 
-/// # Safety
-///
-/// This function is unsafe because it dereferences raw pointers for output.
-/// The caller must ensure `out_data` and `out_len` are valid if they are not null.
 @ffi.Native<
   ffi.Void Function(
     ffi.Pointer<ffi.Void>,
@@ -1179,7 +1084,7 @@ external void ss_runtime_next_frame(ffi.Pointer<ffi.Void> context);
 /// Idempotent: pausing an already-paused animation leaves it paused.
 /// `ss_runtime_is_playing` stays true while held — a pause is a hold, not a
 /// stop — so tell the two apart with `ss_runtime_is_pausing`. Lift the hold
-/// with [`ss_runtime_resume`]; `ss_runtime_play` rewinds and cannot resume.
+/// with `ss_runtime_resume`; `ss_runtime_play` rewinds and cannot resume.
 @ffi.Native<ffi.Void Function(ffi.Pointer<ffi.Void>)>()
 external void ss_runtime_pause(ffi.Pointer<ffi.Void> context);
 
@@ -1198,7 +1103,7 @@ external void ss_runtime_prev_frame(ffi.Pointer<ffi.Void> context);
 @ffi.Native<ffi.Void Function(ffi.Pointer<ffi.Void>)>()
 external void ss_runtime_reset(ffi.Pointer<ffi.Void> context);
 
-/// Lifts a [`ss_runtime_pause`], carrying on from the frame it stopped at.
+/// Lifts a `ss_runtime_pause`, carrying on from the frame it stopped at.
 ///
 /// Idempotent, and a no-op on an animation that was never paused. It does not
 /// start a stopped animation; use `ss_runtime_play` for that.
@@ -1286,6 +1191,9 @@ external bool ss_runtime_set_part_color_override(
 
 /// Set a per-part color override from four packed RGBA corners in ssruntime
 /// order `lt, rt, lb, rb` (`rgba_ltrtlbrb` points to 4 `uint32` = `0xRRGGBBAA`).
+///
+/// # Safety
+/// `rgba_ltrtlbrb` must be null or point to 4 readable `uint32`.
 @ffi.Native<
   ffi.Bool Function(
     ffi.Pointer<ffi.Void>,
@@ -1486,9 +1394,6 @@ external bool ss_runtime_setup_animation(
   ffi.Pointer<ffi.Char> name,
 );
 
-/// # Safety
-///
-/// This function is unsafe because it dereferences a raw pointer.
 @ffi.Native<ffi.Bool Function(ffi.Pointer<ffi.Void>, ffi.Uint32)>()
 external bool ss_runtime_setup_animation_by_hash(
   ffi.Pointer<ffi.Void> context,
@@ -1517,21 +1422,9 @@ external bool ss_runtime_track_just_looped(
 @ffi.Native<ffi.Float Function(ffi.Pointer<ffi.Void>, ffi.Float)>()
 external double ss_runtime_update(ffi.Pointer<ffi.Void> context, double delta);
 
-const int LIFE_EXTEND_MIN = 64;
-
-const int LIFE_EXTEND_SCALE = 8;
-
 const int LOCAL_VERTICES_STRIDE = 10;
 
-const int NINES_MAX_TILE_DIV = 4096;
-
-const int NINES_MAX_TILE_QUADS = 65536;
-
-const int SEED_MAGIC = 7573;
-
 const int SHAPE_VERTICES_STRIDE = 24;
-
-const int SKEW_PROPAGATES = 0;
 
 const int SS_RUNTIME_INVALID_HANDLE = 4294967295;
 
@@ -1604,7 +1497,7 @@ final class ss_effect_event_info extends ffi.Struct {
 /// Result of `EffectSlot::step` / `ss_effect_slot_step`.
 ///
 /// `draw_plan_buf` is a FlatBuffer-encoded `EffectDrawPlan` (see
-/// `runtime/effect_draw_plan.fbs`). It is valid only when `visible == true`,
+/// `fbs/effect_draw_plan.fbs`). It is valid only when `visible == true`,
 /// and only until the next `step` call on the same slot — callers must consume
 /// it within the same frame and not retain pointers across calls.
 final class ss_effect_step_result extends ffi.Struct {
@@ -1634,7 +1527,7 @@ final class ss_effect_step_result extends ffi.Struct {
 /// most recent `EventInstance` whose `frame_index <= current parent frame`
 /// for `slot_index`. When no event is active, the function returns SS6
 /// default semantics: `is_synthetic_default = true`, `loop_num = 1`,
-/// `speed = 1.0`, all label hashes 0 (caller falls back), all flags false.
+/// `speed = 1.0`, all label hashes 0 (unset), all flags false.
 ///
 /// `start_label_hash` / `end_label_hash` are returned raw. They are
 /// already resolved internally by `ss_instance_slot_step` against the
@@ -1645,14 +1538,14 @@ final class ss_event_instance_info extends ffi.Struct {
   @ffi.Int32()
   external int event_frame;
 
-  /// 0 = unset → caller should fall back to 0.
+  /// 0 = unset → the child animation's start frame.
   @ffi.Uint32()
   external int start_label_hash;
 
   @ffi.Int32()
   external int start_offset;
 
-  /// 0 = unset → caller should fall back to (child_total_frames - 1).
+  /// 0 = unset → the child animation's end frame.
   @ffi.Uint32()
   external int end_label_hash;
 
@@ -1708,10 +1601,10 @@ final class ss_event_instance_info extends ffi.Struct {
 
 /// Result of `InstanceSlot::step` / `ss_instance_slot_step`.
 ///
-/// `transitioned == true` indicates a new EventInstance edge — the caller
-/// should run any side effects tied to the child's `play()` (event-sink
-/// notifications, etc.) on this tick. Frame stepping is already applied
-/// inside `step`, so callers only consume `child_frame_no` to redraw.
+/// `transitioned == true` indicates a new EventInstance edge — `step` has
+/// configured the child for the new key without starting it, so the caller
+/// plays the child on this tick. Frame stepping is already applied inside
+/// `step`, so callers only consume `child_frame_no` to redraw.
 final class ss_instance_step_result extends ffi.Struct {
   @ffi.Bool()
   external bool visible;
