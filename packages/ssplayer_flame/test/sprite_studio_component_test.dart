@@ -159,6 +159,46 @@ void main() {
     expect(player.clearAllPartOverrides(), isTrue);
   });
 
+  test('a stopped component builds no frame per game tick', () async {
+    final ssabPath = _firstExisting([
+      'examples/flame/assets/spritestudio/Ringo/Ringo.ssab',
+      '../../examples/flame/assets/spritestudio/Ringo/Ringo.ssab',
+    ]);
+    if (ssabPath == null) {
+      markTestSkipped('Ringo.ssab missing — run scripts/deploy-examples.sh');
+      return;
+    }
+
+    // Flame calls `update` every game frame whatever the player is doing, so
+    // the player has to tell a tick that moves nothing from one that does.
+    final component = SpriteStudioComponent.asset(
+      ssabPath,
+      bundle: _DiskBundle(),
+      size: Vector2(512, 512),
+    );
+    addTearDown(() => component.player?.dispose());
+    await component.onLoad();
+    for (var i = 0; i < 3; i++) {
+      component.update(1 / 60);
+    }
+    final player = component.player!..stop();
+
+    final internal = player.internal!;
+    final before = internal.debugEvaluations;
+    for (var i = 0; i < 10; i++) {
+      component.update(1 / 60);
+    }
+    expect(internal.debugEvaluations, before);
+
+    // An override made while stopped still shows: one frame, then none again.
+    expect(player.setPartVisibilityOverride('apple', true), isTrue);
+    for (var i = 0; i < 10; i++) {
+      component.update(1 / 60);
+    }
+    expect(internal.debugEvaluations, before + 1);
+    expect(player.isPartHidden('apple'), isTrue);
+  });
+
   test('SpriteStudioComponent.asset resolves textures with no baseAssetDir',
       () async {
     final ssabPath = _firstExisting([

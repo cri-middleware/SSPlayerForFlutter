@@ -1106,6 +1106,14 @@ external bool ss_runtime_is_playing(ffi.Pointer<ffi.Void> context);
 @ffi.Native<ffi.Bool Function(ffi.Pointer<ffi.Void>)>()
 external bool ss_runtime_is_playing_forward(ffi.Pointer<ffi.Void> context);
 
+/// `true` while the track stack would move the pose on a running clock for a
+/// reason other than track 0's own animation stepping: a fade on any track, or
+/// another source still playing on a track that is heard. Independent of the
+/// clock; read it with `ss_runtime_is_clock_playing` and
+/// `ss_runtime_is_clock_pausing`.
+@ffi.Native<ffi.Bool Function(ffi.Pointer<ffi.Void>)>()
+external bool ss_runtime_is_stack_in_motion(ffi.Pointer<ffi.Void> context);
+
 /// `true` once the track's animation has played its loop count out and holds
 /// its last frame, as `ss_runtime_is_finished` is for track 0. `false` for a
 /// track with no animation.
