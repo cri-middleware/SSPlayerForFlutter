@@ -9,6 +9,8 @@ name: CI
 # macOS, Linux, Windows and the Web, and build the Pages site. main takes every
 # pull request and a release is dispatched from it, so there is no release PR to
 # run the weekly tier on.
+# The site goes through docs.yml, which a pull request that touches the docs
+# runs on its own, for the docs alone.
 on:
   pull_request:
     paths-ignore:
@@ -221,34 +223,9 @@ jobs:
         working-directory: examples/overall
         run: flutter build ${{ matrix.build }}
 
-  # The site pages.yml publishes, built the same way, so a broken page surfaces
-  # here rather than when a release is published.
+  # docs.yml, the site pages.yml publishes, built the same way. A pull request
+  # that touches the docs runs it on its own, for the docs alone.
   docs:
     name: 📚 Pages site
     if: github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          submodules: recursive
-          persist-credentials: false
-
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
-        with:
-          python-version: 3.x
-          cache: pip
-          cache-dependency-path: docs/requirements.txt
-
-      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
-        with:
-          flutter-version: 3.47.1
-          channel: stable
-          cache: true
-
-      - name: Install dependencies
-        run: ./scripts/prepare-docs.sh
-
-      - name: Build the Pages tree (docs both locales + Web demo)
-        run: ./scripts/build-pages.sh prepare=no docs=yes demo=build sdk=download "base=/${{ github.event.repository.name }}/" serve=no
+    uses: ./.github/workflows/docs.yml
