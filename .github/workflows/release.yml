@@ -148,6 +148,11 @@ jobs:
           name: release-dist
           path: release-dist
           if-no-files-found: warn
+          # A week, not the 90-day default: what lasts is on pub.dev, and this is
+          # the run's report. Artifact storage is an org-wide quota, and a full one
+          # does not degrade — `upload-artifact` fails, so the release build fails,
+          # in a step that has nothing to do with the release.
+          retention-days: 7
 
       # A main that moved during the run rejects this push, and nothing is tagged.
       - name: Commit the versions
