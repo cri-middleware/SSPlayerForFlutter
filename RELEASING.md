@@ -112,12 +112,12 @@ gh run list -w publish.yml -L "$(ls -d packages/*/ | wc -l | tr -d ' ')"   # one
 **A person publishes the Releases**: a published Release is permanent. Nothing on a draft needs writing, and each is already marked by `scripts/release-channel.sh`: a pre-release when its package already has a full release, ready to become Latest otherwise. Publishing starts `pages.yml`, which deploys the [documentation site](https://cri-middleware.github.io/SSPlayerForFlutter/) and the web demos, unless the Release is a pre-release, which leaves the site as it is.
 
 ```bash
-for tag in $(gh release list --json tagName,isDraft -q '.[] | select(.isDraft) | .tagName'); do
+for tag in $(gh release list --json tagName,isDraft,isPrerelease -q '[.[] | select(.isDraft)] | sort_by(.isPrerelease | not) | .[].tagName'); do
   gh release edit "$tag" --draft=false
 done
 ```
 
-Then watch the deploy. Every Release published starts a run of its own; they queue, and a newer one replaces one still waiting, which then shows as cancelled, so the run to watch is the one for the Release published last. The block finds that Release itself, and waits up to a minute for its run, which appears a few seconds after it.
+Then watch the deploy. Every Release published starts a run of its own; they queue, and a newer one replaces one still waiting, which then shows as cancelled, so the run to watch is the one for the Release published last. The block above publishes the pre-releases first, so that the last one published deploys if any of them does. The next block finds that Release itself, and waits up to a minute for its run, which appears a few seconds after it.
 
 ```bash
 tag=$(gh release list --json tagName,publishedAt,isDraft -q '[.[] | select(.isDraft | not)] | sort_by(.publishedAt) | last | .tagName')
@@ -136,10 +136,11 @@ Then open the site. A failed run leaves the site as it was. When the cause was a
 A package is published only once its pubspec drops `publish_to: none`. Do that in an ordinary pull request, then release a version of it as above. pub.dev takes an automated publish only for a package it already has, so `publish.yml` fails on that first tag, and **a person publishes the version by hand**: `dart pub publish` signs in with a Google account in a browser and asks before it uploads. Publish from a checkout of the tag, in dependency order — `ssruntime_dart` and `ssconverter_dart`, then `ssplayer_flutter` and `ssgen_dart`, then `ssplayer_flame` and `ssgen_flutter` — and fetch the web Brain before `ssplayer_flutter`, or that version goes out without it for good:
 
 ```bash
-git switch --detach <tag>
+TAG=<tag>                                         # the package's first release, <package>-v<version>
+git switch --detach "${TAG:?}"
 flutter pub get
 scripts/download-web-runtime.sh                   # ssplayer_flutter only
-cd packages/<package> && dart pub publish
+cd "packages/${TAG%-v*}" && dart pub publish
 ```
 
 Then enable **Automated publishing** in the package's pub.dev Admin tab, with the repository `cri-middleware/SSPlayerForFlutter` and the tag pattern `<package>-v{{version}}`. From then on, a release's tag publishes it.
@@ -349,12 +350,12 @@ gh run list -w publish.yml -L "$(ls -d packages/*/ | wc -l | tr -d ' ')"   # タ
 **Release の公開は人が行います。** 公開した Release は取り消せないためです。下書きに書き足すものはありません。印は `scripts/release-channel.sh` が付けてあります。パッケージに正式版があれば pre-release、なければ Latest になります。公開すると `pages.yml` が動き、[ドキュメントサイト](https://cri-middleware.github.io/SSPlayerForFlutter/) と Web デモをデプロイします。pre-release の公開ではサイトはそのままです。
 
 ```bash
-for tag in $(gh release list --json tagName,isDraft -q '.[] | select(.isDraft) | .tagName'); do
+for tag in $(gh release list --json tagName,isDraft,isPrerelease -q '[.[] | select(.isDraft)] | sort_by(.isPrerelease | not) | .[].tagName'); do
   gh release edit "$tag" --draft=false
 done
 ```
 
-続けてデプロイを見届けます。Release を 1 つ公開するごとに run が 1 つ始まります。run は順に並び、待っている run は新しい run に置き換えられて cancelled と表示されるので、見届けるのは最後に公開した Release の run です。ブロックはその Release を自分で探し、run が一覧に出るまで最大 1 分待ちます。run は Release の公開から数秒遅れて出るためです。
+続けてデプロイを見届けます。Release を 1 つ公開するごとに run が 1 つ始まります。run は順に並び、待っている run は新しい run に置き換えられて cancelled と表示されるので、見届けるのは最後に公開した Release の run です。上のブロックは pre-release を先に公開するので、どれかがデプロイするなら、最後に公開した Release もデプロイします。次のブロックはその Release を自分で探し、run が一覧に出るまで最大 1 分待ちます。run は Release の公開から数秒遅れて出るためです。
 
 ```bash
 tag=$(gh release list --json tagName,publishedAt,isDraft -q '[.[] | select(.isDraft | not)] | sort_by(.publishedAt) | last | .tagName')
@@ -373,10 +374,11 @@ gh run watch "${RUN:?}" --exit-status
 パッケージが publish されるのは、その pubspec から `publish_to: none` を外してからです。通常のプルリクエストで外し、上の手順でそのパッケージのバージョンをリリースします。pub.dev が自動の publish を受け付けるのはすでにあるパッケージだけなので、その最初のタグでは `publish.yml` が失敗します。そのバージョンは**人が手で publish します**。`dart pub publish` はブラウザで Google アカウントにサインインさせ、アップロードの前に確認を求めます。タグをチェックアウトし、依存の順に publish します（`ssruntime_dart` と `ssconverter_dart`、続けて `ssplayer_flutter` と `ssgen_dart`、最後に `ssplayer_flame` と `ssgen_flutter`）。`ssplayer_flutter` の前には Web の Brain を取得します。取得しないと、そのバージョンは Web の Brain を持たないまま恒久的に残ります。
 
 ```bash
-git switch --detach <tag>
+TAG=<tag>                                         # パッケージの最初のリリース。<package>-v<version>
+git switch --detach "${TAG:?}"
 flutter pub get
 scripts/download-web-runtime.sh                   # ssplayer_flutter のときだけ
-cd packages/<package> && dart pub publish
+cd "packages/${TAG%-v*}" && dart pub publish
 ```
 
 そのうえで pub.dev のパッケージの Admin タブで **Automated publishing** を有効にし、リポジトリを `cri-middleware/SSPlayerForFlutter`、タグのパターンを `<package>-v{{version}}` にします。以後はリリースのタグで publish されます。
