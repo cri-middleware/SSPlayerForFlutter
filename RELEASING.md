@@ -104,7 +104,7 @@ The run sets the versions and dates their changelog sections, checks every packa
 git fetch origin --tags
 git log --oneline -1 origin/main                  # chore(release): <the versions>
 gh release list --json tagName,isDraft -q '.[] | select(.isDraft) | .tagName'   # its drafts
-gh run list -w publish.yml -L 6                   # one run per tag; a package without publish_to: none went to pub.dev
+gh run list -w publish.yml -L "$(ls -d packages/*/ | wc -l | tr -d ' ')"   # one run per tag; a package without publish_to: none went to pub.dev
 ```
 
 ### 6. Publish the Releases
@@ -310,7 +310,7 @@ run はバージョンを設定して changelog の節に日付を入れ、`scri
 git fetch origin --tags
 git log --oneline -1 origin/main                  # chore(release): <指定したバージョン>
 gh release list --json tagName,isDraft -q '.[] | select(.isDraft) | .tagName'   # できた下書き
-gh run list -w publish.yml -L 6                   # タグごとに 1 つ。publish_to: none の無いパッケージは pub.dev に出た
+gh run list -w publish.yml -L "$(ls -d packages/*/ | wc -l | tr -d ' ')"   # タグごとに 1 つ。publish_to: none の無いパッケージは pub.dev に出た
 ```
 
 ### 6. Release を公開する
