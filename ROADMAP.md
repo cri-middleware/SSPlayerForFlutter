@@ -27,12 +27,11 @@ vocabulary is shared with the sibling Players: a part rect read-out for hit
 areas, and a UI-state map.
 
 - [ ] **Per-part hit testing** — the view answers a hit anywhere in its box, so an
-  irregular button takes taps around its artwork too. Add `partRectOf(part)` to the
-  player: a pure read built from the `PartState` fields the runtime already
-  delivers every frame — `size_x` / `size_y`, `anchor`, `pivot` — and the part
-  transform. Narrowing hits to the parts the host names belongs to a separate
-  opt-in widget around the view; the view itself keeps answering over its whole
-  box, so a player that only plays pays nothing for it.
+  irregular button takes taps around its artwork too. It takes `partRectOf(part)` on
+  the player, a pure read built from the `PartState` fields the runtime delivers every
+  frame (`size_x` / `size_y`, `anchor`, `pivot`) and the part transform, with
+  narrowing hits to the parts the host names left to a separate opt-in widget, so a
+  player that only plays pays nothing.
 - [ ] **UI state binding** — a widget that drives the player from
   `WidgetStatesController` (`hovered` / `pressed` / `disabled` / `focused`), each
   state mapped to an animation or a label, so a player drops into an `InkWell` or a
@@ -44,11 +43,10 @@ areas, and a UI-state map.
   simulator and Android emulator; a code-signed `iphoneos` slice and the 32-bit
   ARM ABI have no runtime check. Blocked on: a physical iOS device and a 32-bit
   ARM Android device.
-- [ ] **Live reload on Windows / Linux desktop and on physical devices** — verified
-  on macOS, the Android emulator, the iOS simulator and the web (debug). The push
-  is the same code on every target, and `--device` only picks the payload, so what
-  is missing is a run on the target, not push logic. Blocked on: a Windows
-  machine, a Linux machine and physical devices.
+- [ ] **Live reload on Windows / Linux desktop and on physical devices** — verified on
+  macOS, the Android emulator, the iOS simulator and the web (debug); the push is the
+  same code on every target, so what is missing is a run on each, not push logic.
+  Blocked on: a Windows machine, a Linux machine and physical devices.
 
 ## Needs SDK
 
@@ -69,13 +67,12 @@ areas, and a UI-state map.
 
 ## Backlog
 
-- [ ] **Batch the Canvas `Sub` / `Invert` reconstruction** — those two modes have no
-  stock `ui.BlendMode`, so the Canvas backend rebuilds them from four or three
-  passes over one part's geometry (`blendPassesFor`), which also forces each such
-  part out of its batched run: the inversion passes must cover every pixel exactly
-  once. Two overlapping parts could still batch if the emitter proved their quads
-  disjoint. Bounded cost — 4 draws per Sub part, 3 per Invert part — so it is only
-  worth doing for a pack that leans on those modes heavily.
+- [ ] **Batch the Canvas `Sub` / `Invert` reconstruction** — with no stock
+  `ui.BlendMode` for them, the Canvas backend rebuilds those modes from four or three
+  passes over one part's geometry, and each such part leaves its batched run because
+  the inversion passes must cover every pixel exactly once. Overlapping parts could
+  still batch if the emitter proved their quads disjoint, which is only worth it for a
+  pack that leans on those modes heavily.
 - [ ] **Reuse the GPU mask coverage texture** — `FlutterGpuBackend.renderCoverage`
   creates the coverage texture for every frame that writes a mask, and leaves the
   last one to the GC. A ring of them, as `TargetRing` keeps the offscreen targets,
