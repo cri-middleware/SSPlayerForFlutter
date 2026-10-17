@@ -71,7 +71,7 @@ flutter test          # native assets bundles the Brain via hook/build.dart — 
 Every other package and example has a suite of its own, run in its directory: `dart test` in `ssruntime_dart`, `ssconverter_dart` and `ssgen_dart`; `flutter test` in `ssplayer_flame`, `ssgen_flutter`, `examples/overall`, `examples/flame` and `examples/part_following`. Run the ones for what you touched. The tests that play an animation — most of `ssplayer_flutter`'s, and those in `ssplayer_flame`, `examples/flame` and `examples/part_following` — read the packs `scripts/deploy-examples.sh` writes, and report skipped without them.
 
 ### Documentation
-Pages live as both `docs/en/<path>` and `docs/ja/<path>`; there is no fallback locale, so a page missing from one side is a nav entry pointing at nothing. If you edit one, build both locales before you finish: nothing builds the docs on a pull request, so that local build is the only gate before the merge (CI builds them weekly).
+Pages live as both `docs/en/<path>` and `docs/ja/<path>`; there is no fallback locale, so a page missing from one side is a nav entry pointing at nothing. If you edit one, build both locales before you finish. CI builds them too, both `--strict`, on a pull request that touches the site's sources and weekly.
 
 ```bash
 scripts/prepare-docs.sh    # once: .venv + the pins in docs/requirements.txt
@@ -205,7 +205,7 @@ flutter test          # Native Assets が hook/build.dart 経由で Brain を同
 ほかのパッケージと example もそれぞれ自分のテストを持っており、各ディレクトリで実行します。`ssruntime_dart`・`ssconverter_dart`・`ssgen_dart` は `dart test`、`ssplayer_flame`・`ssgen_flutter`・`examples/overall`・`examples/flame`・`examples/part_following` は `flutter test` です。触ったものに対応するテストを実行してください。アニメーションを再生するテスト（`ssplayer_flutter` の大半と、`ssplayer_flame`・`examples/flame`・`examples/part_following` のもの）は `scripts/deploy-examples.sh` が書き出すパックを読むため、パックが無いと skipped として報告します。
 
 ### ドキュメント
-ページは `docs/en/<path>` と `docs/ja/<path>` の両方に存在します。フォールバックロケールは無いため、片方に欠けたページは行き先の無い nav エントリになります。編集したら、仕上げる前に両ロケールをビルドしてください。プルリクエストでは docs はビルドされないため、マージ前のゲートは手元のビルドだけです（CI がビルドするのは週次です）。
+ページは `docs/en/<path>` と `docs/ja/<path>` の両方に存在します。フォールバックロケールは無いため、片方に欠けたページは行き先の無い nav エントリになります。編集したら、仕上げる前に両ロケールをビルドしてください。CI も、サイトのソースに触れるプルリクエストと週次の実行で、両ロケールを `--strict` でビルドします。
 
 ```bash
 scripts/prepare-docs.sh    # 一度だけ: .venv と docs/requirements.txt のピン
