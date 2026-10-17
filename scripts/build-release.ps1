@@ -342,6 +342,20 @@ if ($flutterPins.Count -eq 1) {
     Add-Failure "the workflows pin more than one Flutter: $($flutterPins -join ' ')"
 }
 
+# --- publish.yml ------------------------------------------------------------
+#
+# pub.dev takes a version only from publish.yml, which names each package twice:
+# the tag pattern that starts the run and the job the gate hands it to. A package
+# missing either is tagged and drafted but never reaches pub.dev.
+Write-Step "publish.yml publishes every package"
+$publishYml = Get-Content -LiteralPath (Join-Path $RootDir ".github/workflows/publish.yml") -Raw
+foreach ($name in $AllPackages) {
+    if ((Get-PubspecField (Join-Path $RootDir "packages/$name/pubspec.yaml") "publish_to") -eq "none") { continue }
+    if (-not $publishYml.Contains("`"$name-v[0-9]+.[0-9]+.[0-9]+*`"")) { Add-Failure "publish.yml has no tag pattern for $name" }
+    if (-not $publishYml.Contains("needs.gate.outputs.package == '$name'")) { Add-Failure "publish.yml has no job for $name" }
+}
+Write-Host "   checked: $($AllPackages -join ' ')"
+
 # --- the pinned SDK release -----------------------------------------------
 Write-Step "the SpriteStudio-SDK release the build hooks pin"
 $SdkVersion = ""

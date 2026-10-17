@@ -371,6 +371,20 @@ else
   fail "the workflows pin more than one Flutter: $(printf '%s ' $FLUTTER_PINS)"
 fi
 
+# --- publish.yml ------------------------------------------------------------
+#
+# pub.dev takes a version only from publish.yml, which names each package twice:
+# the tag pattern that starts the run and the job the gate hands it to. A package
+# missing either is tagged and drafted but never reaches pub.dev.
+step "publish.yml publishes every package"
+PUBLISH_YML="$ROOT_DIR/.github/workflows/publish.yml"
+for name in $ALL_PACKAGES; do
+  [ "$(pubspec_field "$ROOT_DIR/packages/$name/pubspec.yaml" publish_to)" = none ] && continue
+  grep -qF "\"${name}-v[0-9]+.[0-9]+.[0-9]+*\"" "$PUBLISH_YML" || fail "publish.yml has no tag pattern for $name"
+  grep -qF "needs.gate.outputs.package == '${name}'" "$PUBLISH_YML" || fail "publish.yml has no job for $name"
+done
+echo "   checked: $ALL_PACKAGES"
+
 # --- the pinned SDK release -----------------------------------------------
 sdk_pin () { # <hook file>
   sed -n "s/^const _sdkVersion = '\(.*\)';.*$/\1/p" "$1" | head -1
