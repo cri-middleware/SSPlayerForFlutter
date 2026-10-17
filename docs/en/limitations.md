@@ -4,10 +4,6 @@ Constraints and platform caveats to be aware of when shipping with the current S
 for Flutter. For what *is* supported, see the [Key Features](index.md#key-features) and the workflow
 guides.
 
-!!! note
-    This is a living document. Items are added as they are confirmed; wording and coverage may change
-    as the player evolves.
-
 ## Not Yet Implemented
 
 !!! warning
