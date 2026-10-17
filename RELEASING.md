@@ -136,10 +136,11 @@ Then open the site. A failed run leaves the site as it was. When the cause was a
 A package is published only once its pubspec drops `publish_to: none`. Do that in an ordinary pull request, then release a version of it as above. pub.dev takes an automated publish only for a package it already has, so `publish.yml` fails on that first tag, and **a person publishes the version by hand**: `dart pub publish` signs in with a Google account in a browser and asks before it uploads. Publish from a checkout of the tag, in dependency order — `ssruntime_dart` and `ssconverter_dart`, then `ssplayer_flutter` and `ssgen_dart`, then `ssplayer_flame` and `ssgen_flutter` — and fetch the web Brain before `ssplayer_flutter`, or that version goes out without it for good:
 
 ```bash
-git switch --detach <tag>
+TAG=<tag>                                         # the package's first release, <package>-v<version>
+git switch --detach "${TAG:?}"
 flutter pub get
 scripts/download-web-runtime.sh                   # ssplayer_flutter only
-cd packages/<package> && dart pub publish
+cd "packages/${TAG%-v*}" && dart pub publish
 ```
 
 Then enable **Automated publishing** in the package's pub.dev Admin tab, with the repository `cri-middleware/SSPlayerForFlutter` and the tag pattern `<package>-v{{version}}`. From then on, a release's tag publishes it.
@@ -373,10 +374,11 @@ gh run watch "${RUN:?}" --exit-status
 パッケージが publish されるのは、その pubspec から `publish_to: none` を外してからです。通常のプルリクエストで外し、上の手順でそのパッケージのバージョンをリリースします。pub.dev が自動の publish を受け付けるのはすでにあるパッケージだけなので、その最初のタグでは `publish.yml` が失敗します。そのバージョンは**人が手で publish します**。`dart pub publish` はブラウザで Google アカウントにサインインさせ、アップロードの前に確認を求めます。タグをチェックアウトし、依存の順に publish します（`ssruntime_dart` と `ssconverter_dart`、続けて `ssplayer_flutter` と `ssgen_dart`、最後に `ssplayer_flame` と `ssgen_flutter`）。`ssplayer_flutter` の前には Web の Brain を取得します。取得しないと、そのバージョンは Web の Brain を持たないまま恒久的に残ります。
 
 ```bash
-git switch --detach <tag>
+TAG=<tag>                                         # パッケージの最初のリリース。<package>-v<version>
+git switch --detach "${TAG:?}"
 flutter pub get
 scripts/download-web-runtime.sh                   # ssplayer_flutter のときだけ
-cd packages/<package> && dart pub publish
+cd "packages/${TAG%-v*}" && dart pub publish
 ```
 
 そのうえで pub.dev のパッケージの Admin タブで **Automated publishing** を有効にし、リポジトリを `cri-middleware/SSPlayerForFlutter`、タグのパターンを `<package>-v{{version}}` にします。以後はリリースのタグで publish されます。
