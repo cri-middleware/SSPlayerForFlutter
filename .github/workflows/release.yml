@@ -48,6 +48,16 @@ jobs:
     permissions:
       contents: write # the version commit and the draft Releases
     steps:
+      - name: Require RELEASE_PAT
+        if: ${{ !inputs.dry_run }}
+        env:
+          RELEASE_PAT: ${{ secrets.RELEASE_PAT }}
+        run: |
+          if [ -z "$RELEASE_PAT" ]; then
+            echo "::error::a release pushes the version commit and the tags with RELEASE_PAT, and it is not set"
+            exit 1
+          fi
+
       # The only checkout that keeps its credentials: this job pushes the version
       # commit to main and the tags.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -56,8 +66,9 @@ jobs:
           fetch-depth: 0
           # IMPORTANT: a PAT (or GitHub App token), NOT the default GITHUB_TOKEN.
           # Tags pushed with GITHUB_TOKEN do NOT trigger other workflows, so
-          # publish.yml would silently never run.
-          token: ${{ secrets.RELEASE_PAT }}
+          # publish.yml would silently never run. A dry run pushes nothing and
+          # falls back to it.
+          token: ${{ secrets.RELEASE_PAT || github.token }}
 
       # The same pin pages.yml builds the demos with and publish.yml publishes
       # with: a release should be checked by the toolchain that ships it.
