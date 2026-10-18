@@ -1,9 +1,8 @@
 name: ssruntime_dart
 description: >-
-  Pure-Dart dart:ffi `@Native` bindings for the SpriteStudio-SDK runtime
-  (libssruntime): loads .ssab, advances time, and emits per-frame SoA buffers +
-  DrawBatch plans. Layer 1 — the renderer-agnostic core beneath ssplayer_flutter
-  (also usable from Flame / flutter_gpu / headless Dart). No Flutter dependency.
+  dart:ffi bindings to the SpriteStudio runtime (libssruntime): loads .ssab
+  and emits per-frame draw data. The renderer-agnostic core under
+  ssplayer_flutter.
 version: 7.0.0-beta.1
 repository: https://github.com/cri-middleware/SSPlayerForFlutter
 
