@@ -41,39 +41,67 @@
 **アプリで使う場合**はこのまま下へ。依存を追加する → 自分の `.sspj` を変換する → 再生する。その先（イベント、パーツ単位の上書き、ライブリロード）も同じ道の続きで、[ドキュメント](docs/ja/index.md)にあります。
 **Player 自体や、その下の Rust ランタイムを変更する場合**は [2 章](#%EF%B8%8F-2-フル開発環境sdk--player-開発者)へ。
 
-### セットアップ
+**Flutter 3.47 以上 / Dart 3.13 以上**と、**SpriteStudio 7.5 以上**で作成したプロジェクトを用意してください。
 
-[pub.dev](https://pub.dev/packages/ssplayer_flutter) からパッケージを追加します。
+1. **導入**: プレイヤーと、dev 依存としてコンバータを追加します。
 
-```bash
-flutter pub add ssplayer_flutter
-```
+   ```bash
+   flutter pub add ssplayer_flutter
+   flutter pub add --dev ssconverter_dart
+   ```
 
-Flame・コンバータ・ライブリロードは、それぞれパッケージを 1 つ足します（[インストール](docs/ja/guide/install.md)参照）。
+   ネイティブランタイムは、最初のビルドでパッケージと一緒にビルド済みのものが入ります。Rust のツールチェーンも、プラットフォームごとの設定も要りません。
 
-`.ssab` アニメを組み込む最小コードです（`.ssab` は事前に用意します —— [自分の `.sspj` を変換する](#自分の-sspj-を変換する)参照）:
+2. **変換**: SpriteStudio のプロジェクトをフォルダごとアプリの `SpriteStudio_Source/` に置き、`assets/spritestudio/` へ変換して、そのフォルダを `pubspec.yaml` に登録します。
 
-```dart
-SpriteStudioAnimation.asset(
-  'assets/spritestudio/overall/Basic.ssab',
-  width: 400,
-  height: 400,
-)
-```
+   ```bash
+   dart run ssconverter_dart:ssconvert -o assets/spritestudio/Ringo/ SpriteStudio_Source/Ringo/Ringo.sspj
+   ```
 
-これでバイト列を読み、reference テクスチャ（同じフォルダの PNG）をキー自身のフォルダから解決し（embedded も同じ）、パックの最初のアニメを選んでループ再生し、ウィジェットと一緒にすべて破棄します。別のアニメを選ぶなら `animation:`、最初のフレームが描けるまでの表示は
-`placeholder:` です。
+   ```yaml
+   flutter:
+     assets:
+       - assets/spritestudio/Ringo/
+   ```
 
-プレイヤーを自分で持ちたい場合 —— ステートマシンからアニメを差し替える、イベントを購読する、ウィジェットをパーツに貼り付ける —— は `SpriteStudioPlayer` を作って `SpriteStudioView` に渡してください。→ [クイックスタート](./docs/ja/guide/quickstart.md)
+   ```
+   my_app/
+   ├── SpriteStudio_Source/
+   │   └── Ringo/                 ← SpriteStudio のプロジェクトをフォルダごと
+   │       ├── Ringo.sspj
+   │       ├── Ringo.png
+   │       └── …
+   ├── assets/spritestudio/
+   │   └── Ringo/                 ← ssconvert が書き出す
+   │       ├── Ringo.ssab
+   │       └── Ringo.png
+   ├── lib/main.dart
+   └── pubspec.yaml               ← assets/spritestudio/Ringo/ を登録
+   ```
 
-> ⚠️ ネイティブランタイム（`libssruntime`。各公式 Player が共通で使う Rust コア）が必要です。これは依存先 `ssruntime_dart` の
-> **Native Assets**（`hook/build.dart`）がアプリに自動同梱します（プラグイン／framework 配線は不要）。
-> `hook/build.dart` はピン留めした SDK リリースからプリビルドを**自動ダウンロード**するので
-> Rust ツールチェーンは不要です（ソースからビルドする場合のみ 2 章参照）。
+3. **再生**: ウィジェットを 1 つ、ツリーのどこかに置きます。
+
+   ```dart
+   SpriteStudioAnimation.asset(
+     'assets/spritestudio/Ringo/Ringo.ssab',
+     animation: 'wait1',
+     width: 400,
+     height: 400,
+   )
+   ```
+
+   パックとテクスチャを読み込んでアニメをループ再生し、ウィジェットと一緒に破棄されます。
+
+SpriteStudio での保存を、手で変換せずに実行中のアプリへ反映するには [ライブリロード](docs/ja/guide/live-reload.md) を使います。同じ `SpriteStudio_Source/` を監視します。
+
+SpriteStudio のデータが手元に無くても始められます。[公式のサンプルデータ](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/)がそのまま使えます。キャラクターなら [Ringo](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#ringo) が手頃です。
+
+**次に読む:** [クイックスタート（ガイド）](docs/ja/guide/quickstart.md) · [再生とイベント](docs/ja/guide/playback.md) ·
+[制約と適用範囲](docs/ja/limitations.md)
+
+## ⚙️ 2. フル開発環境（SDK / Player 開発者）
 
 ### チェックアウトから動かしてみる
-
-> これは上のインストール手順の一部ではなくチェックアウトなので、パッケージを使うだけなら不要です。
 
 同梱のサンプルを起動して動作を確認します。**Rust ツールチェーンは不要** —— 各パッケージの
 `hook/build.dart` が、ピン留めした SDK リリースからプリビルド（`libssruntime` / `libssconverter`）を自動ダウンロードして同梱します。
@@ -96,22 +124,7 @@ scripts\deploy-examples.ps1
 cd examples\overall; flutter run
 ```
 
-### 自分の `.sspj` を変換する
-
-対応するのは **SpriteStudio 7.5 以上**で作成されたプロジェクトです。`.sspj` + `.ssae` + 画像を **`SpriteStudio_Source/`** フォルダに入れ、
-`ssconverter_dart` の CLI で変換します（`-e` で自己完結の embedded `.ssab`。配布向け）。**Rust ツールチェーンは不要** —— `libssconverter` は自動ダウンロードされます:
-
-```bash
-# SpriteStudio_Source/MyChar/MyChar.sspj  →  assets/spritestudio/MyChar/<pack>.ssab
-#   （1 つの .sspj からアニメパックごとに .ssab が出力されます）
-dart run ssconverter_dart:ssconvert -e -o assets/spritestudio/MyChar/ SpriteStudio_Source/MyChar/MyChar.sspj
-# アプリ側:  loadAsset('assets/spritestudio/MyChar/MyChar.ssab')
-```
-
-同じ `SpriteStudio_Source/` レイアウトが**ライブリロード**を駆動します。`flutter run` の隣で `sswatch`
-を回すと、SpriteStudio での保存が変更プロジェクトだけを再変換し、実行中アプリへ反映します（[ライブリロード](docs/ja/guide/live-reload.md)参照）。自前ビルドのネイティブライブラリを差し込む場合は、アプリの `pubspec.yaml` の `hooks.user_defines.<pkg>.lib<name>` で指定します。
-
-## ⚙️ 2. フル開発環境（SDK / Player 開発者）
+### コアを自前でビルドする
 
 コア（Rust ランタイム / Player）をソースから開発する場合。**前提**: Rust（`rustup`）、
 Flutter / Dart は[インストール](docs/ja/guide/install.md)の下限以上（Native Assets が標準。ネイティブランタイム同梱に CocoaPods／vendored

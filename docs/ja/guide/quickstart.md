@@ -13,14 +13,14 @@
 ```yaml
 flutter:
   assets:
-    - assets/overall/
+    - assets/spritestudio/Ringo/
 ```
 
 ## 2. 読み込んで再生する
 
 ```dart
 SpriteStudioAnimation.asset(
-  'assets/overall/Basic.ssab',
+  'assets/spritestudio/Ringo/Ringo.ssab',
   width: 400,
   height: 400,
 )
@@ -80,7 +80,7 @@ class _MyState extends State<MyWidget> with SingleTickerProviderStateMixin {
   }
 
   Future<void> _init() async {
-    await _player.loadAsset('assets/overall/Basic.ssab');
+    await _player.loadAsset('assets/spritestudio/Ringo/Ringo.ssab');
     _player
       ..setAnimation(_player.animationNames.first)
       ..loopCount = -1

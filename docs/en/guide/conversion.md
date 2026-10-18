@@ -182,11 +182,13 @@ importer does this for you):
 
 1. Copy the `.ssab` into your app's assets (e.g. `assets/spritestudio/<name>/`). For **reference-form**
    output, copy its sibling textures alongside it; **embedded** output is a single self-contained file.
-2. Register the folder in `pubspec.yaml`:
+2. Register the folder in `pubspec.yaml`, one line per folder: a Flutter asset entry does not take
+   in its subfolders, so a `font/` or `sound/` folder the converter writes beside the `.ssab` needs a
+   line of its own.
    ```yaml
    flutter:
      assets:
-       - assets/spritestudio/
+       - assets/spritestudio/<name>/
    ```
 3. Load it with `loadAsset('assets/spritestudio/…/Foo.ssab')` — reference textures resolve from the
    key's own folder. See [Quick Start](quickstart.md).
