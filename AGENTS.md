@@ -31,7 +31,8 @@ workspace that drives the Rust `libssruntime` over `dart:ffi`.
 
 | Question | File |
 |---|---|
-| Use and install | [README.md](./README.md), the [docs site](./docs/en/) |
+| Using it: every API and limitation | the [docs site](./docs/en/) |
+| Install, convert, first frame, where to read next; in a package's README, also working on it | [README.md](./README.md) and each package's, per `SpriteStudio-SDK/MAINTAINING_PLAYERS.md` |
 | Constraints, build, codegen, tests, docs | [CONTRIBUTING.md](./CONTRIBUTING.md), [Build Guide](./docs/en/contributing/build.md) |
 | The four layers and what each owns | [Architecture](./docs/en/contributing/architecture.md) |
 | Native library resolution and packaging | [Native Runtime](./docs/en/contributing/native-runtime.md) |
