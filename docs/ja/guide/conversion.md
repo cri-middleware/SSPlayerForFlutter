@@ -153,11 +153,11 @@ ssconverter-cli project.sspj --embedded       # テクスチャを .ssab に内�
 ブラウザ・GUI・CLI の各ルートは `.ssab` をファイルとして出力するだけなので、アプリ側で同梱が必要です（オートインポートはこれを自動で行います）。
 
 1. `.ssab` をアプリのアセットにコピーします（例: `assets/spritestudio/<name>/`）。**参照形式**の出力なら同じフォルダのテクスチャも一緒に、**embedded** なら 1 ファイルだけです。
-2. フォルダを `pubspec.yaml` に登録します。
+2. フォルダを `pubspec.yaml` に登録します。登録はフォルダごとに 1 行です。Flutter のアセットの登録はサブフォルダを含まないので、コンバータが `.ssab` の隣に書き出す `font/` や `sound/` のフォルダにも、それぞれ 1 行要ります。
    ```yaml
    flutter:
      assets:
-       - assets/spritestudio/
+       - assets/spritestudio/<name>/
    ```
 3. `loadAsset('assets/spritestudio/…/Foo.ssab')` で読み込みます —— reference テクスチャはキー自身のフォルダから解決されます。[クイックスタート](quickstart.md) を参照。
 
