@@ -1,10 +1,8 @@
 name: ssconverter_dart
 description: >-
-  Host-side SpriteStudio converter for the Flutter ecosystem. A dart:ffi CLI +
-  library over the SpriteStudio-SDK "ssconverter" that turns .sspj projects into
-  optimized .ssab binaries (optionally self-contained / embedded). Desktop only
-  (Windows / macOS / Linux); pure Dart, no Flutter dependency — the companion of
-  the ssplayer_flutter runtime.
+  Converts SpriteStudio projects (.sspj) into .ssab from Dart: a CLI and
+  library over the SpriteStudio converter, for desktop hosts (Windows, macOS,
+  Linux).
 version: 7.0.0-beta.1
 repository: https://github.com/cri-middleware/SSPlayerForFlutter
 

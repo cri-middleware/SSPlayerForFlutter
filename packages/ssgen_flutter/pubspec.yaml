@@ -1,11 +1,8 @@
 name: ssgen_flutter
 description: >-
-  Flutter dev-tooling for SpriteStudio live-reload. The `sswatch` host runner
-  watches SpriteStudio_Source, reconverts the stale projects (ssgen_dart -> host
-  libssconverter) and pushes the fresh pack over the VM Service into the running
-  app, where ssplayer_flutter's channel reloads every player showing it — no
-  `r`, no code in the app, IDE-debugger friendly, desktop and device. DEV ONLY:
-  a dev_dependency — the ssplayer_flutter runtime itself stays converter-free.
+  Live reload for SpriteStudio Player for Flutter: sswatch reconverts the
+  projects you save in SpriteStudio and pushes them into the running app. A
+  dev dependency.
 version: 7.0.0-beta.1
 repository: https://github.com/cri-middleware/SSPlayerForFlutter
 
