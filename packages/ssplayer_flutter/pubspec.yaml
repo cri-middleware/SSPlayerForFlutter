@@ -5,6 +5,12 @@ description: >-
   shares.
 version: 7.0.0-beta.1
 repository: https://github.com/cri-middleware/SSPlayerForFlutter
+topics:
+  - spritestudio
+  - animation
+  - widget
+  - game-development
+  - graphics
 
 # Part of the repo-root pub workspace (see ../../pubspec.yaml).
 resolution: workspace
