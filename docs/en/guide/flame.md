@@ -28,7 +28,8 @@ class RingoGame extends FlameGame {
       SpriteStudioComponent.asset(
         // Sibling reference textures resolve from the key's own folder
         // (embedded packs work the same way).
-        'assets/overall/Basic.ssab',
+        'assets/spritestudio/Ringo/Ringo.ssab',
+        animation: 'wait1',
         position: Vector2(200, 200),
         anchor: Anchor.center,
         loopCount: -1,
