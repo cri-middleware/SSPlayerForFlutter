@@ -27,17 +27,18 @@ flutter_gpu backend needs the GPU API that landed in 3.47.
 
 ```dart
 SpriteStudioAnimation.asset(
-  'assets/overall/Basic.ssab',
+  'assets/spritestudio/Ringo/Ringo.ssab',
+  animation: 'wait1',
   width: 400,
   height: 400,
 )
 ```
 
 It reads the bytes from the asset bundle, resolves sibling reference textures
-from the key's own folder (embedded packs too), selects the pack's first
-animation, loops it, and disposes everything with the widget. `animation:`
-chooses another; `placeholder:` is what to show until the first frame is
-drawable; `onError:` hears about a load that failed.
+from the key's own folder (embedded packs too), plays `animation:` — the pack's
+first animation without it — loops it, and disposes everything with the widget.
+`placeholder:` is what to show until the first frame is drawable; `onError:`
+hears about a load that failed.
 
 ### Owning the player
 
@@ -58,9 +59,9 @@ class _MyState extends State<MyWidget> with SingleTickerProviderStateMixin {
   }
 
   Future<void> _init() async {
-    await _player.loadAsset('assets/overall/Basic.ssab');
+    await _player.loadAsset('assets/spritestudio/Ringo/Ringo.ssab');
     _player
-      ..setAnimation(_player.animationNames.first)
+      ..setAnimation('wait1')
       ..loopCount = -1
       ..play();
   }
