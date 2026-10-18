@@ -43,45 +43,70 @@ Everything after that (events, per-part overrides, live reload) is the same path
 further in, on the [documentation site](docs/en/index.md).
 **Working on the Player, or the Rust runtime under it?** [Section 2](#%EF%B8%8F-2-full-build-environment-for-sdk--player-developers).
 
-### Setup
+You need **Flutter 3.47+ / Dart 3.13+**, and a project made in **SpriteStudio 7.5 or later**.
 
-Add the package from [pub.dev](https://pub.dev/packages/ssplayer_flutter):
+1. **Install** the player, and the converter as a dev dependency:
 
-```bash
-flutter pub add ssplayer_flutter
-```
+   ```bash
+   flutter pub add ssplayer_flutter
+   flutter pub add --dev ssconverter_dart
+   ```
 
-Flame, the converter and live reload are one more package each — see
-[Installation](docs/en/guide/install.md).
+   The native runtime comes prebuilt with the package on the first build — no Rust toolchain and no
+   platform setup.
 
-The minimal code to embed a `.ssab` animation (you supply the `.ssab` — see [Convert your own](#convert-your-own-sspj)):
+2. **Convert**: Put your SpriteStudio project — the whole folder — under `SpriteStudio_Source/` in
+   your app, convert it into `assets/spritestudio/`, and list that folder in `pubspec.yaml`:
 
-```dart
-SpriteStudioAnimation.asset(
-  'assets/spritestudio/overall/Basic.ssab',
-  width: 400,
-  height: 400,
-)
-```
+   ```bash
+   dart run ssconverter_dart:ssconvert -o assets/spritestudio/Ringo/ SpriteStudio_Source/Ringo/Ringo.sspj
+   ```
 
-That reads the bytes, resolves sibling reference textures from the key's own
-folder (embedded packs too), selects the pack's first animation, loops it, and
-disposes everything with the widget. Pass `animation:` to choose another,
-`placeholder:` for what to show until the first frame is drawable.
+   ```yaml
+   flutter:
+     assets:
+       - assets/spritestudio/Ringo/
+   ```
 
-Want to own the player — to swap animations from a state machine, subscribe to
-events, or stick a widget to a part? Build a `SpriteStudioPlayer` and hand it to
-`SpriteStudioView`; see [Quick start](./docs/en/guide/quickstart.md).
+   ```
+   my_app/
+   ├── SpriteStudio_Source/
+   │   └── Ringo/                 ← your SpriteStudio project, the whole folder
+   │       ├── Ringo.sspj
+   │       ├── Ringo.png
+   │       └── …
+   ├── assets/spritestudio/
+   │   └── Ringo/                 ← written by ssconvert
+   │       ├── Ringo.ssab
+   │       └── Ringo.png
+   ├── lib/main.dart
+   └── pubspec.yaml               ← lists assets/spritestudio/Ringo/
+   ```
 
-> ⚠️ The native runtime (`libssruntime`, the Rust core shared by every official player) is
-> required. It is bundled automatically by the
-> **native assets** hook (`hook/build.dart`) of the `ssruntime_dart` dependency — no plugin or
-> framework wiring. The hook **auto-downloads** the prebuilt binary from the pinned SDK release,
-> so no Rust toolchain is needed (build from source only if you want to — see section 2).
+3. **Play** it — one widget, anywhere in your tree:
+
+   ```dart
+   SpriteStudioAnimation.asset(
+     'assets/spritestudio/Ringo/Ringo.ssab',
+     animation: 'wait1',
+     width: 400,
+     height: 400,
+   )
+   ```
+
+   It loads the pack and its textures, loops the animation, and is disposed with the widget.
+
+To see a save in SpriteStudio in the running app without converting by hand, use
+[Live Reload](docs/en/guide/live-reload.md) — it watches the same `SpriteStudio_Source/`.
+
+No `.sspj` of your own yet? SpriteStudio's [official sample data](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/) works as-is — the page is in Japanese, the downloads are not. [Ringo](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#ringo) is a good character to start with.
+
+**Read next:** [Quick Start guide](docs/en/guide/quickstart.md) · [Playback & Events](docs/en/guide/playback.md) ·
+[Limitations & Scope](docs/en/limitations.md)
+
+## ⚙️ 2. Full Build Environment (For SDK / Player Developers)
 
 ### See it running from a checkout
-
-> This is a checkout, not part of the install above — you do not need it to use the package.
 
 Run the bundled example to confirm the player works. **No Rust toolchain required** — each package's
 `hook/build.dart` downloads the prebuilt native libraries (`libssruntime` / `libssconverter`) from
@@ -105,25 +130,7 @@ scripts\deploy-examples.ps1
 cd examples\overall; flutter run
 ```
 
-### Convert your own `.sspj`
-
-Projects have to be authored in **SpriteStudio 7.5 or later**. Put yours (`.sspj` + `.ssae` + images) under a **`SpriteStudio_Source/`** folder,
-then convert it with the `ssconverter_dart` CLI (`-e` produces a self-contained embedded `.ssab`,
-ideal for shipping). **No Rust toolchain** — `libssconverter` auto-downloads:
-
-```bash
-# SpriteStudio_Source/MyChar/MyChar.sspj  →  assets/spritestudio/MyChar/<pack>.ssab
-#   (one .sspj yields one .ssab per animation pack)
-dart run ssconverter_dart:ssconvert -e -o assets/spritestudio/MyChar/ SpriteStudio_Source/MyChar/MyChar.sspj
-# then in your app:  loadAsset('assets/spritestudio/MyChar/MyChar.ssab')
-```
-
-The same `SpriteStudio_Source/` layout drives **live reload**: run `sswatch` next to `flutter run`
-and a save in SpriteStudio re-converts only the changed project and pushes it into the running app
-(see [Live Reload](docs/en/guide/live-reload.md)). To supply your own locally-built native library,
-point `hooks.user_defines.<pkg>.lib<name>` in the app's `pubspec.yaml` at it.
-
-## ⚙️ 2. Full Build Environment (For SDK / Player Developers)
+### Building the core yourself
 
 To develop the core (Rust runtime / Player) from source. **Prerequisites**: Rust (`rustup`),
 a Flutter/Dart SDK at or above the floor on [Installation](docs/en/guide/install.md) (native assets is
