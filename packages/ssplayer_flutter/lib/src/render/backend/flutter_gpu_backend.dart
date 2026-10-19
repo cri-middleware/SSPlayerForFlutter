@@ -491,15 +491,18 @@ class FlutterGpuBackend implements RenderBackend {
   //
   // The run lists are per emit kind rather than one shared list: three empty
   // lists cost nothing and the kinds stop being coupled at all.
-  final List<int> _normalRunScratch = <int>[];
+  final List<int> _texturedRunScratch = <int>[];
+  final List<bool> _texturedMeshScratch = <bool>[];
   final List<int> _shapeRunScratch = <int>[];
-  final List<int> _meshRunScratch = <int>[];
   final List<int> _pcPartsScratch = <int>[];
   final List<PartColor> _pcColorsScratch = <PartColor>[];
   final List<MaskDraw?> _pcMasksScratch = <MaskDraw?>[];
   final List<Float32List?> _maskSetsScratch = <Float32List?>[];
   final List<efbs.EffectDrawCommand> _effectGroupScratch =
       <efbs.EffectDrawCommand>[];
+  final List<efbs.EffectDrawPlan> _effectPlansScratch =
+      <efbs.EffectDrawPlan>[];
+  final List<int> _effectPartsScratch = <int>[];
   final Float32List _orthoMvpScratch = Float32List(16);
   final Float32List _shaderInfoScratch = Float32List(12);
   final Float32List _shapeMaskUboScratch =
@@ -534,9 +537,8 @@ class FlutterGpuBackend implements RenderBackend {
   /// interleaving two parts' geometry into one draw.
   bool get _noEmitInFlight {
     assert(
-        _normalRunScratch.isEmpty &&
+        _texturedRunScratch.isEmpty &&
             _shapeRunScratch.isEmpty &&
-            _meshRunScratch.isEmpty &&
             _pcPartsScratch.isEmpty,
         'emit* re-entered — the per-frame scratch is not re-entrant');
     return true;
@@ -647,33 +649,34 @@ class FlutterGpuBackend implements RenderBackend {
   /// FlatBuffers command wrappers alive until the next frame overwrites them.
   /// The typed-data scratch is left alone: it holds no references.
   void _releaseScratchRefs() {
-    _normalRunScratch.clear();
+    _texturedRunScratch.clear();
+    _texturedMeshScratch.clear();
     _shapeRunScratch.clear();
-    _meshRunScratch.clear();
     _pcPartsScratch.clear();
     _pcColorsScratch.clear();
     _pcMasksScratch.clear();
     _maskSetsScratch.clear();
     _effectGroupScratch.clear();
+    _effectPlansScratch.clear();
   }
 
   @override
-  void emitNormal(ui.Canvas canvas, fbs.DrawBatch batch, DrawFrame frame,
-      RenderHost host, PlayerMask masking) {
+  void emitTextured(ui.Canvas canvas, List<fbs.DrawBatch> batches, int from,
+      int to, DrawFrame frame, RenderHost host, PlayerMask masking) {
     if (!_active) return;
     assert(_noEmitInFlight);
-    final count = batch.count;
-    if (count == 0) return;
 
-    // One texture per batch; its size normalises the UVs.
-    final image = host.textures.imageFor(batch.textureHash);
+    // One texture for the whole span; its size normalises the UVs.
+    final first = batches[from];
+    final image = host.textures.imageFor(first.textureHash);
     if (image == null) return;
     final tex = _gpuTextureFor(image);
     if (tex == null) return; // still uploading — skip this frame
 
     final texW = image.width.toDouble();
     final texH = image.height.toDouble();
-    final blend = blendEquationFor(batch.blendType);
+    final blend = blendEquationFor(first.blendType);
+    final geometry = host.geometry;
     final drawOrder = frame.drawOrder;
     final partsColor = frame.partsColor;
     final shaders = frame.shaders;
@@ -682,10 +685,15 @@ class FlutterGpuBackend implements RenderBackend {
     // BATCH: a run of consecutive PartColor/mask parts draws in ONE PartColor
     // pipeline call (the fan-out collapse), preserving z-order against the plain
     // sprite runs (whichever kind switches flushes the other first).
-    final run = _normalRunScratch..clear();
+    final run = _texturedRunScratch..clear();
+    final runMesh = _texturedMeshScratch..clear();
+    var runVertices = 0;
     final pcParts = _pcPartsScratch..clear();
     final pcColors = _pcColorsScratch..clear();
     final pcMasks = _pcMasksScratch..clear();
+    // Which bake the current PartColor run takes. A run stays inside its
+    // batch, so it never mixes the Normal fan with Mesh triangles.
+    var pcMesh = false;
     // The coverage the current PartColor run samples. A masked part joins the run
     // only if it shares this handle, so a run never mixes two textures. The
     // tree shares one coverage per frame, so in practice every masked part
@@ -695,73 +703,94 @@ class FlutterGpuBackend implements RenderBackend {
 
     void flushRun() {
       if (run.isEmpty) return;
-      final geo = host.geometry
-          .buildNormalInterleaved(run, frame, texWidth: texW, texHeight: texH);
+      final geo = geometry.buildTexturedInterleaved(run, runMesh, frame,
+          texWidth: texW, texHeight: texH);
       if (geo != null) _drawInterleaved(geo, tex, blend);
       run.clear();
+      runMesh.clear();
+      runVertices = 0;
     }
 
     void flushPc() {
       if (pcParts.isEmpty) return;
-      _drawPartColorRun(pcParts, pcColors, pcMasks, pcCoverage, frame, host, tex,
-          texW, texH, blend);
+      if (pcMesh) {
+        _drawMeshPartColorRun(pcParts, pcColors, pcMasks, pcCoverage, frame,
+            host, tex, texW, texH, blend);
+      } else {
+        _drawPartColorRun(pcParts, pcColors, pcMasks, pcCoverage, frame, host,
+            tex, texW, texH, blend);
+      }
       pcParts.clear();
       pcColors.clear();
       pcMasks.clear();
       pcCoverage = null;
     }
 
-    for (var k = 0; k < count; k++) {
-      final rank = batch.startRank + k;
-      if (rank >= drawOrder.length) break;
-      final p = drawOrder[rank];
-      final flags = host.flagsFor(p);
-      if (flags.pureMask) continue; // coverage-only, never colour
-      final part = frame.partOf(p);
-      final pc = part == null ? null : PartColor.read(partsColor, part);
-      final mask = masking.drawFor(rank, flags);
-      // Draws only inside a mask, and none reaches it: nowhere at all.
-      if (mask != null && mask.drawsNothing) continue;
-      // Integration shader (`SHDR`): its parameters are per-part uniforms,
-      // so it cannot join either run — flush both to keep z-order and draw it on
-      // its own. NOT combined with a mask test (v1, both siblings agree): a
-      // masked shader part keeps the plain masked path and drops its effect.
-      final sh =
-          (part == null || mask != null) ? null : PartShader.read(shaders, part);
-      if (sh != null) {
-        flushRun();
-        flushPc();
-        _drawSsShaderPart(
-            p,
-            sh,
-            pc == null
-                ? PartColor.passthrough(frame.alphaOf(p))
-                : pc.scaleAlpha(frame.alphaScale),
-            frame,
-            host,
-            tex,
-            texW,
-            texH,
-            blend);
-        continue;
-      }
-      if (pc == null && mask == null) {
-        flushPc();
-        run.add(p);
-      } else {
-        flushRun();
-        final h = mask?.coverageHandle;
-        final ht = h is gpu.Texture ? h : null;
-        if ((ht != null && pcCoverage != null && !identical(ht, pcCoverage)) ||
-            pcParts.length >= _kMaxPartColorRun) {
+    for (var b = from; b < to; b++) {
+      final batch = batches[b];
+      final mesh = batch.kind == fbs.DrawBatchKind.Mesh;
+      flushPc();
+      pcMesh = mesh;
+      for (var k = 0; k < batch.count; k++) {
+        final rank = batch.startRank + k;
+        if (rank >= drawOrder.length) break;
+        final p = drawOrder[rank];
+        final flags = host.flagsFor(p);
+        if (flags.pureMask) continue; // coverage-only, never colour
+        final part = frame.partOf(p);
+        final pc = part == null ? null : PartColor.read(partsColor, part);
+        final mask = masking.drawFor(rank, flags);
+        // Draws only inside a mask, and none reaches it: nowhere at all.
+        if (mask != null && mask.drawsNothing) continue;
+        // Integration shader (`SHDR`), on a Normal part only: its parameters
+        // are per-part uniforms, so it cannot join either run — flush both to
+        // keep z-order and draw it on its own. NOT combined with a mask test
+        // (v1, both siblings agree): a masked shader part keeps the plain
+        // masked path and drops its effect.
+        final sh = (mesh || part == null || mask != null)
+            ? null
+            : PartShader.read(shaders, part);
+        if (sh != null) {
+          flushRun();
           flushPc();
+          _drawSsShaderPart(
+              p,
+              sh,
+              pc == null
+                  ? PartColor.passthrough(frame.alphaOf(p))
+                  : pc.scaleAlpha(frame.alphaScale),
+              frame,
+              host,
+              tex,
+              texW,
+              texH,
+              blend);
+          continue;
         }
-        if (ht != null) pcCoverage = ht;
-        pcParts.add(p);
-        pcColors.add(pc == null
-            ? PartColor.passthrough(frame.alphaOf(p))
-            : pc.scaleAlpha(frame.alphaScale));
-        pcMasks.add(mask);
+        if (pc == null && mask == null) {
+          flushPc();
+          final n = GeometryBuilder.texturedVertexCount(p, mesh, frame);
+          if (runVertices + n > GeometryBuilder.maxBakeVertices) flushRun();
+          run.add(p);
+          runMesh.add(mesh);
+          runVertices += n;
+        } else {
+          flushRun();
+          final h = mask?.coverageHandle;
+          final ht = h is gpu.Texture ? h : null;
+          if ((ht != null &&
+                  pcCoverage != null &&
+                  !identical(ht, pcCoverage)) ||
+              pcParts.length >= _kMaxPartColorRun) {
+            flushPc();
+          }
+          if (ht != null) pcCoverage = ht;
+          pcParts.add(p);
+          pcColors.add(pc == null
+              ? PartColor.passthrough(frame.alphaOf(p))
+              : pc.scaleAlpha(frame.alphaScale));
+          pcMasks.add(mask);
+        }
       }
     }
     flushRun();
@@ -1133,84 +1162,6 @@ class FlutterGpuBackend implements RenderBackend {
     return m;
   }
 
-  @override
-  void emitMesh(ui.Canvas canvas, fbs.DrawBatch batch, DrawFrame frame,
-      RenderHost host, PlayerMask masking) {
-    if (!_active) return;
-    assert(_noEmitInFlight);
-    final count = batch.count;
-    if (count == 0) return;
-    final image = host.textures.imageFor(batch.textureHash);
-    if (image == null) return;
-    final tex = _gpuTextureFor(image);
-    if (tex == null) return; // still uploading
-
-    final texW = image.width.toDouble();
-    final texH = image.height.toDouble();
-    final blend = blendEquationFor(batch.blendType);
-    final drawOrder = frame.drawOrder;
-    final partsColor = frame.partsColor;
-
-    // Same run/peel split as [emitNormal] — and the peeled mesh parts likewise
-    // BATCH into one PartColor-pipeline call, sharing a coverage texture.
-    final parts = _meshRunScratch..clear();
-    final pcParts = _pcPartsScratch..clear();
-    final pcColors = _pcColorsScratch..clear();
-    final pcMasks = _pcMasksScratch..clear();
-    gpu.Texture? pcCoverage;
-
-    void flushRun() {
-      if (parts.isEmpty) return;
-      final geo = host.geometry
-          .buildMeshInterleaved(parts, frame, texWidth: texW, texHeight: texH);
-      if (geo != null) _drawInterleaved(geo, tex, blend);
-      parts.clear();
-    }
-
-    void flushPc() {
-      if (pcParts.isEmpty) return;
-      _drawMeshPartColorRun(pcParts, pcColors, pcMasks, pcCoverage, frame, host,
-          tex, texW, texH, blend);
-      pcParts.clear();
-      pcColors.clear();
-      pcMasks.clear();
-      pcCoverage = null;
-    }
-
-    for (var k = 0; k < count; k++) {
-      final rank = batch.startRank + k;
-      if (rank >= drawOrder.length) break;
-      final p = drawOrder[rank];
-      final flags = host.flagsFor(p);
-      if (flags.pureMask) continue;
-      final state = frame.partOf(p);
-      final pc = state == null ? null : PartColor.read(partsColor, state);
-      final mask = masking.drawFor(rank, flags);
-      // Draws only inside a mask, and none reaches it: nowhere at all.
-      if (mask != null && mask.drawsNothing) continue;
-      if (pc == null && mask == null) {
-        flushPc();
-        parts.add(p);
-      } else {
-        flushRun();
-        final h = mask?.coverageHandle;
-        final ht = h is gpu.Texture ? h : null;
-        if ((ht != null && pcCoverage != null && !identical(ht, pcCoverage)) ||
-            pcParts.length >= _kMaxPartColorRun) {
-          flushPc();
-        }
-        if (ht != null) pcCoverage = ht;
-        pcParts.add(p);
-        pcColors.add(pc == null
-            ? PartColor.passthrough(frame.alphaOf(p))
-            : pc.scaleAlpha(frame.alphaScale));
-        pcMasks.add(mask);
-      }
-    }
-    flushRun();
-    flushPc();
-  }
-
   /// Draws a RUN of peeled mesh parts (PartColor and/or mask) in ONE
   /// PartColor-pipeline call.
   ///
@@ -1373,76 +1324,81 @@ class FlutterGpuBackend implements RenderBackend {
   }
 
   @override
-  void emitEffect(ui.Canvas canvas, fbs.DrawBatch batch, DrawFrame frame,
-      RenderHost host) {
+  void emitEffect(ui.Canvas canvas, List<fbs.DrawBatch> batches, int from,
+      int to, DrawFrame frame, RenderHost host) {
     if (!_active) return;
     if (!host.hasEffects) return;
     final drawOrder = frame.drawOrder;
 
-    for (var k = 0; k < batch.count; k++) {
-      final rank = batch.startRank + k;
-      if (rank >= drawOrder.length) break;
-      final part = drawOrder[rank];
-      final plan = host.effectPlanFor(part);
-      final commands = plan?.commands;
-      if (plan == null || commands == null) continue;
+    // Same grouping as the Canvas path: consecutive same-(cellmap,blend)
+    // commands, across the span's parts, under the 16-bit vertex cap, one draw
+    // per group.
+    final group = _effectGroupScratch..clear();
+    final plans = _effectPlansScratch..clear();
+    final parts = _effectPartsScratch..clear();
+    var groupVerts = 0;
+    var cellmap = 0;
+    var blend = 0;
+    ui.Image? image;
+    gpu.Texture? tex;
+    void flushGroup() {
+      if (group.isEmpty) return;
+      final cellImage = image!;
+      final geo = host.geometry.buildEffectRunInterleaved(
+          plans, group, parts, frame,
+          texWidth: cellImage.width.toDouble(),
+          texHeight: cellImage.height.toDouble());
+      // Effect blend byte: 1 = Add → additive, else Mix → source-over. The
+      // reference writes the additive case as `(ONE, ONE, ONE, ONE)` — alpha
+      // included — so it takes [_additive], not the batch-level [_add].
+      if (geo != null) {
+        _drawInterleaved(geo, tex!, blend == 1 ? _additive : _srcOver);
+      }
+      group.clear();
+      plans.clear();
+      parts.clear();
+      groupVerts = 0;
+    }
 
-      // Same grouping as the Canvas path: merge consecutive same-(cellmap,blend)
-      // commands under the 16-bit vertex cap, one draw per group.
-      var i = 0;
-      while (i < commands.length) {
-        final first = commands[i];
-        if (first.quadCount == 0) {
-          i++;
-          continue;
-        }
-        final image = host.textures.imageFor(first.cellmapHash);
-        if (image == null) {
-          i++;
-          continue;
-        }
-        final tex = _gpuTextureFor(image);
-        if (tex == null) {
-          i++;
-          continue; // cellmap still uploading
-        }
-        final cellmap = first.cellmapHash;
-        final blend = first.blend;
+    for (var b = from; b < to; b++) {
+      final batch = batches[b];
+      for (var k = 0; k < batch.count; k++) {
+        final rank = batch.startRank + k;
+        if (rank >= drawOrder.length) break;
+        final part = drawOrder[rank];
+        final plan = host.effectPlanFor(part);
+        final commands = plan?.commands;
+        if (plan == null || commands == null) continue;
 
-        final group = _effectGroupScratch
-          ..clear()
-          ..add(first);
-        var groupVerts = first.quadCount * 4;
-        var j = i + 1;
-        while (j < commands.length) {
-          final c = commands[j];
-          if (c.quadCount == 0 ||
+        for (var i = 0; i < commands.length; i++) {
+          final c = commands[i];
+          if (c.quadCount == 0) {
+            flushGroup();
+            continue;
+          }
+          final verts = c.quadCount * 4;
+          if (group.isEmpty ||
               c.cellmapHash != cellmap ||
               c.blend != blend ||
-              groupVerts + c.quadCount * 4 > 0xFFFF) {
-            break;
+              groupVerts + verts > 0xFFFF) {
+            flushGroup();
+            final cellImage = host.textures.imageFor(c.cellmapHash);
+            if (cellImage == null) continue;
+            final cellTex = _gpuTextureFor(cellImage);
+            if (cellTex == null) continue; // cellmap still uploading
+            image = cellImage;
+            tex = cellTex;
+            cellmap = c.cellmapHash;
+            blend = c.blend;
           }
           group.add(c);
-          groupVerts += c.quadCount * 4;
-          j++;
+          plans.add(plan);
+          parts.add(part);
+          groupVerts += verts;
         }
-        i = j;
-
-        final geo = host.geometry.buildEffectGroupInterleaved(
-          plan,
-          group,
-          part,
-          frame,
-          texWidth: image.width.toDouble(),
-          texHeight: image.height.toDouble(),
-        );
-        if (geo == null) continue;
-        // Effect blend byte: 1 = Add → additive, else Mix → source-over. The
-        // reference writes the additive case as `(ONE, ONE, ONE, ONE)` — alpha
-        // included — so it takes [_additive], not the batch-level [_add].
-        _drawInterleaved(geo, tex, blend == 1 ? _additive : _srcOver);
       }
     }
+    flushGroup();
   }
 
   @override

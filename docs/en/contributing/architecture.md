@@ -46,14 +46,17 @@ See [Packages](../packages.md) for the full list and their roles.
 
 The Brain emits a `DrawBatch` plan; `paint` dispatches on `DrawBatch.kind`
 (`Normal / Mesh / Effect / Instance / Shape`) and delegates each batch to the active **render
-backend**. The `Canvas` backend bakes each batch into one indexed `ui.Vertices` (`Canvas.drawVertices`);
+backend**. The Brain cuts a batch wherever the part kind changes, so consecutive Normal and Mesh
+batches on one texture and blend go to the backend together, and their plain parts draw as one:
+Ringo's eight batches a frame are a single draw. Consecutive Effect batches go together too, and
+particles of one cellmap and blend draw as one across the effect parts. The `Canvas` backend bakes
+each batch, or each such run of them, into one indexed `ui.Vertices` (`Canvas.drawVertices`);
 the `flutter_gpu` (Impeller) backend bakes an interleaved VBO and draws through its own pipeline into
 an offscreen target. Parts that need a pass of their own — PartColor, integration shaders, and the
 multi-pass Sub / Invert blends — are peeled out of their batch and drawn individually on `Canvas`,
 whereas the `flutter_gpu` backend batches them. The backend is chosen per `SpriteStudioBackend`
 (`auto` picks flutter_gpu where the capability probe passes, else Canvas). Because everything is rebuilt per frame, the performance
-levers are **per-frame allocation** and **draw-call count** — not the batch grouping, which already
-matches the Brain's plan.
+levers are **per-frame allocation** and **draw-call count**.
 
 ## Further reading
 

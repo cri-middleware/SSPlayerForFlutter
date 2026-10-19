@@ -97,11 +97,14 @@ class CanvasBackend implements RenderBackend {
   //
   // A reused `Paint` must have EVERY field it varies written on every use: a
   // field left unset silently inherits the previous draw's value.
-  final List<int> _normalRunScratch = <int>[];
+  final List<int> _texturedRunScratch = <int>[];
+  final List<bool> _texturedMeshScratch = <bool>[];
   final List<int> _shapeRunScratch = <int>[];
-  final List<int> _meshRunScratch = <int>[];
   final List<efbs.EffectDrawCommand> _effectGroupScratch =
       <efbs.EffectDrawCommand>[];
+  final List<efbs.EffectDrawPlan> _effectPlansScratch =
+      <efbs.EffectDrawPlan>[];
+  final List<int> _effectPartsScratch = <int>[];
   final ui.Path _quadPathScratch = ui.Path();
   final ui.Path _trianglesPathScratch = ui.Path();
 
@@ -114,9 +117,7 @@ class CanvasBackend implements RenderBackend {
   /// interleaving two parts' geometry into one draw.
   bool get _noEmitInFlight {
     assert(
-        _normalRunScratch.isEmpty &&
-            _shapeRunScratch.isEmpty &&
-            _meshRunScratch.isEmpty,
+        _texturedRunScratch.isEmpty && _shapeRunScratch.isEmpty,
         'emit* re-entered — the per-frame scratch is not re-entrant');
     return true;
   }
@@ -217,6 +218,7 @@ class CanvasBackend implements RenderBackend {
     // frame overwrites the scratch. Nothing reads them stale (every user clears
     // first); this just stops the scratch from being a hidden retainer.
     _effectGroupScratch.clear();
+    _effectPlansScratch.clear();
   }
 
   @override
@@ -481,64 +483,86 @@ class CanvasBackend implements RenderBackend {
   }
 
   @override
-  void emitNormal(ui.Canvas canvas, fbs.DrawBatch batch, DrawFrame frame,
-      RenderHost host, PlayerMask masking) {
+  void emitTextured(ui.Canvas canvas, List<fbs.DrawBatch> batches, int from,
+      int to, DrawFrame frame, RenderHost host, PlayerMask masking) {
     assert(_noEmitInFlight);
-    final start = batch.startRank;
-    final count = batch.count;
-    if (count == 0) return;
+    final first = batches[from];
+    final geometry = host.geometry;
     final drawOrder = frame.drawOrder;
-    final passes = blendPassesFor(batch.blendType);
+    final passes = blendPassesFor(first.blendType);
     // Fetch the frame's parts_color / shaders vectors once (see
     // [DrawFrame.partsColor]).
     final partsColor = frame.partsColor;
     final shaders = frame.shaders;
 
-    final run = _normalRunScratch..clear();
+    // Plain parts of either kind batch into one `drawVertices`; tinted,
+    // masked and shader parts are drawn individually in z-order.
+    final run = _texturedRunScratch..clear();
+    final runMesh = _texturedMeshScratch..clear();
+    var runVertices = 0;
     void flushRun() {
       if (run.isEmpty) return;
-      // A run holds only single-pass parts.
-      final vertices = host.geometry.buildNormalParts(run, frame);
+      final vertices = geometry.buildTexturedParts(run, runMesh, frame);
       if (vertices != null) {
-        _drawTexturedPass(canvas, vertices, batch, host, passes.single);
+        for (final pass in passes) {
+          _drawTexturedPass(canvas, vertices, first, host, pass);
+        }
       }
       run.clear();
+      runMesh.clear();
+      runVertices = 0;
     }
 
-    for (var k = 0; k < count; k++) {
-      final rank = start + k;
-      if (rank >= drawOrder.length) break;
-      final p = drawOrder[rank];
-      final flags = host.flagsFor(p);
-      // Coverage-only. It draws nothing, so it cannot split the run either.
-      if (flags.pureMask) continue;
-      final part = frame.partOf(p);
-      final pc = part == null ? null : PartColor.read(partsColor, part);
-      // One coverage serves the whole instance tree, so every writer that
-      // reaches this part — its own animation's, an enclosing one's, a nested
-      // one's — is in this single test.
-      final mask = masking.drawFor(rank, flags);
-      // Draws only inside a mask, and none reaches it: nowhere at all.
-      if (mask != null && mask.drawsNothing) continue;
-      // Integration shader (`SHDR`). NOT combined with a mask test: the
-      // peeled shader binds no coverage sampler, so a masked shader part keeps
-      // the plain masked path and drops its effect — the v1 limitation both
-      // sibling ports share.
-      final sh =
-          (part == null || mask != null) ? null : PartShader.read(shaders, part);
-      // A multi-pass blend (Sub / Invert) is peeled as well. It must cover each
-      // pixel exactly once per pass, so its parts cannot share a run — two
-      // overlapping ones would invert their overlap twice and cancel it (see
-      // [blendPassesFor]). The peeled quad then filters its inversions on a
-      // direct `drawPath`, which both renderers honour.
-      if (pc == null && mask == null && sh == null && passes.length == 1) {
-        run.add(p);
-      } else {
-        flushRun();
-        if (sh != null) {
-          _drawShaderPart(canvas, p, sh, pc, frame, host, batch, passes);
+    for (var b = from; b < to; b++) {
+      final batch = batches[b];
+      final mesh = batch.kind == fbs.DrawBatchKind.Mesh;
+      for (var k = 0; k < batch.count; k++) {
+        final rank = batch.startRank + k;
+        if (rank >= drawOrder.length) break;
+        final p = drawOrder[rank];
+        final flags = host.flagsFor(p);
+        // Coverage-only. It draws nothing, so it cannot split the run either.
+        if (flags.pureMask) continue;
+        final part = frame.partOf(p);
+        final pc = part == null ? null : PartColor.read(partsColor, part);
+        // One coverage serves the whole instance tree, so every writer that
+        // reaches this part — its own animation's, an enclosing one's, a
+        // nested one's — is in this single test.
+        final mask = masking.drawFor(rank, flags);
+        // Draws only inside a mask, and none reaches it: nowhere at all.
+        if (mask != null && mask.drawsNothing) continue;
+        // Integration shader (`SHDR`), on a Normal part only. NOT combined
+        // with a mask test: the peeled shader binds no coverage sampler, so a
+        // masked shader part keeps the plain masked path and drops its
+        // effect — the v1 limitation both sibling ports share.
+        final sh = (mesh || part == null || mask != null)
+            ? null
+            : PartShader.read(shaders, part);
+        // A multi-pass blend (Sub / Invert) must cover each pixel exactly
+        // once per pass, so its parts cannot share a run — two overlapping
+        // ones would invert their overlap twice and cancel it (see
+        // [blendPassesFor]). A Normal part is peeled, whose quad filters its
+        // inversions on a direct `drawPath`, which both renderers honour; a
+        // Mesh part draws alone.
+        if (pc == null &&
+            mask == null &&
+            sh == null &&
+            (mesh || passes.length == 1)) {
+          final n = GeometryBuilder.texturedVertexCount(p, mesh, frame);
+          if (runVertices + n > GeometryBuilder.maxBakeVertices) flushRun();
+          run.add(p);
+          runMesh.add(mesh);
+          runVertices += n;
+          if (passes.length > 1) flushRun();
         } else {
-          _drawPeeledPart(canvas, p, pc, frame, host, batch, passes, mask);
+          flushRun();
+          if (mesh) {
+            _drawPeeledMesh(canvas, p, pc, frame, host, batch, passes, mask);
+          } else if (sh != null) {
+            _drawShaderPart(canvas, p, sh, pc, frame, host, batch, passes);
+          } else {
+            _drawPeeledPart(canvas, p, pc, frame, host, batch, passes, mask);
+          }
         }
       }
     }
@@ -583,7 +607,7 @@ class CanvasBackend implements RenderBackend {
       if (mask != null && mask.drawsNothing) continue;
       if (mask == null) {
         run.add(p);
-        if (passes.length > 1) flushRun(); // see [emitNormal]
+        if (passes.length > 1) flushRun(); // see [emitTextured]
       } else {
         flushRun();
         _drawMaskedShape(canvas, p, frame, host, passes, mask);
@@ -697,52 +721,6 @@ class CanvasBackend implements RenderBackend {
     uvB: Float32List(4),
   );
 
-  @override
-  void emitMesh(ui.Canvas canvas, fbs.DrawBatch batch, DrawFrame frame,
-      RenderHost host, PlayerMask masking) {
-    assert(_noEmitInFlight);
-    final count = batch.count;
-    if (count == 0) return;
-    final drawOrder = frame.drawOrder;
-    final partsColor = frame.partsColor;
-    final passes = blendPassesFor(batch.blendType);
-
-    // Same run/peel shape as [emitNormal]: plain parts batch into one
-    // `drawVertices`, tinted/masked ones are drawn individually in z-order.
-    final run = _meshRunScratch..clear();
-    void flushRun() {
-      if (run.isEmpty) return;
-      final vertices = host.geometry.buildMeshParts(run, frame);
-      if (vertices != null) {
-        for (final pass in passes) {
-          _drawTexturedPass(canvas, vertices, batch, host, pass);
-        }
-      }
-      run.clear();
-    }
-
-    for (var k = 0; k < count; k++) {
-      final rank = batch.startRank + k;
-      if (rank >= drawOrder.length) break;
-      final p = drawOrder[rank];
-      final flags = host.flagsFor(p);
-      if (flags.pureMask) continue; // coverage-only: never draws colour
-      final state = frame.partOf(p);
-      final pc = state == null ? null : PartColor.read(partsColor, state);
-      final mask = masking.drawFor(rank, flags);
-      // Draws only inside a mask, and none reaches it: nowhere at all.
-      if (mask != null && mask.drawsNothing) continue;
-      if (pc == null && mask == null) {
-        run.add(p);
-        if (passes.length > 1) flushRun(); // see [emitNormal]
-      } else {
-        flushRun();
-        _drawPeeledMesh(canvas, p, pc, frame, host, batch, passes, mask);
-      }
-    }
-    flushRun();
-  }
-
   /// Draws one peeled Mesh part: PartColor and/or a mask test.
   ///
   /// Where a Normal part needs `partcolor.frag` — four corners, so the tint is
@@ -853,67 +831,27 @@ class CanvasBackend implements RenderBackend {
   }
 
   @override
-  void emitEffect(ui.Canvas canvas, fbs.DrawBatch batch, DrawFrame frame,
-      RenderHost host) {
+  void emitEffect(ui.Canvas canvas, List<fbs.DrawBatch> batches, int from,
+      int to, DrawFrame frame, RenderHost host) {
     if (!host.hasEffects) return;
     final drawOrder = frame.drawOrder;
 
-    for (var k = 0; k < batch.count; k++) {
-      final rank = batch.startRank + k;
-      if (rank >= drawOrder.length) break;
-      final part = drawOrder[rank];
-      final plan = host.effectPlanFor(part);
-      final commands = plan?.commands;
-      if (plan == null || commands == null) continue; // invisible / dead slot
-
-      var i = 0;
-      while (i < commands.length) {
-        final first = commands[i];
-        // The runtime still emits a command for an emitter whose cell failed to
-        // resolve, with quad_count 0 — skip before touching the texture.
-        if (first.quadCount == 0) {
-          i++;
-          continue;
-        }
-        final image = host.textures.imageFor(first.cellmapHash);
-        if (image == null) {
-          i++;
-          continue;
-        }
-        final cellmap = first.cellmapHash;
-        final blend = first.blend;
-
-        // Gather the maximal run of drawable same-(cellmap,blend) commands,
-        // keeping the group's vertex count inside the 16-bit index limit.
-        final group = _effectGroupScratch
-          ..clear()
-          ..add(first);
-        var groupVerts = first.quadCount * 4;
-        var j = i + 1;
-        while (j < commands.length) {
-          final c = commands[j];
-          if (c.quadCount == 0 ||
-              c.cellmapHash != cellmap ||
-              c.blend != blend ||
-              groupVerts + c.quadCount * 4 > 0xFFFF) {
-            break;
-          }
-          group.add(c);
-          groupVerts += c.quadCount * 4;
-          j++;
-        }
-        i = j;
-
-        final geometry = host.geometry.buildEffectGroup(
-          plan,
-          group,
-          part,
-          frame,
-          texWidth: image.width.toDouble(),
-          texHeight: image.height.toDouble(),
-        );
-        if (geometry == null) continue;
-
+    // The current group: drawable commands of one cellmap and blend, in draw
+    // order across the span's parts, inside the 16-bit index limit.
+    final group = _effectGroupScratch..clear();
+    final plans = _effectPlansScratch..clear();
+    final parts = _effectPartsScratch..clear();
+    var groupVerts = 0;
+    var cellmap = 0;
+    var blend = 0;
+    ui.Image? image;
+    void flushGroup() {
+      if (group.isEmpty) return;
+      final cellImage = image!;
+      final geometry = host.geometry.buildEffectRun(plans, group, parts, frame,
+          texWidth: cellImage.width.toDouble(),
+          texHeight: cellImage.height.toDouble());
+      if (geometry != null) {
         canvas.drawVertices(
           geometry.toVertices(),
           ui.BlendMode.modulate,
@@ -925,7 +863,51 @@ class CanvasBackend implements RenderBackend {
             ..color = const ui.Color(0xFFFFFFFF),
         );
       }
+      group.clear();
+      plans.clear();
+      parts.clear();
+      groupVerts = 0;
     }
+
+    for (var b = from; b < to; b++) {
+      final batch = batches[b];
+      for (var k = 0; k < batch.count; k++) {
+        final rank = batch.startRank + k;
+        if (rank >= drawOrder.length) break;
+        final part = drawOrder[rank];
+        final plan = host.effectPlanFor(part);
+        final commands = plan?.commands;
+        if (plan == null || commands == null) continue; // invisible / dead slot
+
+        for (var i = 0; i < commands.length; i++) {
+          final c = commands[i];
+          // The runtime still emits a command for an emitter whose cell failed
+          // to resolve, with quad_count 0 — skip it before touching the
+          // texture.
+          if (c.quadCount == 0) {
+            flushGroup();
+            continue;
+          }
+          final verts = c.quadCount * 4;
+          if (group.isEmpty ||
+              c.cellmapHash != cellmap ||
+              c.blend != blend ||
+              groupVerts + verts > 0xFFFF) {
+            flushGroup();
+            final cellImage = host.textures.imageFor(c.cellmapHash);
+            if (cellImage == null) continue;
+            image = cellImage;
+            cellmap = c.cellmapHash;
+            blend = c.blend;
+          }
+          group.add(c);
+          plans.add(plan);
+          parts.add(part);
+          groupVerts += verts;
+        }
+      }
+    }
+    flushGroup();
   }
 
   /// Draws one peeled Normal part via `shaders/partcolor.frag` — the path for a

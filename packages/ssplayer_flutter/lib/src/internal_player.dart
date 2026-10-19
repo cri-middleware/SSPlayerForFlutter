@@ -13,6 +13,7 @@ import 'render/backend/gpu_backend_factory.dart';
 import 'render/backend/gpu_capability.dart';
 import 'render/backend/render_backend.dart';
 import 'render/backend/render_host.dart';
+import 'render/blend.dart';
 import 'render/effect.dart';
 import 'render/geometry_builder.dart';
 import 'render/instance.dart';
@@ -1412,14 +1413,26 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
     // resolved per part. Effect is not peeled (its plan carries its own
     // colours), so no mask gates it. A nested Instance hands its view another
     // level down.
-    for (final batch in batches) {
+    for (var i = 0; i < batches.length; i++) {
+      final batch = batches[i];
       switch (batch.kind) {
         case fbs.DrawBatchKind.Normal:
-          backend.emitNormal(canvas, batch, frame, this, mask);
         case fbs.DrawBatchKind.Mesh:
-          backend.emitMesh(canvas, batch, frame, this, mask);
+          var end = i + 1;
+          while (end < batches.length &&
+              _continuesTextured(batch, batches[end])) {
+            end++;
+          }
+          backend.emitTextured(canvas, batches, i, end, frame, this, mask);
+          i = end - 1;
         case fbs.DrawBatchKind.Effect:
-          backend.emitEffect(canvas, batch, frame, this);
+          var end = i + 1;
+          while (end < batches.length &&
+              batches[end].kind == fbs.DrawBatchKind.Effect) {
+            end++;
+          }
+          backend.emitEffect(canvas, batches, i, end, frame, this);
+          i = end - 1;
         case fbs.DrawBatchKind.Instance:
           _emitInstanceBatch(canvas, backend, batch, frame, mask);
         case fbs.DrawBatchKind.Shape:
@@ -1430,6 +1443,28 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
           break; // kinds not yet ported are skipped
       }
     }
+  }
+
+  /// Whether [next] joins the span of textured batches [first] opened: a
+  /// Normal or Mesh batch on the same texture and blend, which
+  /// [RenderBackend.emitTextured] draws through one run of plain parts.
+  /// Only a blend Canvas draws as one coefficient pass spans. Without
+  /// framebuffer fetch an advanced mode (Mul, Exclusion) blends a whole draw
+  /// at once, and Sub and Invert draw in several passes, each of their parts
+  /// on its own.
+  static bool _continuesTextured(fbs.DrawBatch first, fbs.DrawBatch next) {
+    final kind = next.kind;
+    if (kind != fbs.DrawBatchKind.Normal && kind != fbs.DrawBatchKind.Mesh) {
+      return false;
+    }
+    final blend = first.blendType;
+    if (next.textureHash != first.textureHash || next.blendType != blend) {
+      return false;
+    }
+    final mode = blendModeFor(blend);
+    return mode == ui.BlendMode.srcOver ||
+        mode == ui.BlendMode.plus ||
+        mode == ui.BlendMode.screen;
   }
 
   /// Emits one Instance batch: draws each child animation in-place.

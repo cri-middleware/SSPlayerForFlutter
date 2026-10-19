@@ -475,14 +475,17 @@ class PartColorQuad {
 /// ([buildPartColorQuad]). Each has a `…Interleaved` sibling
 /// ([buildNormalInterleaved] etc.) that packs one tightly-interleaved attribute
 /// buffer for the flutter_gpu backend, sharing this class's compute (world
-/// transform, corner-colour bilerp, UV) so the two outputs cannot drift.
+/// transform, corner-colour bilerp, UV) so the two outputs cannot drift. A run
+/// of plain Normal and Mesh parts bakes as one block
+/// ([buildTexturedGeometry], [buildTexturedInterleaved]) through the same
+/// per-part writers as the Normal and Mesh bakes.
 ///
 /// **Buffer reuse / aliasing contract.** The bake methods write into grow-only
 /// scratch buffers held on this instance rather than allocating fresh arrays per
 /// batch, so a steady-state frame does no per-batch vertex allocation. Two
 /// consequences the callers already honour:
 ///  * the [MeshGeometry] returned by [buildMeshGeometry] / [buildShapeParts] /
-///    [buildEffectCommand] **aliases the scratch** — consume it (`toVertices()`,
+///    [buildEffectCommand] and its siblings **aliases the scratch** — consume it (`toVertices()`,
 ///    or read its arrays) BEFORE the next bake call on the same builder, which
 ///    overwrites the scratch. Every call site does (draw / build a Path
 ///    immediately); a `ui.Vertices` copies at construction so it is unaffected;
@@ -598,81 +601,174 @@ class GeometryBuilder {
     return frame;
   }
 
+  /// Most vertices one textured bake can index: indices are 16-bit
+  /// (`ui.Vertices` and the GPU index buffer both). A backend splits a run of
+  /// plain parts before it passes this ([texturedVertexCount]).
+  static const int maxBakeVertices = 0xFFFF;
+
+  /// The vertices and indices the current bake has written so far, advanced
+  /// by the per-part writers ([_writeNormal] and its siblings).
+  int _vAt = 0;
+  int _iAt = 0;
+
   /// Bakes the given [parts] (part indices, already in draw order) into a single
   /// indexed [ui.Vertices]: for each part transforms its 4 local corners and
   /// its centre (lt,rt,lb,rb,centre) by the world matrix (`x'=m0·x+m4·y+m12`,
   /// `y'=m1·x+m5·y+m13`), copies the texture-pixel UVs as-is, sets each vertex
   /// color to white × part alpha, and appends the fan's indices. Returns null
   /// when nothing was emitted.
-  ///
-  /// The caller (internal player) passes a *run* of consecutive plain (non-
-  /// PartColor) parts so PartColored parts can be peeled onto their own shader
-  /// draw without disturbing z-order; an all-plain batch is one run == the whole
-  /// batch.
-  ui.Vertices? buildNormalParts(List<int> parts, DrawFrame frame) {
+  ui.Vertices? buildNormalParts(List<int> parts, DrawFrame frame) =>
+      buildNormalGeometry(parts, frame)?.toVertices();
+
+  /// The inspectable form of [buildNormalParts], as [buildMeshGeometry] is of
+  /// [buildMeshParts].
+  MeshGeometry? buildNormalGeometry(List<int> parts, DrawFrame frame) {
     final count = parts.length;
     if (count == 0 || count > _maxQuads) return null;
-
-    final world = frame.world;
-    final local = frame.local;
-    final uv = frame.uv;
 
     final positions = _pos(count * _fanVertices * 2); // × (x,y)
     final texCoords = _uvs(count * _fanVertices * 2);
     final colors = _cols(count * _fanVertices);
     final indices = _idx(count * fanIndices.length);
 
-    var vBase = 0; // vertices emitted so far
-    var fPos = 0; // float cursor into positions/texCoords
-    var cPos = 0; // color cursor
-    var iPos = 0; // index cursor
-
+    _vAt = 0;
+    _iAt = 0;
     for (var k = 0; k < count; k++) {
-      final p = parts[k];
+      _writeNormal(parts[k], frame, positions, texCoords, colors, indices);
+    }
+    return _bakedGeometry(positions, texCoords, colors, indices);
+  }
 
-      final m = p * DrawFrame.worldStride;
-      final v = p * DrawFrame.vertexStride; // local vertices & UVs share stride
-      if (m + 16 > world.length || v + 10 > local.length || v + 10 > uv.length) {
+  /// Bakes a run of plain Normal and Mesh parts, in draw order, into one
+  /// block: what a span of Normal and Mesh batches on one texture and blend
+  /// draws as one `drawVertices`. [mesh] runs parallel to [parts] and says
+  /// which of them are Mesh parts.
+  ///
+  /// Each part is written exactly as its own kind's bake writes it
+  /// ([buildNormalGeometry], [buildMeshGeometry]), its indices rebased onto
+  /// the block. Returns null when nothing was emitted or the run passes
+  /// [maxBakeVertices].
+  MeshGeometry? buildTexturedGeometry(
+      List<int> parts, List<bool> mesh, DrawFrame frame) {
+    final (vTotal, iTotal) = _texturedTotals(parts, mesh, frame);
+    if (vTotal == 0 || iTotal == 0 || vTotal > maxBakeVertices) return null;
+
+    final positions = _pos(vTotal * 2);
+    final texCoords = _uvs(vTotal * 2);
+    final colors = _cols(vTotal);
+    final indices = _idx(iTotal);
+    final meshBuffers = frame.mesh;
+
+    _vAt = 0;
+    _iAt = 0;
+    for (var k = 0; k < parts.length; k++) {
+      final p = parts[k];
+      if (!mesh[k]) {
+        _writeNormal(p, frame, positions, texCoords, colors, indices);
+      } else if (meshBuffers != null) {
+        _writeMesh(p, meshBuffers, frame.alphaOf(p), positions, texCoords,
+            colors, indices);
+      }
+    }
+    return _bakedGeometry(positions, texCoords, colors, indices);
+  }
+
+  /// [buildTexturedGeometry] for `Canvas.drawVertices`.
+  ui.Vertices? buildTexturedParts(
+          List<int> parts, List<bool> mesh, DrawFrame frame) =>
+      buildTexturedGeometry(parts, mesh, frame)?.toVertices();
+
+  /// The vertices part [p] adds to a textured bake ([buildTexturedGeometry],
+  /// [buildTexturedInterleaved]): a Normal part's fan, or a Mesh part's own
+  /// vertices (0 when it has none).
+  static int texturedVertexCount(int p, bool mesh, DrawFrame frame) {
+    if (!mesh) return _fanVertices;
+    final vr = frame.mesh?.vertexRange(p);
+    return vr == null ? 0 : vr.$2 - vr.$1;
+  }
+
+  /// The vertex and index totals a textured bake of [parts] writes at most:
+  /// a whole fan per Normal part, a Mesh part's own ranges.
+  static (int, int) _texturedTotals(
+      List<int> parts, List<bool> mesh, DrawFrame frame) {
+    final meshBuffers = frame.mesh;
+    var vTotal = 0;
+    var iTotal = 0;
+    for (var k = 0; k < parts.length; k++) {
+      if (!mesh[k]) {
+        vTotal += _fanVertices;
+        iTotal += fanIndices.length;
         continue;
       }
+      final vr = meshBuffers?.vertexRange(parts[k]);
+      final ir = meshBuffers?.indexRange(parts[k]);
+      if (vr == null || ir == null) continue;
+      vTotal += vr.$2 - vr.$1;
+      iTotal += ir.$2 - ir.$1;
+    }
+    return (vTotal, iTotal);
+  }
 
-      final alpha = frame.alphaOf(p);
-      final color = ((alpha * 255).round() & 0xFF) << 24 | 0x00FFFFFF;
+  /// Writes Normal part [p]'s fan at the bake's cursors (see
+  /// [buildNormalParts]). A part outside the SoA writes nothing.
+  void _writeNormal(int p, DrawFrame frame, Float32List positions,
+      Float32List texCoords, Int32List colors, Uint16List indices) {
+    final world = frame.world;
+    final local = frame.local;
+    final uv = frame.uv;
 
-      final m0 = world[m], m1 = world[m + 1];
-      final m4 = world[m + 4], m5 = world[m + 5];
-      final m12 = world[m + 12], m13 = world[m + 13];
-
-      // lt=(0,1) rt=(2,3) lb=(4,5) rb=(6,7) centre=(8,9).
-      for (var c = 0; c < _fanVertices; c++) {
-        final lx = local[v + c * 2];
-        final ly = local[v + c * 2 + 1];
-        positions[fPos] = m0 * lx + m4 * ly + m12;
-        positions[fPos + 1] = m1 * lx + m5 * ly + m13;
-        texCoords[fPos] = uv[v + c * 2]; // texture-pixel UV, used as-is
-        texCoords[fPos + 1] = uv[v + c * 2 + 1];
-        fPos += 2;
-        colors[cPos++] = color;
-      }
-      for (final q in fanIndices) {
-        indices[iPos++] = vBase + q;
-      }
-      vBase += _fanVertices;
+    final m = p * DrawFrame.worldStride;
+    final v = p * DrawFrame.vertexStride; // local vertices & UVs share stride
+    if (m + 16 > world.length || v + 10 > local.length || v + 10 > uv.length) {
+      return;
     }
 
-    if (vBase == 0) return null;
-    // Zero-copy views over the head of each scratch buffer, NOT `sublist` (which
-    // allocates a full copy): `ui.Vertices.raw` copies its inputs into engine
-    // memory at construction, so a view is safe and skips one array copy per
-    // buffer. A view spans `[0, n)` — the untouched tail (when a part was
-    // skipped, so `fPos < length`) is never referenced.
-    return ui.Vertices.raw(
-      ui.VertexMode.triangles,
-      Float32List.view(positions.buffer, positions.offsetInBytes, fPos),
-      textureCoordinates:
-          Float32List.view(texCoords.buffer, texCoords.offsetInBytes, fPos),
-      colors: Int32List.view(colors.buffer, colors.offsetInBytes, cPos),
-      indices: Uint16List.view(indices.buffer, indices.offsetInBytes, iPos),
+    final alpha = frame.alphaOf(p);
+    final color = ((alpha * 255).round() & 0xFF) << 24 | 0x00FFFFFF;
+
+    final m0 = world[m], m1 = world[m + 1];
+    final m4 = world[m + 4], m5 = world[m + 5];
+    final m12 = world[m + 12], m13 = world[m + 13];
+
+    final vBase = _vAt;
+    var fPos = vBase * 2; // float cursor into positions/texCoords
+    var iPos = _iAt;
+    // lt=(0,1) rt=(2,3) lb=(4,5) rb=(6,7) centre=(8,9).
+    for (var c = 0; c < _fanVertices; c++) {
+      final lx = local[v + c * 2];
+      final ly = local[v + c * 2 + 1];
+      positions[fPos] = m0 * lx + m4 * ly + m12;
+      positions[fPos + 1] = m1 * lx + m5 * ly + m13;
+      texCoords[fPos] = uv[v + c * 2]; // texture-pixel UV, used as-is
+      texCoords[fPos + 1] = uv[v + c * 2 + 1];
+      fPos += 2;
+      colors[vBase + c] = color;
+    }
+    for (final q in fanIndices) {
+      indices[iPos++] = vBase + q;
+    }
+    _vAt = vBase + _fanVertices;
+    _iAt = iPos;
+  }
+
+  /// The block the per-part writers left at the head of the scratch, or null
+  /// when they wrote nothing.
+  ///
+  /// Zero-copy views over the head of each scratch buffer, NOT `sublist` (which
+  /// allocates a full copy): `ui.Vertices.raw` copies its inputs into engine
+  /// memory at construction, so a view is safe and skips one array copy per
+  /// buffer. A view spans `[0, n)` — the untouched tail (when a part was
+  /// skipped) is never referenced.
+  MeshGeometry? _bakedGeometry(Float32List positions, Float32List texCoords,
+      Int32List colors, Uint16List indices) {
+    if (_vAt == 0 || _iAt == 0) return null;
+    return MeshGeometry(
+      positions:
+          Float32List.view(positions.buffer, positions.offsetInBytes, _vAt * 2),
+      texCoords:
+          Float32List.view(texCoords.buffer, texCoords.offsetInBytes, _vAt * 2),
+      colors: Int32List.view(colors.buffer, colors.offsetInBytes, _vAt),
+      indices: Uint16List.view(indices.buffer, indices.offsetInBytes, _iAt),
     );
   }
 
@@ -744,63 +840,17 @@ class GeometryBuilder {
     final count = parts.length;
     if (count == 0 || count > _maxQuads) return null;
 
-    final world = frame.world;
-    final local = frame.local;
-    final uv = frame.uv;
-
     final verts = _inter(count * _fanVertices * 8);
     final indices = _idx(count * fanIndices.length);
     final invW = texWidth > 0 ? 1.0 / texWidth : 0.0;
     final invH = texHeight > 0 ? 1.0 / texHeight : 0.0;
 
-    var vBase = 0; // vertices emitted
-    var fp = 0; // float cursor into verts
-    var ip = 0; // index cursor
-
+    _vAt = 0;
+    _iAt = 0;
     for (var k = 0; k < count; k++) {
-      final p = parts[k];
-
-      final m = p * DrawFrame.worldStride;
-      final v = p * DrawFrame.vertexStride;
-      if (m + 16 > world.length || v + 10 > local.length || v + 10 > uv.length) {
-        continue;
-      }
-
-      // Premultiplied white × alpha = (a, a, a, a): the exact colour Skia's
-      // `modulate` produces from a premultiplied texel and a straight white×α
-      // vertex colour (see the doc above).
-      final a = frame.alphaOf(p);
-
-      final m0 = world[m], m1 = world[m + 1];
-      final m4 = world[m + 4], m5 = world[m + 5];
-      final m12 = world[m + 12], m13 = world[m + 13];
-
-      for (var c = 0; c < _fanVertices; c++) {
-        final lx = local[v + c * 2];
-        final ly = local[v + c * 2 + 1];
-        verts[fp] = m0 * lx + m4 * ly + m12; // x
-        verts[fp + 1] = m1 * lx + m5 * ly + m13; // y
-        verts[fp + 2] = uv[v + c * 2] * invW; // u (normalised)
-        verts[fp + 3] = uv[v + c * 2 + 1] * invH; // v (normalised)
-        verts[fp + 4] = a; // r (premultiplied)
-        verts[fp + 5] = a; // g
-        verts[fp + 6] = a; // b
-        verts[fp + 7] = a; // a
-        fp += 8;
-      }
-      for (final q in fanIndices) {
-        indices[ip++] = vBase + q;
-      }
-      vBase += _fanVertices;
+      _interleaveNormal(parts[k], frame, verts, indices, invW, invH);
     }
-
-    if (vBase == 0) return null;
-    return InterleavedGeometry(
-      Float32List.view(verts.buffer, verts.offsetInBytes, fp),
-      Uint16List.view(indices.buffer, indices.offsetInBytes, ip),
-      vBase,
-      ip,
-    );
+    return _bakedInterleaved(verts, indices);
   }
 
   /// Interleaved flutter_gpu bake of mesh [parts] — the GPU sibling of
@@ -829,39 +879,133 @@ class GeometryBuilder {
     final invW = texWidth > 0 ? 1.0 / texWidth : 0.0;
     final invH = texHeight > 0 ? 1.0 / texHeight : 0.0;
 
-    var vBase = 0;
-    var fp = 0;
-    var ip = 0;
+    _vAt = 0;
+    _iAt = 0;
     for (final p in parts) {
-      final vr = mesh.vertexRange(p);
-      final ir = mesh.indexRange(p);
-      if (vr == null || ir == null) continue;
-      final a = frame.alphaOf(p);
-      for (var v = vr.$1; v < vr.$2; v++) {
-        verts[fp] = mesh.x[v]; // already world-space
-        verts[fp + 1] = mesh.y[v];
-        verts[fp + 2] = mesh.uv[v * 2] * invW;
-        verts[fp + 3] = mesh.uv[v * 2 + 1] * invH;
-        verts[fp + 4] = a;
-        verts[fp + 5] = a;
-        verts[fp + 6] = a;
-        verts[fp + 7] = a;
-        fp += 8;
-      }
-      final vCount = vr.$2 - vr.$1;
-      for (var i = ir.$1; i < ir.$2; i++) {
-        final local = mesh.indices[i];
-        if (local < 0 || local >= vCount) continue;
-        indices[ip++] = vBase + local;
-      }
-      vBase += vCount;
+      _interleaveMesh(p, mesh, frame.alphaOf(p), verts, indices, invW, invH);
     }
-    if (vBase == 0 || ip == 0) return null;
+    return _bakedInterleaved(verts, indices);
+  }
+
+  /// The flutter_gpu sibling of [buildTexturedGeometry]: a run of plain
+  /// Normal and Mesh parts as one sprite-pipeline block, each part written
+  /// exactly as [buildNormalInterleaved] or [buildMeshInterleaved] writes it.
+  /// Views alias scratch — consume before the next bake.
+  InterleavedGeometry? buildTexturedInterleaved(
+      List<int> parts, List<bool> mesh, DrawFrame frame,
+      {required double texWidth, required double texHeight}) {
+    final (vTotal, iTotal) = _texturedTotals(parts, mesh, frame);
+    if (vTotal == 0 || iTotal == 0 || vTotal > maxBakeVertices) return null;
+
+    final verts = _inter(vTotal * 8);
+    final indices = _idx(iTotal);
+    final invW = texWidth > 0 ? 1.0 / texWidth : 0.0;
+    final invH = texHeight > 0 ? 1.0 / texHeight : 0.0;
+    final meshBuffers = frame.mesh;
+
+    _vAt = 0;
+    _iAt = 0;
+    for (var k = 0; k < parts.length; k++) {
+      final p = parts[k];
+      if (!mesh[k]) {
+        _interleaveNormal(p, frame, verts, indices, invW, invH);
+      } else if (meshBuffers != null) {
+        _interleaveMesh(
+            p, meshBuffers, frame.alphaOf(p), verts, indices, invW, invH);
+      }
+    }
+    return _bakedInterleaved(verts, indices);
+  }
+
+  /// Writes Normal part [p]'s fan at the bake's cursors as
+  /// [buildNormalInterleaved] lays it out. A part outside the SoA writes
+  /// nothing.
+  void _interleaveNormal(int p, DrawFrame frame, Float32List verts,
+      Uint16List indices, double invW, double invH) {
+    final world = frame.world;
+    final local = frame.local;
+    final uv = frame.uv;
+
+    final m = p * DrawFrame.worldStride;
+    final v = p * DrawFrame.vertexStride;
+    if (m + 16 > world.length || v + 10 > local.length || v + 10 > uv.length) {
+      return;
+    }
+
+    // Premultiplied white × alpha = (a, a, a, a): the exact colour Skia's
+    // `modulate` produces from a premultiplied texel and a straight white×α
+    // vertex colour (see [buildNormalInterleaved]).
+    final a = frame.alphaOf(p);
+
+    final m0 = world[m], m1 = world[m + 1];
+    final m4 = world[m + 4], m5 = world[m + 5];
+    final m12 = world[m + 12], m13 = world[m + 13];
+
+    final vBase = _vAt;
+    var fp = vBase * 8; // float cursor into verts
+    var ip = _iAt;
+    for (var c = 0; c < _fanVertices; c++) {
+      final lx = local[v + c * 2];
+      final ly = local[v + c * 2 + 1];
+      verts[fp] = m0 * lx + m4 * ly + m12; // x
+      verts[fp + 1] = m1 * lx + m5 * ly + m13; // y
+      verts[fp + 2] = uv[v + c * 2] * invW; // u (normalised)
+      verts[fp + 3] = uv[v + c * 2 + 1] * invH; // v (normalised)
+      verts[fp + 4] = a; // r (premultiplied)
+      verts[fp + 5] = a; // g
+      verts[fp + 6] = a; // b
+      verts[fp + 7] = a; // a
+      fp += 8;
+    }
+    for (final q in fanIndices) {
+      indices[ip++] = vBase + q;
+    }
+    _vAt = vBase + _fanVertices;
+    _iAt = ip;
+  }
+
+  /// Writes Mesh part [p] at the bake's cursors as [buildMeshInterleaved]
+  /// lays it out, with [a] as its premultiplied white. A part with no mesh
+  /// range writes nothing; an index outside the part's own vertices is dropped.
+  void _interleaveMesh(int p, MeshBuffers mesh, double a, Float32List verts,
+      Uint16List indices, double invW, double invH) {
+    final vr = mesh.vertexRange(p);
+    final ir = mesh.indexRange(p);
+    if (vr == null || ir == null) return;
+    final vBase = _vAt;
+    var fp = vBase * 8;
+    var ip = _iAt;
+    for (var v = vr.$1; v < vr.$2; v++) {
+      verts[fp] = mesh.x[v]; // already world-space
+      verts[fp + 1] = mesh.y[v];
+      verts[fp + 2] = mesh.uv[v * 2] * invW;
+      verts[fp + 3] = mesh.uv[v * 2 + 1] * invH;
+      verts[fp + 4] = a;
+      verts[fp + 5] = a;
+      verts[fp + 6] = a;
+      verts[fp + 7] = a;
+      fp += 8;
+    }
+    final vCount = vr.$2 - vr.$1;
+    for (var i = ir.$1; i < ir.$2; i++) {
+      final local = mesh.indices[i];
+      if (local < 0 || local >= vCount) continue;
+      indices[ip++] = vBase + local;
+    }
+    _vAt = vBase + vCount;
+    _iAt = ip;
+  }
+
+  /// The sprite-pipeline block the interleaving writers left at the head of
+  /// the scratch, or null when they wrote nothing.
+  InterleavedGeometry? _bakedInterleaved(
+      Float32List verts, Uint16List indices) {
+    if (_vAt == 0 || _iAt == 0) return null;
     return InterleavedGeometry(
-      Float32List.view(verts.buffer, verts.offsetInBytes, fp),
-      Uint16List.view(indices.buffer, indices.offsetInBytes, ip),
-      vBase,
-      ip,
+      Float32List.view(verts.buffer, verts.offsetInBytes, _vAt * 8),
+      Uint16List.view(indices.buffer, indices.offsetInBytes, _iAt),
+      _vAt,
+      _iAt,
     );
   }
 
@@ -1371,47 +1515,46 @@ class GeometryBuilder {
     final colors = _cols(vTotal);
     final indices = _idx(iTotal);
 
-    var vBase = 0; // vertices emitted so far (the index rebase)
-    var fPos = 0;
-    var cPos = 0;
-    var iPos = 0;
-
+    _vAt = 0;
+    _iAt = 0;
     for (final p in parts) {
-      final vr = mesh.vertexRange(p);
-      final ir = mesh.indexRange(p);
-      if (vr == null || ir == null) continue;
-
-      final alpha = alphaOverride ?? frame.alphaOf(p);
-      final color =
-          ((alpha.clamp(0.0, 1.0) * 255).round() & 0xFF) << 24 | 0x00FFFFFF;
-
-      for (var v = vr.$1; v < vr.$2; v++) {
-        positions[fPos] = mesh.x[v]; // already world-space
-        positions[fPos + 1] = mesh.y[v];
-        texCoords[fPos] = mesh.uv[v * 2]; // texture-pixel UV, used as-is
-        texCoords[fPos + 1] = mesh.uv[v * 2 + 1];
-        fPos += 2;
-        colors[cPos++] = color;
-      }
-      final vCount = vr.$2 - vr.$1;
-      for (var i = ir.$1; i < ir.$2; i++) {
-        final local = mesh.indices[i];
-        if (local < 0 || local >= vCount) continue; // corrupt range — drop it
-        indices[iPos++] = vBase + local;
-      }
-      vBase += vCount;
+      _writeMesh(p, mesh, alphaOverride ?? frame.alphaOf(p), positions,
+          texCoords, colors, indices);
     }
+    return _bakedGeometry(positions, texCoords, colors, indices);
+  }
 
-    if (vBase == 0 || iPos == 0) return null;
-    // Zero-copy views (see `buildNormalParts`): the buffers are already
-    // exact-sized here, so the view spans the whole buffer in the common case
-    // and only trims when a corrupt CSR range was dropped mid-loop.
-    return MeshGeometry(
-      positions: Float32List.view(positions.buffer, positions.offsetInBytes, fPos),
-      texCoords: Float32List.view(texCoords.buffer, texCoords.offsetInBytes, fPos),
-      colors: Int32List.view(colors.buffer, colors.offsetInBytes, cPos),
-      indices: Uint16List.view(indices.buffer, indices.offsetInBytes, iPos),
-    );
+  /// Writes Mesh part [p] at the bake's cursors (see [buildMeshGeometry]),
+  /// white × [alpha]. A part with no mesh range writes nothing.
+  void _writeMesh(int p, MeshBuffers mesh, double alpha, Float32List positions,
+      Float32List texCoords, Int32List colors, Uint16List indices) {
+    final vr = mesh.vertexRange(p);
+    final ir = mesh.indexRange(p);
+    if (vr == null || ir == null) return;
+
+    final color =
+        ((alpha.clamp(0.0, 1.0) * 255).round() & 0xFF) << 24 | 0x00FFFFFF;
+
+    final vBase = _vAt; // the index rebase
+    var fPos = vBase * 2;
+    var cPos = vBase;
+    var iPos = _iAt;
+    for (var v = vr.$1; v < vr.$2; v++) {
+      positions[fPos] = mesh.x[v]; // already world-space
+      positions[fPos + 1] = mesh.y[v];
+      texCoords[fPos] = mesh.uv[v * 2]; // texture-pixel UV, used as-is
+      texCoords[fPos + 1] = mesh.uv[v * 2 + 1];
+      fPos += 2;
+      colors[cPos++] = color;
+    }
+    final vCount = vr.$2 - vr.$1;
+    for (var i = ir.$1; i < ir.$2; i++) {
+      final local = mesh.indices[i];
+      if (local < 0 || local >= vCount) continue; // corrupt range — drop it
+      indices[iPos++] = vBase + local;
+    }
+    _vAt = vBase + vCount;
+    _iAt = iPos;
   }
 
   /// Bakes one `EffectDrawCommand`'s particle quads into a vertex block —
@@ -1460,29 +1603,102 @@ class GeometryBuilder {
     required double texWidth,
     required double texHeight,
   }) {
-    if (cmds.isEmpty) return null;
+    final totalQuads = _effectQuads(cmds);
+    if (totalQuads == 0 || totalQuads * 4 > 0xFFFF) return null;
+
+    final positions = _pos(totalQuads * 4 * 2);
+    final texCoords = _uvs(totalQuads * 4 * 2);
+    final colors = _cols(totalQuads * 4);
+    final indices = _idx(totalQuads * 6);
+
+    _vAt = 0;
+    _iAt = 0;
+    _writeEffectCommands(plan, cmds, 0, cmds.length, part, frame, texWidth,
+        texHeight, positions, texCoords, colors, indices);
+    return _bakedGeometry(positions, texCoords, colors, indices);
+  }
+
+  /// Bakes a group that runs on across effect parts — what a span of Effect
+  /// batches draws as one `drawVertices`: [buildEffectGroup] for commands of
+  /// several plans. [plans] and [parts] run parallel to [cmds] and say whose
+  /// plan and part each command is; each command is written exactly as
+  /// [buildEffectGroup] writes it, under its own part's world matrix and alpha.
+  /// Returns null when nothing was emitted.
+  MeshGeometry? buildEffectRun(
+    List<efbs.EffectDrawPlan> plans,
+    List<efbs.EffectDrawCommand> cmds,
+    List<int> parts,
+    DrawFrame frame, {
+    required double texWidth,
+    required double texHeight,
+  }) {
+    final totalQuads = _effectQuads(cmds);
+    if (totalQuads == 0 || totalQuads * 4 > 0xFFFF) return null;
+
+    final positions = _pos(totalQuads * 4 * 2);
+    final texCoords = _uvs(totalQuads * 4 * 2);
+    final colors = _cols(totalQuads * 4);
+    final indices = _idx(totalQuads * 6);
+
+    _vAt = 0;
+    _iAt = 0;
+    var from = 0;
+    while (from < cmds.length) {
+      final plan = plans[from];
+      final part = parts[from];
+      var to = from + 1;
+      while (to < cmds.length &&
+          identical(plans[to], plan) &&
+          parts[to] == part) {
+        to++;
+      }
+      _writeEffectCommands(plan, cmds, from, to, part, frame, texWidth,
+          texHeight, positions, texCoords, colors, indices);
+      from = to;
+    }
+    return _bakedGeometry(positions, texCoords, colors, indices);
+  }
+
+  /// The quads [cmds] hold: an upper bound on what a group bakes, which skips
+  /// a corrupt command.
+  static int _effectQuads(List<efbs.EffectDrawCommand> cmds) {
+    var quads = 0;
+    for (var i = 0; i < cmds.length; i++) {
+      quads += cmds[i].quadCount;
+    }
+    return quads;
+  }
+
+  /// Writes `cmds[from, to)`, all of [plan] on effect part [part], at the
+  /// bake's cursors (see [buildEffectGroup]). Nothing is written when the
+  /// plan's buffers are missing or the part is outside the SoA.
+  void _writeEffectCommands(
+      efbs.EffectDrawPlan plan,
+      List<efbs.EffectDrawCommand> cmds,
+      int from,
+      int to,
+      int part,
+      DrawFrame frame,
+      double texWidth,
+      double texHeight,
+      Float32List positions,
+      Float32List texCoords,
+      Int32List colors,
+      Uint16List indices) {
     final verts = plan.verts;
     final uvs = plan.uvs;
     final planColors = plan.colors;
     final planIndices = plan.indices;
-    if (verts == null || uvs == null || planColors == null ||
+    if (verts == null ||
+        uvs == null ||
+        planColors == null ||
         planIndices == null) {
-      return null;
+      return;
     }
     final stride = plan.vertStride == 3 ? 3 : 2;
 
-    // Upper bound over the group; the views trim to what is actually written if
-    // a command is skipped as corrupt.
-    var totalQuads = 0;
-    for (final cmd in cmds) {
-      totalQuads += cmd.quadCount;
-    }
-    if (totalQuads == 0) return null;
-    final totalVerts = totalQuads * 4;
-    if (totalVerts > 0xFFFF) return null; // ui.Vertices indices are 16-bit
-
     final m = part * DrawFrame.worldStride;
-    if (m + 16 > frame.world.length) return null;
+    if (m + 16 > frame.world.length) return;
     final world = frame.world;
     final m0 = world[m], m1 = world[m + 1];
     final m4 = world[m + 4], m5 = world[m + 5];
@@ -1492,14 +1708,10 @@ class GeometryBuilder {
     // part's hierarchical alpha in on top (the slot never sees it).
     final partAlpha = frame.alphaOf(part);
 
-    final positions = _pos(totalVerts * 2);
-    final texCoords = _uvs(totalVerts * 2);
-    final colors = _cols(totalVerts);
-    final indices = _idx(totalQuads * 6);
-
-    var vBase = 0; // running vertex base — the per-command index rebase
-    var fPos = 0, cPos = 0, iPos = 0;
-    for (final cmd in cmds) {
+    var vBase = _vAt; // running vertex base — the per-command index rebase
+    var fPos = vBase * 2, cPos = vBase, iPos = _iAt;
+    for (var at = from; at < to; at++) {
+      final cmd = cmds[at];
       final quads = cmd.quadCount;
       if (quads == 0) continue;
       final vertexCount = quads * 4;
@@ -1548,16 +1760,8 @@ class GeometryBuilder {
       }
       vBase += vertexCount;
     }
-
-    if (fPos == 0 || iPos == 0) return null;
-    // Views trim the shared scratch back to what the group actually wrote (see
-    // the class doc's reuse contract).
-    return MeshGeometry(
-      positions: Float32List.view(positions.buffer, positions.offsetInBytes, fPos),
-      texCoords: Float32List.view(texCoords.buffer, texCoords.offsetInBytes, fPos),
-      colors: Int32List.view(colors.buffer, colors.offsetInBytes, cPos),
-      indices: Uint16List.view(indices.buffer, indices.offsetInBytes, iPos),
-    );
+    _vAt = vBase;
+    _iAt = iPos;
   }
 
   /// Interleaved flutter_gpu bake of an effect command group — the GPU
@@ -1576,7 +1780,26 @@ class GeometryBuilder {
   }) {
     final g = buildEffectGroup(plan, cmds, part, frame,
         texWidth: texWidth, texHeight: texHeight);
-    if (g == null) return null;
+    return g == null ? null : _effectInterleaved(g, texWidth, texHeight);
+  }
+
+  /// The flutter_gpu sibling of [buildEffectRun], repacked as
+  /// [buildEffectGroupInterleaved] repacks [buildEffectGroup].
+  InterleavedGeometry? buildEffectRunInterleaved(
+    List<efbs.EffectDrawPlan> plans,
+    List<efbs.EffectDrawCommand> cmds,
+    List<int> parts,
+    DrawFrame frame, {
+    required double texWidth,
+    required double texHeight,
+  }) {
+    final g = buildEffectRun(plans, cmds, parts, frame,
+        texWidth: texWidth, texHeight: texHeight);
+    return g == null ? null : _effectInterleaved(g, texWidth, texHeight);
+  }
+
+  InterleavedGeometry? _effectInterleaved(
+      MeshGeometry g, double texWidth, double texHeight) {
     final tc = g.texCoords;
     if (tc == null) return null; // an effect group always has UVs
     final cols = g.colors;
@@ -1748,7 +1971,7 @@ class GeometryBuilder {
     }
     if (vPos == 0 || iPos == 0) return null;
 
-    // Zero-copy views (see `buildNormalParts`).
+    // Zero-copy views (see `_bakedGeometry`).
     return MeshGeometry(
       positions: Float32List.view(positions.buffer, positions.offsetInBytes, vPos),
       // A Shape samples nothing; the caller pairs this with a white Paint.

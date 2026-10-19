@@ -91,20 +91,16 @@ class _WriterSpy implements RenderBackend {
       SsRootTransform root = SsRootTransform.identity}) {}
 
   @override
-  void emitNormal(ui.Canvas canvas, fbs.DrawBatch batch, DrawFrame frame,
-      RenderHost host, PlayerMask masking) {}
+  void emitTextured(ui.Canvas canvas, List<fbs.DrawBatch> batches, int from,
+      int to, DrawFrame frame, RenderHost host, PlayerMask masking) {}
 
   @override
   void emitShape(ui.Canvas canvas, fbs.DrawBatch batch, DrawFrame frame,
       RenderHost host, PlayerMask masking) {}
 
   @override
-  void emitMesh(ui.Canvas canvas, fbs.DrawBatch batch, DrawFrame frame,
-      RenderHost host, PlayerMask masking) {}
-
-  @override
-  void emitEffect(
-      ui.Canvas canvas, fbs.DrawBatch batch, DrawFrame frame, RenderHost host) {}
+  void emitEffect(ui.Canvas canvas, List<fbs.DrawBatch> batches, int from,
+      int to, DrawFrame frame, RenderHost host) {}
 
   @override
   set onResourcesReady(ui.VoidCallback? callback) {}
