@@ -38,6 +38,105 @@ class EffectPart {
   }
 }
 
+/// An effect plan's vertex, UV, colour and index vectors as typed views over
+/// the plan's own bytes, made once per plan by [EffectSlots.step]. Like the
+/// plan, they alias the slot's builder and hold until the slot steps again.
+class EffectPlanArrays {
+  EffectPlanArrays._(this.verts, this.uvs, this.colors, this.indices);
+
+  final Float32List verts;
+  final Float32List uvs;
+  final Float32List colors;
+  final Int32List indices;
+
+  static final Expando<EffectPlanArrays> _byPlan = Expando<EffectPlanArrays>();
+
+  /// The views [EffectSlots.step] made for [plan]; null for a plan it did not
+  /// step, or whose vectors do not sit on a 4-byte boundary.
+  static EffectPlanArrays? of(efbs.EffectDrawPlan plan) => _byPlan[plan];
+
+  // Null while each plan is still read both ways, until one holding all four
+  // vectors reads the same through the generated accessors; false once one
+  // does not, for good.
+  static bool? _matchesAccessors;
+  static int _length = 0;
+
+  static void _attach(efbs.EffectDrawPlan plan, Uint8List bytes) {
+    if (_matchesAccessors == false) return;
+    final data = ByteData.sublistView(bytes);
+    final verts = _floats(bytes, data, _vertsSlot);
+    final uvs = _floats(bytes, data, _uvsSlot);
+    final colors = _floats(bytes, data, _colorsSlot);
+    final indices = _ints(bytes, data, _indicesSlot);
+    if (verts == null || uvs == null || colors == null || indices == null) {
+      return;
+    }
+    if (_matchesAccessors == null) {
+      if (!_same(verts, plan.verts) ||
+          !_same(uvs, plan.uvs) ||
+          !_same(colors, plan.colors) ||
+          !_same(indices, plan.indices)) {
+        _matchesAccessors = false;
+        return;
+      }
+      if (verts.isNotEmpty &&
+          uvs.isNotEmpty &&
+          colors.isNotEmpty &&
+          indices.isNotEmpty) {
+        _matchesAccessors = true;
+      }
+    }
+    _byPlan[plan] = EffectPlanArrays._(verts, uvs, colors, indices);
+  }
+
+  // EffectDrawPlan's vtable slots, as in effect_draw_plan.g.dart.
+  static const int _vertsSlot = 8, _uvsSlot = 10, _colorsSlot = 12;
+  static const int _indicesSlot = 14;
+
+  // Where the root table's vector at vtable [slot] starts, its element count
+  // left in [_length]; -1 when it is absent or runs past the buffer.
+  static int _vector(ByteData data, int slot) {
+    final size = data.lengthInBytes;
+    if (size < 4) return -1;
+    final table = data.getUint32(0, Endian.little);
+    if (table + 4 > size) return -1;
+    final vtable = table - data.getInt32(table, Endian.little);
+    if (vtable < 0 || vtable + 4 > size) return -1;
+    if (slot + 2 > data.getUint16(vtable, Endian.little)) return -1;
+    final field = data.getUint16(vtable + slot, Endian.little);
+    if (field == 0) return -1;
+    final at = table + field;
+    if (at + 4 > size) return -1;
+    final vector = at + data.getUint32(at, Endian.little);
+    if (vector + 4 > size) return -1;
+    _length = data.getUint32(vector, Endian.little);
+    if (vector + 4 + _length * 4 > size) return -1;
+    return vector + 4;
+  }
+
+  static Float32List? _floats(Uint8List bytes, ByteData data, int slot) {
+    final start = _vector(data, slot);
+    if (start < 0) return null;
+    final offset = bytes.offsetInBytes + start;
+    return offset % 4 == 0 ? bytes.buffer.asFloat32List(offset, _length) : null;
+  }
+
+  static Int32List? _ints(Uint8List bytes, ByteData data, int slot) {
+    final start = _vector(data, slot);
+    if (start < 0) return null;
+    final offset = bytes.offsetInBytes + start;
+    return offset % 4 == 0 ? bytes.buffer.asInt32List(offset, _length) : null;
+  }
+
+  static bool _same(List<num> view, List<num>? generated) {
+    if (generated == null || generated.length != view.length) return false;
+    for (var i = 0; i < view.length; i++) {
+      if (view[i] != generated[i]) return false;
+    }
+    return true;
+  }
+}
+
 /// Owns one `EffectSlot` per effect part and their per-frame draw plans.
 ///
 /// Effects are the only kind whose geometry does **not** come from the Brain's
@@ -112,7 +211,9 @@ class EffectSlots {
       if (plan != null) {
         // Zero-copy view over the slot's builder; invalid once this slot steps
         // again, so it is only read during the paint that follows this update.
-        _plans[part.partIndex] = efbs.EffectDrawPlan(plan);
+        final view = efbs.EffectDrawPlan(plan);
+        EffectPlanArrays._attach(view, plan);
+        _plans[part.partIndex] = view;
       } else {
         _plans.remove(part.partIndex);
       }

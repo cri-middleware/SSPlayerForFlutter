@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 import 'package:ssruntime_dart/effect_draw_plan.dart' as efbs;
 import 'package:ssruntime_dart/framedata.dart' as fbs;
 
+import 'effect.dart';
 import 'part_color.dart';
 
 /// The Brain's shape SoA for one frame, bundled for [DrawFrame].
@@ -1685,15 +1686,21 @@ class GeometryBuilder {
       Float32List texCoords,
       Int32List colors,
       Uint16List indices) {
-    final verts = plan.verts;
-    final uvs = plan.uvs;
-    final planColors = plan.colors;
-    final planIndices = plan.indices;
-    if (verts == null ||
-        uvs == null ||
-        planColors == null ||
-        planIndices == null) {
-      return;
+    final typed = EffectPlanArrays.of(plan);
+    final Float32List verts, uvs, planColors;
+    final Int32List planIndices;
+    if (typed != null) {
+      verts = typed.verts;
+      uvs = typed.uvs;
+      planColors = typed.colors;
+      planIndices = typed.indices;
+    } else {
+      final v = plan.verts, u = plan.uvs, c = plan.colors, x = plan.indices;
+      if (v == null || u == null || c == null || x == null) return;
+      verts = Float32List.fromList(v);
+      uvs = Float32List.fromList(u);
+      planColors = Float32List.fromList(c);
+      planIndices = Int32List.fromList(x);
     }
     final stride = plan.vertStride == 3 ? 3 : 2;
 
