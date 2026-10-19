@@ -19,7 +19,7 @@ import 'render_host.dart';
 /// `canvas.drawImage` in [finish] — so the L2 `paint` signature never changes.
 ///
 /// A backend instance is per-player but shared across the instance recursion:
-/// [emitNormal] & friends take the [RenderHost] *per call* so a child's batches
+/// [emitTextured] & friends take the [RenderHost] *per call* so a child's batches
 /// draw through the same backend using the CHILD's host. The `canvas` is likewise
 /// threaded per call (a child draws under the parent's `canvas.transform`).
 abstract class RenderBackend {
@@ -69,21 +69,21 @@ abstract class RenderBackend {
   /// coverage must outlive its instance children's drawing.
   void releaseCoverage();
 
-  /// Emits one Normal batch, preserving draw order. Plain parts batch;
-  /// parts with PartColor and/or a mask test are peeled (Canvas) or folded into
-  /// per-vertex attributes (GPU).
-  void emitNormal(ui.Canvas canvas, fbs.DrawBatch batch, DrawFrame frame,
-      RenderHost host, PlayerMask masking);
+  /// Emits the Normal and Mesh batches `batches[from, to)`, which share one
+  /// texture and blend, preserving draw order.
+  ///
+  /// Plain parts draw as one run, and the run carries across the batch
+  /// boundaries: the Brain cuts a batch wherever the part kind changes, though
+  /// both kinds go through the same textured draw. Parts with PartColor, a
+  /// mask test or an integration shader flush the run and keep their own
+  /// kind's path — peeled (Canvas) or folded into per-vertex attributes
+  /// (GPU). A Mesh part's PartColor is *whole-only*: the `lt` corner tints the
+  /// whole part.
+  void emitTextured(ui.Canvas canvas, List<fbs.DrawBatch> batches, int from,
+      int to, DrawFrame frame, RenderHost host, PlayerMask masking);
 
   /// Emits one Shape batch: per-vertex colour, mask targets peeled.
   void emitShape(ui.Canvas canvas, fbs.DrawBatch batch, DrawFrame frame,
-      RenderHost host, PlayerMask masking);
-
-  /// Emits one Mesh batch: world-space verts, one indexed draw. Parts
-  /// carrying PartColor (*whole-only* — the `lt` corner tints the whole
-  /// part) and/or a mask test are peeled out of that draw, the same way
-  /// [emitNormal] peels its own.
-  void emitMesh(ui.Canvas canvas, fbs.DrawBatch batch, DrawFrame frame,
       RenderHost host, PlayerMask masking);
 
   /// Emits one Effect batch: the particle plans, grouped per cellmap+blend.
