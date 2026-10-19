@@ -102,6 +102,9 @@ class CanvasBackend implements RenderBackend {
   final List<int> _shapeRunScratch = <int>[];
   final List<efbs.EffectDrawCommand> _effectGroupScratch =
       <efbs.EffectDrawCommand>[];
+  final List<efbs.EffectDrawPlan> _effectPlansScratch =
+      <efbs.EffectDrawPlan>[];
+  final List<int> _effectPartsScratch = <int>[];
   final ui.Path _quadPathScratch = ui.Path();
   final ui.Path _trianglesPathScratch = ui.Path();
 
@@ -215,6 +218,7 @@ class CanvasBackend implements RenderBackend {
     // frame overwrites the scratch. Nothing reads them stale (every user clears
     // first); this just stops the scratch from being a hidden retainer.
     _effectGroupScratch.clear();
+    _effectPlansScratch.clear();
   }
 
   @override
@@ -827,67 +831,27 @@ class CanvasBackend implements RenderBackend {
   }
 
   @override
-  void emitEffect(ui.Canvas canvas, fbs.DrawBatch batch, DrawFrame frame,
-      RenderHost host) {
+  void emitEffect(ui.Canvas canvas, List<fbs.DrawBatch> batches, int from,
+      int to, DrawFrame frame, RenderHost host) {
     if (!host.hasEffects) return;
     final drawOrder = frame.drawOrder;
 
-    for (var k = 0; k < batch.count; k++) {
-      final rank = batch.startRank + k;
-      if (rank >= drawOrder.length) break;
-      final part = drawOrder[rank];
-      final plan = host.effectPlanFor(part);
-      final commands = plan?.commands;
-      if (plan == null || commands == null) continue; // invisible / dead slot
-
-      var i = 0;
-      while (i < commands.length) {
-        final first = commands[i];
-        // The runtime still emits a command for an emitter whose cell failed to
-        // resolve, with quad_count 0 — skip before touching the texture.
-        if (first.quadCount == 0) {
-          i++;
-          continue;
-        }
-        final image = host.textures.imageFor(first.cellmapHash);
-        if (image == null) {
-          i++;
-          continue;
-        }
-        final cellmap = first.cellmapHash;
-        final blend = first.blend;
-
-        // Gather the maximal run of drawable same-(cellmap,blend) commands,
-        // keeping the group's vertex count inside the 16-bit index limit.
-        final group = _effectGroupScratch
-          ..clear()
-          ..add(first);
-        var groupVerts = first.quadCount * 4;
-        var j = i + 1;
-        while (j < commands.length) {
-          final c = commands[j];
-          if (c.quadCount == 0 ||
-              c.cellmapHash != cellmap ||
-              c.blend != blend ||
-              groupVerts + c.quadCount * 4 > 0xFFFF) {
-            break;
-          }
-          group.add(c);
-          groupVerts += c.quadCount * 4;
-          j++;
-        }
-        i = j;
-
-        final geometry = host.geometry.buildEffectGroup(
-          plan,
-          group,
-          part,
-          frame,
-          texWidth: image.width.toDouble(),
-          texHeight: image.height.toDouble(),
-        );
-        if (geometry == null) continue;
-
+    // The current group: drawable commands of one cellmap and blend, in draw
+    // order across the span's parts, inside the 16-bit index limit.
+    final group = _effectGroupScratch..clear();
+    final plans = _effectPlansScratch..clear();
+    final parts = _effectPartsScratch..clear();
+    var groupVerts = 0;
+    var cellmap = 0;
+    var blend = 0;
+    ui.Image? image;
+    void flushGroup() {
+      if (group.isEmpty) return;
+      final cellImage = image!;
+      final geometry = host.geometry.buildEffectRun(plans, group, parts, frame,
+          texWidth: cellImage.width.toDouble(),
+          texHeight: cellImage.height.toDouble());
+      if (geometry != null) {
         canvas.drawVertices(
           geometry.toVertices(),
           ui.BlendMode.modulate,
@@ -899,7 +863,51 @@ class CanvasBackend implements RenderBackend {
             ..color = const ui.Color(0xFFFFFFFF),
         );
       }
+      group.clear();
+      plans.clear();
+      parts.clear();
+      groupVerts = 0;
     }
+
+    for (var b = from; b < to; b++) {
+      final batch = batches[b];
+      for (var k = 0; k < batch.count; k++) {
+        final rank = batch.startRank + k;
+        if (rank >= drawOrder.length) break;
+        final part = drawOrder[rank];
+        final plan = host.effectPlanFor(part);
+        final commands = plan?.commands;
+        if (plan == null || commands == null) continue; // invisible / dead slot
+
+        for (var i = 0; i < commands.length; i++) {
+          final c = commands[i];
+          // The runtime still emits a command for an emitter whose cell failed
+          // to resolve, with quad_count 0 — skip it before touching the
+          // texture.
+          if (c.quadCount == 0) {
+            flushGroup();
+            continue;
+          }
+          final verts = c.quadCount * 4;
+          if (group.isEmpty ||
+              c.cellmapHash != cellmap ||
+              c.blend != blend ||
+              groupVerts + verts > 0xFFFF) {
+            flushGroup();
+            final cellImage = host.textures.imageFor(c.cellmapHash);
+            if (cellImage == null) continue;
+            image = cellImage;
+            cellmap = c.cellmapHash;
+            blend = c.blend;
+          }
+          group.add(c);
+          plans.add(plan);
+          parts.add(part);
+          groupVerts += verts;
+        }
+      }
+    }
+    flushGroup();
   }
 
   /// Draws one peeled Normal part via `shaders/partcolor.frag` — the path for a

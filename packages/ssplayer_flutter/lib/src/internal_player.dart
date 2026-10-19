@@ -1426,7 +1426,13 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
           backend.emitTextured(canvas, batches, i, end, frame, this, mask);
           i = end - 1;
         case fbs.DrawBatchKind.Effect:
-          backend.emitEffect(canvas, batch, frame, this);
+          var end = i + 1;
+          while (end < batches.length &&
+              batches[end].kind == fbs.DrawBatchKind.Effect) {
+            end++;
+          }
+          backend.emitEffect(canvas, batches, i, end, frame, this);
+          i = end - 1;
         case fbs.DrawBatchKind.Instance:
           _emitInstanceBatch(canvas, backend, batch, frame, mask);
         case fbs.DrawBatchKind.Shape:

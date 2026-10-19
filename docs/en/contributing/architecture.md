@@ -48,8 +48,9 @@ The Brain emits a `DrawBatch` plan; `paint` dispatches on `DrawBatch.kind`
 (`Normal / Mesh / Effect / Instance / Shape`) and delegates each batch to the active **render
 backend**. The Brain cuts a batch wherever the part kind changes, so consecutive Normal and Mesh
 batches on one texture and blend go to the backend together, and their plain parts draw as one:
-Ringo's eight batches a frame are a single draw. The `Canvas` backend bakes each batch, or each such
-run of them, into one indexed `ui.Vertices` (`Canvas.drawVertices`);
+Ringo's eight batches a frame are a single draw. Consecutive Effect batches go together too, and
+particles of one cellmap and blend draw as one across the effect parts. The `Canvas` backend bakes
+each batch, or each such run of them, into one indexed `ui.Vertices` (`Canvas.drawVertices`);
 the `flutter_gpu` (Impeller) backend bakes an interleaved VBO and draws through its own pipeline into
 an offscreen target. Parts that need a pass of their own — PartColor, integration shaders, and the
 multi-pass Sub / Invert blends — are peeled out of their batch and drawn individually on `Canvas`,

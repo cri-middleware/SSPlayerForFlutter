@@ -1603,29 +1603,102 @@ class GeometryBuilder {
     required double texWidth,
     required double texHeight,
   }) {
-    if (cmds.isEmpty) return null;
+    final totalQuads = _effectQuads(cmds);
+    if (totalQuads == 0 || totalQuads * 4 > 0xFFFF) return null;
+
+    final positions = _pos(totalQuads * 4 * 2);
+    final texCoords = _uvs(totalQuads * 4 * 2);
+    final colors = _cols(totalQuads * 4);
+    final indices = _idx(totalQuads * 6);
+
+    _vAt = 0;
+    _iAt = 0;
+    _writeEffectCommands(plan, cmds, 0, cmds.length, part, frame, texWidth,
+        texHeight, positions, texCoords, colors, indices);
+    return _bakedGeometry(positions, texCoords, colors, indices);
+  }
+
+  /// Bakes a group that runs on across effect parts — what a span of Effect
+  /// batches draws as one `drawVertices`: [buildEffectGroup] for commands of
+  /// several plans. [plans] and [parts] run parallel to [cmds] and say whose
+  /// plan and part each command is; each command is written exactly as
+  /// [buildEffectGroup] writes it, under its own part's world matrix and alpha.
+  /// Returns null when nothing was emitted.
+  MeshGeometry? buildEffectRun(
+    List<efbs.EffectDrawPlan> plans,
+    List<efbs.EffectDrawCommand> cmds,
+    List<int> parts,
+    DrawFrame frame, {
+    required double texWidth,
+    required double texHeight,
+  }) {
+    final totalQuads = _effectQuads(cmds);
+    if (totalQuads == 0 || totalQuads * 4 > 0xFFFF) return null;
+
+    final positions = _pos(totalQuads * 4 * 2);
+    final texCoords = _uvs(totalQuads * 4 * 2);
+    final colors = _cols(totalQuads * 4);
+    final indices = _idx(totalQuads * 6);
+
+    _vAt = 0;
+    _iAt = 0;
+    var from = 0;
+    while (from < cmds.length) {
+      final plan = plans[from];
+      final part = parts[from];
+      var to = from + 1;
+      while (to < cmds.length &&
+          identical(plans[to], plan) &&
+          parts[to] == part) {
+        to++;
+      }
+      _writeEffectCommands(plan, cmds, from, to, part, frame, texWidth,
+          texHeight, positions, texCoords, colors, indices);
+      from = to;
+    }
+    return _bakedGeometry(positions, texCoords, colors, indices);
+  }
+
+  /// The quads [cmds] hold: an upper bound on what a group bakes, which skips
+  /// a corrupt command.
+  static int _effectQuads(List<efbs.EffectDrawCommand> cmds) {
+    var quads = 0;
+    for (var i = 0; i < cmds.length; i++) {
+      quads += cmds[i].quadCount;
+    }
+    return quads;
+  }
+
+  /// Writes `cmds[from, to)`, all of [plan] on effect part [part], at the
+  /// bake's cursors (see [buildEffectGroup]). Nothing is written when the
+  /// plan's buffers are missing or the part is outside the SoA.
+  void _writeEffectCommands(
+      efbs.EffectDrawPlan plan,
+      List<efbs.EffectDrawCommand> cmds,
+      int from,
+      int to,
+      int part,
+      DrawFrame frame,
+      double texWidth,
+      double texHeight,
+      Float32List positions,
+      Float32List texCoords,
+      Int32List colors,
+      Uint16List indices) {
     final verts = plan.verts;
     final uvs = plan.uvs;
     final planColors = plan.colors;
     final planIndices = plan.indices;
-    if (verts == null || uvs == null || planColors == null ||
+    if (verts == null ||
+        uvs == null ||
+        planColors == null ||
         planIndices == null) {
-      return null;
+      return;
     }
     final stride = plan.vertStride == 3 ? 3 : 2;
 
-    // Upper bound over the group; the views trim to what is actually written if
-    // a command is skipped as corrupt.
-    var totalQuads = 0;
-    for (final cmd in cmds) {
-      totalQuads += cmd.quadCount;
-    }
-    if (totalQuads == 0) return null;
-    final totalVerts = totalQuads * 4;
-    if (totalVerts > 0xFFFF) return null; // ui.Vertices indices are 16-bit
-
     final m = part * DrawFrame.worldStride;
-    if (m + 16 > frame.world.length) return null;
+    if (m + 16 > frame.world.length) return;
     final world = frame.world;
     final m0 = world[m], m1 = world[m + 1];
     final m4 = world[m + 4], m5 = world[m + 5];
@@ -1635,14 +1708,10 @@ class GeometryBuilder {
     // part's hierarchical alpha in on top (the slot never sees it).
     final partAlpha = frame.alphaOf(part);
 
-    final positions = _pos(totalVerts * 2);
-    final texCoords = _uvs(totalVerts * 2);
-    final colors = _cols(totalVerts);
-    final indices = _idx(totalQuads * 6);
-
-    var vBase = 0; // running vertex base — the per-command index rebase
-    var fPos = 0, cPos = 0, iPos = 0;
-    for (final cmd in cmds) {
+    var vBase = _vAt; // running vertex base — the per-command index rebase
+    var fPos = vBase * 2, cPos = vBase, iPos = _iAt;
+    for (var at = from; at < to; at++) {
+      final cmd = cmds[at];
       final quads = cmd.quadCount;
       if (quads == 0) continue;
       final vertexCount = quads * 4;
@@ -1691,16 +1760,8 @@ class GeometryBuilder {
       }
       vBase += vertexCount;
     }
-
-    if (fPos == 0 || iPos == 0) return null;
-    // Views trim the shared scratch back to what the group actually wrote (see
-    // the class doc's reuse contract).
-    return MeshGeometry(
-      positions: Float32List.view(positions.buffer, positions.offsetInBytes, fPos),
-      texCoords: Float32List.view(texCoords.buffer, texCoords.offsetInBytes, fPos),
-      colors: Int32List.view(colors.buffer, colors.offsetInBytes, cPos),
-      indices: Uint16List.view(indices.buffer, indices.offsetInBytes, iPos),
-    );
+    _vAt = vBase;
+    _iAt = iPos;
   }
 
   /// Interleaved flutter_gpu bake of an effect command group — the GPU
@@ -1719,7 +1780,26 @@ class GeometryBuilder {
   }) {
     final g = buildEffectGroup(plan, cmds, part, frame,
         texWidth: texWidth, texHeight: texHeight);
-    if (g == null) return null;
+    return g == null ? null : _effectInterleaved(g, texWidth, texHeight);
+  }
+
+  /// The flutter_gpu sibling of [buildEffectRun], repacked as
+  /// [buildEffectGroupInterleaved] repacks [buildEffectGroup].
+  InterleavedGeometry? buildEffectRunInterleaved(
+    List<efbs.EffectDrawPlan> plans,
+    List<efbs.EffectDrawCommand> cmds,
+    List<int> parts,
+    DrawFrame frame, {
+    required double texWidth,
+    required double texHeight,
+  }) {
+    final g = buildEffectRun(plans, cmds, parts, frame,
+        texWidth: texWidth, texHeight: texHeight);
+    return g == null ? null : _effectInterleaved(g, texWidth, texHeight);
+  }
+
+  InterleavedGeometry? _effectInterleaved(
+      MeshGeometry g, double texWidth, double texHeight) {
     final tc = g.texCoords;
     if (tc == null) return null; // an effect group always has UVs
     final cols = g.colors;

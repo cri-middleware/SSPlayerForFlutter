@@ -500,6 +500,9 @@ class FlutterGpuBackend implements RenderBackend {
   final List<Float32List?> _maskSetsScratch = <Float32List?>[];
   final List<efbs.EffectDrawCommand> _effectGroupScratch =
       <efbs.EffectDrawCommand>[];
+  final List<efbs.EffectDrawPlan> _effectPlansScratch =
+      <efbs.EffectDrawPlan>[];
+  final List<int> _effectPartsScratch = <int>[];
   final Float32List _orthoMvpScratch = Float32List(16);
   final Float32List _shaderInfoScratch = Float32List(12);
   final Float32List _shapeMaskUboScratch =
@@ -654,6 +657,7 @@ class FlutterGpuBackend implements RenderBackend {
     _pcMasksScratch.clear();
     _maskSetsScratch.clear();
     _effectGroupScratch.clear();
+    _effectPlansScratch.clear();
   }
 
   @override
@@ -1320,76 +1324,81 @@ class FlutterGpuBackend implements RenderBackend {
   }
 
   @override
-  void emitEffect(ui.Canvas canvas, fbs.DrawBatch batch, DrawFrame frame,
-      RenderHost host) {
+  void emitEffect(ui.Canvas canvas, List<fbs.DrawBatch> batches, int from,
+      int to, DrawFrame frame, RenderHost host) {
     if (!_active) return;
     if (!host.hasEffects) return;
     final drawOrder = frame.drawOrder;
 
-    for (var k = 0; k < batch.count; k++) {
-      final rank = batch.startRank + k;
-      if (rank >= drawOrder.length) break;
-      final part = drawOrder[rank];
-      final plan = host.effectPlanFor(part);
-      final commands = plan?.commands;
-      if (plan == null || commands == null) continue;
+    // Same grouping as the Canvas path: consecutive same-(cellmap,blend)
+    // commands, across the span's parts, under the 16-bit vertex cap, one draw
+    // per group.
+    final group = _effectGroupScratch..clear();
+    final plans = _effectPlansScratch..clear();
+    final parts = _effectPartsScratch..clear();
+    var groupVerts = 0;
+    var cellmap = 0;
+    var blend = 0;
+    ui.Image? image;
+    gpu.Texture? tex;
+    void flushGroup() {
+      if (group.isEmpty) return;
+      final cellImage = image!;
+      final geo = host.geometry.buildEffectRunInterleaved(
+          plans, group, parts, frame,
+          texWidth: cellImage.width.toDouble(),
+          texHeight: cellImage.height.toDouble());
+      // Effect blend byte: 1 = Add → additive, else Mix → source-over. The
+      // reference writes the additive case as `(ONE, ONE, ONE, ONE)` — alpha
+      // included — so it takes [_additive], not the batch-level [_add].
+      if (geo != null) {
+        _drawInterleaved(geo, tex!, blend == 1 ? _additive : _srcOver);
+      }
+      group.clear();
+      plans.clear();
+      parts.clear();
+      groupVerts = 0;
+    }
 
-      // Same grouping as the Canvas path: merge consecutive same-(cellmap,blend)
-      // commands under the 16-bit vertex cap, one draw per group.
-      var i = 0;
-      while (i < commands.length) {
-        final first = commands[i];
-        if (first.quadCount == 0) {
-          i++;
-          continue;
-        }
-        final image = host.textures.imageFor(first.cellmapHash);
-        if (image == null) {
-          i++;
-          continue;
-        }
-        final tex = _gpuTextureFor(image);
-        if (tex == null) {
-          i++;
-          continue; // cellmap still uploading
-        }
-        final cellmap = first.cellmapHash;
-        final blend = first.blend;
+    for (var b = from; b < to; b++) {
+      final batch = batches[b];
+      for (var k = 0; k < batch.count; k++) {
+        final rank = batch.startRank + k;
+        if (rank >= drawOrder.length) break;
+        final part = drawOrder[rank];
+        final plan = host.effectPlanFor(part);
+        final commands = plan?.commands;
+        if (plan == null || commands == null) continue;
 
-        final group = _effectGroupScratch
-          ..clear()
-          ..add(first);
-        var groupVerts = first.quadCount * 4;
-        var j = i + 1;
-        while (j < commands.length) {
-          final c = commands[j];
-          if (c.quadCount == 0 ||
+        for (var i = 0; i < commands.length; i++) {
+          final c = commands[i];
+          if (c.quadCount == 0) {
+            flushGroup();
+            continue;
+          }
+          final verts = c.quadCount * 4;
+          if (group.isEmpty ||
               c.cellmapHash != cellmap ||
               c.blend != blend ||
-              groupVerts + c.quadCount * 4 > 0xFFFF) {
-            break;
+              groupVerts + verts > 0xFFFF) {
+            flushGroup();
+            final cellImage = host.textures.imageFor(c.cellmapHash);
+            if (cellImage == null) continue;
+            final cellTex = _gpuTextureFor(cellImage);
+            if (cellTex == null) continue; // cellmap still uploading
+            image = cellImage;
+            tex = cellTex;
+            cellmap = c.cellmapHash;
+            blend = c.blend;
           }
           group.add(c);
-          groupVerts += c.quadCount * 4;
-          j++;
+          plans.add(plan);
+          parts.add(part);
+          groupVerts += verts;
         }
-        i = j;
-
-        final geo = host.geometry.buildEffectGroupInterleaved(
-          plan,
-          group,
-          part,
-          frame,
-          texWidth: image.width.toDouble(),
-          texHeight: image.height.toDouble(),
-        );
-        if (geo == null) continue;
-        // Effect blend byte: 1 = Add → additive, else Mix → source-over. The
-        // reference writes the additive case as `(ONE, ONE, ONE, ONE)` — alpha
-        // included — so it takes [_additive], not the batch-level [_add].
-        _drawInterleaved(geo, tex, blend == 1 ? _additive : _srcOver);
       }
     }
+    flushGroup();
   }
 
   @override

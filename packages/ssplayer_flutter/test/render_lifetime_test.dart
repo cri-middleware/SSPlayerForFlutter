@@ -120,8 +120,8 @@ class _SpyBackend implements RenderBackend {
       RenderHost host, PlayerMask masking) {}
 
   @override
-  void emitEffect(
-      ui.Canvas canvas, fbs.DrawBatch batch, DrawFrame frame, RenderHost host) {}
+  void emitEffect(ui.Canvas canvas, List<fbs.DrawBatch> batches, int from,
+      int to, DrawFrame frame, RenderHost host) {}
 
   @override
   MaskContext? renderCoverage(DrawFrame frame, RenderHost host, MaskPlan plan,

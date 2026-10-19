@@ -1,8 +1,10 @@
-// A span of Normal and Mesh batches on one texture and blend draws its plain
-// parts as one run. The bakes are pinned against the per-kind bakes laid end
-// to end — so merging batches cannot move a vertex or change a colour — and
-// the player against Ringo, whose batches arrive as one span. That last case
-// needs the Brain and skips when the example assets are absent.
+// The player hands consecutive batches to the backend as one span: Normal
+// and Mesh batches on one texture and blend draw their plain parts as one run,
+// and Effect batches group their particle commands across parts. The bakes are
+// pinned against the per-kind and per-part bakes laid end to end — so merging
+// batches cannot move a vertex or change a colour — and the player against
+// Ringo and Effect.ssab. Those last cases need the Brain and skip when the
+// example assets are absent.
 import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
@@ -15,6 +17,7 @@ import 'package:ssplayer_flutter/src/render/geometry_builder.dart'
     show InterleavedGeometry;
 import 'package:ssplayer_flutter/src/render/mask_context.dart';
 
+import 'support/effect_draw_plan_builders.g.dart' as efbs;
 import 'support/framedata_builders.g.dart' as fbs;
 
 void main() {
@@ -152,6 +155,68 @@ void main() {
     });
   });
 
+  group('GeometryBuilder.buildEffectRun', () {
+    // Plan A runs on part 0, plan B on part 1: each part has its own world
+    // matrix and alpha (see [frame]).
+    test('is the per-part groups laid end to end, indices rebased', () {
+      final f = frame();
+      final a = _plan(<int>[1, 2], 1);
+      final b = _plan(<int>[2], 2);
+      final g = GeometryBuilder();
+      final expected = _Raw.concat(<_Raw>[
+        _Raw.of(g.buildEffectGroup(a, a.commands!, 0, f,
+            texWidth: 64, texHeight: 32)!),
+        _Raw.of(g.buildEffectGroup(b, b.commands!, 1, f,
+            texWidth: 64, texHeight: 32)!),
+      ]);
+      final run = g.buildEffectRun(<efbs.EffectDrawPlan>[
+        a,
+        a,
+        b
+      ], <efbs.EffectDrawCommand>[
+        ...a.commands!,
+        ...b.commands!
+      ], <int>[
+        0,
+        0,
+        1
+      ], f, texWidth: 64, texHeight: 32)!;
+      expect(run.positions, expected.positions);
+      expect(run.texCoords, expected.texCoords);
+      expect(run.colors, expected.colors);
+      expect(run.indices, expected.indices);
+    });
+
+    test('its flutter_gpu sibling likewise', () {
+      final f = frame();
+      final a = _plan(<int>[1, 2], 1);
+      final b = _plan(<int>[2], 2);
+      final g = GeometryBuilder();
+      final expected = _Interleaved.concat(<_Interleaved>[
+        _Interleaved.of(g.buildEffectGroupInterleaved(a, a.commands!, 0, f,
+            texWidth: 64, texHeight: 32)!),
+        _Interleaved.of(g.buildEffectGroupInterleaved(b, b.commands!, 1, f,
+            texWidth: 64, texHeight: 32)!),
+      ]);
+      final run = g.buildEffectRunInterleaved(<efbs.EffectDrawPlan>[
+        a,
+        a,
+        b
+      ], <efbs.EffectDrawCommand>[
+        ...a.commands!,
+        ...b.commands!
+      ], <int>[
+        0,
+        0,
+        1
+      ], f, texWidth: 64, texHeight: 32)!;
+      expect(run.vertices, expected.vertices);
+      expect(run.indices, expected.indices);
+      expect(run.vertexCount, expected.vertexCount);
+      expect(run.indexCount, expected.indexCount);
+    });
+  });
+
   test('texturedVertexCount is a fan per Normal part, a Mesh part\'s own', () {
     final f = frame();
     expect(GeometryBuilder.texturedVertexCount(0, false, f), 5);
@@ -190,6 +255,81 @@ void main() {
       expect(spy.batchCount, greaterThan(1), reason: 'frame $i');
     }
   });
+
+  test('consecutive Effect batches reach the backend as one span', () {
+    final ssabPath = _firstExisting([
+      'examples/overall/assets/spritestudio/overall/Effect.ssab',
+      '../../examples/overall/assets/spritestudio/overall/Effect.ssab',
+    ]);
+    if (ssabPath == null) {
+      markTestSkipped('Effect.ssab missing — run deploy-examples.sh');
+      return;
+    }
+    final bytes = Uint8List.fromList(File(ssabPath).readAsBytesSync());
+    final spy = _SpanSpy();
+    final player =
+        SpriteStudioInternalPlayer.load(bytes, renderBackendOverride: spy);
+    addTearDown(player.dispose);
+    expect(
+        player.setupAnimation(SsAnimeInfo(bytes).animationNames.first), isTrue);
+    player.play();
+    var longest = 0;
+    for (var i = 0; i < 30; i++) {
+      player.update(const Duration(milliseconds: 33));
+      spy.effectSpans.clear();
+      final recorder = ui.PictureRecorder();
+      player.paint(ui.Canvas(recorder),
+          dst: const ui.Rect.fromLTWH(0, 0, 256, 256));
+      recorder.endRecording().dispose();
+      for (final (from, to) in spy.effectSpans) {
+        final kinds = spy.kinds;
+        expect(kinds.sublist(from, to), everyElement(fbs.DrawBatchKind.Effect));
+        // Maximal: an Effect batch on either side would have joined it.
+        if (from > 0) {
+          expect(kinds[from - 1], isNot(fbs.DrawBatchKind.Effect));
+        }
+        if (to < kinds.length) {
+          expect(kinds[to], isNot(fbs.DrawBatchKind.Effect));
+        }
+        if (to - from > longest) longest = to - from;
+      }
+    }
+    expect(longest, greaterThan(1),
+        reason: 'Effect.ssab must put effect parts next to each other');
+  });
+}
+
+/// An effect plan of one command per entry of [quads], each that many quads
+/// on cellmap 7 under Add, with vertices, UVs and colours varied by [seed].
+efbs.EffectDrawPlan _plan(List<int> quads, double seed) {
+  final verts = <double>[];
+  final uvs = <double>[];
+  final colors = <double>[];
+  final indices = <int>[];
+  final commands = <efbs.EffectDrawCommandObjectBuilder>[];
+  var offset = 0;
+  for (final n in quads) {
+    commands.add(efbs.EffectDrawCommandObjectBuilder(
+        cellmapHash: 7, quadCount: n, particleOffset: offset, blend: 1));
+    for (var q = 0; q < n; q++) {
+      for (var c = 0; c < 4; c++) {
+        verts.addAll(<double>[seed * 10 + offset + q * 3 + c, seed * 5 - c]);
+        uvs.addAll(<double>[c.isEven ? 0.0 : 0.5, c < 2 ? 0.25 : 0.75]);
+        colors.addAll(<double>[1.0, 0.25 * seed, 0.5, 0.8]);
+      }
+      final v = q * 4; // indices are 0-based within their command
+      indices.addAll(<int>[v, v + 1, v + 2, v + 2, v + 1, v + 3]);
+    }
+    offset += n;
+  }
+  return efbs.EffectDrawPlan(efbs.EffectDrawPlanObjectBuilder(
+    commands: commands,
+    vertStride: 2,
+    verts: verts,
+    uvs: uvs,
+    colors: colors,
+    indices: indices,
+  ).toBytes());
 }
 
 fbs.PartStateObjectBuilder _part(int index, double alpha) =>
@@ -294,9 +434,11 @@ class _Interleaved {
   int indexCount;
 }
 
-/// A no-op [RenderBackend] that records each textured span it is handed.
+/// A no-op [RenderBackend] that records each span it is handed.
 class _SpanSpy implements RenderBackend {
   final List<(int, int)> spans = <(int, int)>[];
+  final List<(int, int)> effectSpans = <(int, int)>[];
+  List<fbs.DrawBatchKind> kinds = const <fbs.DrawBatchKind>[];
   int batchCount = 0;
 
   @override
@@ -304,6 +446,13 @@ class _SpanSpy implements RenderBackend {
       int to, DrawFrame frame, RenderHost host, PlayerMask masking) {
     spans.add((from, to));
     batchCount = batches.length;
+  }
+
+  @override
+  void emitEffect(ui.Canvas canvas, List<fbs.DrawBatch> batches, int from,
+      int to, DrawFrame frame, RenderHost host) {
+    effectSpans.add((from, to));
+    kinds = <fbs.DrawBatchKind>[for (final b in batches) b.kind];
   }
 
   @override
@@ -333,10 +482,6 @@ class _SpanSpy implements RenderBackend {
   @override
   void emitShape(ui.Canvas canvas, fbs.DrawBatch batch, DrawFrame frame,
       RenderHost host, PlayerMask masking) {}
-
-  @override
-  void emitEffect(ui.Canvas canvas, fbs.DrawBatch batch, DrawFrame frame,
-      RenderHost host) {}
 
   @override
   MaskContext? renderCoverage(DrawFrame frame, RenderHost host, MaskPlan plan,

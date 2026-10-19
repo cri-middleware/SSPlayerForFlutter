@@ -86,9 +86,11 @@ abstract class RenderBackend {
   void emitShape(ui.Canvas canvas, fbs.DrawBatch batch, DrawFrame frame,
       RenderHost host, PlayerMask masking);
 
-  /// Emits one Effect batch: the particle plans, grouped per cellmap+blend.
-  void emitEffect(
-      ui.Canvas canvas, fbs.DrawBatch batch, DrawFrame frame, RenderHost host);
+  /// Emits the Effect batches `batches[from, to)` — consecutive effect parts
+  /// — in draw order: their particle plans' commands, grouped per
+  /// cellmap+blend, and a group runs on from one part's plan into the next.
+  void emitEffect(ui.Canvas canvas, List<fbs.DrawBatch> batches, int from,
+      int to, DrawFrame frame, RenderHost host);
 
   /// Rasterises the mask writers' coverage for [plan] and returns the frame's
   /// [MaskContext], or null when nothing can be drawn yet (program still

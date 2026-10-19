@@ -40,7 +40,7 @@ flowchart TD
 ## 描画モデル
 
 Brain が `DrawBatch` プランを出し、`paint` は `DrawBatch.kind`
-（`Normal / Mesh / Effect / Instance / Shape`）で分岐して、各バッチをアクティブな**レンダーバックエンド**に委譲します。Brain はパーツの種類が変わるたびにバッチを切るため、テクスチャと合成が同じ Normal / Mesh のバッチが続く区間はまとめてバックエンドに渡り、素のパーツは 1 回で描画されます（Ringo の 1 フレーム 8 バッチは 1 回の描画）。`Canvas` バックエンドは各バッチ（またはそうしたバッチの連なり）を 1 つの indexed `ui.Vertices`（`Canvas.drawVertices`）に
+（`Normal / Mesh / Effect / Instance / Shape`）で分岐して、各バッチをアクティブな**レンダーバックエンド**に委譲します。Brain はパーツの種類が変わるたびにバッチを切るため、テクスチャと合成が同じ Normal / Mesh のバッチが続く区間はまとめてバックエンドに渡り、素のパーツは 1 回で描画されます（Ringo の 1 フレーム 8 バッチは 1 回の描画）。Effect のバッチが続く区間も同様にまとめて渡り、セルマップと合成が同じパーティクルはエフェクトパーツをまたいで 1 回で描画されます。`Canvas` バックエンドは各バッチ（またはそうしたバッチの連なり）を 1 つの indexed `ui.Vertices`（`Canvas.drawVertices`）に
 bake し、`flutter_gpu`（Impeller）バックエンドはインターリーブ VBO を bake して自前のパイプラインでオフスクリーンに描画します。独立したパスを要するパーツ —— PartColor・統合シェーダ・マルチパスの
 Sub / Invert 合成 —— は、`Canvas` ではバッチから切り出して個別に描画し、`flutter_gpu` バックエンドではまとめて描画します。バックエンドは `SpriteStudioBackend` に応じて選択されます（`auto` は capability
 プローブが通れば flutter_gpu、通らなければ Canvas）。毎フレーム作り直すため、性能のレバーは**毎フレームのアロケーション** と **ドローコール数** です。
