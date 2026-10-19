@@ -6,6 +6,7 @@ import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ssplayer_flutter/ssplayer_flutter.dart';
+import 'package:ssplayer_flutter/src/render/effect.dart' show EffectPlanArrays;
 // The `_builders.g.dart` shims re-export the reader libraries and add back the
 // flatc write-side classes, which live outside lib/ (see scripts/strip_fbs_builders.dart).
 import 'support/effect_draw_plan_builders.g.dart' as efbs;
@@ -283,6 +284,43 @@ void main() {
     }
 
     expect(sawPlan, isTrue,
+        reason: 'Effect.ssab should emit particles within 120 frames');
+  });
+
+  test('a stepped plan carries typed views of its vectors, equal to what the '
+      'generated accessors read', () async {
+    final ssabPath = _firstExisting([
+      'examples/overall/assets/spritestudio/overall/Effect.ssab',
+      '../../examples/overall/assets/spritestudio/overall/Effect.ssab',
+    ]);
+    if (ssabPath == null) {
+      markTestSkipped('Effect.ssab missing — run deploy-examples.sh');
+      return;
+    }
+    final bytes = Uint8List.fromList(File(ssabPath).readAsBytesSync());
+    final parts = EffectPart.readAll(bytes);
+    final player = SpriteStudioInternalPlayer.load(bytes);
+    addTearDown(player.dispose);
+    expect(
+        player.setupAnimation(SsAnimeInfo(bytes).animationNames.first), isTrue);
+    player.play();
+
+    var filled = 0;
+    for (var i = 0; i < 120; i++) {
+      player.update(const Duration(milliseconds: 33));
+      for (final part in parts) {
+        final plan = player.effectPlanFor(part.partIndex);
+        if (plan == null) continue;
+        final typed = EffectPlanArrays.of(plan);
+        expect(typed, isNotNull, reason: 'frame $i, part ${part.partIndex}');
+        expect(typed!.verts, plan.verts);
+        expect(typed.uvs, plan.uvs);
+        expect(typed.colors, plan.colors);
+        expect(typed.indices, plan.indices);
+        if (typed.indices.isNotEmpty) filled++;
+      }
+    }
+    expect(filled, greaterThan(0),
         reason: 'Effect.ssab should emit particles within 120 frames');
   });
 
