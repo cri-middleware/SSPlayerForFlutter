@@ -611,6 +611,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
     final bytes = ssRuntime.getFrameData(_context, frameNo);
     _frameDataNo = frameNo;
     _debugEvaluations++;
+    _frameBytes = bytes;
     // Zero-copy typed view over the Brain buffer; FrameData reads it in place.
     return _frameData = bytes == null ? null : fbs.FrameData(bytes);
   }
@@ -631,6 +632,9 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   // What [getFrameData] last evaluated, and at which frame. Null when the clock
   // has moved since ([_stepSlots]) and nothing has built the new frame yet.
   fbs.FrameData? _frameData;
+  // The bytes [_frameData] reads, which [GeometryBuilder.buildFrame] reads
+  // the part states from directly.
+  Uint8List? _frameBytes;
 
   int _debugEvaluations = 0;
 
@@ -1372,6 +1376,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
     // fetch); the views are valid only until the next update.
     final frame = _geometry.buildFrame(
       frameData: frameData,
+      frameBytes: _frameBytes,
       world: worldMatrices(), // parts × 16
       local: localVertices(), // parts × 10
       uv: localUvs(), // parts × 10 (texture-pixel space)
@@ -1753,6 +1758,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
     }
     final frame = _geometry.buildFrame(
       frameData: fd,
+      frameBytes: _frameBytes,
       world: worldMatrices(),
       local: localVertices(),
       uv: localUvs(),

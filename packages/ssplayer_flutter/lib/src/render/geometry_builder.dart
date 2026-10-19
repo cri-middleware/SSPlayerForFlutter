@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:flat_buffers/flat_buffers.dart' as fb;
 import 'package:ssruntime_dart/effect_draw_plan.dart' as efbs;
 import 'package:ssruntime_dart/framedata.dart' as fbs;
 
@@ -139,9 +140,12 @@ class MeshBuffers {
 /// read with no per-key hashing, and a single contiguous allocation per frame.
 /// Look parts up through [partOf], which bounds-checks (a `drawOrder` entry can
 /// name a part absent from this frame's `parts` vector); a slot is null for any
-/// index not present. This is the seam where the raw-`ByteData` fast path —
-/// reading `PartState` / `parts_color` by byte offset instead of via the
-/// FlatBuffers accessors — will slot in when it matters.
+/// index not present.
+///
+/// Built from the frame's bytes ([build]'s `frameBytes`), it reads the part
+/// states in place instead: a dense table of where each part's `PartState`
+/// sits, [alphaOf] straight from it, [drawOrder] a view over the vector, and a
+/// [fbs.PartState] made only when [partOf] or [partByIndex] asks for one.
 class DrawFrame {
   // Upper bound on the dense [partByIndex] array (see [build]). ~1M slots is far
   // above any real pack's part count, so it never truncates valid content; it
@@ -151,7 +155,7 @@ class DrawFrame {
   DrawFrame({
     required this.frameData,
     required this.drawOrder,
-    required this.partByIndex,
+    required List<fbs.PartState?> partByIndex,
     required this.world,
     required this.local,
     required this.uv,
@@ -159,7 +163,29 @@ class DrawFrame {
     this.shape,
     this.alphaScale = 1.0,
     int? partCount,
-  }) : partCount = partCount ?? partByIndex.length;
+  })  : _partByIndex = partByIndex,
+        partCount = partCount ?? partByIndex.length,
+        _bytes = null,
+        _data = null,
+        _slots = null;
+
+  DrawFrame._fromBytes({
+    required this.frameData,
+    required this.drawOrder,
+    required Uint8List bytes,
+    required ByteData data,
+    required Int32List slots,
+    required this.partCount,
+    required this.world,
+    required this.local,
+    required this.uv,
+    this.mesh,
+    this.shape,
+    this.alphaScale = 1.0,
+  })  : _partByIndex = null,
+        _bytes = bytes,
+        _data = data,
+        _slots = slots;
 
   /// Bundles the frame's FlatBuffers root with its SoA views. Returns null when
   /// the frame carries no drawable structure (`draw_order` / `parts` absent).
@@ -181,7 +207,55 @@ class DrawFrame {
     ShapeBuffers? shape,
     double alphaScale = 1.0,
     List<fbs.PartState?>? partByIndexScratch,
+    Uint8List? frameBytes,
+    Int32List? slotScratch,
   }) {
+    if (frameBytes != null && _bytesMatchAccessors != false) {
+      final data = ByteData.sublistView(frameBytes);
+      final partsAt = _vector(data, _partsSlot, _partStateSize);
+      final partsLength = _vectorLength;
+      final orderAt = _vector(data, _drawOrderSlot, 2);
+      final orderLength = _vectorLength;
+      if (partsAt == _absent || orderAt == _absent) return null;
+      if (partsAt >= 0 &&
+          orderAt >= 0 &&
+          (frameBytes.offsetInBytes + orderAt).isEven) {
+        var maxIndex = -1;
+        for (var i = 0; i < partsLength; i++) {
+          final index = data.getInt16(
+              partsAt + i * _partStateSize + _partIndexAt, Endian.little);
+          if (index > maxIndex) maxIndex = index;
+        }
+        final size = (maxIndex + 1).clamp(0, _maxDenseParts);
+        final slots = slotScratch != null && slotScratch.length >= size
+            ? slotScratch
+            : Int32List(size);
+        slots.fillRange(0, size, -1);
+        for (var i = 0; i < partsLength; i++) {
+          final at = partsAt + i * _partStateSize;
+          final index = data.getInt16(at + _partIndexAt, Endian.little);
+          if (index >= 0 && index < size) slots[index] = at;
+        }
+        final frame = DrawFrame._fromBytes(
+          frameData: frameData,
+          drawOrder: frameBytes.buffer
+              .asUint16List(frameBytes.offsetInBytes + orderAt, orderLength),
+          bytes: frameBytes,
+          data: data,
+          slots: slots,
+          partCount: size,
+          world: world,
+          local: local,
+          uv: uv,
+          mesh: mesh,
+          shape: shape,
+          alphaScale: alphaScale,
+        );
+        if (_bytesMatchAccessors == true || frame._matchesAccessors()) {
+          return frame;
+        }
+      }
+    }
     final drawOrder = frameData.drawOrder;
     final parts = frameData.parts;
     if (drawOrder == null || parts == null) return null;
@@ -229,7 +303,9 @@ class DrawFrame {
   /// [partOf] rather than indexing directly — an index out of range (a part in
   /// `drawOrder` but absent from this frame's `parts`) must resolve to null, not
   /// throw, and a recycled backing array may be longer than [partCount].
-  final List<fbs.PartState?> partByIndex;
+  List<fbs.PartState?> get partByIndex => _partByIndex ??=
+      List<fbs.PartState?>.generate(partCount, partOf, growable: false);
+  List<fbs.PartState?>? _partByIndex;
 
   /// How much of [partByIndex] belongs to this frame. Equal to its length for a
   /// freshly built table; smaller when the array is a recycled scratch whose
@@ -260,10 +336,91 @@ class DrawFrame {
   /// The [fbs.PartState] for [partIndex], or null when that index is not present
   /// in this frame's `parts` vector (bounds-checked — a `drawOrder` entry may
   /// name a part with no state this frame).
-  fbs.PartState? partOf(int partIndex) =>
-      (partIndex >= 0 && partIndex < partCount)
-          ? partByIndex[partIndex]
-          : null;
+  fbs.PartState? partOf(int partIndex) {
+    if (partIndex < 0 || partIndex >= partCount) return null;
+    final slots = _slots;
+    if (slots == null) return _partByIndex![partIndex];
+    final at = slots[partIndex];
+    return at < 0 ? null : fbs.PartState.reader.read(_context, at);
+  }
+
+  // Set only for a frame built from its bytes: the bytes, a view of them, and
+  // where in them each part index's `PartState` starts (-1 for none).
+  final Uint8List? _bytes;
+  final ByteData? _data;
+  final Int32List? _slots;
+  late final fb.BufferContext _context = fb.BufferContext.fromBytes(_bytes!);
+
+  // FrameData's vtable slots and PartState's layout, as in framedata.g.dart.
+  static const int _partsSlot = 4, _drawOrderSlot = 16;
+  static const int _partStateSize = 144, _alphaAt = 48, _partIndexAt = 124;
+  static const int _absent = -1, _unreadable = -2;
+
+  // Null while every frame built from bytes is still compared with the
+  // generated accessors, until one with parts reads the same; false once one
+  // does not, for good.
+  static bool? _bytesMatchAccessors;
+  static int _vectorLength = 0;
+
+  // Where the root table's vector at vtable [slot] starts, its length left in
+  // [_vectorLength]: [_absent] when the field is not there (the accessor reads
+  // null), [_unreadable] when it does not fit the buffer.
+  static int _vector(ByteData data, int slot, int elementSize) {
+    final size = data.lengthInBytes;
+    if (size < 4) return _unreadable;
+    final table = data.getUint32(0, Endian.little);
+    if (table + 4 > size) return _unreadable;
+    final vtable = table - data.getInt32(table, Endian.little);
+    if (vtable < 0 || vtable + 4 > size) return _unreadable;
+    if (slot + 2 > data.getUint16(vtable, Endian.little)) return _absent;
+    final field = data.getUint16(vtable + slot, Endian.little);
+    if (field == 0) return _absent;
+    final at = table + field;
+    if (at + 4 > size) return _unreadable;
+    final vector = at + data.getUint32(at, Endian.little);
+    if (vector + 4 > size) return _unreadable;
+    _vectorLength = data.getUint32(vector, Endian.little);
+    if (vector + 4 + _vectorLength * elementSize > size) return _unreadable;
+    return vector + 4;
+  }
+
+  // Whether this frame, built from its bytes, holds what the generated
+  // accessors read: the draw order, and for every part index its state and
+  // alpha. Settles [_bytesMatchAccessors] once a frame with parts agrees.
+  bool _matchesAccessors() {
+    final parts = frameData.parts;
+    final order = frameData.drawOrder;
+    var same = parts != null &&
+        order != null &&
+        order.length == drawOrder.length;
+    for (var i = 0; same && i < drawOrder.length; i++) {
+      same = order![i] == drawOrder[i];
+    }
+    if (same) {
+      final expected = List<fbs.PartState?>.filled(partCount, null);
+      for (final p in parts!) {
+        if (p.partIndex >= 0 && p.partIndex < partCount) {
+          expected[p.partIndex] = p;
+        }
+      }
+      for (var i = 0; same && i < partCount; i++) {
+        final at = _slots![i];
+        final state = expected[i];
+        same = state == null
+            ? at < 0
+            : at >= 0 &&
+                state.partIndex ==
+                    _data!.getInt16(at + _partIndexAt, Endian.little) &&
+                state.alpha == _data.getFloat32(at + _alphaAt, Endian.little);
+      }
+    }
+    if (!same) {
+      _bytesMatchAccessors = false;
+    } else if (partCount > 0) {
+      _bytesMatchAccessors = true;
+    }
+    return same;
+  }
 
   List<fbs.PartAttributePartColor>? _partsColor;
   bool _partsColorFetched = false;
@@ -302,8 +459,16 @@ class DrawFrame {
   /// never walks it. Note the PartColor path does NOT go through here: there the
   /// hierarchical alpha is pre-folded into the corner alphas and
   /// re-multiplying it would double-apply.
-  double alphaOf(int partIndex) =>
-      (partOf(partIndex)?.alpha ?? 1.0).clamp(0.0, 1.0) * alphaScale;
+  double alphaOf(int partIndex) {
+    final slots = _slots;
+    if (slots == null) {
+      return (partOf(partIndex)?.alpha ?? 1.0).clamp(0.0, 1.0) * alphaScale;
+    }
+    final at = partIndex >= 0 && partIndex < partCount ? slots[partIndex] : -1;
+    final alpha =
+        at < 0 ? 1.0 : _data!.getFloat32(at + _alphaAt, Endian.little);
+    return alpha.clamp(0.0, 1.0) * alphaScale;
+  }
 }
 
 /// A baked, ready-to-draw vertex block — the inspectable form of what
@@ -547,6 +712,7 @@ class GeometryBuilder {
   /// [DrawFrame.build] as its scratch and re-adopted from the frame it returns,
   /// so a resize is picked up automatically.
   List<fbs.PartState?> _partByIndexScratch = const <fbs.PartState?>[];
+  Int32List _slotScratch = Int32List(0);
 
   final Float32List _quadCorners = Float32List(8);
   final Float32List _quadInv = Float32List(4);
@@ -580,6 +746,7 @@ class GeometryBuilder {
   /// lifetime the SoA views it travels with already have.
   DrawFrame? buildFrame({
     required fbs.FrameData frameData,
+    Uint8List? frameBytes,
     required Float32List world,
     required Float32List local,
     required Float32List uv,
@@ -596,9 +763,18 @@ class GeometryBuilder {
       shape: shape,
       alphaScale: alphaScale,
       partByIndexScratch: _partByIndexScratch,
+      frameBytes: frameBytes,
+      slotScratch: _slotScratch,
     );
     // Re-adopt: [DrawFrame.build] reallocates when the scratch is too small.
-    if (frame != null) _partByIndexScratch = frame.partByIndex;
+    if (frame != null) {
+      final slots = frame._slots;
+      if (slots != null) {
+        _slotScratch = slots;
+      } else {
+        _partByIndexScratch = frame.partByIndex;
+      }
+    }
     return frame;
   }
 
