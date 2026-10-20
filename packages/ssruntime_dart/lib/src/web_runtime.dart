@@ -301,6 +301,7 @@ extension type _JsInstance(JSObject _) implements JSObject {
   external bool transitioned();
   external double child_frame_no();
   external bool child_looped();
+  external double get_speed();
   external bool is_independent();
   external void reset();
   external void free();
@@ -988,6 +989,8 @@ class _WebRuntime implements SsRuntime {
       transitioned: s.transitioned(),
       childFrameNo: s.child_frame_no(),
       childLooped: s.child_looped(),
+      // After the step: before it, the slot still holds last tick's speed.
+      speed: s.get_speed(),
     );
   }
 }

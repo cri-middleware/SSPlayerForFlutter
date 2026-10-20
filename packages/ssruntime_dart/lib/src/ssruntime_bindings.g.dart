@@ -109,6 +109,15 @@ external ffi.Pointer<ffi.Void> ss_instance_slot_create();
 @ffi.Native<ffi.Void Function(ffi.Pointer<ffi.Void>)>()
 external void ss_instance_slot_destroy(ffi.Pointer<ffi.Void> slot);
 
+/// The speed the most recent `ss_instance_slot_step` drove the child at, `1.0`
+/// before the first or for a null slot. Usually the key's `speed`, but while
+/// the slot ignores the implicit frame-0 key it keeps the last real key's, so
+/// the event the host resolved says `1.0` when the child is not running at it.
+/// Scale the elapsed time handed to the child's own instance and effect slots
+/// by its absolute value, not by the resolved event's `speed`.
+@ffi.Native<ffi.Float Function(ffi.Pointer<ffi.Void>)>()
+external double ss_instance_slot_get_speed(ffi.Pointer<ffi.Void> slot);
+
 @ffi.Native<ffi.Bool Function(ffi.Pointer<ffi.Void>)>()
 external bool ss_instance_slot_is_independent(ffi.Pointer<ffi.Void> slot);
 
@@ -738,11 +747,11 @@ external int ss_runtime_get_render_mode(ffi.Pointer<ffi.Void> context);
 
 /// Per-vertex normalized bounding-box coordinates paired with
 /// `ss_runtime_get_shape_vertices`. Layout: 12 vertices × `(fx, fy)` = 24
-/// floats per part, indexed by `part_index * 24`. `(0, 0)` corresponds to
-/// the LT corner of the shape's pre-pivot bounding box, `(1, 1)` to the RB
-/// corner, regardless of pivot offset or coordinate system. Players use
-/// this to interpolate the four part-color corners without re-deriving the
-/// box layout.
+/// floats (`SHAPE_VERTICES_STRIDE`) per part, indexed by `part_index * 24`.
+/// `(0, 0)` corresponds to the LT corner of the shape's pre-pivot bounding
+/// box, `(1, 1)` to the RB corner, regardless of pivot offset or coordinate
+/// system. Players use this to interpolate the four part-color corners
+/// without re-deriving the box layout.
 @ffi.Native<
   ffi.Void Function(
     ffi.Pointer<ffi.Void>,
@@ -774,9 +783,9 @@ external void ss_runtime_get_shape_vertex_counts(
 
 /// Per-part shape vertex positions for the current frame, written by
 /// `ss_runtime_get_frame_data`. Layout: 12 vertices × `(x, y)` = 24 floats
-/// per part, indexed by `part_index * 24`. Vertices are in local space,
-/// post-pivot, post-coord-system, so a Player just multiplies them by the
-/// world matrix. Only the first
+/// (`SHAPE_VERTICES_STRIDE`) per part, indexed by `part_index * 24`.
+/// Vertices are in local space, post-pivot, post-coord-system, so a Player
+/// just multiplies them by the world matrix. Only the first
 /// `ss_runtime_get_shape_vertex_counts(...)[part_index]` vertices are
 /// valid; remaining slots are zero-initialized. Non-shape parts carry zero
 /// count and zero-filled vertex slots. When no part of the pack is a shape,

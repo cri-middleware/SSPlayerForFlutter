@@ -738,8 +738,9 @@ class _NativeRuntime implements SsRuntime {
   }) {
     final ev =
         ss_runtime_get_active_event_instance(_ctx(parentContext), slotIndex);
+    final ptr = (slot as _NativeInstanceSlot).ptr;
     final r = ss_instance_slot_step(
-      (slot as _NativeInstanceSlot).ptr,
+      ptr,
       ev,
       _ctx(childContext),
       parentFrame,
@@ -751,6 +752,8 @@ class _NativeRuntime implements SsRuntime {
       transitioned: r.transitioned,
       childFrameNo: r.child_frame_no,
       childLooped: r.child_looped,
+      // After the step: before it, the slot still holds last tick's speed.
+      speed: ss_instance_slot_get_speed(ptr),
     );
   }
 }

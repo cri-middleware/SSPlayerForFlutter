@@ -418,9 +418,17 @@ class SsInstanceStep {
     required this.transitioned,
     required this.childFrameNo,
     required this.childLooped,
+    required this.speed,
   });
   final bool visible;
   final bool transitioned;
   final double childFrameNo;
   final bool childLooped;
+
+  /// The speed the slot ran the child at this tick (`ss_instance_slot_get_speed`,
+  /// read after the step). Scale the delta handed to the child's own slots by
+  /// its absolute value: the event's `speed` reads 1 while the slot ignores the
+  /// implicit key, which would leave the child's independent grandchildren and
+  /// effects running slower than the child.
+  final double speed;
 }
