@@ -281,7 +281,11 @@ class InstanceSlots<T extends InstanceChild> {
       state.childFrame = childFrame;
       // The child's animation clock is the Brain's; its effects and nested
       // instances still need their own tick, at the frame it was just moved to.
-      state.child.instanceStepSlots(childFrame, deltaMs, r.childLooped);
+      // The slot ran the child at its key's speed, so they get the delta at that
+      // speed too, or an independent grandchild or an effect in the child runs
+      // slower than the child itself.
+      state.child.instanceStepSlots(
+          childFrame, deltaMs * r.speed.abs(), r.childLooped);
     }
   }
 
