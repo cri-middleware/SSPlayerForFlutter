@@ -19,7 +19,9 @@ Flame; an app opts in by depending on `ssplayer_flame`.
 
 The [documentation](https://cri-middleware.github.io/SSPlayerForFlutter/) covers both packages. The
 same pages for this version are in this package's `doc/` as Markdown, readable offline: start at
-`doc/index.md`, and the Flame page is `doc/guide/flame.md`.
+`doc/index.md`, and the Flame page is `doc/guide/flame.md`. They are also the Agent Skill
+`skills/ssplayer-flame-docs/`, which `dart run skills@ get` installs into your coding agent's skills
+directory.
 
 ## Install
 

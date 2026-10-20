@@ -91,7 +91,9 @@ what a local run with the same options builds.
 The English pages also ship inside `ssplayer_flutter` and `ssplayer_flame`: each package's `doc` is
 a symlink to `docs/en`, which pub packs as the files it points at. On Windows, enable symlinks
 (`git config core.symlinks true`, with Developer Mode) before a release run, or the checkout holds a
-one-line text file there; `build-release` refuses an archive without `doc/index.md`.
+one-line text file there; `build-release` refuses an archive without `doc/index.md`. The same pages
+are each package's Agent Skill, `skills/<package, dashed>-docs/`: its `SKILL.md` is in git, and its
+`references` is the same symlink, which `build-release` checks the same way.
 
 ```bash
 scripts/build-pages.sh serve=yes          # -> http://localhost:8000/SSPlayerForFlutter/
@@ -218,7 +220,7 @@ scripts/build-docs.sh      # 英語 → 日本語の順に、どちらも --stri
 `scripts/build-pages.sh` が公開ツリーです。上記 2 ロケールに続けて Web デモ 2 本 — `examples/overall`
 を `site/demo/flutter/`、`examples/flame` を `site/demo/flame/`、選択ページを `site/demo/` に — を建てます。`pages.yml` のビルドジョブはこのスクリプトなので、CI が建てるものは、同じオプションで手元で建てたものと一致します。
 
-英語のページは `ssplayer_flutter` と `ssplayer_flame` にも入ります。それぞれの `doc` は `docs/en` への symlink で、pub はその指す先をファイルとして詰めます。Windows でリリースを回す前は symlink を有効にしてください（`git config core.symlinks true` と開発者モード）。有効でないと、checkout にはそこに 1 行のテキストファイルが置かれます。`doc/index.md` を含まない成果物は `build-release` が拒否します。
+英語のページは `ssplayer_flutter` と `ssplayer_flame` にも入ります。それぞれの `doc` は `docs/en` への symlink で、pub はその指す先をファイルとして詰めます。Windows でリリースを回す前は symlink を有効にしてください（`git config core.symlinks true` と開発者モード）。有効でないと、checkout にはそこに 1 行のテキストファイルが置かれます。`doc/index.md` を含まない成果物は `build-release` が拒否します。同じページは各パッケージの Agent Skill `skills/<パッケージ名のハイフン形>-docs/` でもあり、`SKILL.md` は git で管理し、`references` は同じ symlink です。`build-release` は同じように検査します。
 
 ```bash
 scripts/build-pages.sh serve=yes          # -> http://localhost:8000/SSPlayerForFlutter/

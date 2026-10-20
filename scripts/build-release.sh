@@ -722,6 +722,25 @@ if [ "$VERIFY" = "yes" ] && [ -n "$ARCHIVES" ]; then
       has "doc/index.md" || fail "$archive has no doc/index.md -- packages/$name/doc is a symlink to docs/en,
       and this checkout has it as a plain file. Enable symlinks (git config core.symlinks
       true; on Windows, Developer Mode as well), check the file out again, and rerun."
+
+      # The same pages as an Agent Skill: SKILL.md in git, references/ the same
+      # symlink. package:skills (dart run skills@ get) installs only a skill named
+      # after its package, with dashes for the underscores, and every page SKILL.md
+      # links to has to be inside the folder it copies.
+      skill="$(printf '%s' "$name" | tr _ -)-docs"
+      if has "skills/$skill/SKILL.md"; then
+        front="$(tar -xzOf "$OUT/$archive" "skills/$skill/SKILL.md")"
+        printf '%s\n' "$front" | grep -qx "name: $skill" \
+          || fail "$archive: skills/$skill/SKILL.md does not name the skill $skill"
+        links="$(printf '%s\n' "$front" | grep -oE ']\([^):#]+\.md' | sed 's/^](//' || true)"
+        [ -n "$links" ] || fail "$archive: no page links parsed out of skills/$skill/SKILL.md -- the check proved nothing"
+        for link in $links; do
+          has "skills/$skill/$link" || fail "$archive: skills/$skill/SKILL.md links to $link, which is not in it --
+      if references/ is a plain file, enable symlinks as for doc/ above."
+        done
+      else
+        fail "$archive has no skills/$skill/SKILL.md"
+      fi
     fi
 
     # packages/*/native is git-ignored build output. If one leaks into an
