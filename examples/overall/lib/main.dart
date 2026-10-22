@@ -542,10 +542,18 @@ class _PlayerPageState extends State<PlayerPage>
         ],
       ),
       body: DropTarget(
-        onDragEntered: (_) => setState(() => _dragging = true),
-        onDragExited: (_) => setState(() => _dragging = false),
-        onDragDone: (detail) {
-          if (detail.files.isNotEmpty) _openDropped(detail.files.first.path);
+        onEnter: (_) => setState(() => _dragging = true),
+        onLeave: () => setState(() => _dragging = false),
+        onDrop: (details) async {
+          final path = details.items
+              .map((item) => switch (item) {
+                    DropFileItem() => item.localPath,
+                    DropDirectoryItem() => item.localPath,
+                    DropStringItem() => null,
+                  })
+              .nonNulls
+              .firstOrNull;
+          if (path != null) await _openDropped(path);
         },
         child: Column(
           children: [
