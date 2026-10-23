@@ -4,7 +4,7 @@
 
 **Give your Flutter app editor-crafted 2D raster animation — rigged by an artist, played with a single widget, and not one line of animation code.**
 
-▶️ **[Try the example app](./examples/overall/)** — the bundled SpriteStudio animations rendered straight onto the Flutter canvas. Prebuilt binaries download automatically.
+▶️ **[Try the live demos](https://cri-middleware.github.io/SSPlayerForFlutter/demo/)** — SpriteStudio animations played by Flutter in your browser, with nothing to install.
 
 A player that renders **[SpriteStudio](https://www.webtech.co.jp/spritestudio/)** animations (`.ssab`) directly in [Flutter](https://flutter.dev/). SpriteStudio is a professional 2D **raster** (sprite) animation editor — bone rigs, mesh deformation, and particle effects over hand-drawn sprite art. Your artist builds the motion visually; this player just plays the finished file, drawing it natively to the Flutter `Canvas` — no `AnimationController` to hand-write, no spritesheet to slice, no video to decode.
 

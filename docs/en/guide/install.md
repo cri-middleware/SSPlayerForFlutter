@@ -42,7 +42,7 @@ What else to add depends on what you use:
 
 ## Verify
 
-Run the bundled example, or import `ssplayer_flutter` in your app and confirm `flutter pub get`
+Import `ssplayer_flutter` in your app and confirm `flutter pub get`
 resolves and the app builds. The native library is fetched and embedded on the first build; no extra
 setup.
 

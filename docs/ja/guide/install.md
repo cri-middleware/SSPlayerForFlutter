@@ -39,7 +39,7 @@ flutter pub add --dev ssconverter_dart
 
 ## 動作確認
 
-同梱の example を起動するか、アプリで `ssplayer_flutter` を import して `flutter pub get` が解決しビルドが通ることを確認します。ネイティブライブラリは初回ビルド時に取得・埋め込みされ、追加設定は不要です。
+アプリで `ssplayer_flutter` を import して `flutter pub get` が解決しビルドが通ることを確認します。ネイティブライブラリは初回ビルド時に取得・埋め込みされ、追加設定は不要です。
 
 ## 次のステップ
 

@@ -4,7 +4,7 @@
 
 **エディタで作り込んだ 2D ラスターアニメーションを、あなたの Flutter アプリへ。アーティストがリグを組み、あなたはウィジェット 1 個で再生。アニメーションコードは一切不要です。**
 
-▶️ **[サンプルアプリを試す](./examples/overall/)** — 同梱の SpriteStudio アニメを Flutter の Canvas に直接描画します。プリビルドのネイティブは自動ダウンロードされます。
+▶️ **[ライブデモを試す](https://cri-middleware.github.io/SSPlayerForFlutter/demo/)** — Flutter が再生する SpriteStudio アニメをブラウザで見られます。インストールは要りません。
 
 **[SpriteStudio](https://www.webtech.co.jp/spritestudio/)** のアニメーション（`.ssab`）を [Flutter](https://flutter.dev/) でそのまま再生するプレイヤーです。SpriteStudio はプロ向けの 2D **ラスター**（スプライト）アニメーションエディタ —— スプライト素材にボーン・メッシュ変形・パーティクルを載せてモーションを作れます。アーティストが動きを視覚的に作り、プレイヤーは完成ファイルを再生するだけ。Flutter の `Canvas` にネイティブ描画するので、手書きの `AnimationController` も、スプライトシートの切り出しも、動画のデコードも要りません。
 
