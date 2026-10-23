@@ -49,7 +49,7 @@ If you find a bug, please open a GitHub Issue and include:
 - `flatc` — only when regenerating a `.fbs` schema. (cbindgen is a build-dependency of the SDK's `build.rs`; no separate install.)
 - The `SpriteStudio-SDK` submodule: `git submodule update --init --recursive`.
 
-For the complete build guide, see [docs/en/contributing/build.md](./docs/en/contributing/build.md).
+For the complete build guide, see [docs/en/contributing/build.md](./docs/en/contributing/build.md). It also says how to use your checkout in an app and how to check what the suites do not cover.
 
 ### Build from source
 ```bash
@@ -185,7 +185,7 @@ SSPlayerForFlutter にご関心をお寄せいただき、ありがとうござ�
 - `flatc` —— `.fbs` スキーマを再生成するときのみ。（cbindgen は SDK の `build.rs` の build-dependency なので個別導入は不要です。）
 - `SpriteStudio-SDK` サブモジュール: `git submodule update --init --recursive`。
 
-完全なビルド手順については、[docs/ja/contributing/build.md](./docs/ja/contributing/build.md) を参照してください。
+完全なビルド手順については、[docs/ja/contributing/build.md](./docs/ja/contributing/build.md) を参照してください。チェックアウトをアプリで使う方法と、スイートでは確かめられないものの確かめ方もそこにあります。
 
 ### ソースからのビルド
 ```bash
