@@ -107,4 +107,36 @@ flutter test          # Native Assets が hook/build.dart 経由で Brain を同
 | サンプルアプリ | `examples/overall/`・`examples/flame/`・`examples/part_following/`（`flutter test`） |
 | macOS 埋め込み確認 | `examples/overall/` → `flutter build macos` → `*.app/Contents/Frameworks/` に `ssruntime.framework` |
 
+## チェックアウトをアプリで使う
+
+アプリの依存はリリース版を使うときと同じ書き方のまま、アプリが届くこの repo のパッケージ（import するものと、その下の `ssruntime_dart`）をすべてチェックアウトに上書きします。
+
+```yaml
+dependencies:
+  ssplayer_flutter: ^7.0.0-beta.1
+  ssplayer_flame: ^7.0.0-beta.1          # Flame を使うときだけ
+
+dependency_overrides:
+  ssplayer_flutter:
+    path: <checkout>/packages/ssplayer_flutter
+  ssplayer_flame:
+    path: <checkout>/packages/ssplayer_flame
+  ssruntime_dart:
+    path: <checkout>/packages/ssruntime_dart
+```
+
+repo の中では、パッケージは pub workspace でお互いを見つけます。外からは、それぞれがほかのパッケージを版で指定しているので、`ssplayer_flutter` だけを `path:` で依存しても、pub は `ssruntime_dart` を（`ssplayer_flame` なら `ssplayer_flutter` を）版で探し、解決に失敗します。ネイティブライブラリは、`build-runtime` でチェックアウトの `native/libs/` を作ってあればそこから、無ければ指定の SDK リリースから取ります（[ネイティブランタイム](native-runtime.md)）。リリース版のプレイヤーのまま手を入れたランタイムを使うなら、アプリを自分の dylib に向けてください（[自前ビルドを差し込む](native-runtime.md#自前ビルドを差し込む)）。
+
+## Flutter で確かめる
+
+上のスイートでは見えないものと、その確かめ方です。
+
+- **`flutter test` のエンドツーエンドの描画は、シェーダーの経路を通りません。** `flutter test` では `ui.FragmentProgram.fromAsset` がパッケージローカルのキーしか見つけられず、Canvas バックエンドは `packages/…` のキーを使うので、一度失敗するとそのままになります。剥がした PartColor・マスクのカバレッジのパス・`ss_*` のエフェクトは描かれません。`player.paint` → `toImage` のテストが緑でも、確かめているのはバッチのジオメトリだけです。残りはヘルパーの単体テストで押さえ、アプリを動かして見ます。
+- **`ui.Image` や `ui.ImageShader` の寿命に触る変更は、`flutter test --platform chrome` でも回します。** CanvasKit の `ImageShader.dispose` は画像まで dispose し、ネイティブと Skwasm は借りるだけです。VM のテストも CI も CanvasKit を通りません（`test/texture_registry_ownership_test.dart`）。
+- **`flutter test --enable-impeller` で `blend_e2e_test.dart` の `Sub` のケースが落ちるのは、エンジンの問題です。** framebuffer fetch の無い flutter_tester の Impeller は、先行する描画に重なる advanced blend を、その範囲の対角線に継ぎ目を付けて描きます。素の `dart:ui` の `drawRect` 3 つで再現し、macOS のアプリはきれいに描きます。CI は `--enable-impeller` を付けません。
+- **`.frag` は読んで判断せず、Flutter のキャッシュにある `impellerc` で確かめます。** ランタイムエフェクトは何も言わずに失敗するためです。`--reflection-json` で各 uniform の `location`（Dart 側の `setFloat` を呼ぶ順）が分かり、`--sksl --json` で Web の経路が見えます。ローカルの `#include` は効き、宣言だけで使っていない uniform もスロットを持ち続けます。
+- **GPU バックエンドは `flutter clean` の後で見ます。** clean ビルドでしか出ない不具合を、インクリメンタルビルドが隠したことがあります。`examples/overall/integration_test/gpu_backend_test.dart` が実機で Canvas と比べ、前提はその冒頭にあります。GPU の経路のメモリは確保量ではなく RSS で言います。書き込んでいないページは常駐しないためです。
+- **ちらつくフレームをヘッドレスで見つけます。** `SpriteStudioInternalPlayer` を直接動かし（`load` のあと、`_paintTree` と同じ順で `updateMs`・`frameNo`・`getFrameData`）、毎 tick、`meshVertexOffsets()` / `meshVerticesX()` / `meshVerticesY()` からパーツのワールドのバウンディングボックスを記録して、前後の tick から飛び離れる tick を探します。
+- **実機なしでライブリロードを確かめます。** example で `dart run ssgen_flutter:sswatch --run -d chrome --device --web-browser-flag=--headless=new` を実行します。runner は `flutter create --platforms=<すでにあるすべてのプラットフォーム>` で作ってください。このコマンドは `.metadata` の一覧を置き換えるためで、`.metadata` は後で戻します。保存の代わりに `.sspj` の末尾に改行を足します（`touch` は監視に届きません）。`r` / `R` / `q` を送るには、`script` を通して渡します。`flutter run` が待つ端末を `script` が用意します。
+
 4 つのレイヤーとそれぞれが持つものは [アーキテクチャ](architecture.md)、ネイティブライブラリの解決と同梱は [ネイティブランタイム](native-runtime.md) にあります。
