@@ -52,8 +52,7 @@ renders through the Canvas backend.
     part's edge crosses come out slightly off — a one-pixel fringe where the edge does not fall on a
     pixel boundary.
 
-    `Div2` / `Overlay2` matching `Mix` is intentional: they have no GPU blend mapping in the reference
-    players either.
+    `Div2` / `Overlay2` drawing as `Mix` is intentional: they have no GPU blend mapping.
 
 - **Blends read an opaque backdrop.** The modes that sample the destination (`Mul`, `Sub`, `Screen`,
   `Exclusion`, `Invert`) match the editor where the pixels underneath are opaque — the case
