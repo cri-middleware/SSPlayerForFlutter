@@ -8,17 +8,18 @@ delivered automatically through Dart **native assets** — there is no CocoaPods
 
 | Item | Details |
 |---|---|
-| Flutter / Dart | **Flutter 3.47+ / Dart 3.13+** (native assets is default-on from 3.38; the flutter_gpu backend sets the 3.47 floor). This page is where that floor is written down — `ssplayer_flutter`'s `environment:` enforces it, so `flutter pub get` is what tells you if yours is older |
-| Verified platforms | macOS · iOS · Android |
-| Other platforms | Windows / Linux: the prebuilt runtime downloads as on the others, but these are not in the verified set; Web is a developer preview |
-| Native toolchain | None — the Brain is downloaded prebuilt by the `ssruntime_dart` build hook |
+| Flutter / Dart | **Flutter 3.47+ / Dart 3.13+** (native assets is default-on from 3.38; the flutter_gpu backend sets the 3.47 floor). `ssplayer_flutter`'s `environment:` enforces it, so `flutter pub get` tells you if yours is older |
+| Platforms | macOS · Windows · Linux · iOS · Android; Web is a developer preview |
+| Native toolchain | None — the native runtime is downloaded prebuilt by the `ssruntime_dart` build hook |
 
 ## Add the dependency
 
-Add `ssplayer_flutter` from [pub.dev](https://pub.dev/packages/ssplayer_flutter):
+Add `ssplayer_flutter` from [pub.dev](https://pub.dev/packages/ssplayer_flutter), and the converter as a
+dev dependency:
 
 ```bash
 flutter pub add ssplayer_flutter
+flutter pub add --dev ssconverter_dart
 ```
 
 `ssruntime_dart`, the runtime bindings underneath, comes with it.
@@ -28,7 +29,6 @@ What else to add depends on what you use:
 | For | Add |
 |---|---|
 | [Flame Integration](flame.md) | `flutter pub add flame ssplayer_flame` |
-| The `ssconvert` CLI — [Preparing Assets](conversion.md) | `flutter pub add --dev ssconverter_dart` |
 | [Live Reload](live-reload.md) | `flutter pub add --dev ssgen_flutter` |
 
 !!! note "The web target"
@@ -41,7 +41,7 @@ What else to add depends on what you use:
 
 ## Verify
 
-Run the bundled example, or import `ssplayer_flutter` in your app and confirm `flutter pub get`
+Import `ssplayer_flutter` in your app and confirm `flutter pub get`
 resolves and the app builds. The native library is fetched and embedded on the first build; no extra
 setup.
 

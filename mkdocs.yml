@@ -28,7 +28,6 @@ nav:
   - 🏠 Home: index.md
   - 🚀 Setup:
       - Installation: guide/install.md
-      - Build Guide: contributing/build.md
   - 🎬 Workflow:
       - Quick Start: guide/quickstart.md
       - Playback & Events: guide/playback.md
@@ -42,6 +41,7 @@ nav:
   - 📖 API Reference: api.md
   - ⚠️ Limitations & Scope: limitations.md
   - 🛠️ For Contributors:
+      - Build Guide: contributing/build.md
       - Architecture: contributing/architecture.md
       - Native Runtime: contributing/native-runtime.md
   - 📦 Packages: packages.md

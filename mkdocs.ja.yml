@@ -28,7 +28,6 @@ nav:
   - 🏠 ホーム: index.md
   - 🚀 セットアップ:
       - インストール: guide/install.md
-      - ビルドガイド: contributing/build.md
   - 🎬 ワークフロー:
       - クイックスタート: guide/quickstart.md
       - 再生とイベント: guide/playback.md
@@ -42,6 +41,7 @@ nav:
   - 📖 API リファレンス: api.md
   - ⚠️ 制約と適用範囲: limitations.md
   - 🛠️ コントリビューター向け:
+      - ビルドガイド: contributing/build.md
       - アーキテクチャ: contributing/architecture.md
       - ネイティブランタイム: contributing/native-runtime.md
   - 📦 パッケージ: packages.md

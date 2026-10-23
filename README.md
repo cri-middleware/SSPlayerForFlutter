@@ -4,13 +4,13 @@
 
 **Give your Flutter app editor-crafted 2D raster animation — rigged by an artist, played with a single widget, and not one line of animation code.**
 
-▶️ **[Try the example app](./examples/overall/)** — the bundled SpriteStudio animations rendered straight onto the Flutter canvas. Prebuilt binaries download automatically.
+▶️ **[Try the live demos](https://cri-middleware.github.io/SSPlayerForFlutter/demo/)** — SpriteStudio animations played by Flutter in your browser, with nothing to install.
 
 A player that renders **[SpriteStudio](https://www.webtech.co.jp/spritestudio/)** animations (`.ssab`) directly in [Flutter](https://flutter.dev/). SpriteStudio is a professional 2D **raster** (sprite) animation editor — bone rigs, mesh deformation, and particle effects over hand-drawn sprite art. Your artist builds the motion visually; this player just plays the finished file, drawing it natively to the Flutter `Canvas` — no `AnimationController` to hand-write, no spritesheet to slice, no video to decode.
 
 ## ✨ Why use SpriteStudio with Flutter?
 
-- **Bring your sprites — and whole screens — to life.** Breathing and blinking, swaying hair and clothes, flashy slash and magic effects, even an animated HUD or splash screen: the motion is built visually in a dedicated editor (SpriteStudio) and `SpriteStudioView` just plays it. Bone rigs, mesh deformation and particles are all handled for you, so there is no animation code to write.
+- **Bring your sprites — and whole screens — to life.** Breathing and blinking, swaying hair and clothes, flashy slash and magic effects, even an animated HUD or splash screen: the motion is built visually in a dedicated editor (SpriteStudio) and `SpriteStudioAnimation` just plays it. Bone rigs, mesh deformation and particles are all handled for you, so there is no animation code to write.
 - **Hand-drawn art, drawn natively.** It animates the sprite art you already have, so painted characters move exactly as drawn — a different fit from vector tools like Lottie. Unlike a `.gif` or an `.mp4`, it scales freely, loops seamlessly and reacts to your app, and Flutter's own renderer draws it — no WebView, no video decoding.
 - **A widget like any other — and a Flame component.** Position, size, transform and clip it like any other widget. Making a game? [`ssplayer_flame`](./packages/ssplayer_flame) drops the same animation into a `FlameGame`.
 - **Smooth motion, not locked to a frame rate.** **Sub-frame interpolation** renders each frame at the exact display time, so motion follows your display's refresh rate and playback speed instead of the authored fps.

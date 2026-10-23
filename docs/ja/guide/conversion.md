@@ -1,31 +1,33 @@
 # 🔄 アセットの準備（`.sspj` → `.ssab`）
 
 プレイヤーが再生するのはエディタの `.sspj` ではなく、**`.ssab`**（パース不要のランタイムバイナリ）です。コンバータが `.sspj` と参照ファイル（`.ssae` / `.ssee` / `.ssqe` / `.ssce`）を読み、`.ssab`
-（アニメーション）と、必要に応じて `.ssqb`（シーケンスパック）を生成します。変換は**ビルド時**に行い、アプリは完成した `.ssab` を読み込むだけです。
+（アニメーション）と、必要に応じて `.ssqb`（シーケンスパック）を生成します。変換は**アプリの実行より前に**、手元や CI で行い、アプリは完成した `.ssab` を読み込むだけです。
 
 ```mermaid
 graph LR
     SS[".sspj / 画像"]
 
     subgraph Convert ["変換 (.sspj → .ssab)"]
-        AUTO["オートインポート<br>(ssgen_flutter)"]
+        DART["ssconvert<br>(ssconverter_dart)"]
+        AUTO["ライブリロード<br>(ssgen_flutter)"]
         WEB["ssconverter-web"]
         GUI["SSConverter GUI"]
-        CLI["ssconverter-cli"]
+        CLI["ssconverter-cli<br>(SDK)"]
     end
 
     BIN[".ssab"]
     DEPLOY[["配置 · 手動<br>assets/ にコピー + pubspec"]]
 
     subgraph Run ["実行時 (Flutter アプリ)"]
-        LOAD["load()"] --> VIEW["SpriteStudioView / Flame"]
-        RT("libssruntime<br>native assets") -. "補間" .-> VIEW
+        LOAD["load()"] --> VIEW["SpriteStudioAnimation / Flame"]
     end
 
     CANVAS{{"Flutter Canvas"}}
 
+    SS -->|"dart run"| DART
+    DART == "assets/ へ書き出す" ==> LOAD
     SS --> AUTO
-    AUTO == "自動 · 再変換して実行中アプリへ直接反映（配置不要）" ==> VIEW
+    AUTO == "保存で再変換 + 実行中アプリへ反映" ==> VIEW
 
     SS -->|"D&D / ブラウザ"| WEB
     SS -->|"GUI"| GUI
@@ -43,13 +45,12 @@ graph LR
     classDef tool fill:#eef2ff,stroke:#818cf8,color:#1e1b4b;
     class WEB,GUI,CLI tool;
     classDef auto fill:#dcfce7,stroke:#22c55e,color:#052e16;
-    class AUTO auto;
+    class DART,AUTO auto;
     classDef deploy fill:#fef9c3,stroke:#eab308,color:#422006;
     class DEPLOY deploy;
 ```
 
-**手動の配置が要らないのはオートインポートだけです。** `ssgen_flutter` がソースを監視し、保存のたびに再変換して、できたての `.ssab` を実行中アプリへ直接プッシュします —— 手動ステップはありません。ブラウザ・GUI・CLI の 3 経路は `.ssab` ファイルを手元に出力するだけなので、その後に**配置**が必要です
-——アプリの `assets/` にコピーし、`pubspec.yaml` に登録します（[`.ssab` を配置する](#ssab-を配置する手動ルート)を参照）。
+**README の手順は `ssconvert` です。** `ssconverter_dart` を dev 依存に入れれば、`SpriteStudio_Source/` のプロジェクトを 1 つのコマンドでアプリの `assets/` へ直接変換でき、[ライブリロード](live-reload.md)はアプリの実行中に同じ `SpriteStudio_Source/` を保存のたびに再変換します。ブラウザ・GUI・SDK の CLI はファイルを出力するので、自分で[配置](#ssab-を配置するほかのルート)します。
 
 !!! note "どのファイルが、変換後のどれになるのか"
     `.sspj` / `.ssae` / `.ssce` / `.ssqe` それぞれの役割と変換後の対応は Player 共通なので、ポータルにまとめてあります — [アセットの変換 — プロジェクトの構成と、変換後の対応](https://cri-middleware.github.io/SpriteStudio-Docs/ja/overview/conversion/#プロジェクトの構成と変換後の対応)。
@@ -69,8 +70,7 @@ graph LR
 
 ## 変換ルートを選ぶ
 
-Flutter には Godot / Unity プラグインのようなエディタ内「インポートドック」がないため、変換は独立したステップになります。コンバータはオープンソースで、オートインポータ・ブラウザツール・デスクトップ
-GUI・CLI といった形で提供され、いずれも同じ `.ssab` を生成します —— 作業スタイルに合うルートを選んでください。
+以下のルートはどれも同じオープンソースのコンバータを使い、同じ `.ssab` を生成します。
 
 !!! tip "手元に `.sspj` がまだ無いときは"
     [SpriteStudio 公式のサンプルデータ](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/)がそのまま使えます。キャラクターなら [Ringo](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#ringo)、エフェクトを含むものなら
@@ -78,63 +78,44 @@ GUI・CLI といった形で提供され、いずれも同じ `.ssab` を生成�
 
 | ルート | 向いている用途 | 入手方法 |
 |---|---|---|
-| [**オートインポート（ライブリロード）**](#オートインポートライブリロード) | 開発中の反復 —— 保存で自動変換、手動ステップなし | 標準搭載: [`ssgen_flutter`](live-reload.md) |
+| [**ssconvert**](#ssconvertdart) | README の手順 —— `SpriteStudio_Source/` を `assets/` へ変換。手元でも CI でも | `flutter pub add --dev ssconverter_dart` |
+| [**ライブリロード**](#ライブリロード) | アプリの実行中に、同じ `SpriteStudio_Source/` から保存のたびに再変換 | [`ssgen_flutter`](live-reload.md) |
 | [**ssconverter-web**](#ssconverter-webブラウザ) | ブラウザで単発、インストール不要 | [ブラウザで開く](https://cri-middleware.github.io/SSPlayerForWeb/ssconverter/)（Chromium 専用） |
-| [**SSConverter GUI**](#ssconverter-guiデスクトップ-gui) | シンプルなデスクトップ GUI —— ドラッグ&ドロップ・バッチ・embedded 切替 | [バイナリをダウンロード](https://github.com/cri-middleware/SSConverterGUI/releases) |
-| [**ssconverter-cli**](#ssconverter-cli) | CI / ビルド時 / 再現性 —— `ssconverter_dart` の Dart 製 `ssconvert` を含む | [SDK Releases](https://github.com/cri-middleware/SpriteStudio-SDK/releases) · `dart run ssconverter_dart:ssconvert` |
+| [**SSConverter GUI**](#ssconverter-guiデスクトップ-gui) | デスクトップ GUI —— ドラッグ&ドロップ・バッチ・embedded 切替 | [バイナリをダウンロード](https://github.com/cri-middleware/SSConverterGUI/releases) |
+| [**ssconverter-cli**](#ssconverter-clisdk) | Dart 以外のパイプライン | [SDK Releases](https://github.com/cri-middleware/SpriteStudio-SDK/releases) |
 
-!!! tip "Flutter プロジェクトは追加インストールがほぼ不要"
-    このリポジトリはコンバータを Dart パッケージとして同梱しているので、`dart run
-    ssconverter_dart:ssconvert`（[ssconverter-cli](#ssconverter-cli) 参照）が追加インストールなしで変換し、ネイティブライブラリも自動ダウンロードします。オートインポータ・ブラウザツール・デスクトップ GUI は、ライブループ／ブラウザ／ターミナル不要の作業が合う場面のための選択肢です。
+## ssconvert（Dart）
 
-## オートインポート（ライブリロード）
+[`ssconverter_dart`](https://github.com/cri-middleware/SSPlayerForFlutter/tree/main/packages/ssconverter_dart) は [インストール](install.md)のとおり dev 依存として追加するパッケージで、`ssconvert` CLI と `SsConverter` ライブラリを提供します。ネイティブ `libssconverter` はパッケージのビルドフックがダウンロードするので、**Rust ツールチェーンも別バイナリも不要**です。**デスクトップ専用**のホストツールです（macOS / Windows / Linux）。アセットへ直接変換します。
 
-開発中に最も摩擦の少ないルート。SpriteStudio で保存すると実行中のアプリが自動で再変換・更新します
-—— 手動変換も**配置も一切不要**です（できたてのパックが実行中アプリへ直接プッシュされます）。Godot /
-Unity のインポータの高速反復ループに相当し、`ssgen_flutter` が提供します。[ライブリロード](live-reload.md)を参照。
+```bash
+dart run ssconverter_dart:ssconvert    -o assets/spritestudio/Ringo/     SpriteStudio_Source/Ringo/Ringo.sspj  # 参照テクスチャ形式
+dart run ssconverter_dart:ssconvert -e -o assets/spritestudio/Ringo_emb/ SpriteStudio_Source/Ringo/Ringo.sspj  # embedded（配布向け）
+```
+
+そのあとフォルダを `pubspec.yaml` に登録します（[`.ssab` を配置する](#ssab-を配置するほかのルート)の手順 2）。素の `dart run` なので、任意の Dart/Flutter CI に組み込めます。同じエンジンは `SsConverter`（`package:ssconverter_dart`）としてプログラムからも使え、Dart 製の独自ツールに組み込めます。
+
+!!! tip "ソースはアプリに入らない"
+    アプリに同梱されるのは `flutter: assets:` に並べたフォルダだけなので、`SpriteStudio_Source/` はアプリに入りません。
+
+## ライブリロード
+
+SpriteStudio で保存すると、実行中のアプリが再変換して更新します。`ssgen_flutter` が同じ `SpriteStudio_Source/` を監視し、`assets/spritestudio/` に書き出して、できたてのパックを実行中のアプリへプッシュします。[ライブリロード](live-reload.md)を参照。
 
 ## ssconverter-web（ブラウザ）
 
-ブラウザで `.sspj` を変換して結果をダウンロード —— インストール不要。コンバータの WebAssembly ビルドをクライアント側で実行します。その後、ダウンロードした `.ssab` を[配置](#ssab-を配置する手動ルート)します。
+ブラウザで `.sspj` を変換して結果をダウンロード —— インストール不要。コンバータの WebAssembly ビルドをクライアント側で実行し、ZIP には `.sspj` の名前のフォルダが 1 つ入っています。その後、[配置](#ssab-を配置するほかのルート)します。
 
 !!! note "Chromium 系ブラウザ専用"
     GitHub Pages でホストしています（<https://cri-middleware.github.io/SSPlayerForWeb/ssconverter/>）。フォルダ選択に **File System Access API** を使うため、**Chromium 系ブラウザ**（Chrome / Edge）が必要です。
 
 ## SSConverter GUI（デスクトップ GUI）
 
-シンプルなクロスプラットフォームのデスクトップ GUI。プロジェクトをドラッグ&ドロップ、バッチ変換、
-embedded 出力の切替ができます。OS 向けバイナリを
-[**SSConverter GUI Releases**](https://github.com/cri-middleware/SSConverterGUI/releases)
-からダウンロードして実行します。ターミナルを触りたくないときに。その後、変換した `.ssab` を[配置](#ssab-を配置する手動ルート)します。
+シンプルなクロスプラットフォームのデスクトップ GUI。プロジェクトをドラッグ&ドロップ、バッチ変換、embedded 出力の切替ができます。OS 向けバイナリを [**SSConverter GUI Releases**](https://github.com/cri-middleware/SSConverterGUI/releases) からダウンロードして実行します。その後、変換した `.ssab` を[配置](#ssab-を配置するほかのルート)します。
 
-## ssconverter-cli
+## ssconverter-cli（SDK）
 
-`libssconverter` をラップするネイティブのビルド時 CLI。等価なフロントエンドが 2 つあり、どちらも同じ `.ssab` を生成します。
-
-### Flutter / Dart —— `dart run ssconverter_dart:ssconvert`（推奨・dev 依存）
-
-このリポジトリはコンバータを
-[`ssconverter_dart`](https://github.com/cri-middleware/SSPlayerForFlutter/tree/main/packages/ssconverter_dart)
-パッケージとして同梱し（[インストール](install.md)のとおり dev 依存として追加します）、`ssconvert` CLI と `SsConverter` ライブラリを提供します。ネイティブ
-`libssconverter` はパッケージのビルドフックが自動ダウンロードするので、そのまま動きます ——
-**Rust ツールチェーン不要・別バイナリ不要**。**デスクトップ専用**のホストツールです（macOS / Windows / Linux）。
-
-```bash
-dart run ssconverter_dart:ssconvert    -o out/     path/to/project.sspj  # 参照テクスチャ形式
-dart run ssconverter_dart:ssconvert -e -o out_emb/ path/to/project.sspj  # embedded（配布向け）
-```
-
-素の `dart run` なので、追加バイナリなしで任意の Dart/Flutter CI に組み込めます。ビルドの一部としてアプリの `assets/` に直接変換 —— example アプリで
-[`scripts/deploy-examples.sh`](https://github.com/cri-middleware/SSPlayerForFlutter/blob/main/scripts/deploy-examples.sh)
-がやっているのがまさにこれです。同じエンジンは `SsConverter`（`package:ssconverter_dart`）としてプログラムからも使え、Dart 製の独自ツールに組み込めます。
-
-!!! tip "`.sspj` ソースは出荷アプリの外へ"
-    SpriteStudio のソースプロジェクトは Flutter パッケージ（やリポジトリ）の外で管理し、変換済みの
-    `.ssab` だけをコミットしましょう。ゲームにソースデータは不要です。
-
-### SDK —— `ssconverter-cli`（言語非依存）
-
-SpriteStudio-SDK が配布するスタンドアロンのネイティブ CLI（同じ `libssconverter`）。言語非依存の CI、非 Dart パイプライン、Dart ツールチェーンに依存しない再現性が必要な場面に向きます。
+SpriteStudio-SDK が配布するスタンドアロンのネイティブ CLI（同じ `libssconverter`）。Dart 以外のパイプラインに向きます。
 
 - **プリビルドバイナリ** —— [**SpriteStudio-SDK の Release**](https://github.com/cri-middleware/SpriteStudio-SDK/releases) の **Assets** から `ssconverter-cli-<platform>.zip`（Windows / macOS / Linux）をダウンロード。
 - **ソースからビルド** —— Rust ツールチェーンで、SDK リポジトリルートで `cargo install --path cli`。
@@ -144,15 +125,13 @@ ssconverter-cli project.sspj -o ./assets      # 出力ディレクトリ指定�
 ssconverter-cli project.sspj --embedded       # テクスチャを .ssab に内包
 ```
 
-詳細オプションは SDK の
-[`ssconverter-cli` README](https://github.com/cri-middleware/SpriteStudio-SDK/blob/HEAD/cli/README.ja.md)
-を参照。
+詳細オプションは SDK の [`ssconverter-cli` README](https://github.com/cri-middleware/SpriteStudio-SDK/blob/HEAD/cli/README.ja.md) を参照。
 
-## `.ssab` を配置する（手動ルート）
+## `.ssab` を配置する（ほかのルート）
 
-ブラウザ・GUI・CLI の各ルートは `.ssab` をファイルとして出力するだけなので、アプリ側で同梱が必要です（オートインポートはこれを自動で行います）。
+`ssconvert` とライブリロードは自分で `assets/` に書き出します。ブラウザ・GUI・SDK の CLI は手元にファイルを出力するので、自分で配置します。
 
-1. `.ssab` をアプリのアセットにコピーします（例: `assets/spritestudio/<name>/`）。**参照形式**の出力なら同じフォルダのテクスチャも一緒に、**embedded** なら 1 ファイルだけです。
+1. 出力をアプリのアセットにコピーします（例: `assets/spritestudio/<name>/`）。**参照形式**の出力なら同じフォルダのテクスチャも一緒に、**embedded** なら 1 ファイルだけです。
 2. フォルダを `pubspec.yaml` に登録します。登録はフォルダごとに 1 行です。Flutter のアセットの登録はサブフォルダを含まないので、コンバータが `.ssab` の隣に書き出す `font/` や `sound/` のフォルダにも、それぞれ 1 行要ります。
    ```yaml
    flutter:
@@ -160,7 +139,3 @@ ssconverter-cli project.sspj --embedded       # テクスチャを .ssab に内�
        - assets/spritestudio/<name>/
    ```
 3. `loadAsset('assets/spritestudio/…/Foo.ssab')` で読み込みます —— reference テクスチャはキー自身のフォルダから解決されます。[クイックスタート](quickstart.md) を参照。
-
-CI では手順 1 をビルドの一部としてスクリプト化します —— example アプリの
-[`scripts/deploy-examples.sh`](https://github.com/cri-middleware/SSPlayerForFlutter/blob/main/scripts/deploy-examples.sh)
-がまさにこれ（`assets/` へ直接変換）です。

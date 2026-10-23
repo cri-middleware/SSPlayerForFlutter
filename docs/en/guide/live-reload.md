@@ -92,10 +92,10 @@ identical bytes — and may not even trip the watcher).
 
 | Platform | Path | Status |
 |---|---|---|
-| macOS desktop | VM Service push (file) | Verified end-to-end |
-| Android | VM Service push (embedded) | Verified end-to-end (emulator) |
-| iOS | VM Service push (embedded) | Verified end-to-end (simulator) |
-| Web (`-d chrome`, debug) | VM Service push (embedded, via DWDS) | Verified end-to-end (headless Chrome) |
+| macOS desktop | VM Service push (file) | Supported |
+| Android | VM Service push (embedded) | Supported |
+| iOS | VM Service push (embedded) | Supported |
+| Web (`-d chrome`, debug) | VM Service push (embedded, via DWDS) | Supported |
 | `--wasm`, `--release`, `--profile` | — | Not possible: the first two have no VM Service, and a profile build has no push channel. `sswatch --run` refuses them |
 
 `--device` is a choice of payload, not of target: it sends the pack as bytes instead of a host path,
@@ -103,7 +103,7 @@ and any target accepts it. Running `sswatch --run -d macos --device` therefore e
 embedded path — routing, transport, `reload()` — on a machine with no device attached, which is a
 quick way to tell a broken push from a target that simply is not connected.
 
-Save a **real** edit to test it. A `touch` does not reliably reach the watcher (confirmed on macOS:
-it produced no event at all), which is a property of the filesystem watch, not of the reload.
+Save a **real** edit to test it. A `touch` does not reliably reach the watcher (it can produce no event
+at all), which is a property of the filesystem watch, not of the reload.
 
 For a one-off manual conversion instead, see [Preparing Assets](conversion.md).

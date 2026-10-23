@@ -19,7 +19,6 @@
 
 - **セットアップ**
     - [インストール](guide/install.md)
-    - [ビルドガイド](contributing/build.md)
 - **ワークフロー**
     - [クイックスタート](guide/quickstart.md)
     - [再生制御とイベント](guide/playback.md)
@@ -33,6 +32,7 @@
 - [**API リファレンス**](api.md)
 - [**制約と適用範囲**](limitations.md)
 - **コントリビューター向け**
+    - [ビルドガイド](contributing/build.md)
     - [アーキテクチャ](contributing/architecture.md)
     - [ネイティブランタイム](contributing/native-runtime.md)
 - [**パッケージ**](packages.md)
@@ -41,7 +41,7 @@
 
 このプレイヤーは、SpriteStudio の表現力をフルに引き出しつつ、手書きのアニメーションコードを一切書かずに済むように設計されています。
 
-*   **アニメーションコードはゼロ:** キャラクター・**UI・シーン全体**を SpriteStudio で作り、`play()` を呼ぶだけ。
+*   **アニメーションコードはゼロ:** キャラクター・**UI・シーン全体**を SpriteStudio で作り、ウィジェット 1 つで再生します。
 *   **完全な機能サポート:** 全コア描画種別（Normal・PartColor・Mask・Mesh・Effect（パーティクル）・Instance・Shape）に加え、ボーン階層とメッシュ変形を標準サポート。
 *   **ネイティブ GPU 描画:** `dart:ffi` で Rust ランタイムを駆動し、Flutter 自身のレンダラで描画（Impeller では `flutter_gpu`、それ以外は `Canvas.drawVertices`）。WebView でも動画デコードでもありません。
 *   **ウィジェットツリーに、[Flame](guide/flame.md) にも合成:** `SpriteStudioView` は普通の `RenderBox`。`ssplayer_flame` パッケージが `SpriteStudioComponent` を追加します。
@@ -49,7 +49,7 @@
 *   **モーションブレンド:** アニメ同士をカットせず[クロスフェード](guide/motion-blending.md)でつなぎ、歩きの上に狙いやリアクションを重ね、歩きと走りを weight で混ぜる —— どれも別々に作ったアニメから組み立てられます。
 *   **滑らかなサブフレーム補間:** ディスプレイのリフレッシュレートに追従（固定 fps ではありません）—— スローモーションでもカクつきません。
 *   **自分の素材を、ライブリロードで:** `.sspj` → `.ssab` を [CLI / CI](guide/conversion.md) で変換し、エディタでの編集を **[ライブリロード](guide/live-reload.md)** で実行中アプリへそのまま反映。
-*   **超高速・省メモリ:** SIMD 最適化ランタイムとパース不要なバイナリ形式（`.ssab`）。ネイティブランタイムは native assets により自動同梱 —— CocoaPods も手動リンクも不要です。
+*   **リンク作業は不要:** ネイティブランタイムは native assets により自動同梱 —— CocoaPods も手動リンクも不要です。
 
 ## 概要 (Overview)
 
@@ -86,7 +86,7 @@ graph LR
 ## 対応バージョン
 
 - **Flutter / Dart**: 下限は[インストール](./guide/install.md)にあり、実際に強制するのは `ssplayer_flutter` の `environment:` です。native assets の下限より上にあるのは、GPU バックエンドが flutter_gpu の現行 API に対してビルドされるためです。
-- **プラットフォーム**: macOS・iOS（シミュレータ）・Android（エミュレータ）・Web（開発者プレビュー）で確認済み。実機 iOS と 32bit `armeabi-v7a` ABI は未確認です。
+- **プラットフォーム**: macOS・Windows・Linux・iOS・Android・Web（開発者プレビュー）。
 
 ## サンプル
 

@@ -4,18 +4,9 @@
 [`ssplayer_flutter`](../ssplayer_flutter) — play a **SpriteStudio `.ssab`**
 animation inside a `FlameGame` with a single component.
 
-`SpriteStudioComponent` is a Layer‑4 drawing adapter (a sibling to the
-Widget‑based `SpriteStudioView`). It owns an **externally‑clocked**
-`SpriteStudioPlayer`: Flame's game loop supplies the time — `update(dt)` forwards
-to the player and `render` delegates to the same Layer‑2 paint path the Widget
-uses. The whole rich player surface (transport, events, instance packs, texture
-loading) is reused as‑is; only the clock differs.
-
-The heavy SpriteStudio dependency (the `dart:ffi` Rust "Brain", textures) comes
-transitively via `ssplayer_flutter`, delivered by **native assets** — no
-CocoaPods, no framework to embed. Adding this package to `ssplayer_flutter`
-directly was avoided on purpose: the core Widget/headless player never pays for
-Flame; an app opts in by depending on `ssplayer_flame`.
+`SpriteStudioComponent` plays a `SpriteStudioPlayer` on Flame's game loop: the
+loop supplies the time, and everything else the player does — transport, events,
+instance packs, textures — is the same as in a widget.
 
 The [documentation](https://cri-middleware.github.io/SSPlayerForFlutter/) covers both packages. The
 same pages for this version are in this package's `doc/` as Markdown, readable offline: start at
@@ -46,7 +37,8 @@ class MyGame extends FlameGame {
     // Straight from a bundled asset key… reference textures (sibling PNGs)
     // resolve from the key's own folder, so no baseAssetDir is needed.
     add(SpriteStudioComponent.asset(
-      'assets/hero.ssab',
+      'assets/spritestudio/Ringo/Ringo.ssab',
+      animation: 'wait1',
       position: size / 2,
       anchor: Anchor.center,         // SpriteStudio origins are centered
     ));
@@ -81,5 +73,4 @@ component.player?.seek(0);
 
 ## Example
 
-For an on‑screen check, run the example app under
-[`examples/flame`](../../examples/flame).
+The [live Web demos](https://cri-middleware.github.io/SSPlayerForFlutter/demo/) include the Flame one.
