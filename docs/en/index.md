@@ -27,7 +27,6 @@ hand-write. Playback runs through `libssruntime` provided by
 
 - **Setup**
     - [Installation](guide/install.md)
-    - [Build Guide](contributing/build.md)
 - **Workflow**
     - [Quick Start](guide/quickstart.md)
     - [Playback & Events](guide/playback.md)
@@ -41,6 +40,7 @@ hand-write. Playback runs through `libssruntime` provided by
 - [**API Reference**](api.md)
 - [**Limitations & Scope**](limitations.md)
 - **For Contributors**
+    - [Build Guide](contributing/build.md)
     - [Architecture](contributing/architecture.md)
     - [Native Runtime](contributing/native-runtime.md)
 - [**Packages**](packages.md)
@@ -50,7 +50,7 @@ hand-write. Playback runs through `libssruntime` provided by
 This player is designed to bring the full expressive power of SpriteStudio to Flutter with zero
 animation code to write by hand.
 
-*   **Zero animation code:** Characters, **UIs, and whole scenes** are authored in SpriteStudio; you just call `play()`.
+*   **Zero animation code:** Characters, **UIs, and whole scenes** are authored in SpriteStudio; one widget plays them.
 *   **Full feature support:** Ships every core draw kind — Normal, PartColor, Mask, Mesh, Effect (particles), Instance, and Shape — plus bone hierarchies and mesh deformation.
 *   **Native GPU-accelerated drawing:** `dart:ffi` into the Rust runtime, drawn through Flutter's own renderer — `flutter_gpu` (Impeller) where available, `Canvas.drawVertices` otherwise. Not a WebView, not a video decode.
 *   **Composes with the widget tree — and [Flame](guide/flame.md):** `SpriteStudioView` is a plain `RenderBox`; the `ssplayer_flame` package adds a `SpriteStudioComponent`.
@@ -58,7 +58,7 @@ animation code to write by hand.
 *   **Motion blending:** [crossfade](guide/motion-blending.md) from one animation to the next instead of cutting, lay an aim or a reaction over a walk, and blend a walk into a run by weight — all from animations authored separately.
 *   **Smooth sub-frame interpolation:** Playback follows the display refresh rate, not a fixed fps — buttery-smooth even in slow motion.
 *   **Bring your own art, with live-reload:** Convert `.sspj` → `.ssab` from a [CLI or CI](guide/conversion.md), and **[live-reload](guide/live-reload.md)** editor edits straight into the running app.
-*   **High performance & low memory:** A SIMD-optimized runtime and zero-parse binary format (`.ssab`); the native runtime is bundled automatically via native assets — no CocoaPods, no manual linking.
+*   **Nothing to link:** the native runtime is bundled automatically via native assets — no CocoaPods, no manual linking.
 
 ## Overview
 
