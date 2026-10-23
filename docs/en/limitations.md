@@ -24,9 +24,8 @@ ordinary part at authoring time.
 Runs on **macOS**, **Windows**, **Linux**, **iOS**, **Android**, and **Web (developer preview)**.
 
 The native runtime (`libssruntime`) is delivered per target by the **native assets** build hook — no
-CocoaPods, no manual linking. On the **Web** there is no `dart:ffi`: the Brain ships as the SDK's
-wasm-bindgen build driven over `dart:js_interop`, bundled as a Flutter asset, and always renders
-through the Canvas backend.
+CocoaPods, no manual linking. On the **Web** the runtime is a WebAssembly module bundled as a Flutter asset, and it always
+renders through the Canvas backend.
 
 ## Rendering
 

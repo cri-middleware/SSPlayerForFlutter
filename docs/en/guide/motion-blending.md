@@ -46,9 +46,9 @@ _player.clearTrack(1);
 `clearTrack` refuses track 0 — fade it to alpha 0 instead, which settles the character onto the setup
 pose.
 
-Every track call returns `false` (or a read returns `null`) before `load`, when the Brain refuses
+Every track call returns `false` (or a read returns `null`) before `load`, when the runtime refuses
 it, or for a track that does not exist; none of them throws. A refusal is also logged once — the
-call, the track or source, the animation name it was given and the Brain's reason — so a misspelt
+call, the track or source, the animation name it was given and the runtime's reason — so a misspelt
 name does not leave the previous animation playing in silence.
 
 !!! warning "`setAnimation` folds the stack"

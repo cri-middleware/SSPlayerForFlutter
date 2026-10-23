@@ -33,7 +33,7 @@ _player.play();                    // start from the beginning
 
 ### What survives `setAnimation`
 
-Setting up an animation resets the Brain's whole transport. The player puts back the settings that are
+Setting up an animation resets the runtime's whole transport. The player puts back the settings that are
 **your** decision, and lets the ones that describe **the animation** reset:
 
 | Re-applied for you | Left to reset |
@@ -44,7 +44,7 @@ A section is a range of frame numbers, and means nothing against a different ani
 would silently outrank the animation you just selected. Set it again after each setup if you need it, and
 note that a section set *before* `setAnimation` is wiped by it.
 
-Only `loopCount` is put back by the player; the rest the Brain keeps on its own. A `frameRate` override
+A `frameRate` override
 outlives a transition too — hand it `0` to clear it and go back to whatever each animation was authored at.
 To scale playback without replacing the authored rate, use `speedScale` rather than `frameRate`.
 
@@ -111,7 +111,7 @@ the view repaints on its own.
 `setAnimation(name)` selects an animation and **waits on its first frame** — it does not start
 playback.
 
-It resets the Brain's transport, but `SpriteStudioPlayer` remembers the `loopCount` / `speedScale` you set and
+It resets the runtime's transport, but `SpriteStudioPlayer` remembers the `loopCount` / `speedScale` you set and
 **re-applies them for you**, so you do not have to set them again on every switch (see
 "What survives `setAnimation`" above).
 

@@ -15,8 +15,7 @@
 **macOS**・**Windows**・**Linux**・**iOS**・**Android**・**Web（開発者プレビュー）** で動作します。
 
 ネイティブランタイム（`libssruntime`）は **Native Assets** のビルドフックがターゲットごとに配布します
-—— CocoaPods も手動リンクも不要。**Web** には `dart:ffi` が無いため、Brain は SDK の wasm-bindgen
-ビルドを `dart:js_interop` 経由で駆動し、Flutter アセットとして同梱、描画は常に Canvas バックエンドです。
+—— CocoaPods も手動リンクも不要。**Web** ではランタイムは Flutter アセットとして同梱される WebAssembly モジュールで、描画は常に Canvas バックエンドです。
 
 ## 描画
 
