@@ -33,10 +33,10 @@ workspace that drives the Rust `libssruntime` over `dart:ffi`.
 |---|---|
 | Using it: every API and limitation | the [docs site](./docs/en/) |
 | Install, convert, first frame, where to read next; in a package's README, also working on it | [README.md](./README.md) and each package's, per `SpriteStudio-SDK/MAINTAINING_PLAYERS.md` |
-| Constraints, build, codegen, tests, docs | [CONTRIBUTING.md](./CONTRIBUTING.md), [Build Guide](./docs/en/contributing/build.md) |
-| Using a checkout in an app, checking what the suites miss | [Build Guide](./docs/en/contributing/build.md) |
-| The four layers, what each owns, the reasons that span files | [Architecture](./docs/en/contributing/architecture.md) |
-| Native library resolution and packaging | [Native Runtime](./docs/en/contributing/native-runtime.md) |
+| Constraints, build, codegen, tests, docs | [CONTRIBUTING.md](./CONTRIBUTING.md), [Build Guide](./docs/en/development/build.md) |
+| Using a changed player in an app, checking what the suites miss | [Build Guide](./docs/en/development/build.md) |
+| The four layers, what each owns, the reasons that span files | [How the Player Is Put Together](./docs/en/development/architecture.md) |
+| Native library resolution and packaging | [Native Runtime](./docs/en/development/native-runtime.md) |
 | Releases, maintainers only | [RELEASING.md](./RELEASING.md) |
 | Plans and non-goals | [ROADMAP.md](./ROADMAP.md) |
 | What a script takes | its header comment |

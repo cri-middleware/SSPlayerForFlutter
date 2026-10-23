@@ -66,9 +66,8 @@ scripts/run-web.sh --wasm      # Skwasm renderer (WebAssembly build mode)
 ```
 
 !!! warning "Developer preview"
-    For the web **runtime backend**, `lib/src/runtime_api.dart` is the seam, with a `dart:ffi`
-    backend (`native_runtime.dart`) and a `dart:js_interop` backend (`web_runtime.dart`) selected by
-    conditional export, so Layer 2 (`internal_player.dart` etc.) compiles without `dart:ffi`.
+    For the web **runtime backend**, the runtime API is the seam: a conditional export picks its
+    `dart:ffi` backend or its `dart:js_interop` backend, so Layer 2 compiles without `dart:ffi`.
     `flutter build web` / `flutter run -d chrome` build and render — every render kind
     (Normal / Shape / Mesh / Effect / Instance), the shader paths (PartColor / mask), framebuffer
     blend, and the timeline event callbacks (UserData / Signal / Audio) are verified on CanvasKit.
@@ -90,11 +89,9 @@ without ffigen or flatc. Regenerate and commit after the corresponding change:
   run it.
 - **FlatBuffers** (`lib/src/ssab/*.g.dart` asset format; `ssruntime_dart` runtime fbs) — after a
   `.fbs` change, run `scripts/generate-fbs-code.sh`. flatc always emits a serializer next to every
-  reader, and `scripts/strip_fbs_builders.dart` moves those
-  `*Builder` / `*ObjectBuilder` classes out of `lib/` (nothing there writes a buffer — the `.ssab`
-  assets come from the SpriteStudio tooling and the runtime fbs come back over dart:ffi) into
-  `packages/ssplayer_flutter/test/support/*_builders.g.dart`, which the tests use to synthesise
-  fixtures. That is ~2/3 of flatc's output kept out of the published packages.
+  reader, and the script moves those `*Builder` / `*ObjectBuilder` classes out of `lib/` (nothing
+  there writes a buffer — the `.ssab` assets come from the SpriteStudio tooling and the runtime fbs
+  come back over dart:ffi) into the tests' support code, where they synthesise fixtures. That is ~2/3 of flatc's output kept out of the published packages.
 
 ## Verify
 
@@ -117,7 +114,7 @@ Every other package and example runs its own suite in its own directory; the tab
 | Example apps | `examples/overall/`, `examples/flame/`, `examples/part_following/` (`flutter test`) |
 | macOS embedding | `examples/overall/` → `flutter build macos` → `ssruntime.framework` under `*.app/Contents/Frameworks/` |
 
-## Using your checkout in an app
+## Using a changed player
 
 Keep the app's dependencies as a released app has them, and override every package of this
 repository the app reaches — the ones it imports, and `ssruntime_dart` under them — to the checkout:
@@ -144,7 +141,7 @@ and otherwise from the pinned SDK release ([Native Runtime](native-runtime.md)).
 runtime under the released Player instead, point the app at your own dylib
 ([Bring your own build](native-runtime.md#bring-your-own-build)).
 
-## Checking in Flutter
+## Checking against the real host
 
 What the suites above do not show, and how to look at it:
 
@@ -155,8 +152,8 @@ What the suites above do not show, and how to look at it:
   geometry only; the helpers' unit tests cover the rest, and an app run shows it.
 - **A change to `ui.Image` or `ui.ImageShader` lifetimes also runs `flutter test --platform chrome`.**
   CanvasKit's `ImageShader.dispose` disposes its image too, where native and Skwasm only borrow it, and
-  neither the VM tests nor CI go through CanvasKit (`test/texture_registry_ownership_test.dart`).
-- **`flutter test --enable-impeller` fails the `Sub` case of `blend_e2e_test.dart`, and that is the
+  neither the VM tests nor CI go through CanvasKit.
+- **`flutter test --enable-impeller` fails the end-to-end blend test's `Sub` case, and that is the
   engine.** flutter_tester's Impeller, which has no framebuffer fetch, draws an advanced blend over an
   earlier draw with a seam along its bounds' diagonal; three `drawRect` calls in plain `dart:ui`
   reproduce it, and the macOS app draws it cleanly. CI does not pass `--enable-impeller`.
@@ -165,11 +162,11 @@ What the suites above do not show, and how to look at it:
   the Dart side's `setFloat` calls; `--sksl --json` shows the Web path. A local `#include` works, and a
   uniform declared and never used still keeps its slot.
 - **Look at the GPU backend after `flutter clean`.** An incremental build has hidden a bug that only
-  a clean build showed. `examples/overall/integration_test/gpu_backend_test.dart` compares it with
-  Canvas on a device, and its header says what it assumes. Quote the GPU path's memory as RSS, not
+  a clean build showed. The integration test in `examples/overall` compares it with Canvas on a
+  device, and its header says what it assumes. Quote the GPU path's memory as RSS, not
   allocation: pages never written to are not resident.
 - **Find a flickering frame headless.** Drive a `SpriteStudioInternalPlayer` directly — `load`, then
-  `updateMs`, `frameNo` and `getFrameData` in the order `_paintTree` uses — record the part's world
+  `updateMs`, `frameNo` and `getFrameData` in the order the player paints with — record the part's world
   bounding box from `meshVertexOffsets()` / `meshVerticesX()` / `meshVerticesY()` each tick, and look
   for the tick that jumps away from its neighbours.
 - **Live reload without a device.** Run
@@ -179,5 +176,5 @@ What the suites above do not show, and how to look at it:
   appending a newline to the `.sspj`: `touch` does not reach the watcher. To press `r` / `R` / `q`,
   pipe them through `script`, which gives `flutter run` the terminal it waits for.
 
-The four layers and what each owns are on [Architecture](architecture.md); how the native library is
-resolved and packaged is on [Native Runtime](native-runtime.md).
+The four layers and what each owns are on [How the Player Is Put Together](architecture.md); how
+the native library is resolved and packaged is on [Native Runtime](native-runtime.md).

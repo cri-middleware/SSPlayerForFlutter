@@ -188,7 +188,7 @@ matrix you are actually holding, with `determinant()`.
 !!! note "The same reads exist on the low-level API"
     The drawing engine beneath `SpriteStudioPlayer` (L3) exposes the same two reads, addressed by index only and under different names —
     `SpriteStudioInternalPlayer.partWorldMatrix(index)` and `partHidden(index)` (L2).
-    Reach for those when driving the player headless or from your own drawing adapter (see [Architecture](../contributing/architecture.md) for the layering).
+    Reach for those when driving the player headless or from your own drawing adapter (see [How the Player Is Put Together](../development/architecture.md) for the layering).
 
 ## Timing and accuracy
 

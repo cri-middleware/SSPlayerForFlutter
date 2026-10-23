@@ -1,4 +1,4 @@
-# 🏗️ アーキテクチャ
+# 🧩 プレイヤーの構成
 
 SpriteStudio Player for Flutter は、SpriteStudio-SDK の **Brain** に対する **Body** です。Brain
 （`libssruntime`、Rust `no_std`）が `.ssab` を読み込んで時間を進め、フレームごとの **SoA バッファ**（ワールド行列・ローカル頂点 / UV）と、**`DrawBatch`** プランを載せた FlatBuffers の **`FrameData`**
@@ -20,7 +20,7 @@ flowchart TD
 
 | レイヤー | 役割 | 所在 |
 |---|---|---|
-| **L4** | 描画アダプタ —— `SpriteStudioAnimation`（プレイヤーと Ticker を自分で持つウィジェット）、`SpriteStudioView`（利用者が持つプレイヤーを描く `RenderBox`）、`SpriteStudioPartAnchor`（パーツに留める子）、Flame の `SpriteStudioComponent` | `ssplayer_flutter`（`lib/src/render/`）, `ssplayer_flame` |
+| **L4** | 描画アダプタ —— `SpriteStudioAnimation`（プレイヤーと Ticker を自分で持つウィジェット）、`SpriteStudioView`（利用者が持つプレイヤーを描く `RenderBox`）、`SpriteStudioPartAnchor`（パーツに留める子）、Flame の `SpriteStudioComponent` | `ssplayer_flutter`, `ssplayer_flame` |
 | **L3** | `SpriteStudioPlayer` —— トランスポート / イベント。vsync モードでは `Ticker`、外部クロックでは `advance` | `ssplayer_flutter` |
 | **L2** | `SpriteStudioInternalPlayer` —— FFI Context のライフサイクル（`.ssab` の解析は、同じバイト列の Player すべてで 1 つを共有）、SoA → geometry bake（Canvas は `ui.Vertices`、GPU はインターリーブ VBO）、`paint` = `DrawBatch.kind` ディスパッチ | `ssplayer_flutter` |
 | **L1** | ffigen `@Native` C-API バインディング + ランタイム FlatBuffers | `ssruntime_dart` |
@@ -29,8 +29,7 @@ flowchart TD
 
 ## どこに何があるか
 
-- **L1** —— `ssruntime_dart`（純 Dart・非 Flutter）: `@Native` C-API バインディング（`lib/src/ssruntime_bindings.g.dart`）+ ランタイム
-  FlatBuffers（`framedata` / `effect_draw_plan`）。ネイティブは `hook/build.dart` が同梱。
+- **L1** —— `ssruntime_dart`（純 Dart・非 Flutter）: 生成した `@Native` C-API バインディングとランタイムの FlatBuffers（`framedata` / `effect_draw_plan`）。ネイティブライブラリはパッケージのビルドフックが同梱。
 - **L2–L4** —— `ssplayer_flutter`（公開 API のバレル。L1 は `ssruntime_dart` から直接 import）。
 - **Flame L4** —— `ssplayer_flame`（コアが `flame` を巻き込まないよう別パッケージ）。
 - **コンバータ** —— `ssconverter_dart`（ホスト `.sspj` → `.ssab`、デスクトップ専用）。
@@ -47,11 +46,11 @@ Sub / Invert 合成 —— は、`Canvas` ではバッチから切り出して�
 
 ## この作りになっている理由
 
-ここに挙げる理由はどれも複数のファイルにまたがります。詳細は、それぞれが指すコードにあります。
+ここに挙げる理由はどれも複数のファイルにまたがります。詳細は、関わるコードのコメントにあります。
 
-**パーツの姿勢は、行列のまま追従先に届きます。** `SpriteStudioPartAnchor` は `partTransform` を `Matrix4` のまま `Transform` に渡すので（`render/part_anchor.dart`）、反転（パーツや祖先の負のスケール）も失われずに届きます。Unity と Godot のプレイヤーは姿勢を `Quaternion` / `Transform2D` に分解します。反転した行列では `Matrix4x4.rotation` が定まらず、左右の反転は取り出した回転に余分な 180° を残します。ここで行列を分解するコードはその注意点を引き受けるので、先に `determinant()` を確かめます。
+**パーツの姿勢は、行列のまま追従先に届きます。** `SpriteStudioPartAnchor` は `partTransform` を `Matrix4` のまま `Transform` に渡すので、反転（パーツや祖先の負のスケール）も失われずに届きます。Unity と Godot のプレイヤーは姿勢を `Quaternion` / `Transform2D` に分解します。反転した行列では `Matrix4x4.rotation` が定まらず、左右の反転は取り出した回転に余分な 180° を残します。ここで行列を分解するコードはその注意点を引き受けるので、先に `determinant()` を確かめます。
 
-**`cancel` は、ここでは厳密で、兄弟の Player では近似です。** プレイヤーを反転したときに子を反転させないのは、このライブラリ自身が掛けた ±1 の対角を打ち消す処理なので（`render/root_transform.dart` の `SsRootTransform.mirrorCancel`）、回転は残りません。Unity と Godot のプレイヤーでスケールを追わない設定（`driveScale` / `update_scale` を off）にした同等のものは、左右の反転で 180° が残ります。
+**`cancel` は、ここでは厳密で、兄弟の Player では近似です。** プレイヤーを反転したときに子を反転させないのは、プレイヤーを反転するときにこのライブラリ自身が掛けた ±1 の対角を打ち消す処理なので、回転は残りません。Unity と Godot のプレイヤーでスケールを追わない設定（`driveScale` / `update_scale` を off）にした同等のものは、左右の反転で 180° が残ります。
 
 **`flutter_gpu` では、プレイヤーごとに自分のオフスクリーンへ描いてから合成します。** そのため、アプリが下の `Canvas` に描いたものは、プレイヤーのブレンドが読む描画先になりません。描画先になるのは同じアニメのほかのパーツです。GPU バックエンドのブレンドの確認で、塗った背景の上ではなく、同じアニメのほかのパーツの上で対象パーツを表示・非表示にして比べるのはこのためです。
 

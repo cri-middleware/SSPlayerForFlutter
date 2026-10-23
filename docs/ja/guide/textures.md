@@ -66,7 +66,7 @@ final names = _player.replaceableTextureNames; // セルマップ ＋ TextureCha
 !!! note "低レベル API からも同じように使えます"
     `setCellmapTexture(hash, image)` と `cellmapTextureOverride(hash)` は、ハッシュ指定で
     `SpriteStudioInternalPlayer`（L2）にも用意されています。パーツオーバーライドと同様、違いは
-    `SpriteStudioPlayer`（L3）が成功時に再描画するのに対し、L2 は再描画を呼び出し側に委ねる点だけです（レイヤー構成は [アーキテクチャ](../contributing/architecture.md) を参照）。
+    `SpriteStudioPlayer`（L3）が成功時に再描画するのに対し、L2 は再描画を呼び出し側に委ねる点だけです（レイヤーについては[プレイヤーの構成](../development/architecture.md)を参照）。
 
 ## 注意点
 

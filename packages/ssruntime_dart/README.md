@@ -54,5 +54,5 @@ generated FlatBuffers accessors for the plan the Brain emits.
 
 * [Documentation](https://cri-middleware.github.io/SSPlayerForFlutter/)
 * [Live Web demos](https://cri-middleware.github.io/SSPlayerForFlutter/demo/) — what this runtime draws, one layer up
-* [Architecture](https://cri-middleware.github.io/SSPlayerForFlutter/contributing/architecture/) — where Layer 1 sits
+* [How the Player Is Put Together](https://cri-middleware.github.io/SSPlayerForFlutter/development/architecture/) — where Layer 1 sits
 * [Repository](https://github.com/cri-middleware/SSPlayerForFlutter)

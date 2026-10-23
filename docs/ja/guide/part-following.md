@@ -158,7 +158,7 @@ Y-Down の反転は**ランタイム側で適用済み**です。呼び出し側
 
 !!! note "低レベル API にも同じ読み取りがあります"
     `SpriteStudioPlayer`（L3）の下位にある描画エンジンにも同じ 2 つの読み取りがありますが、インデックス指定のみで、名前も異なります ——
-    `SpriteStudioInternalPlayer.partWorldMatrix(index)` と `partHidden(index)`（L2）です。ヘッドレス実行や独自の描画アダプタから直接叩く場合はそちらを使ってください（レイヤーの構成は [アーキテクチャ](../contributing/architecture.md) を参照）。
+    `SpriteStudioInternalPlayer.partWorldMatrix(index)` と `partHidden(index)`（L2）です。ヘッドレス実行や独自の描画アダプタから直接叩く場合はそちらを使ってください（レイヤーについては[プレイヤーの構成](../development/architecture.md)を参照）。
 
 ## 追従のタイミングと精度
 

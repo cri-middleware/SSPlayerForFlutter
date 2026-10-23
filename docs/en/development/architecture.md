@@ -1,4 +1,4 @@
-# 🏗️ Architecture
+# 🧩 How the Player Is Put Together
 
 SpriteStudio Player for Flutter is the **Body** for the SpriteStudio-SDK **Brain**. The Brain
 (`libssruntime`, Rust `no_std`) loads a `.ssab`, advances time, and emits per-frame **SoA buffers**
@@ -23,7 +23,7 @@ It is a **strict downward dependency**; layers below are nearer the Brain. Each 
 
 | Layer | Responsibility | Lives in |
 |---|---|---|
-| **L4** | Drawing adapters — `SpriteStudioAnimation` (a widget that owns its player and ticker), `SpriteStudioView` (a `RenderBox` over a player you own), `SpriteStudioPartAnchor` (a child pinned to a part) and the Flame `SpriteStudioComponent` | `ssplayer_flutter` (`lib/src/render/`), `ssplayer_flame` |
+| **L4** | Drawing adapters — `SpriteStudioAnimation` (a widget that owns its player and ticker), `SpriteStudioView` (a `RenderBox` over a player you own), `SpriteStudioPartAnchor` (a child pinned to a part) and the Flame `SpriteStudioComponent` | `ssplayer_flutter`, `ssplayer_flame` |
 | **L3** | `SpriteStudioPlayer` — transport / events; a `Ticker` in vsync mode, or externally clocked via `advance` | `ssplayer_flutter` |
 | **L2** | `SpriteStudioInternalPlayer` — FFI Context lifecycle over one `.ssab` parse shared by every player of the same bytes, SoA → geometry bake (`ui.Vertices` for Canvas / interleaved VBO for GPU), `paint` = `DrawBatch.kind` dispatch | `ssplayer_flutter` |
 | **L1** | ffigen `@Native` C-API bindings + runtime FlatBuffers | `ssruntime_dart` |
@@ -33,9 +33,9 @@ It is a **strict downward dependency**; layers below are nearer the Brain. Each 
 
 ## Where things live
 
-- **L1** — `ssruntime_dart` (pure Dart, non-Flutter): `@Native` C-API bindings
-  (`lib/src/ssruntime_bindings.g.dart`, native lib bundled by `hook/build.dart`) + runtime
-  FlatBuffers (`framedata` / `effect_draw_plan`).
+- **L1** — `ssruntime_dart` (pure Dart, non-Flutter): the generated `@Native` C-API bindings and
+  the runtime's FlatBuffers (`framedata` / `effect_draw_plan`), with the native library bundled by
+  the package's build hook.
 - **L2–L4** — `ssplayer_flutter` (the public API barrel; import L1 from `ssruntime_dart` directly).
 - **Flame L4** — `ssplayer_flame` (a separate package so the core never pulls in `flame`).
 - **Converter** — `ssconverter_dart` (host `.sspj` → `.ssab`, desktop-only).
@@ -60,18 +60,18 @@ levers are **per-frame allocation** and **draw-call count**.
 
 ## Why it is built the way it is
 
-Each reason here spans files; the code it points at carries the detail.
+Each reason here spans files; the code it concerns carries the detail in its comments.
 
 **A part's pose reaches a follower as a whole matrix.** `SpriteStudioPartAnchor` hands
-`partTransform` to a `Transform` as a `Matrix4` (`render/part_anchor.dart`), so a reflection — a
+`partTransform` to a `Transform` as a `Matrix4`, so a reflection — a
 negative scale on the part or an ancestor — rides along without loss. The Unity and Godot players
 decompose the pose into a `Quaternion` / `Transform2D` instead: `Matrix4x4.rotation` is undefined on a
 mirrored matrix, and a horizontal flip leaves an extra 180° in the extracted rotation. Code that
 decomposes the matrix here takes those caveats on, so it checks `determinant()` first.
 
 **`cancel` is exact here and approximate in the siblings.** Keeping a child unmirrored when the
-player is flipped undoes a ±1 diagonal this library applied itself (`SsRootTransform.mirrorCancel` in
-`render/root_transform.dart`), so no rotation is left behind. The equivalent in the Unity and Godot
+player is flipped undoes a ±1 diagonal this library applied itself when it flipped the player, so
+no rotation is left behind. The equivalent in the Unity and Godot
 players, with scale not followed (`driveScale` / `update_scale` off), leaves a stray 180° on a
 horizontal flip.
 

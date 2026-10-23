@@ -49,7 +49,7 @@ _player.clearAllPartOverrides();
 
 !!! note "低レベル API からも同じように使えます"
     ここに挙げたメソッドは、`SpriteStudioPlayer`（L3）だけでなく、その下位にある描画エンジン
-    `SpriteStudioInternalPlayer`（L2）にも同じ名前・同じ引数で用意されています。ヘッドレス実行や独自の描画アダプタから直接叩く場合はそちらを使ってください（レイヤーの構成は [アーキテクチャ](../contributing/architecture.md) を参照）。
+    `SpriteStudioInternalPlayer`（L2）にも同じ名前・同じ引数で用意されています。ヘッドレス実行や独自の描画アダプタから直接叩く場合はそちらを使ってください（レイヤーについては[プレイヤーの構成](../development/architecture.md)を参照）。
 
     違いは**変更が反映される時点と、再描画の責任**です。オーバーライドはプレイヤーの次の tick から反映されます。`SpriteStudioPlayer` は設定・解除が成功するとリスナーへ通知し、一時停止中なら次のフレームで 0 秒の tick を 1 回実行します。`SpriteStudioInternalPlayer` はどちらも行わないため、呼び出し側が次に `update`・`seek`・`setupAnimation` を呼んだときから反映され、再描画も呼び出し側の責任になります。
 

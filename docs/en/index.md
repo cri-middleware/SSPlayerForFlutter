@@ -39,10 +39,10 @@ hand-write. Playback runs through `libssruntime` provided by
     - [Live Reload](guide/live-reload.md)
 - [**API Reference**](api.md)
 - [**Limitations & Scope**](limitations.md)
-- **For Contributors**
-    - [Build Guide](contributing/build.md)
-    - [Architecture](contributing/architecture.md)
-    - [Native Runtime](contributing/native-runtime.md)
+- **For Player & SDK Developers**
+    - [Build Guide](development/build.md)
+    - [How the Player Is Put Together](development/architecture.md)
+    - [Native Runtime](development/native-runtime.md)
 - [**Packages**](packages.md)
 
 ## Key Features

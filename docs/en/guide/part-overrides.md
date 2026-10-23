@@ -57,7 +57,7 @@ Each method takes a **part name**; the `ByIndex`-suffixed form takes a **part in
     Every method listed here is available not only on `SpriteStudioPlayer` (L3) but also — under the
     same names and signatures — on the drawing engine beneath it, `SpriteStudioInternalPlayer` (L2).
     Reach for that one when driving the player headless or from your own drawing adapter (see
-    [Architecture](../contributing/architecture.md) for the layering).
+    [How the Player Is Put Together](../development/architecture.md) for the layering).
 
     The differences are **when the change shows and who repaints**. An override shows from the
     player's next tick. `SpriteStudioPlayer` notifies its listeners when a set or clear succeeds, and

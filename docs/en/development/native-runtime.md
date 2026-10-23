@@ -55,4 +55,4 @@ be used headless — for command-line tooling, tests, or a non-Flutter renderer 
 your own canvas). The Flutter drawing stack (Layers 2–4: SoA → `ui.Vertices` bake, `paint`, widgets)
 lives in `ssplayer_flutter`; the runtime and its FlatBuffers frame data do not depend on it.
 
-See [Architecture](architecture.md) for how the layers stack up.
+See [How the Player Is Put Together](architecture.md) for how the layers stack up.

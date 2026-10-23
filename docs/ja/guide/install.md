@@ -34,7 +34,7 @@ flutter pub add --dev ssconverter_dart
 
 !!! tip "コアを開発する場合"
     `libssruntime` を Rust ソースからビルドしたり Player 本体に手を入れる作業は、
-    [ビルドガイド](../contributing/build.md) にまとめてあります —— アプリ利用者には不要です。
+    [ビルドガイド](../development/build.md) にまとめてあります —— アプリ利用者には不要です。
 
 ## 動作確認
 
