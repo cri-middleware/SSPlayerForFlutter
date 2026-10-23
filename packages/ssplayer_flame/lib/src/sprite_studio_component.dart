@@ -11,7 +11,7 @@ import 'package:ssplayer_flutter/ssplayer_flutter.dart';
 ///
 /// A [PositionComponent] that plays a SpriteStudio `.ssab` inside a
 /// `FlameGame`. It owns an **externally-clocked** [SpriteStudioPlayer] (L3, no
-/// `Ticker`): Flame's game loopCount drives time — `update(dt)` forwards to
+/// `Ticker`): Flame's game loop drives time — `update(dt)` forwards to
 /// [SpriteStudioPlayer.advance] and `render` delegates to the player's single
 /// L2 paint path. Because the whole rich L3 surface (transport, events, instance
 /// packs, texture loading, live reload) is reused as-is, a Flame game gets the
