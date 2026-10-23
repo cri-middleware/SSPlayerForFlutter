@@ -43,9 +43,9 @@ final out = await const SsConverter()
 * **`-e` / `embedded` produces a single self-contained `.ssab`** with its
   textures inside — the recommended form for device and OTA distribution. The
   default reference form keeps the PNG / WebP files beside the pack.
-* **Keep `.sspj` sources out of the shipped app.** Manage them outside the
-  Flutter package and commit only the converted `.ssab`; the game never needs
-  the source data.
+* **The sources stay out of the app.** Only the folders listed under
+  `flutter: assets:` are bundled, so a `SpriteStudio_Source/` beside them never
+  ships.
 * **Reconverting a whole directory on every source save is a different job** —
   see [`ssgen_dart`](../ssgen_dart), which reconverts only what went stale.
 * Other front-ends for the same converter: the

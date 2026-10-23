@@ -15,10 +15,12 @@ delivered automatically through Dart **native assets** — there is no CocoaPods
 
 ## Add the dependency
 
-Add `ssplayer_flutter` from [pub.dev](https://pub.dev/packages/ssplayer_flutter):
+Add `ssplayer_flutter` from [pub.dev](https://pub.dev/packages/ssplayer_flutter), and the converter as a
+dev dependency:
 
 ```bash
 flutter pub add ssplayer_flutter
+flutter pub add --dev ssconverter_dart
 ```
 
 `ssruntime_dart`, the runtime bindings underneath, comes with it.
@@ -28,7 +30,6 @@ What else to add depends on what you use:
 | For | Add |
 |---|---|
 | [Flame Integration](flame.md) | `flutter pub add flame ssplayer_flame` |
-| The `ssconvert` CLI — [Preparing Assets](conversion.md) | `flutter pub add --dev ssconverter_dart` |
 | [Live Reload](live-reload.md) | `flutter pub add --dev ssgen_flutter` |
 
 !!! note "The web target"

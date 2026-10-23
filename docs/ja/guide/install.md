@@ -14,10 +14,11 @@ Flutter アプリに SpriteStudio Player for Flutter を追加する手順です
 
 ## 依存を追加する
 
-[pub.dev](https://pub.dev/packages/ssplayer_flutter) から `ssplayer_flutter` を追加します。
+[pub.dev](https://pub.dev/packages/ssplayer_flutter) から `ssplayer_flutter` を、dev 依存としてコンバータを追加します。
 
 ```bash
 flutter pub add ssplayer_flutter
+flutter pub add --dev ssconverter_dart
 ```
 
 その下のランタイムバインディング `ssruntime_dart` も一緒に入ります。
@@ -27,7 +28,6 @@ flutter pub add ssplayer_flutter
 | 用途 | 追加するもの |
 |---|---|
 | [Flame 連携](flame.md) | `flutter pub add flame ssplayer_flame` |
-| `ssconvert` CLI —— [アセットの準備](conversion.md) | `flutter pub add --dev ssconverter_dart` |
 | [ライブリロード](live-reload.md) | `flutter pub add --dev ssgen_flutter` |
 
 !!! note "Web ターゲット"
