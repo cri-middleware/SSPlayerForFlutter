@@ -4,11 +4,8 @@ Play **SpriteStudio** raster animations (`.ssab`) natively in Flutter —
 rigged by an artist in a dedicated editor, drawn straight to the Flutter
 `Canvas`, with no animation code to hand-write.
 
-This is the package most apps depend on: a `dart:ffi` **Body** over the
-SpriteStudio-SDK Rust **Brain** (`libssruntime`, in
-[`ssruntime_dart`](../ssruntime_dart)). The Brain loads the pack, advances time
-and emits a per-frame draw plan; this package turns that plan into
-`Canvas.drawVertices` calls and gives you a widget and a controller.
+This is the package most apps depend on: a widget and a controller that play a
+`.ssab`, over the runtime in [`ssruntime_dart`](../ssruntime_dart).
 
 The native runtime arrives through Dart **native assets** — no CocoaPods, no
 framework to embed, no `DynamicLibrary` path, and no Rust toolchain.
@@ -34,7 +31,8 @@ SpriteStudioAnimation.asset(
 )
 ```
 
-It reads the bytes from the asset bundle, resolves sibling reference textures
+List the pack's folder under `flutter: assets:` in `pubspec.yaml`. The widget
+reads the bytes from the asset bundle, resolves sibling reference textures
 from the key's own folder (embedded packs too), plays `animation:` — the pack's
 first animation without it — loops it, and disposes everything with the widget.
 `placeholder:` is what to show until the first frame is drawable; `onError:`
@@ -81,17 +79,13 @@ class _MyState extends State<MyWidget> with SingleTickerProviderStateMixin {
   drive the clock yourself through `advance(dt)` — which is how the Flame
   adapter ([`ssplayer_flame`](../ssplayer_flame)) hands the game loop's time to
   the same player.
-* **Every buffer the Brain hands over is valid until the next `update`.** That
-  rule is the reason for the `dispose` discipline above; hold the player, not
-  the frames.
 * **A pack is either Reference or Embedded.** Reference packs load sibling PNG /
   WebP files from the asset key's own folder; embedded packs carry their
   textures and need nothing else. `loadAsset` handles both.
 * **The `.sspj` → `.ssab` conversion is a host-side step**, not something the
   runtime does — see [`ssconverter_dart`](../ssconverter_dart).
-* **Web is a developer preview.** There is no `dart:ffi` there; the Brain is a
-  wasm module driven over `dart:js_interop`, so call `await loadSsRuntime()`
-  once before `runApp` (a no-op on native).
+* **Web is a developer preview.** Call `await loadSsRuntime()` once before
+  `runApp` (a no-op on native).
 
 ## More
 
