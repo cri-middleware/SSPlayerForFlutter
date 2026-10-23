@@ -11,7 +11,7 @@ graph: everything is rebuilt each frame.
 
 ```mermaid
 flowchart TD
-    L4["L4 · Drawing adapters<br/>SpriteStudioView (RenderBox) · SpriteStudioComponent (Flame)"]
+    L4["L4 · Drawing adapters<br/>SpriteStudioAnimation · SpriteStudioView (RenderBox) · SpriteStudioPartAnchor · SpriteStudioComponent (Flame)"]
     L3["L3 · SpriteStudioPlayer<br/>ChangeNotifier · transport · events · Ticker / advance"]
     L2["L2 · SpriteStudioInternalPlayer<br/>Widget-agnostic · FFI lifecycle · SoA → geometry bake · paint"]
     L1["L1 · ffigen @Native bindings<br/>(ssruntime_dart package)"]
@@ -23,7 +23,7 @@ It is a **strict downward dependency**; layers below are nearer the Brain. Each 
 
 | Layer | Responsibility | Lives in |
 |---|---|---|
-| **L4** | Drawing adapters — `SpriteStudioView` (a `RenderBox`) and the Flame `SpriteStudioComponent` | `ssplayer_flutter`, `ssplayer_flame` |
+| **L4** | Drawing adapters — `SpriteStudioAnimation` (a widget that owns its player and ticker), `SpriteStudioView` (a `RenderBox` over a player you own), `SpriteStudioPartAnchor` (a child pinned to a part) and the Flame `SpriteStudioComponent` | `ssplayer_flutter` (`lib/src/render/`), `ssplayer_flame` |
 | **L3** | `SpriteStudioPlayer` — transport / events; a `Ticker` in vsync mode, or externally clocked via `advance` | `ssplayer_flutter` |
 | **L2** | `SpriteStudioInternalPlayer` — FFI Context lifecycle over one `.ssab` parse shared by every player of the same bytes, SoA → geometry bake (`ui.Vertices` for Canvas / interleaved VBO for GPU), `paint` = `DrawBatch.kind` dispatch | `ssplayer_flutter` |
 | **L1** | ffigen `@Native` C-API bindings + runtime FlatBuffers | `ssruntime_dart` |
@@ -57,6 +57,28 @@ multi-pass Sub / Invert blends — are peeled out of their batch and drawn indiv
 whereas the `flutter_gpu` backend batches them. The backend is chosen per `SpriteStudioBackend`
 (`auto` picks flutter_gpu where the capability probe passes, else Canvas). Because everything is rebuilt per frame, the performance
 levers are **per-frame allocation** and **draw-call count**.
+
+## Why it is built the way it is
+
+Each reason here spans files; the code it points at carries the detail.
+
+**A part's pose reaches a follower as a whole matrix.** `SpriteStudioPartAnchor` hands
+`partTransform` to a `Transform` as a `Matrix4` (`render/part_anchor.dart`), so a reflection — a
+negative scale on the part or an ancestor — rides along without loss. The Unity and Godot players
+decompose the pose into a `Quaternion` / `Transform2D` instead: `Matrix4x4.rotation` is undefined on a
+mirrored matrix, and a horizontal flip leaves an extra 180° in the extracted rotation. Code that
+decomposes the matrix here takes those caveats on, so it checks `determinant()` first.
+
+**`cancel` is exact here and approximate in the siblings.** Keeping a child unmirrored when the
+player is flipped undoes a ±1 diagonal this library applied itself (`SsRootTransform.mirrorCancel` in
+`render/root_transform.dart`), so no rotation is left behind. The equivalent in the Unity and Godot
+players, with scale not followed (`driveScale` / `update_scale` off), leaves a stray 180° on a
+horizontal flip.
+
+**On `flutter_gpu`, each player draws into an offscreen target of its own and is composited.** What
+the app paints on the `Canvas` underneath is therefore not the destination a player's blends read;
+the other parts of the same animation are. That is why a blend check on the GPU backend compares a
+part shown and hidden over the rest of its own animation, not over a painted background.
 
 ## Further reading
 

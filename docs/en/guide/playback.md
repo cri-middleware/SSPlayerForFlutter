@@ -33,10 +33,12 @@ _player.play();                    // start from the beginning
 
 ### What survives `setAnimation`
 
-Setting up an animation resets the runtime's whole transport. The player puts back the settings that are
-**your** decision, and lets the ones that describe **the animation** reset:
+Setting up an animation resets two things in the runtime: the section and the loop count. The speed, the
+frame-rate override, the frame skip and the direction and style survive there, and the player puts the
+loop count back, so the settings that are **your** decision stay and only the one that describes
+**the animation** resets:
 
-| Re-applied for you | Left to reset |
+| Kept | Reset |
 |---|---|
 | `loopCount`, `speedScale`, `frameSkipEnabled`, `frameRate`, `playbackDirection` / `playbackStyle`, `subFrameEnabled` | the animation section |
 

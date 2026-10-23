@@ -38,12 +38,15 @@ renders through the Canvas backend.
     | SpriteStudio mode | `flutter_gpu` | Canvas |
     |---|---|---|
     | `Mix`, `Add` | exact | exact |
-    | `Screen`, `Screen2`, `Exclusion` | exact | exact |
-    | `Mul`, `Mulalpha`, `Mul2` | exact over opaque content | exact over opaque content |
+    | `Screen`, `Exclusion` | exact | exact |
+    | `Screen2` | drawn as `Screen` | drawn as `Screen` |
+    | `Mul` | exact over opaque content | exact over opaque content |
+    | `Mulalpha`, `Mul2` | drawn as `Mul` | drawn as `Mul` |
     | `Sub`, `Invert` | exact | exact over opaque content (4 / 3 draws) |
     | `Div2`, `Overlay2` | renders as `Mix` | renders as `Mix` |
 
-    `flutter_gpu` sets the reference blend state directly, so every mode is reproduced as-is. On the
+    `flutter_gpu` sets the reference blend state directly, so every mode with a state of its own is
+    reproduced as-is. On the
     Canvas backend, `Sub` and `Invert` have no single `ui.BlendMode` — Flutter's fixed enum has no
     reverse-subtract and no destination-replace — so the player reconstructs them exactly from stock
     passes over the same geometry, four for `Sub` and three for `Invert`. The reconstruction costs three
@@ -52,7 +55,8 @@ renders through the Canvas backend.
     part's edge crosses come out slightly off — a one-pixel fringe where the edge does not fall on a
     pixel boundary.
 
-    `Div2` / `Overlay2` drawing as `Mix` is intentional: they have no GPU blend mapping.
+    `Div2` / `Overlay2` draw as `Mix`, as in every SpriteStudio Player: no formula for either with a
+    source exists to draw them by.
 
 - **Blends read an opaque backdrop.** The modes that sample the destination (`Mul`, `Sub`, `Screen`,
   `Exclusion`, `Invert`) match the editor where the pixels underneath are opaque — the case

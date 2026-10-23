@@ -155,6 +155,9 @@ cd examples\overall; flutter run
 ```
 
 See [CONTRIBUTING.md](./CONTRIBUTING.md) for building and testing from a checkout,
+[Architecture](./docs/en/contributing/architecture.md) for how the player is put together and why,
+the [Build Guide](./docs/en/contributing/build.md#using-your-checkout-in-an-app) for using your
+checkout in an app and checking what the suites miss,
 [Native Runtime](./docs/en/contributing/native-runtime.md) for how the native library is packaged, and
 [ROADMAP.md](./ROADMAP.md) for upcoming work.
 

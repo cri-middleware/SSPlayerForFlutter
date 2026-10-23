@@ -117,5 +117,67 @@ Every other package and example runs its own suite in its own directory; the tab
 | Example apps | `examples/overall/`, `examples/flame/`, `examples/part_following/` (`flutter test`) |
 | macOS embedding | `examples/overall/` → `flutter build macos` → `ssruntime.framework` under `*.app/Contents/Frameworks/` |
 
+## Using your checkout in an app
+
+Keep the app's dependencies as a released app has them, and override every package of this
+repository the app reaches — the ones it imports, and `ssruntime_dart` under them — to the checkout:
+
+```yaml
+dependencies:
+  ssplayer_flutter: ^7.0.0-beta.1
+  ssplayer_flame: ^7.0.0-beta.1          # only if the app uses Flame
+
+dependency_overrides:
+  ssplayer_flutter:
+    path: <checkout>/packages/ssplayer_flutter
+  ssplayer_flame:
+    path: <checkout>/packages/ssplayer_flame
+  ssruntime_dart:
+    path: <checkout>/packages/ssruntime_dart
+```
+
+Inside the repository the packages find each other through the pub workspace; from outside, each one
+names the others by version, so a `path:` dependency on `ssplayer_flutter` alone still asks pub for
+`ssruntime_dart` (and `ssplayer_flame` for `ssplayer_flutter`) by version, and resolution fails.
+The native library then comes from the checkout's `native/libs/` when `build-runtime` has filled it,
+and otherwise from the pinned SDK release ([Native Runtime](native-runtime.md)). To run a patched
+runtime under the released Player instead, point the app at your own dylib
+([Bring your own build](native-runtime.md#bring-your-own-build)).
+
+## Checking in Flutter
+
+What the suites above do not show, and how to look at it:
+
+- **`flutter test`'s end-to-end renders do not run the shader paths.** Under `flutter test`,
+  `ui.FragmentProgram.fromAsset` finds only package-local keys, and the Canvas backend asks for
+  `packages/…` ones, so the program fails once and stays failed: peeled PartColor, the mask coverage
+  pass and the `ss_*` effects are not drawn. A green `player.paint` → `toImage` test covers the batch
+  geometry only; the helpers' unit tests cover the rest, and an app run shows it.
+- **A change to `ui.Image` or `ui.ImageShader` lifetimes also runs `flutter test --platform chrome`.**
+  CanvasKit's `ImageShader.dispose` disposes its image too, where native and Skwasm only borrow it, and
+  neither the VM tests nor CI go through CanvasKit (`test/texture_registry_ownership_test.dart`).
+- **`flutter test --enable-impeller` fails the `Sub` case of `blend_e2e_test.dart`, and that is the
+  engine.** flutter_tester's Impeller, which has no framebuffer fetch, draws an advanced blend over an
+  earlier draw with a seam along its bounds' diagonal; three `drawRect` calls in plain `dart:ui`
+  reproduce it, and the macOS app draws it cleanly. CI does not pass `--enable-impeller`.
+- **Check a `.frag` with `impellerc` from Flutter's cache** rather than by reading it: a runtime
+  effect fails silently. `--reflection-json` gives each uniform's `location`, which is the order of
+  the Dart side's `setFloat` calls; `--sksl --json` shows the Web path. A local `#include` works, and a
+  uniform declared and never used still keeps its slot.
+- **Look at the GPU backend after `flutter clean`.** An incremental build has hidden a bug that only
+  a clean build showed. `examples/overall/integration_test/gpu_backend_test.dart` compares it with
+  Canvas on a device, and its header says what it assumes. Quote the GPU path's memory as RSS, not
+  allocation: pages never written to are not resident.
+- **Find a flickering frame headless.** Drive a `SpriteStudioInternalPlayer` directly — `load`, then
+  `updateMs`, `frameNo` and `getFrameData` in the order `_paintTree` uses — record the part's world
+  bounding box from `meshVertexOffsets()` / `meshVerticesX()` / `meshVerticesY()` each tick, and look
+  for the tick that jumps away from its neighbours.
+- **Live reload without a device.** Run
+  `dart run ssgen_flutter:sswatch --run -d chrome --device --web-browser-flag=--headless=new` in an
+  example. Make its runner with `flutter create --platforms=<every platform it already has>`, because
+  the command replaces the list in `.metadata` (restore `.metadata` afterwards). Stand in for a save by
+  appending a newline to the `.sspj`: `touch` does not reach the watcher. To press `r` / `R` / `q`,
+  pipe them through `script`, which gives `flutter run` the terminal it waits for.
+
 The four layers and what each owns are on [Architecture](architecture.md); how the native library is
 resolved and packaged is on [Native Runtime](native-runtime.md).

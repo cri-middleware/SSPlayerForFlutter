@@ -19,7 +19,7 @@ Please refer to [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md).
 ### Technical Constraints & Guiding Principles
 This player is a strict 4-layer "Body" over the SpriteStudio-SDK "Brain". To keep it fast and portable, please follow these principles:
 
-- **Flutter/Dart idioms first:** Use Flutter's rendering (`RenderBox`, `Canvas.drawVertices`), null-safety, and `dispose` discipline. Match the existing Dart style in the files you touch.
+- **Flutter/Dart idioms first:** Use Flutter's rendering (`RenderBox`, and `Canvas.drawVertices` or `flutter_gpu` behind the render backend), null-safety, and `dispose` discipline. Match the existing Dart style in the files you touch.
 - **Respect the layer boundaries:** Keep **L2** (`SpriteStudioInternalPlayer`) Widget-free so it stays reusable headless / from Flame / behind the `flutter_gpu` backend. L1 FFI bindings live in the sibling `ssruntime_dart` package. Do not leak Widget dependencies downward.
 - **Performance in the hot path:** Avoid per-frame heap allocations during playback. Consume the runtime's SoA buffers and `DrawBatch` plans directly. Remember that `FrameData` and SoA pointers are **borrows valid only until the next `update`** — consume them within the frame, and release `Context` / `Resource` handles in `dispose`.
 - **SDK separation:** The core animation logic lives in the `SpriteStudio-SDK` submodule (Rust `libssruntime`). Changes to the core/algorithm belong in the SDK repository; Flutter-specific rendering belongs in `packages/`.
@@ -49,7 +49,7 @@ If you find a bug, please open a GitHub Issue and include:
 - `flatc` — only when regenerating a `.fbs` schema. (cbindgen is a build-dependency of the SDK's `build.rs`; no separate install.)
 - The `SpriteStudio-SDK` submodule: `git submodule update --init --recursive`.
 
-For the complete build guide, see [docs/en/contributing/build.md](./docs/en/contributing/build.md).
+For the complete build guide, see [docs/en/contributing/build.md](./docs/en/contributing/build.md). It also says how to use your checkout in an app and how to check what the suites do not cover.
 
 ### Build from source
 ```bash
@@ -185,7 +185,7 @@ SSPlayerForFlutter にご関心をお寄せいただき、ありがとうござ�
 - `flatc` —— `.fbs` スキーマを再生成するときのみ。（cbindgen は SDK の `build.rs` の build-dependency なので個別導入は不要です。）
 - `SpriteStudio-SDK` サブモジュール: `git submodule update --init --recursive`。
 
-完全なビルド手順については、[docs/ja/contributing/build.md](./docs/ja/contributing/build.md) を参照してください。
+完全なビルド手順については、[docs/ja/contributing/build.md](./docs/ja/contributing/build.md) を参照してください。チェックアウトをアプリで使う方法と、スイートでは確かめられないものの確かめ方もそこにあります。
 
 ### ソースからのビルド
 ```bash

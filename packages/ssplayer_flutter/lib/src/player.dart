@@ -910,9 +910,10 @@ class SpriteStudioPlayer extends ChangeNotifier {
     _internal?.frameRate = fps;
   }
 
-  // `setupAnimation` resets the Brain's whole transport (loop, speed, fps,
-  // direction, style, skip-frames and the section) to the new animation's
-  // defaults, so anything the host chose has to be re-applied afterwards.
+  // `setupAnimation` resets the Brain's loop count and section to the new
+  // animation's; the speed, the fps override, the skip-frames and the
+  // direction / style survive it there. What follows is why each setting is
+  // still pushed here.
   //
   // The caller's own settings, pushed at a point where they are guaranteed to
   // reach a freshly set-up player. `loop` is the one that has to be here: the
