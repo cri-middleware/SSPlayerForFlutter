@@ -16,4 +16,4 @@ Both players have a live demo you can open in a browser: the widget one at
 | Reconvert-only-stale host lib (powers `ssgen_flutter`) | [`ssgen_dart`](https://github.com/cri-middleware/SSPlayerForFlutter/tree/main/packages/ssgen_dart) | Pure Dart (desktop host lib, over `ssconverter_dart`) |
 | Live reload for the edit-to-runtime loop | [`ssgen_flutter`](https://github.com/cri-middleware/SSPlayerForFlutter/tree/main/packages/ssgen_flutter) | Flutter dev tooling (on `ssgen_dart`) |
 
-For how these map onto the rendering layers, see [Architecture](contributing/architecture.md).
+For how these map onto the rendering layers, see [How the Player Is Put Together](development/architecture.md).

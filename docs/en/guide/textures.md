@@ -76,7 +76,7 @@ that had no override; `true` when a replacement was set or actually cleared.
     `setCellmapTexture(hash, image)` and `cellmapTextureOverride(hash)` are also on
     `SpriteStudioInternalPlayer` (L2), keyed by hash. As with part overrides, the only difference is
     that `SpriteStudioPlayer` (L3) repaints on success while L2 leaves that to you (see
-    [Architecture](../contributing/architecture.md) for the layering).
+    [How the Player Is Put Together](../development/architecture.md) for the layering).
 
 ## Notes
 

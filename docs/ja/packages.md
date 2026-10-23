@@ -14,4 +14,4 @@
 | stale なものだけ再変換するホストライブラリ（`ssgen_flutter` の土台） | [`ssgen_dart`](https://github.com/cri-middleware/SSPlayerForFlutter/tree/main/packages/ssgen_dart) | 純 Dart（デスクトップ用ホストライブラリ・`ssconverter_dart` の上） |
 | 編集→実機ループのライブリロード | [`ssgen_flutter`](https://github.com/cri-middleware/SSPlayerForFlutter/tree/main/packages/ssgen_flutter) | Flutter 開発ツール（`ssgen_dart` の上） |
 
-これらが描画レイヤーにどう対応するかは [アーキテクチャ](contributing/architecture.md) を参照してください。
+これらが描画レイヤーにどう対応するかは [プレイヤーの構成](development/architecture.md)を参照してください。

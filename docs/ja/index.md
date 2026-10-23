@@ -31,10 +31,10 @@
     - [ライブリロード](guide/live-reload.md)
 - [**API リファレンス**](api.md)
 - [**制約と適用範囲**](limitations.md)
-- **コントリビューター向け**
-    - [ビルドガイド](contributing/build.md)
-    - [アーキテクチャ](contributing/architecture.md)
-    - [ネイティブランタイム](contributing/native-runtime.md)
+- **Player・SDK 開発者向けガイド**
+    - [ビルドガイド](development/build.md)
+    - [プレイヤーの構成](development/architecture.md)
+    - [ネイティブランタイム](development/native-runtime.md)
 - [**パッケージ**](packages.md)
 
 ## 主な機能 (Key Features)

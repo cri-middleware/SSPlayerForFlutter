@@ -37,7 +37,7 @@ What else to add depends on what you use:
 
 !!! tip "Developing the core?"
     Building `libssruntime` from Rust source, or hacking on the Player itself, is covered separately
-    in the [Build Guide](../contributing/build.md) — app users never need it.
+    in the [Build Guide](../development/build.md) — app users never need it.
 
 ## Verify
 
