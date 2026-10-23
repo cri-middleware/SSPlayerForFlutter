@@ -34,7 +34,7 @@ dependencies:
   flutter:
     sdk: flutter
   ffi: ^2.2.0
-  vector_math: ^2.2.0
+  vector_math: ^2.4.3
   flat_buffers: ^25.9.23
   ssruntime_dart: ^7.0.0-beta.1
   flutter_gpu:
