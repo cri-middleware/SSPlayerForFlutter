@@ -86,7 +86,7 @@ graph LR
 ## 対応バージョン
 
 - **Flutter / Dart**: 下限は[インストール](./guide/install.md)にあり、実際に強制するのは `ssplayer_flutter` の `environment:` です。native assets の下限より上にあるのは、GPU バックエンドが flutter_gpu の現行 API に対してビルドされるためです。
-- **プラットフォーム**: macOS・iOS（シミュレータ）・Android（エミュレータ）・Web（開発者プレビュー）で確認済み。実機 iOS と 32bit `armeabi-v7a` ABI は未確認です。
+- **プラットフォーム**: macOS・Windows・Linux・iOS・Android・Web（開発者プレビュー）。
 
 ## サンプル
 

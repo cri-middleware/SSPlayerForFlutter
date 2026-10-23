@@ -95,7 +95,7 @@ graph LR
 ## Supported Versions
 
 - **Flutter / Dart**: the floor is on [Installation](./guide/install.md), and `ssplayer_flutter`'s `environment:` enforces it — it sits above the native-assets floor because the GPU backend is built against flutter_gpu's current API.
-- **Platforms**: verified on macOS, iOS (simulator), Android (emulator), and Web (developer preview). A physical iOS device and the 32-bit `armeabi-v7a` ABI are not yet confirmed.
+- **Platforms**: macOS, Windows, Linux, iOS, Android, and Web (developer preview).
 
 ## Samples
 

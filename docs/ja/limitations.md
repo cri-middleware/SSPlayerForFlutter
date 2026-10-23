@@ -12,7 +12,7 @@
 
 ## プラットフォーム
 
-**macOS**・**iOS（シミュレータ）**・**Android（エミュレータ）**・**Web（開発者プレビュー）** で確認済み。
+**macOS**・**Windows**・**Linux**・**iOS**・**Android**・**Web（開発者プレビュー）** で動作します。
 
 ネイティブランタイム（`libssruntime`）は **Native Assets** のビルドフックがターゲットごとに配布します
 —— CocoaPods も手動リンクも不要。**Web** には `dart:ffi` が無いため、Brain は SDK の wasm-bindgen

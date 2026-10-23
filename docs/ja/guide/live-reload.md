@@ -67,16 +67,15 @@
 
 | プラットフォーム | 経路 | 状況 |
 |---|---|---|
-| macOS デスクトップ | VM Service push（file） | end-to-end 検証済み |
-| Android | VM Service push（embedded） | end-to-end 検証済み（emulator） |
-| iOS | VM Service push（embedded） | end-to-end 検証済み（シミュレータ） |
-| Web（`-d chrome`・デバッグ） | VM Service push（embedded・DWDS 中継） | end-to-end 検証済み（headless Chrome） |
+| macOS デスクトップ | VM Service push（file） | 対応 |
+| Android | VM Service push（embedded） | 対応 |
+| iOS | VM Service push（embedded） | 対応 |
+| Web（`-d chrome`・デバッグ） | VM Service push（embedded・DWDS 中継） | 対応 |
 | `--wasm`・`--release`・`--profile` | — | 不可。前の 2 つは VM Service が無く、profile ビルドには push チャネルがありません。`sswatch --run` は起動前に断ります |
 
 `--device` はターゲットの選択ではなく**ペイロードの選択**です。ホストのパスではなくバイトを送るだけなので、どのターゲットでも受け取れます。つまり `sswatch --run -d macos --device` を実行すれば、デバイスを繋がずに embedded 経路まるごと —— ルーティング・転送・`reload()` —— を動かせます。
 push が壊れているのか、単にターゲットが繋がっていないだけなのかを切り分けるのに使えます。
 
-試すときは**実際の編集**を保存してください。`touch` は watcher に確実には届きません（macOS で確認:
-イベントが 1 つも出ませんでした）。これはファイル監視側の性質で、リロードの問題ではありません。
+試すときは**実際の編集**を保存してください。`touch` は watcher に確実には届きません（イベントが 1 つも出ないことがあります）。これはファイル監視側の性質で、リロードの問題ではありません。
 
 単発の手動変換なら [アセットの準備](conversion.md) を参照してください。

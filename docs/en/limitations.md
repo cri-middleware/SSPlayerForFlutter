@@ -21,7 +21,7 @@ ordinary part at authoring time.
 
 ## Platforms
 
-Verified on **macOS**, **iOS (simulator)**, **Android (emulator)**, and **Web (developer preview)**.
+Runs on **macOS**, **Windows**, **Linux**, **iOS**, **Android**, and **Web (developer preview)**.
 
 The native runtime (`libssruntime`) is delivered per target by the **native assets** build hook — no
 CocoaPods, no manual linking. On the **Web** there is no `dart:ffi`: the Brain ships as the SDK's
