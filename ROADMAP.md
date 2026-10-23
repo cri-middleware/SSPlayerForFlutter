@@ -43,6 +43,9 @@ areas, and a UI-state map.
   simulator and Android emulator; a code-signed `iphoneos` slice and the 32-bit
   ARM ABI have no runtime check. Blocked on: a physical iOS device and a 32-bit
   ARM Android device.
+- [ ] **Windows and Linux desktop apps** — CI builds the example for both and runs the test suites
+  on Linux, but neither desktop app has been run. Blocked on: a Windows machine and a Linux
+  machine.
 - [ ] **Confirm the three borrowed blend states** — `Mulalpha` and `Mul2` draw with `Mul`'s
   state and `Screen2` with `Screen`'s, on both backends (`render/blend.dart`,
   `flutter_gpu_backend.dart`), as SpriteStudio Player for Web and for wgpu do; none of the three has
