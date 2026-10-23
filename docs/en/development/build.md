@@ -114,7 +114,7 @@ Every other package and example runs its own suite in its own directory; the tab
 | Example apps | `examples/overall/`, `examples/flame/`, `examples/part_following/` (`flutter test`) |
 | macOS embedding | `examples/overall/` → `flutter build macos` → `ssruntime.framework` under `*.app/Contents/Frameworks/` |
 
-## Using a changed player
+## Using a changed Player
 
 Keep the app's dependencies as a released app has them, and override every package of this
 repository the app reaches — the ones it imports, and `ssruntime_dart` under them — to the checkout:
