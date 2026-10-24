@@ -19,6 +19,9 @@ export 'src/render/part_anchor.dart'
         SpriteStudioPartAnchor,
         SpriteStudioAnchorHidden,
         SpriteStudioAnchorMirror;
+// A part's outline as drawn, for hit areas (SpriteStudioPlayer.partQuad /
+// hitTestPart).
+export 'src/render/part_quad.dart' show SsPartQuad;
 
 // Layer 3 — user-facing controller.
 export 'src/player.dart' show SpriteStudioPlayer, SsEventCallback;

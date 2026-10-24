@@ -18,6 +18,7 @@ dart doc
 - **`SpriteStudioComponent`**（`ssplayer_flame`）—— Flame アダプタ。[Flame 連携](guide/flame.md) を参照。
 - **`SpriteStudioPartAnchor` / `SpriteStudioAnchorHidden` / `SpriteStudioAnchorMirror`**（L4）——
   パーツにウィジェットを追従させる。[パーツトラッキング](guide/part-following.md) を参照。
+- **`SsPartQuad`** —— 描かれているとおりのパーツの輪郭（`SpriteStudioPlayer.partQuad` / `hitTestPart`）。[パーツトラッキング](guide/part-following.md#パーツの輪郭) を参照。
 - **`SsRootTransform`** —— プレイヤー単位の反転 / オフセット（`flipX` / `flipY` / `offset`）。
   [再生とイベント](guide/playback.md) を参照。
 - **`SsBlendOp` / `SsOverridePriority` / `PartNameTable`** —— パーツオーバーライド。

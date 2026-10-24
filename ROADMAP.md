@@ -22,11 +22,9 @@ vocabulary is shared with the sibling Players: a part rect read-out for hit
 areas, and a UI-state map.
 
 - [ ] **Per-part hit testing** — the view answers a hit anywhere in its box, so an
-  irregular button takes taps around its artwork too. It takes `partRectOf(part)` on
-  the player, a pure read built from the `PartState` fields the runtime delivers every
-  frame (`size_x` / `size_y`, `anchor`, `pivot`) and the part transform, with
-  narrowing hits to the parts the host names left to a separate opt-in widget, so a
-  player that only plays pays nothing.
+  irregular button takes taps around its artwork too. The player reads each part's
+  outline (`partQuad`, `hitTestPart`); what is left is a separate opt-in widget that
+  narrows hits to the parts the host names, so a player that only plays pays nothing.
 - [ ] **UI state binding** — a widget that drives the player from
   `WidgetStatesController` (`hovered` / `pressed` / `disabled` / `focused`), each
   state mapped to an animation or a label, so a player drops into an `InkWell` or a

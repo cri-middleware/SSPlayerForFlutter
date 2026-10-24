@@ -124,6 +124,10 @@ if (pose != null && !_player.isPartHiddenByIndex(partIndex)) {
 | `isPartHiddenByIndex(index)` | `isPartHidden` のインデックス指定版 |
 | `isPartSkinnedMesh(name)` | そのパーツがボーンバインドされた（スキン）メッシュか＝**追従に向かないパーツ**かを返す（上記の警告を参照）。`load()` 前・不明なパーツ・リジッドメッシュでは `false` |
 | `isPartSkinnedMeshByIndex(index)` | `isPartSkinnedMesh` のインデックス指定版 |
+| `partQuad(name)` | 直前の tick で組み立てたフレームで、そのパーツが描かれている輪郭を `SsPartQuad?` で返す（[後述](#パーツの輪郭)）。`load()` 前・不明なパーツ・hide のパーツ・自分では何も描かないパーツでは null |
+| `partQuadByIndex(index)` | `partQuad` のインデックス指定版 |
+| `hitTestPart(point, {parts})` | `parts` に名前を挙げたパーツ（省略時はすべて）のうち、輪郭が `point` を含む一番手前のパーツのインデックス。無ければ `-1` |
+| `hitTestPartByIndex(point, {parts})` | `parts` をインデックスで渡す `hitTestPart` |
 
 !!! tip "一瞬だけ知りたいならアンカーは不要です"
     常時追従させるまでもなく「その瞬間のパーツ位置だけ知りたい」場合（弾の発射位置を取るなど）は、`SpriteStudioPartAnchor` を配置せず `partTransform()` を直接呼ぶ方が簡潔です。
@@ -156,9 +160,20 @@ Y-Down の反転は**ランタイム側で適用済み**です。呼び出し側
     ただし**自分で分解する場合**、鏡像の行列から取り出した回転は一意に決まりません（水平反転で 180 度の差が残ります）。行列から回転角を取り出すようなコードを書くときは、先に `determinant()` の符号を確認してください。平行移動成分（`storage[12]` /
     `storage[13]`）は符号に関係なく常に正確です。
 
+### パーツの輪郭
+
+`partQuad` は `SsPartQuad` を返します。パーツが描かれている 4 隅（`leftTop` / `rightTop` / `leftBottom` / `rightBottom`）を `partTransform` と同じ座標で持ち、`bounds`（4 隅を囲む軸平行の矩形）と `contains(point)` を備えます。`SpriteStudioView` の上では、ビュー自身の座標の点からビューの箱の中心を引くとこの座標になります。
+
+```dart
+// `local` はビューの座標の点、`size` はビューの大きさ
+final index = _player.hitTestPart(local - size.center(Offset.zero), parts: ['button']);
+```
+
+輪郭は描かれているとおりです。セルを持つパーツは描かれている 4 隅で、スキューと頂点変形も入ります。回転したパーツなら回転した四角形になります。Mesh パーツは頂点を囲む軸平行の矩形で、ボーンにバインドされていても描かれている位置になります。Shape はサイズをピボットの周りに取った矩形です。Null・ボーン・Instance・Effect のパーツは自分では何も描かないので輪郭を持たず、hide のパーツも持ちません。アルファ 0 で描かれているパーツは輪郭を持ちます。
+
 !!! note "低レベル API にも同じ読み取りがあります"
-    `SpriteStudioPlayer`（L3）の下位にある描画エンジンにも同じ 2 つの読み取りがありますが、インデックス指定のみで、名前も異なります ——
-    `SpriteStudioInternalPlayer.partWorldMatrix(index)` と `partHidden(index)`（L2）です。ヘッドレス実行や独自の描画アダプタから直接叩く場合はそちらを使ってください（レイヤーについては[プレイヤーの構成](../development/architecture.md)を参照）。
+    `SpriteStudioPlayer`（L3）の下位にある描画エンジンにも同じ読み取りがありますが、インデックス指定のみです ——
+    `SpriteStudioInternalPlayer.partWorldMatrix(index)`、`partHidden(index)`、`partQuad(index)`、`hitTestPart(point, {parts})`（L2）です。ヘッドレス実行や独自の描画アダプタから直接叩く場合はそちらを使ってください（レイヤーについては[プレイヤーの構成](../development/architecture.md)を参照）。
 
 ## 追従のタイミングと精度
 

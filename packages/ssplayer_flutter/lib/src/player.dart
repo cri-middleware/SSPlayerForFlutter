@@ -12,6 +12,7 @@ import 'live_reload/channel.dart';
 import 'playback.dart';
 import 'render/backend/backend_kind.dart';
 import 'render/part_override.dart';
+import 'render/part_quad.dart';
 import 'render/placement.dart';
 import 'render/root_transform.dart';
 import 'ssab_info.dart';
@@ -1669,6 +1670,40 @@ class SpriteStudioPlayer extends ChangeNotifier {
   /// Index form of [isPartSkinnedMesh].
   bool isPartSkinnedMeshByIndex(int partIndex) =>
       _internal?.partSkinnedMesh(partIndex) ?? false;
+
+  /// The outline the part named [partName] is drawn with, on the frame the
+  /// last tick built, in the space [partTransform] reports — or null before
+  /// [load], for an unknown or hidden part, and for a part that draws nothing
+  /// of its own. Under a [SpriteStudioView], a point in the view's local
+  /// coordinates lands in this space once the centre of its box is subtracted.
+  ///
+  /// It is the outline as drawn, skew and vertex deform included; a Mesh part
+  /// reads the box around its vertices. See
+  /// [SpriteStudioInternalPlayer.partQuad] for each kind of part.
+  SsPartQuad? partQuad(String partName) {
+    final internal = _internal;
+    if (internal == null) return null;
+    return internal.partQuad(internal.findPartIndex(partName));
+  }
+
+  /// Index form of [partQuad].
+  SsPartQuad? partQuadByIndex(int partIndex) =>
+      _internal?.partQuad(partIndex);
+
+  /// The index of the front-most part whose [partQuad] holds [point], among
+  /// the parts named in [parts] (every part when omitted), on the frame the
+  /// last tick built — or -1 when none does, as [findPartIndex] answers. A
+  /// name the pack does not have is skipped.
+  int hitTestPart(ui.Offset point, {Iterable<String>? parts}) {
+    final internal = _internal;
+    if (internal == null) return -1;
+    return internal.hitTestPart(point,
+        parts: parts?.map(internal.findPartIndex));
+  }
+
+  /// Index form of [hitTestPart].
+  int hitTestPartByIndex(ui.Offset point, {Iterable<int>? parts}) =>
+      _internal?.hitTestPart(point, parts: parts) ?? -1;
 
   /// Force-hides a part, or reverts it to the animation. See
   /// [SpriteStudioInternalPlayer.setPartVisibilityOverride] for the cascade and
