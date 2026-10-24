@@ -86,6 +86,54 @@ driver.show(SsUiState.of(hovered: true));
 driver.show(SsUiState.normal, reducedMotion: true);
 ```
 
+## 普通のボタンにエフェクトを重ねる
+
+SpriteStudio のエフェクトを出すだけなら、ボタンの絵は SpriteStudio でなくてかまいません。クリックした位置に `SpriteStudioView` を重ね、エフェクトを 1 回再生し、終わったらビューを外します。要るのはプレイヤーとビューだけで、ここまでのウィジェットは使いません。
+
+```dart
+final _button = GlobalKey();
+late final _effect = SpriteStudioPlayer(vsync: this)
+  ..loopCount = 1
+  ..onAnimationFinished = (() => setState(() => _effectAt = null))
+  ..loadAsset('assets/effects/burst.ssab', animationName: 'burst');
+Offset? _pointerAt, _effectAt;
+
+void _start() {
+  // キーで押したときはポインタが無いので、ボタンの中央に出す
+  final at = _pointerAt ?? _button.currentContext!.size!.center(Offset.zero);
+  _pointerAt = null;
+  if (!MediaQuery.disableAnimationsOf(context)) {
+    setState(() => _effectAt = at);
+    _effect.play();
+  }
+  // ... ボタン本来の処理
+}
+
+Stack(
+  clipBehavior: Clip.none,
+  children: [
+    Listener(
+      onPointerDown: (e) => _pointerAt = e.localPosition,
+      child: ElevatedButton(key: _button, onPressed: _start, child: const Text('Start')),
+    ),
+    if (_effectAt case final at?)
+      Positioned(
+        left: at.dx - 80,
+        top: at.dy - 80,
+        child: IgnorePointer(
+          child: SpriteStudioView(player: _effect, width: 160, height: 160),
+        ),
+      ),
+  ],
+)
+```
+
+`Stack` はボタンと同じ大きさになるので、ボタン上のポインタの位置がそのまま `Stack` の中の位置になります。`Clip.none` でエフェクトがボタンの外にはみ出せます。`IgnorePointer` で包むと、エフェクトはボタンのヒット判定に入りません。`play()` は再生中のエフェクトを頭からやり直すので、1 つのプレイヤーが同時に見せられるエフェクトは 1 つです。重ねて出すなら、エフェクトごとにプレイヤーを用意してください。
+
+加算合成で作ったエフェクトは、下にあるものに光を足します。暗い面ではよく見えますが、白い面ではほとんど見えません。明るい UI では、通常の合成で作ったエフェクトを使ってください。
+
+overall の example の [UI states check](https://github.com/cri-middleware/SSPlayerForFlutter/blob/main/examples/overall/lib/ui_states_check.dart) が、SDK の `ParticleEffect` プロジェクトのパーティクルエフェクトでこれを行っています。
+
 ## 関連
 
 - [パーツトラッキング](part-following.md) —— ヒット判定に使う輪郭と、その隣の姿勢の読み取り

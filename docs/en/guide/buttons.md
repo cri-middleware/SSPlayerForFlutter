@@ -107,6 +107,61 @@ driver.show(SsUiState.of(hovered: true));
 driver.show(SsUiState.normal, reducedMotion: true);
 ```
 
+## An effect on an ordinary button
+
+A button needs no SpriteStudio artwork to show a SpriteStudio effect. Lay a `SpriteStudioView` over it
+where it was clicked, play the effect once, and take the view away when it finishes. That takes a player
+and a view, and none of the widgets above:
+
+```dart
+final _button = GlobalKey();
+late final _effect = SpriteStudioPlayer(vsync: this)
+  ..loopCount = 1
+  ..onAnimationFinished = (() => setState(() => _effectAt = null))
+  ..loadAsset('assets/effects/burst.ssab', animationName: 'burst');
+Offset? _pointerAt, _effectAt;
+
+void _start() {
+  // A key press has no pointer: the effect goes to the middle of the button.
+  final at = _pointerAt ?? _button.currentContext!.size!.center(Offset.zero);
+  _pointerAt = null;
+  if (!MediaQuery.disableAnimationsOf(context)) {
+    setState(() => _effectAt = at);
+    _effect.play();
+  }
+  // ... what the button does
+}
+
+Stack(
+  clipBehavior: Clip.none,
+  children: [
+    Listener(
+      onPointerDown: (e) => _pointerAt = e.localPosition,
+      child: ElevatedButton(key: _button, onPressed: _start, child: const Text('Start')),
+    ),
+    if (_effectAt case final at?)
+      Positioned(
+        left: at.dx - 80,
+        top: at.dy - 80,
+        child: IgnorePointer(
+          child: SpriteStudioView(player: _effect, width: 160, height: 160),
+        ),
+      ),
+  ],
+)
+```
+
+The `Stack` takes the button's size, so a pointer's position on the button is a position in the stack,
+and `Clip.none` lets the effect spill over the button's edges. `IgnorePointer` keeps the effect out of
+the button's hit testing. `play()` starts a running effect over, so one player shows one effect at a
+time; give overlapping bursts a player each.
+
+Effects authored with additive blending add light to what is under them: they show on a dark surface and
+hardly at all on white. On a light interface, use effects authored with the normal blend.
+
+The [UI states check](https://github.com/cri-middleware/SSPlayerForFlutter/blob/main/examples/overall/lib/ui_states_check.dart)
+in the overall example does this with a particle effect from the SDK's `ParticleEffect` project.
+
 ## See also
 
 - [Part Following](part-following.md) — the outlines the hit region tests, and the poses beside them
