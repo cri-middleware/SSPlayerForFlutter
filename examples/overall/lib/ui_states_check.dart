@@ -8,6 +8,10 @@
 // ElevatedButton, whose padding puts the view off the button's box. Each state
 // plays one of Ringo's animations through a clip, since Ringo has no labels
 // named after the states. The outlines are the ones the hit test uses.
+//
+// The third is an ordinary text button with nothing of SpriteStudio in it: a
+// particle effect is laid over it where it is clicked, played once, and taken
+// away when it finishes. That needs no more than a player and a view.
 import 'package:flutter/material.dart';
 import 'package:ssplayer_flutter/ssplayer_flutter.dart';
 import 'package:ssplayer_flutter/ui.dart';
@@ -25,6 +29,8 @@ Future<void> main() async {
 }
 
 const _pack = 'assets/spritestudio/Ringo/Ringo.ssab';
+const _effectPack = 'assets/spritestudio/ParticleEffect/e023.ssab';
+const _effectSize = 160.0;
 
 const _clips = {
   SsUiState.normal: SsUiClip(animation: 'wait1'),
@@ -55,6 +61,10 @@ class _UiStatesCheckState extends State<UiStatesCheck>
   late final SpriteStudioPlayer _buttonPlayer = SpriteStudioPlayer(vsync: this);
   final WidgetStatesController _inkStates = WidgetStatesController();
   final WidgetStatesController _buttonStates = WidgetStatesController();
+  late final SpriteStudioPlayer _effectPlayer = SpriteStudioPlayer(vsync: this);
+  final GlobalKey _plainButton = GlobalKey();
+  Offset? _pointerAt;
+  Offset? _effectAt;
 
   bool _enabled = true;
   bool? _reducedMotion;
@@ -67,6 +77,10 @@ class _UiStatesCheckState extends State<UiStatesCheck>
     super.initState();
     _inkPlayer.loadAsset(_pack, animationName: 'wait1');
     _buttonPlayer.loadAsset(_pack, animationName: 'wait1');
+    _effectPlayer
+      ..loopCount = 1
+      ..onAnimationFinished = (() => setState(() => _effectAt = null))
+      ..loadAsset(_effectPack, animationName: 'flashexplosion');
   }
 
   @override
@@ -75,6 +89,7 @@ class _UiStatesCheckState extends State<UiStatesCheck>
     _buttonStates.dispose();
     _inkPlayer.dispose();
     _buttonPlayer.dispose();
+    _effectPlayer.dispose();
     super.dispose();
   }
 
@@ -82,6 +97,18 @@ class _UiStatesCheckState extends State<UiStatesCheck>
     _taps.insert(0, '$who tapped');
     if (_taps.length > 6) _taps.removeLast();
   });
+
+  // Where the pointer went down, or the middle of the button when a key pressed
+  // it. Nothing under reduced motion.
+  void _burst() {
+    _tapped('Plain button');
+    final at =
+        _pointerAt ?? _plainButton.currentContext!.size!.center(Offset.zero);
+    _pointerAt = null;
+    if (_reducedMotion ?? MediaQuery.disableAnimationsOf(context)) return;
+    setState(() => _effectAt = at);
+    _effectPlayer.play();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -171,6 +198,50 @@ class _UiStatesCheckState extends State<UiStatesCheck>
                 ),
               ],
             ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Padding(
+                  padding: EdgeInsets.only(bottom: 8),
+                  child: Text(
+                    'A plain ElevatedButton, with an effect on click',
+                  ),
+                ),
+                // The stack is the button's size, so a pointer's position on
+                // the button is a position in the stack.
+                Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Listener(
+                      onPointerDown: (e) => _pointerAt = e.localPosition,
+                      child: ElevatedButton(
+                        key: _plainButton,
+                        onPressed: _enabled ? _burst : null,
+                        child: const Padding(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 32,
+                            vertical: 20,
+                          ),
+                          child: Text('Tap me'),
+                        ),
+                      ),
+                    ),
+                    if (_effectAt case final at?)
+                      Positioned(
+                        left: at.dx - _effectSize / 2,
+                        top: at.dy - _effectSize / 2,
+                        child: IgnorePointer(
+                          child: SpriteStudioView(
+                            player: _effectPlayer,
+                            width: _effectSize,
+                            height: _effectSize,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ],
+            ),
             SizedBox(width: 320, child: _controls()),
           ],
         ),
@@ -234,7 +305,7 @@ class _UiStatesCheckState extends State<UiStatesCheck>
         onChanged: (v) => setState(() => _outlines = v),
       ),
       const Divider(),
-      const Text('Tab moves the focus between the two buttons.'),
+      const Text('Tab moves the focus between the buttons.'),
       const SizedBox(height: 8),
       for (final t in _taps) Text(t),
     ],

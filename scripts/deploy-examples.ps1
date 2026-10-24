@@ -1,10 +1,11 @@
 #!/usr/bin/env pwsh
 #
-# Stage the SDK's bundled test projects (tests/overall, tests/Ringo, tests/Doll)
-# into the example's SpriteStudio_Source/, then convert THOSE copies into .ssab
-# assets, using the Dart `ssconvert` CLI (ssconverter_dart). SpriteStudio_Source
-# is the single source of truth the live-reload watcher (`sswatch`) reconverts
-# on save, so the initial assets and the live output come from the same place.
+# Stage the SDK's bundled test projects (tests/overall, tests/Ringo, tests/Doll,
+# tests/ParticleEffect) into the example's SpriteStudio_Source/, then convert
+# THOSE copies into .ssab assets, using the Dart `ssconvert` CLI
+# (ssconverter_dart). SpriteStudio_Source is the single source of truth the
+# live-reload watcher (`sswatch`) reconverts on save, so the initial assets and
+# the live output come from the same place.
 # It loads the PREBUILT libssconverter over dart:ffi, so this needs NO Rust
 # toolchain — build the native libs via scripts/build-runtime.ps1.
 # All the sibling players share this "Rust-free for customizers" philosophy.
@@ -47,7 +48,8 @@ $ConvPkg = Join-Path $RootDir "packages/ssconverter_dart"
 $Projects = @(
     @{ Sub = "overall"; Sspj = "overall.sspj" },
     @{ Sub = "Ringo";   Sspj = "Ringo.sspj" },
-    @{ Sub = "Doll";    Sspj = "Doll.sspj" }
+    @{ Sub = "Doll";    Sspj = "Doll.sspj" },
+    @{ Sub = "ParticleEffect"; Sspj = "ParticleEffect.sspj" }
 )
 
 # --- locate the SDK -------------------------------------------------------
