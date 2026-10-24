@@ -22,6 +22,7 @@ _player.play();                    // 先頭から再生
 | `setPlaybackDirection(dir, style)` | メソッド | 再生方向（`SsPlaybackDirection.forward` / `.backward`）と終端での挙動（`SsPlaybackStyle.normal` / `.pingPong`） |
 | `playbackDirection` / `playbackStyle` | 読取 | 上記 2 つの現在値 |
 | `setAnimationSection(start, end)` | メソッド | **現在の**アニメの再生範囲をフレーム区間で限定する |
+| `setAnimationSectionByLabel(start, end, {startOffset, endOffset})` | メソッド | 同じことを、現在のアニメのラベルで両端を指定して行う |
 | `frameSkipEnabled` | `bool` | ON（既定）はフレームを落として実時間に追従、OFF は 1 ティックにつき厳密に 1 フレーム進む |
 | `subFrameEnabled` | `bool` | サブフレーム補間（既定オン） |
 | `isPlaying` / `isPausing` | `bool`（読取） | 現在のトランスポート状態 |
@@ -60,6 +61,15 @@ _player..loopCount = -1..play();            // 10〜24 の範囲でループ
 ```
 
 `startFrame` / `endFrame` / `totalFrames` は区間を反映するので、それらに紐づけたスクラバもそのまま追従します。
+
+両端はラベルでも指定できます。それぞれにフレーム単位のオフセットを足せます。
+
+```dart
+_player.setAnimation('attack');
+_player.setAnimationSectionByLabel('windup', 'hit', endOffset: -1); // `hit` の 1 フレーム手前まで
+```
+
+`_start` と `_end` は SpriteStudio と同じくアニメの先頭と最後のフレームを指し、終わりが始まりより前になったときは始まりに揃えます。アニメに無いラベルを渡すと `false` を返してログに 1 度だけ書き、区間は変えません。
 
 ## 反転とオフセット
 

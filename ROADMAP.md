@@ -6,11 +6,6 @@ This file lists unfinished work only. Technical constraints live in
 
 ## Playback & rendering
 
-- [ ] **Label playback** — set the playback section by a start and an end label, each
-  with an offset. Labels already ride in the `.ssab` FlatBuffers payload, so no SDK
-  change is needed; add `setAnimationSectionByLabel` on L3 beside the existing
-  `setAnimationSection`, which already covers the frame-number form, under the stem
-  the SDK's API conventions register.
 - [ ] **Flip / offset on the Flame adapter** — `SpriteStudioPlayer` has `flipX` / `flipY` / `offset`;
   `SpriteStudioComponent` does not surface them, since a Flame `PositionComponent` already offers
   `flipHorizontally()` and a `scale`. Worth revisiting if the two turn out to compose badly (a

@@ -23,6 +23,7 @@ _player.play();                    // start from the beginning
 | `setPlaybackDirection(dir, style)` | method | Direction (`SsPlaybackDirection.forward` / `.backward`) and end-of-range behaviour (`SsPlaybackStyle.normal` / `.pingPong`) |
 | `playbackDirection` / `playbackStyle` | read | What the two above are currently set to |
 | `setAnimationSection(start, end)` | method | Restrict playback to a frame range of the **current** animation |
+| `setAnimationSectionByLabel(start, end, {startOffset, endOffset})` | method | The same, with the ends named by labels of the current animation |
 | `frameSkipEnabled` | `bool` | ON (default) keeps playback on the wall clock by dropping frames; OFF advances exactly one frame per tick |
 | `subFrameEnabled` | `bool` | Sub-frame interpolation (on by default) |
 | `isPlaying` / `isPausing` | `bool` (read) | Current transport state |
@@ -70,6 +71,17 @@ _player..loopCount = -1..play();            // loops within 10..24
 
 `startFrame` / `endFrame` / `totalFrames` report the sectioned range, so a scrubber bound to them follows
 along.
+
+The ends can be labels instead, each with an offset in frames:
+
+```dart
+_player.setAnimation('attack');
+_player.setAnimationSectionByLabel('windup', 'hit', endOffset: -1); // up to the frame before `hit`
+```
+
+`_start` and `_end` name the animation's first and last frame, as they do in SpriteStudio, and an end that
+lands before the start is pulled up to it. A label the animation does not have returns `false`, says so once
+in the log, and leaves the section as it was.
 
 ## Flip and offset
 

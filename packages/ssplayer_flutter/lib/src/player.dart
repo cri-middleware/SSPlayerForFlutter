@@ -893,6 +893,55 @@ class SpriteStudioPlayer extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// [setAnimationSection] with the ends named by labels of the **current**
+  /// animation: from [startLabel]'s frame plus [startOffset] to [endLabel]'s
+  /// frame plus [endOffset], the rule an Instance part's start and end labels
+  /// follow. `_start` and `_end` name the animation's first and last frame, as
+  /// they do in SpriteStudio, and an end that lands before the start is pulled
+  /// up to it. It does not play.
+  ///
+  /// ```dart
+  /// _player.setAnimation('button');
+  /// _player.setAnimationSectionByLabel('hover', 'pressed', endOffset: -1);
+  /// _player.play();
+  /// ```
+  ///
+  /// Returns false when the current animation has no such label, and says so
+  /// once in the log; the section stays as it was. Before [load], or with no
+  /// animation selected, it returns false and says nothing. Like any section,
+  /// [setAnimation] wipes it.
+  bool setAnimationSectionByLabel(String startLabel, String endLabel,
+      {int startOffset = 0, int endOffset = 0}) {
+    final internal = _live;
+    final info = _animeInfo;
+    final anim = _currentAnimation;
+    if (internal == null || info == null || anim == null) return false;
+    final table = labelTableOf(info, anim);
+    if (table == null) return false;
+    final start = table.frameOf(startLabel);
+    final end = table.frameOf(endLabel);
+    if (start == null || end == null) {
+      _reportMissingLabel(anim, [
+        if (start == null) startLabel,
+        if (end == null && endLabel != startLabel) endLabel,
+      ]);
+      return false;
+    }
+    final from = start + startOffset;
+    final to = end + endOffset;
+    setAnimationSection(from, to < from ? from : to);
+    return true;
+  }
+
+  void _reportMissingLabel(String animation, List<String> labels) {
+    final key = 'setAnimationSectionByLabel|$animation|${labels.join('|')}';
+    if (!_reportedRefusals.add(key)) return;
+    final where = _sourceLabel ?? 'the loaded pack';
+    final names = labels.map((l) => '"$l"').join(' or ');
+    debugPrint('SpriteStudioPlayer: animation "$animation" of $where has no '
+        'label $names, so the section stays as it was.');
+  }
+
   /// Frames per second the animation advances at — the rate authored in the
   /// pack unless overridden. Before [load] there is no pack to read, so this
   /// reports the override if one was set and 0 otherwise.
@@ -1344,7 +1393,8 @@ class SpriteStudioPlayer extends ChangeNotifier {
         '$because.$hint');
   }
 
-  /// What [_reportRefused] has already said since the last [load].
+  /// What [_reportRefused] and [_reportMissingLabel] have already said since
+  /// the last [load].
   final Set<String> _reportedRefusals = <String>{};
 
   /// Records that track 0 now plays [name], handed over by a [crossfade] or
