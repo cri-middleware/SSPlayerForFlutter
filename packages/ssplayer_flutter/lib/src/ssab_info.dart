@@ -14,6 +14,46 @@ typedef SsPassedEvents = ({
   List<SsAudioEvent> audios,
 });
 
+/// A label of one animation: its name and the frame it marks.
+typedef SsLabel = ({String name, int frame});
+
+/// The labels of one animation in frame order, and the frame range it was
+/// authored with — what a section named by labels resolves against.
+///
+/// Not exported: the player and the UI adapter read it.
+class SsLabelTable {
+  SsLabelTable._(this.labels, this.startFrame, this.endFrame);
+
+  /// In frame order. The pack keeps them sorted by name hash instead.
+  final List<SsLabel> labels;
+
+  /// The animation's own first and last frame — never a section's.
+  final int startFrame;
+  final int endFrame;
+
+  /// The frame [label] marks, or null when the animation has no such label.
+  ///
+  /// `_start` and `_end` are the animation's first and last frame, as they are
+  /// in SpriteStudio, where they are never in the label table.
+  int? frameOf(String label) {
+    for (final l in labels) {
+      if (l.name == label) return l.frame;
+    }
+    return switch (label) {
+      '_start' => startFrame,
+      '_end' => endFrame,
+      _ => null,
+    };
+  }
+}
+
+/// The label table of animation [name] in [info], or null when the pack has no
+/// such animation.
+///
+/// Not exported, like [SsLabelTable].
+SsLabelTable? labelTableOf(SsAnimeInfo info, String name) =>
+    info._labelTable(name);
+
 /// Read-only metadata about a `.ssab` animation pack, parsed directly from the
 /// bytes via the Dart FlatBuffers accessors.
 ///
@@ -150,6 +190,18 @@ class SsAnimeInfo {
     final anims = _root.animations;
     if (anims == null || index < 0 || index >= anims.length) return null;
     return anims[index].name;
+  }
+
+  // --- Labels --------------------------------------------------------------
+
+  SsLabelTable? _labelTable(String name) {
+    final anim = _animationByName(name);
+    if (anim == null) return null;
+    final labels = <SsLabel>[
+      for (final l in anim.labels ?? const <ssab.Label>[])
+        if (l.name case final n?) (name: n, frame: l.time),
+    ]..sort((a, b) => a.frame.compareTo(b.frame));
+    return SsLabelTable._(labels, anim.startFrame, anim.endFrame);
   }
 
   // --- Events --------------------------------------------------------------
