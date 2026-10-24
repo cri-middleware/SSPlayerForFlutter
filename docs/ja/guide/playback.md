@@ -71,7 +71,7 @@ _player.setAnimation('attack');
 _player.setAnimationSectionByLabel('windup', 'hit', endOffset: -1); // `hit` の 1 フレーム手前まで
 ```
 
-`_start` と `_end` は SpriteStudio と同じくアニメの先頭と最後のフレームを指し、終わりが始まりより前になったときは始まりに揃えます。アニメに無いラベルを渡すと `false` を返してログに 1 度だけ書き、区間は変えません。
+`_start` と `_end` は SpriteStudio と同じくアニメの先頭と最後のフレームを指します。アニメに無いラベルを渡したときと、ラベルとオフセットから出たフレームが `setAnimationSection` の受け付けない区間になったときは、`false` を返してログに 1 度だけ書き、区間は変えません。
 
 ## 反転とオフセット
 

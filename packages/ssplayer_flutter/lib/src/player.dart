@@ -893,11 +893,14 @@ class SpriteStudioPlayer extends ChangeNotifier {
   /// returns false and says so once in the log, and the section and the
   /// playhead stay as they were. Before [load] it returns false and says
   /// nothing.
-  bool setAnimationSection(int startFrame, int endFrame) {
+  bool setAnimationSection(int startFrame, int endFrame) => _applySection(
+      startFrame, endFrame, 'setAnimationSection($startFrame, $endFrame),');
+
+  bool _applySection(int startFrame, int endFrame, String given) {
     final internal = _internal;
     if (internal == null) return false;
     if (!internal.setAnimationSection(startFrame, endFrame)) {
-      _reportRefusedSection(startFrame, endFrame);
+      _reportRefusedSection(startFrame, endFrame, given);
       return false;
     }
     notifyListeners();
@@ -908,8 +911,7 @@ class SpriteStudioPlayer extends ChangeNotifier {
   /// animation: from [startLabel]'s frame plus [startOffset] to [endLabel]'s
   /// frame plus [endOffset], the rule an Instance part's start and end labels
   /// follow. `_start` and `_end` name the animation's first and last frame, as
-  /// they do in SpriteStudio, and an end that lands before the start is pulled
-  /// up to it. It does not play.
+  /// they do in SpriteStudio. It does not play.
   ///
   /// ```dart
   /// _player.setAnimation('button');
@@ -917,9 +919,11 @@ class SpriteStudioPlayer extends ChangeNotifier {
   /// _player.play();
   /// ```
   ///
-  /// Returns false when the current animation has no such label, and says so
-  /// once in the log; the section stays as it was. Before [load], or with no
-  /// animation selected, it returns false and says nothing. Like any section,
+  /// Returns false when the current animation has no such label, or when the
+  /// frames it lands on are a section [setAnimationSection] refuses (both
+  /// inside the animation, the end before the start), and says so once in the
+  /// log; the section stays as it was. Before [load], or with no animation
+  /// selected, it returns false and says nothing. Like any section,
   /// [setAnimation] wipes it.
   bool setAnimationSectionByLabel(String startLabel, String endLabel,
       {int startOffset = 0, int endOffset = 0}) {
@@ -940,19 +944,22 @@ class SpriteStudioPlayer extends ChangeNotifier {
     }
     final from = start + startOffset;
     final to = end + endOffset;
-    return setAnimationSection(from, to < from ? from : to);
+    return _applySection(
+        from,
+        to,
+        'setAnimationSectionByLabel("$startLabel", "$endLabel"), '
+        'frames ($from, $to),');
   }
 
   /// Says that the Brain refused a section, once per start and end: a section
   /// set again every frame would otherwise fill the log.
-  void _reportRefusedSection(int startFrame, int endFrame) {
+  void _reportRefusedSection(int startFrame, int endFrame, String given) {
     if (!_reportedRefusals.add('setAnimationSection|$startFrame|$endFrame')) {
       return;
     }
     final where = _sourceLabel ?? 'the loaded pack';
-    debugPrint('SpriteStudioPlayer: $where refused '
-        'setAnimationSection($startFrame, $endFrame), whose end is before its '
-        'start, so the section stays as it was.');
+    debugPrint('SpriteStudioPlayer: $where refused $given whose end is before '
+        'its start, so the section stays as it was.');
   }
 
   void _reportMissingLabel(String animation, List<String> labels) {
