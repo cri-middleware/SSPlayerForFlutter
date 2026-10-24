@@ -9,5 +9,8 @@ All notable changes to `ssplayer_flame` are documented here. The format is based
 ### Added
 - **First release.** The Flame adapter for `ssplayer_flutter`: `SpriteStudioComponent`, a Flame
   `PositionComponent` driven by the Flame game loop (external clock) rather than its own ticker.
+- **Buttons** (`SpriteStudioButtonComponent`): a `SpriteStudioComponent` whose states — hover, pressed,
+  disabled, and a focus the game sets — play the sections `ssplayer_flutter`'s UI state rule calls for,
+  and that can take taps and hovers on named parts only.
 
 [7.0.0-beta.1]: https://github.com/cri-middleware/SSPlayerForFlutter/releases/tag/ssplayer_flame-v7.0.0-beta.1
