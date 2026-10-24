@@ -21,7 +21,7 @@ _player.play();                    // 先頭から再生
 | `frameRate` | `int` | 進行レート（fps）。上書きしなければパックに設定された値 |
 | `setPlaybackDirection(dir, style)` | メソッド | 再生方向（`SsPlaybackDirection.forward` / `.backward`）と終端での挙動（`SsPlaybackStyle.normal` / `.pingPong`） |
 | `playbackDirection` / `playbackStyle` | 読取 | 上記 2 つの現在値 |
-| `setAnimationSection(start, end)` | メソッド | **現在の**アニメの再生範囲をフレーム区間で限定する |
+| `setAnimationSection(start, end)` | メソッド | **現在の**アニメの再生範囲をフレーム区間で限定する。終わりが始まりより前なら `false` を返し、何も変えない |
 | `setAnimationSectionByLabel(start, end, {startOffset, endOffset})` | メソッド | 同じことを、現在のアニメのラベルで両端を指定して行う |
 | `frameSkipEnabled` | `bool` | ON（既定）はフレームを落として実時間に追従、OFF は 1 ティックにつき厳密に 1 フレーム進む |
 | `subFrameEnabled` | `bool` | サブフレーム補間（既定オン） |
@@ -61,6 +61,8 @@ _player..loopCount = -1..play();            // 10〜24 の範囲でループ
 ```
 
 `startFrame` / `endFrame` / `totalFrames` は区間を反映するので、それらに紐づけたスクラバもそのまま追従します。
+
+範囲外の値（`-1` など）を渡すと、その側はアニメの端になります。両端ともアニメの範囲内で終わりが始まりより前なら受け付けません。`setAnimationSection` は `false` を返してログに 1 度だけ書き、区間も再生ヘッドも変えません。
 
 両端はラベルでも指定できます。それぞれにフレーム単位のオフセットを足せます。
 

@@ -162,7 +162,7 @@ extension type _JsCtx(JSObject _) implements JSObject {
   external void set_speed_scale(double rate);
   external void set_frame_rate(int fps);
   external void set_frame_no(double frame);
-  external void set_animation_section(int startFrame, int endFrame);
+  external void set_animation_section(int startFrame, int endFrame); // Result → throws on error
   // wasm-bindgen marshals WebPlaybackDirection / WebPlaybackStyle as their
   // numeric discriminants, so these cross as plain ints.
   external void set_playback_direction(int direction, int style);
@@ -492,8 +492,9 @@ class _WebRuntime implements SsRuntime {
       _ctx(context).set_frame_no(frame);
 
   @override
-  void setAnimationSection(SsContext context, int startFrame, int endFrame) =>
-      _ctx(context).set_animation_section(startFrame, endFrame);
+  bool setAnimationSection(SsContext context, int startFrame, int endFrame) =>
+      _tracked(context,
+          () => _ctx(context).set_animation_section(startFrame, endFrame));
 
   @override
   void setPlaybackDirection(SsContext context, int direction, int style) =>

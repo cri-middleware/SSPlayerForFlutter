@@ -239,7 +239,7 @@ class _NativeRuntime implements SsRuntime {
       ss_runtime_set_frame_no(_ctx(context), frame);
 
   @override
-  void setAnimationSection(SsContext context, int startFrame, int endFrame) =>
+  bool setAnimationSection(SsContext context, int startFrame, int endFrame) =>
       ss_runtime_set_animation_section(_ctx(context), startFrame, endFrame);
 
   @override

@@ -148,7 +148,10 @@ abstract interface class SsRuntime {
   void seek(SsContext context, double frame);
 
   /// Restricts playback to `[startFrame, endFrame]` of the current animation.
-  void setAnimationSection(SsContext context, int startFrame, int endFrame);
+  /// Returns false when the Brain refuses it — both ends inside the animation
+  /// and the end before the start — and [lastErrorMessage] says why; the
+  /// section and the playhead stay as they were.
+  bool setAnimationSection(SsContext context, int startFrame, int endFrame);
 
   /// `direction`: 0 = forward, 1 = backward. `style`: 0 = normal, 1 = ping-pong.
   void setPlaybackDirection(SsContext context, int direction, int style);

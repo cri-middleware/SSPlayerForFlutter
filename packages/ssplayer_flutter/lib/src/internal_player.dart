@@ -475,11 +475,18 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   /// playing backward), so the slots and the frame follow it as after a [seek]:
   /// otherwise a paused or stopped player keeps drawing, and its part reads
   /// keep reporting, the frame it left.
-  void setAnimationSection(int startFrame, int endFrame) {
+  ///
+  /// Returns false when the Brain refuses the section — both ends inside the
+  /// animation and the end before the start — and [lastErrorMessage] says why;
+  /// the section and the playhead stay as they were.
+  bool setAnimationSection(int startFrame, int endFrame) {
     _ensureAlive();
-    ssRuntime.setAnimationSection(_context, startFrame, endFrame);
+    if (!ssRuntime.setAnimationSection(_context, startFrame, endFrame)) {
+      return false;
+    }
     _stepSlots(frameNo, 0.0, false);
     _buildFrame();
+    return true;
   }
 
   void setPlaybackDirection(SsPlaybackDirection direction,
