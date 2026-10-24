@@ -20,7 +20,7 @@ flowchart TD
 
 | レイヤー | 役割 | 所在 |
 |---|---|---|
-| **L4** | 描画アダプタ —— `SpriteStudioAnimation`（プレイヤーと Ticker を自分で持つウィジェット）、`SpriteStudioView`（利用者が持つプレイヤーを描く `RenderBox`）、`SpriteStudioPartAnchor`（パーツに留める子）、Flame の `SpriteStudioComponent` | `ssplayer_flutter`, `ssplayer_flame` |
+| **L4** | 描画アダプタ —— `SpriteStudioAnimation`（プレイヤーと Ticker を自分で持つウィジェット）、`SpriteStudioView`（利用者が持つプレイヤーを描く `RenderBox`）、`SpriteStudioPartAnchor`（パーツに留める子）、`SpriteStudioStateView` / `SpriteStudioHitRegion`（ボタンの中のアニメ。`ui.dart`）、Flame の `SpriteStudioComponent` | `ssplayer_flutter`, `ssplayer_flame` |
 | **L3** | `SpriteStudioPlayer` —— トランスポート / イベント。vsync モードでは `Ticker`、外部クロックでは `advance` | `ssplayer_flutter` |
 | **L2** | `SpriteStudioInternalPlayer` —— FFI Context のライフサイクル（`.ssab` の解析は、同じバイト列の Player すべてで 1 つを共有）、SoA → geometry bake（Canvas は `ui.Vertices`、GPU はインターリーブ VBO）、`paint` = `DrawBatch.kind` ディスパッチ | `ssplayer_flutter` |
 | **L1** | ffigen `@Native` C-API バインディング + ランタイム FlatBuffers | `ssruntime_dart` |
@@ -30,7 +30,7 @@ flowchart TD
 ## どこに何があるか
 
 - **L1** —— `ssruntime_dart`（純 Dart・非 Flutter）: 生成した `@Native` C-API バインディングとランタイムの FlatBuffers（`framedata` / `effect_draw_plan`）。ネイティブライブラリはパッケージのビルドフックが同梱。
-- **L2–L4** —— `ssplayer_flutter`（公開 API のバレル。L1 は `ssruntime_dart` から直接 import）。
+- **L2–L4** —— `ssplayer_flutter`（公開 API のバレルと、ボタン向けのウィジェットの `ui.dart`。L1 は `ssruntime_dart` から直接 import）。
 - **Flame L4** —— `ssplayer_flame`（コアが `flame` を巻き込まないよう別パッケージ）。
 - **コンバータ** —— `ssconverter_dart`（ホスト `.sspj` → `.ssab`、デスクトップ専用）。
 

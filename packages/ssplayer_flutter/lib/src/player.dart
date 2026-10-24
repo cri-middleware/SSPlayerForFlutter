@@ -1868,3 +1868,9 @@ class SpriteStudioPlayer extends ChangeNotifier {
 ///
 /// Not exported: only the package's own views read it.
 bool tickKeptPose(SpriteStudioPlayer player) => player._tickKeptPose;
+
+/// The metadata of the pack [player] last loaded, or null before
+/// [SpriteStudioPlayer.load].
+///
+/// Not exported: the UI state binding reads the label tables from it.
+SsAnimeInfo? animeInfoOf(SpriteStudioPlayer player) => player._animeInfo;

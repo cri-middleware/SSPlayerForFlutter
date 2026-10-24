@@ -21,6 +21,7 @@ dart doc
 - **`SsPartQuad`** —— 描かれているとおりのパーツの輪郭（`SpriteStudioPlayer.partQuad` / `hitTestPart`）。[パーツトラッキング](guide/part-following.md#パーツの輪郭) を参照。
 - **`SsRootTransform`** —— プレイヤー単位の反転 / オフセット（`flipX` / `flipY` / `offset`）。
   [再生とイベント](guide/playback.md) を参照。
+- **`SpriteStudioStateView` / `SpriteStudioHitRegion` / `SsUiState`**（`package:ssplayer_flutter/ui.dart`）—— ボタンの中のアニメ。[ボタンと UI の状態](guide/buttons.md) を参照。
 - **`SsBlendOp` / `SsOverridePriority` / `PartNameTable`** —— パーツオーバーライド。
   [パーツオーバーライド](guide/part-overrides.md) を参照。
 - **テクスチャ差し替え** —— `SpriteStudioPlayer.setCellmapTexture` / `cellmapTextureOverride` /

@@ -33,6 +33,7 @@ hand-write. Playback runs through `libssruntime` provided by
     - [Motion Blending](guide/motion-blending.md)
     - [Part Following](guide/part-following.md)
     - [Part Overrides](guide/part-overrides.md)
+    - [Buttons & UI States](guide/buttons.md)
     - [Texture Replacement](guide/textures.md)
     - [Flame Integration](guide/flame.md)
     - [Preparing Assets (`.sspj` → `.ssab`)](guide/conversion.md) (start here for the initial import)

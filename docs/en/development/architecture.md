@@ -23,7 +23,7 @@ It is a **strict downward dependency**; layers below are nearer the Brain. Each 
 
 | Layer | Responsibility | Lives in |
 |---|---|---|
-| **L4** | Drawing adapters — `SpriteStudioAnimation` (a widget that owns its player and ticker), `SpriteStudioView` (a `RenderBox` over a player you own), `SpriteStudioPartAnchor` (a child pinned to a part) and the Flame `SpriteStudioComponent` | `ssplayer_flutter`, `ssplayer_flame` |
+| **L4** | Drawing adapters — `SpriteStudioAnimation` (a widget that owns its player and ticker), `SpriteStudioView` (a `RenderBox` over a player you own), `SpriteStudioPartAnchor` (a child pinned to a part), `SpriteStudioStateView` / `SpriteStudioHitRegion` (an animation inside a button, in `ui.dart`) and the Flame `SpriteStudioComponent` | `ssplayer_flutter`, `ssplayer_flame` |
 | **L3** | `SpriteStudioPlayer` — transport / events; a `Ticker` in vsync mode, or externally clocked via `advance` | `ssplayer_flutter` |
 | **L2** | `SpriteStudioInternalPlayer` — FFI Context lifecycle over one `.ssab` parse shared by every player of the same bytes, SoA → geometry bake (`ui.Vertices` for Canvas / interleaved VBO for GPU), `paint` = `DrawBatch.kind` dispatch | `ssplayer_flutter` |
 | **L1** | ffigen `@Native` C-API bindings + runtime FlatBuffers | `ssruntime_dart` |
@@ -36,7 +36,8 @@ It is a **strict downward dependency**; layers below are nearer the Brain. Each 
 - **L1** — `ssruntime_dart` (pure Dart, non-Flutter): the generated `@Native` C-API bindings and
   the runtime's FlatBuffers (`framedata` / `effect_draw_plan`), with the native library bundled by
   the package's build hook.
-- **L2–L4** — `ssplayer_flutter` (the public API barrel; import L1 from `ssruntime_dart` directly).
+- **L2–L4** — `ssplayer_flutter` (the public API barrel, and `ui.dart` for the button widgets; import L1 from
+  `ssruntime_dart` directly).
 - **Flame L4** — `ssplayer_flame` (a separate package so the core never pulls in `flame`).
 - **Converter** — `ssconverter_dart` (host `.sspj` → `.ssab`, desktop-only).
 
