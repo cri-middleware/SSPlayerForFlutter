@@ -99,7 +99,9 @@ The view takes its player's playback over while it is mounted: it selects animat
 and the loop count, and plays and stops. Give each view a player of its own, as for `SpriteStudioView`.
 Load the player as usual; the view shows the state once the pack is in, and again after a reload.
 
-`SsUiStateDriver` is the same rule without the widget, for code outside the widget tree:
+`SsUiStateDriver` is the same rule without the widget, for code outside the widget tree. In a Flame game,
+`SpriteStudioButtonComponent` is built on it (see [Flame Integration](flame.md#a-button)).
+
 
 ```dart
 final driver = SsUiStateDriver(player);

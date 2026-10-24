@@ -16,7 +16,8 @@ dart doc
 
 - **`SpriteStudioPlayer`** (L3) — transport / events. See [Playback & Events](guide/playback.md).
 - **`SpriteStudioView`** (L4) — the `RenderBox` widget. See [Quick Start](guide/quickstart.md).
-- **`SpriteStudioComponent`** (`ssplayer_flame`) — Flame adapter. See [Flame Integration](guide/flame.md).
+- **`SpriteStudioComponent` / `SpriteStudioButtonComponent`** (`ssplayer_flame`) — Flame adapter, and a button made
+  of one. See [Flame Integration](guide/flame.md).
 - **`SpriteStudioPartAnchor` / `SpriteStudioAnchorHidden` / `SpriteStudioAnchorMirror`** (L4) — stick a
   widget to a part. See [Part Following](guide/part-following.md).
 - **`SsPartQuad`** — a part's outline as drawn (`SpriteStudioPlayer.partQuad` / `hitTestPart`). See

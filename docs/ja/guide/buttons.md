@@ -78,7 +78,7 @@ clip で指定した区間も、次のラベルの 1 フレーム手前までで
 
 ビューは表示されている間、プレイヤーの再生を引き受けます。アニメの選択、区間とループ回数の設定、再生と停止を行います。`SpriteStudioView` と同じく、ビューごとに別のプレイヤーを渡してください。プレイヤーはいつもどおり読み込めば、パックが入った時点で、またリロードの後にも、ビューが状態を見せます。
 
-ウィジェットを使わないコードには、同じ規則を持つ `SsUiStateDriver` があります。
+ウィジェットを使わないコードには、同じ規則を持つ `SsUiStateDriver` があります。Flame のゲームでは、これを使った `SpriteStudioButtonComponent` があります（[Flame 連携](flame.md#ボタン)）。
 
 ```dart
 final driver = SsUiStateDriver(player);

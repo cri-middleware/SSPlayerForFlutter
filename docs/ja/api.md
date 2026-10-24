@@ -15,7 +15,7 @@ dart doc
 
 - **`SpriteStudioPlayer`**（L3）—— トランスポート / イベント。[再生とイベント](guide/playback.md) を参照。
 - **`SpriteStudioView`**（L4）—— `RenderBox` ウィジェット。[クイックスタート](guide/quickstart.md) を参照。
-- **`SpriteStudioComponent`**（`ssplayer_flame`）—— Flame アダプタ。[Flame 連携](guide/flame.md) を参照。
+- **`SpriteStudioComponent` / `SpriteStudioButtonComponent`**（`ssplayer_flame`）—— Flame アダプタと、それで作るボタン。[Flame 連携](guide/flame.md) を参照。
 - **`SpriteStudioPartAnchor` / `SpriteStudioAnchorHidden` / `SpriteStudioAnchorMirror`**（L4）——
   パーツにウィジェットを追従させる。[パーツトラッキング](guide/part-following.md) を参照。
 - **`SsPartQuad`** —— 描かれているとおりのパーツの輪郭（`SpriteStudioPlayer.partQuad` / `hitTestPart`）。[パーツトラッキング](guide/part-following.md#パーツの輪郭) を参照。

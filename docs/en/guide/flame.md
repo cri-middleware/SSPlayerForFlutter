@@ -57,6 +57,45 @@ default constructor `SpriteStudioComponent(ssab: myBytes)`.
 Standard `PositionComponent` fields (`position`, `size`, `scale`, `angle`, `anchor`, `priority`) work
 as usual.
 
+## A button
+
+`SpriteStudioButtonComponent` is a `SpriteStudioComponent` that is a button: one animation shows its
+states by the rule the Flutter widgets follow — labels named after the states, their fallbacks, and
+`clips` to use other animations or labels (see [Buttons & UI States](buttons.md)).
+
+```dart
+add(
+  SpriteStudioButtonComponent.asset(
+    'assets/ui/start.ssab',
+    hitParts: const ['face'],
+    onReleased: startGame,
+    size: Vector2(240, 120),
+    position: Vector2(200, 300),
+    anchor: Anchor.center,
+  ),
+);
+```
+
+| State | Set by |
+|---|---|
+| `hover` | a mouse over the button |
+| `pressed` | a tap held on it |
+| `disabled` | `isDisabled` |
+| `focused` | `isFocused`. Flame has no focus of its own, so a menu driven by a gamepad or the keyboard marks the button it has selected |
+
+| Option | Default | Description |
+|---|---|---|
+| `onPressed` / `onReleased` / `onCancelled` | `null` | A tap going down, coming up, and cancelled, as on Flame's `ButtonComponent`. A disabled button fires none |
+| `hitParts` | `null` | The parts a pointer counts on, by their outlines as drawn, within the box. Null is the whole box |
+| `hitOnArtwork` | `false` | With no `hitParts`, count a pointer on any part rather than on the whole box |
+| `clips` | none | Per-state replacements for the labels |
+| `isDisabled` / `isFocused` / `reducedMotion` | `false` | Also properties, to change at any time. Flame reads no platform setting, so `reducedMotion` is the game's own choice |
+
+The animation is drawn about the middle of the box, so give the button a `size` that holds its artwork.
+The button takes its player's playback over, which is why it has no `loopCount`, `speed` or `autoStart`.
+[`examples/flame/lib/button_check.dart`](https://github.com/cri-middleware/SSPlayerForFlutter/blob/main/examples/flame/lib/button_check.dart)
+runs three of them, one for each way of taking a pointer.
+
 ## Controlling playback
 
 After `onLoad`, reach the full L3 transport through `component.player`:
