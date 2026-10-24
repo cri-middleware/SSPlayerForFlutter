@@ -184,14 +184,35 @@ void main() {
       expect((player.startFrame, player.endFrame), (first, 10));
     });
 
-    test('an end before the start is pulled up to it', () async {
+    test('labels that land on an end before the start are refused, keep the '
+        'section, and report once', () async {
       final player = await loaded();
       if (player == null) {
         markTestSkipped('Signal.ssab missing — run scripts/deploy-examples.sh');
         return;
       }
-      expect(player.setAnimationSectionByLabel('End', 'Start'), isTrue);
-      expect((player.startFrame, player.endFrame), (20, 20));
+      expect(player.setAnimationSectionByLabel('Start', 'End'), isTrue);
+      player
+        ..play()
+        ..advance(const Duration(milliseconds: 100));
+      final playhead = player.frameNo;
+      final lines = captureLog();
+
+      expect(player.setAnimationSectionByLabel('End', 'Start'), isFalse);
+      expect(player.setAnimationSectionByLabel('End', 'Start'), isFalse);
+      expect(
+          player.setAnimationSectionByLabel('Start', 'Start', endOffset: -1),
+          isFalse);
+      expect((player.startFrame, player.endFrame), (10, 20));
+      expect(player.frameNo, playhead, reason: 'the playhead stays too');
+
+      final said = lines.where((l) => l.contains('refused')).toList();
+      expect(said, hasLength(2), reason: lines.join('\n'));
+      expect(said.first, contains('("End", "Start"), frames (20, 10)'));
+
+      // A single-frame section is still a section.
+      expect(player.setAnimationSectionByLabel('Start', 'Start'), isTrue);
+      expect((player.startFrame, player.endFrame), (10, 10));
     });
 
     test('a missing label fails, keeps the section, and reports once',
