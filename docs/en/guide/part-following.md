@@ -143,6 +143,10 @@ if (pose != null && !_player.isPartHiddenByIndex(partIndex)) {
 | `isPartHiddenByIndex(index)` | Index form of `isPartHidden` |
 | `isPartSkinnedMesh(name)` | Whether the part is a bone-bound (skinned) mesh — a **poor follow target** (see the warning above). `false` before `load()`, for an unknown part, and for a rigid mesh |
 | `isPartSkinnedMeshByIndex(index)` | Index form of `isPartSkinnedMesh` |
+| `partQuad(name)` | The outline the part is drawn with on the frame the last tick built, as an `SsPartQuad?` (see [below](#a-parts-outline)). Null before `load()`, for an unknown or hidden part, and for a part that draws nothing of its own |
+| `partQuadByIndex(index)` | Index form of `partQuad` |
+| `hitTestPart(point, {parts})` | Index of the front-most part whose outline holds `point`, among the parts named in `parts` (every part when omitted), or `-1` |
+| `hitTestPartByIndex(point, {parts})` | `hitTestPart` with `parts` given as indices |
 
 !!! tip "One-shot reads need no anchor"
     When you only want the part's position at a single moment — a projectile spawn point, for example — rather than continuous following, calling `partTransform()` directly is simpler than mounting a `SpriteStudioPartAnchor`.
@@ -185,9 +189,28 @@ matrix you are actually holding, with `determinant()`.
     `determinant()` before reading a rotation out of the matrix. The translation
     (`storage[12]` / `storage[13]`) is exact whatever the sign.
 
+### A part's outline
+
+`partQuad` returns an `SsPartQuad`: the four corners the part is drawn with (`leftTop`, `rightTop`,
+`leftBottom`, `rightBottom`), in the same space as `partTransform`, with `bounds` (the axis-aligned box
+around them) and `contains(point)`. Under a `SpriteStudioView`, a point in the view's own coordinates
+lands in that space once you subtract the centre of the view's box:
+
+```dart
+// `local` is a point in the view's coordinates, `size` the view's size.
+final index = _player.hitTestPart(local - size.center(Offset.zero), parts: ['button']);
+```
+
+The outline is what is drawn. A part with a cell gives its four drawn corners, skew and vertex deform
+included, so a rotated part gives a rotated quad. A Mesh part gives the axis-aligned box around its
+vertices, which is where it is drawn even when bones bind it. A Shape gives its size around its pivot.
+Null, bone, Instance and Effect parts draw nothing of their own and have no outline, and neither does a
+hidden part; a part drawn at alpha 0 still has one.
+
 !!! note "The same reads exist on the low-level API"
-    The drawing engine beneath `SpriteStudioPlayer` (L3) exposes the same two reads, addressed by index only and under different names —
-    `SpriteStudioInternalPlayer.partWorldMatrix(index)` and `partHidden(index)` (L2).
+    The drawing engine beneath `SpriteStudioPlayer` (L3) exposes the same reads, addressed by index only —
+    `SpriteStudioInternalPlayer.partWorldMatrix(index)`, `partHidden(index)`, `partQuad(index)` and
+    `hitTestPart(point, {parts})` (L2).
     Reach for those when driving the player headless or from your own drawing adapter (see [How the Player Is Put Together](../development/architecture.md) for the layering).
 
 ## Timing and accuracy

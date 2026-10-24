@@ -21,6 +21,7 @@ import 'render/mask.dart';
 import 'render/mask_context.dart';
 import 'render/part_color.dart';
 import 'render/part_override.dart';
+import 'render/part_quad.dart';
 import 'render/root_transform.dart';
 import 'ssab_pack.dart';
 import 'package:ssruntime_dart/framedata.dart' as fbs;
@@ -1232,6 +1233,104 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   /// Backs [SpriteStudioPlayer.isPartSkinnedMesh]; behaviour is unchanged, this
   /// only lets a caller mark the target.
   bool partSkinnedMesh(int partIndex) => _partNames.isSkinnedMeshAt(partIndex);
+
+  /// The outline [partIndex] is drawn with on the frame this player last built,
+  /// in the space [partWorldMatrix] reports, or null when the part is hidden,
+  /// draws nothing of its own, or no frame has been built.
+  ///
+  /// A part with a cell is its four drawn corners, skew and vertex deform
+  /// included. A Mesh part is the axis-aligned box around its vertices, which
+  /// the runtime hands over in world space and a skinned mesh's own transform
+  /// does not describe. A part with a size and no cell — a Shape — is that size
+  /// around its pivot. Null, bone, Instance and Effect parts have no size, and
+  /// read null.
+  ///
+  /// Like [partWorldMatrix] it builds no frame of its own, and is built per
+  /// call from borrows.
+  SsPartQuad? partQuad(int partIndex) {
+    _ensureAlive();
+    final parts = _frameData?.parts;
+    if (parts == null) return null;
+    final state = _partStateOf(parts, partIndex);
+    if (state == null || state.$hide) return null;
+    return _quadOf(partIndex, state);
+  }
+
+  /// The front-most part whose [partQuad] holds [point], among [parts] (every
+  /// part when null), on the frame this player last built — or -1 when none
+  /// does. [point] is in the space [partQuad] reports.
+  int hitTestPart(ui.Offset point, {Iterable<int>? parts}) {
+    _ensureAlive();
+    final states = _frameData?.parts;
+    final order = _frameData?.drawOrder;
+    if (states == null || order == null) return -1;
+    final targets = parts?.toSet();
+    // Back to front, and the runtime leaves hidden parts out of it.
+    for (var rank = order.length - 1; rank >= 0; rank--) {
+      final index = order[rank];
+      if (targets != null && !targets.contains(index)) continue;
+      final state = _partStateOf(states, index);
+      if (state == null || state.$hide) continue;
+      if (_quadOf(index, state)?.contains(point) ?? false) return index;
+    }
+    return -1;
+  }
+
+  static fbs.PartState? _partStateOf(List<fbs.PartState> parts, int index) {
+    if (index < 0) return null;
+    // The runtime writes them in part order; the scan is the fallback.
+    if (index < parts.length) {
+      final p = parts[index];
+      if (p.partIndex == index) return p;
+    }
+    for (final p in parts) {
+      if (p.partIndex == index) return p;
+    }
+    return null;
+  }
+
+  SsPartQuad? _quadOf(int part, fbs.PartState state) {
+    final w = worldMatrices();
+    final m = part * DrawFrame.worldStride;
+    if (m + DrawFrame.worldStride > w.length) return null;
+    final sx = rootTransform.scaleX, sy = rootTransform.scaleY;
+    final o = rootTransform.offset;
+    ui.Offset drawn(double x, double y) =>
+        ui.Offset(sx * x + o.dx, sy * y + o.dy);
+    ui.Offset placed(double x, double y) => drawn(
+        w[m] * x + w[m + 4] * y + w[m + 12],
+        w[m + 1] * x + w[m + 5] * y + w[m + 13]);
+
+    final meshAt = meshVertexOffsets();
+    if (part + 1 < meshAt.length && meshAt[part + 1] > meshAt[part]) {
+      final xs = meshVerticesX(), ys = meshVerticesY();
+      var l = double.infinity, t = double.infinity;
+      var r = double.negativeInfinity, b = double.negativeInfinity;
+      for (var v = meshAt[part]; v < meshAt[part + 1]; v++) {
+        if (xs[v] < l) l = xs[v];
+        if (xs[v] > r) r = xs[v];
+        if (ys[v] < t) t = ys[v];
+        if (ys[v] > b) b = ys[v];
+      }
+      return SsPartQuad(drawn(l, t), drawn(r, t), drawn(l, b), drawn(r, b));
+    }
+    if (state.cell >= 0) {
+      final local = localVertices();
+      final v = part * DrawFrame.vertexStride;
+      if (v + 8 > local.length) return null;
+      return SsPartQuad(
+          placed(local[v], local[v + 1]),
+          placed(local[v + 2], local[v + 3]),
+          placed(local[v + 4], local[v + 5]),
+          placed(local[v + 6], local[v + 7]));
+    }
+    final width = state.sizeX, height = state.sizeY;
+    if (width <= 0 || height <= 0) return null;
+    final left = -(0.5 + state.pivotX) * width;
+    final top = -(0.5 + state.pivotY) * height;
+    return SsPartQuad(placed(left, top), placed(left + width, top),
+        placed(left, top + height), placed(left + width, top + height));
+  }
 
   // --- Runtime texture replacement -----------------------------------------
   //

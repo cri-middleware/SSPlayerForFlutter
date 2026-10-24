@@ -86,8 +86,9 @@ so an animation with many masks gets coarser mask edges rather than taking more 
 Sticking a widget to a part (see [Part Following](guide/part-following.md)) is currently limited to
 the following scope.
 
-- **Top-level parts only.** A part inside an Instance part lives in the child animation's own player
-  and cannot be followed; the Instance part itself can.
+- **Top-level parts only.** A part inside an Instance part lives in the child animation's own player:
+  it cannot be followed, and `partQuad` / `hitTestPart` do not see it. The Instance part itself can be
+  followed.
 - **Skinned mesh parts cannot be followed onto their art.** A bone-bound mesh part is drawn by bone
   skinning, but its own transform stays at the setup node (usually the character root), so a follower
   snaps there rather than onto the visible art. Target a NULL / bone-point part at that spot instead

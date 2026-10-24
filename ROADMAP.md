@@ -13,25 +13,6 @@ This file lists unfinished work only. Technical constraints live in
   avoids).
 - [ ] **`Nines` / `Text` kinds** — not drawn on either render backend.
 
-## UI integration
-
-Behaving like a Flutter widget, not merely painting inside one. The view sizes
-from the authored canvas, fits it into its box and answers hits over the whole
-box, as an `Image` does; this section is the rest of what a widget does. The
-vocabulary is shared with the sibling Players: a part rect read-out for hit
-areas, and a UI-state map.
-
-- [ ] **Per-part hit testing** — the view answers a hit anywhere in its box, so an
-  irregular button takes taps around its artwork too. It takes `partRectOf(part)` on
-  the player, a pure read built from the `PartState` fields the runtime delivers every
-  frame (`size_x` / `size_y`, `anchor`, `pivot`) and the part transform, with
-  narrowing hits to the parts the host names left to a separate opt-in widget, so a
-  player that only plays pays nothing.
-- [ ] **UI state binding** — a widget that drives the player from
-  `WidgetStatesController` (`hovered` / `pressed` / `disabled` / `focused`), each
-  state mapped to an animation or a label, so a player drops into an `InkWell` or a
-  `ButtonStyleButton` and reacts like the rest of the button does.
-
 ## Distribution & verification
 
 - [ ] **Physical iOS device and `armeabi-v7a` runtime check** — verified on the iOS

@@ -25,6 +25,7 @@
     - [モーションブレンド](guide/motion-blending.md)
     - [パーツトラッキング](guide/part-following.md)
     - [パーツオーバーライド](guide/part-overrides.md)
+    - [ボタンと UI の状態](guide/buttons.md)
     - [テクスチャ差し替え](guide/textures.md)
     - [Flame との連携](guide/flame.md)
     - [アセットの準備（`.sspj` → `.ssab`）](guide/conversion.md)（初回の変換はこちら）

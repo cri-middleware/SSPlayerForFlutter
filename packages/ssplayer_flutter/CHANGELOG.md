@@ -29,5 +29,10 @@ All notable changes to `ssplayer_flutter` are documented here. The format is bas
   their own child upright (`SpriteStudioAnchorMirror.cancel`).
 - **Label playback** (`SpriteStudioPlayer.setAnimationSectionByLabel`): set the playback section by a
   start and an end label of the current animation, each with an offset.
+- **Part outlines** (`SpriteStudioPlayer.partQuad` / `hitTestPart`): the outline a part is drawn with,
+  and the front-most part under a point.
+- **Buttons & UI states** (`package:ssplayer_flutter/ui.dart`): `SpriteStudioStateView` plays the
+  section a button's `WidgetStatesController` calls for, from labels named after the states, and holds
+  still under reduced motion; `SpriteStudioHitRegion` lets the button take pointers on named parts only.
 
 [7.0.0-beta.1]: https://github.com/cri-middleware/SSPlayerForFlutter/releases/tag/ssplayer_flutter-v7.0.0-beta.1
