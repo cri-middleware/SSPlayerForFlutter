@@ -22,7 +22,7 @@ _player.play();                    // start from the beginning
 | `frameRate` | `int` | Advance rate in fps — the pack's authored rate unless you override it |
 | `setPlaybackDirection(dir, style)` | method | Direction (`SsPlaybackDirection.forward` / `.backward`) and end-of-range behaviour (`SsPlaybackStyle.normal` / `.pingPong`) |
 | `playbackDirection` / `playbackStyle` | read | What the two above are currently set to |
-| `setAnimationSection(start, end)` | method | Restrict playback to a frame range of the **current** animation |
+| `setAnimationSection(start, end)` | method | Restrict playback to a frame range of the **current** animation. An end before the start returns `false` and changes nothing |
 | `setAnimationSectionByLabel(start, end, {startOffset, endOffset})` | method | The same, with the ends named by labels of the current animation |
 | `frameSkipEnabled` | `bool` | ON (default) keeps playback on the wall clock by dropping frames; OFF advances exactly one frame per tick |
 | `subFrameEnabled` | `bool` | Sub-frame interpolation (on by default) |
@@ -71,6 +71,10 @@ _player..loopCount = -1..play();            // loops within 10..24
 
 `startFrame` / `endFrame` / `totalFrames` report the sectioned range, so a scrubber bound to them follows
 along.
+
+An end outside the animation (`-1`, say) is the animation's edge on that side. With both ends inside it, an end
+before the start is refused: `setAnimationSection` returns `false`, says so once in the log, and leaves the
+section and the playhead as they were.
 
 The ends can be labels instead, each with an offset in frames:
 

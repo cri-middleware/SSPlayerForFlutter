@@ -1,9 +1,9 @@
-// A playback section named by labels.
+// A playback section, by frame and named by labels.
 //
 // The label table is read from the pack, not the Brain, so its two halves are
 // tested apart: the table itself on a synthetic `.ssab` (no runtime), and the
-// section it sets on `Signal.ssab`, whose `anime_1` labels frames 10 (`Start`)
-// and 20 (`End`).
+// section it sets on `Signal.ssab`, whose `anime_1` runs 0..30 and labels
+// frames 10 (`Start`) and 20 (`End`).
 //
 //   flutter test test/label_section_test.dart
 import 'dart:io';
@@ -64,31 +64,89 @@ void main() {
     });
   });
 
-  group('setAnimationSectionByLabel', () {
-    final ssabPath = _firstExisting([
-      'examples/overall/assets/spritestudio/overall/Signal.ssab',
-      '../../examples/overall/assets/spritestudio/overall/Signal.ssab',
-    ]);
+  final ssabPath = _firstExisting([
+    'examples/overall/assets/spritestudio/overall/Signal.ssab',
+    '../../examples/overall/assets/spritestudio/overall/Signal.ssab',
+  ]);
 
-    Future<SpriteStudioPlayer?> loaded() async {
-      if (ssabPath == null) return null;
+  Future<SpriteStudioPlayer?> loaded() async {
+    if (ssabPath == null) return null;
+    final player = SpriteStudioPlayer();
+    addTearDown(player.dispose);
+    await player.load(File(ssabPath).readAsBytesSync(),
+        animationName: 'anime_1', loadTextures: false);
+    return player;
+  }
+
+  List<String> captureLog() {
+    final lines = <String>[];
+    final previous = debugPrint;
+    debugPrint = (String? message, {int? wrapWidth}) {
+      if (message != null) lines.add(message);
+    };
+    addTearDown(() => debugPrint = previous);
+    return lines;
+  }
+
+  group('setAnimationSection', () {
+    test('does nothing before load', () {
       final player = SpriteStudioPlayer();
       addTearDown(player.dispose);
-      await player.load(File(ssabPath).readAsBytesSync(),
-          animationName: 'anime_1', loadTextures: false);
-      return player;
-    }
+      final lines = captureLog();
+      expect(player.setAnimationSection(20, 10), isFalse);
+      expect(lines, isEmpty);
+    });
 
-    List<String> captureLog() {
-      final lines = <String>[];
-      final previous = debugPrint;
-      debugPrint = (String? message, {int? wrapWidth}) {
-        if (message != null) lines.add(message);
-      };
-      addTearDown(() => debugPrint = previous);
-      return lines;
-    }
+    test('a section can start on the last frame, and holds it', () async {
+      final player = await loaded();
+      if (player == null) {
+        markTestSkipped('Signal.ssab missing — run scripts/deploy-examples.sh');
+        return;
+      }
+      expect((player.startFrame, player.endFrame), (0, 30));
 
+      expect(player.setAnimationSection(30, 30), isTrue);
+      expect((player.startFrame, player.endFrame), (30, 30));
+      expect(player.frameNo, 30);
+
+      expect(player.setAnimationSection(0, 10), isTrue);
+      // An end out of range is the animation's edge: the last frame again.
+      expect(player.setAnimationSection(30, -1), isTrue);
+      expect((player.startFrame, player.endFrame), (30, 30));
+    });
+
+    test('an end before the start is refused, keeps the section, and reports '
+        'once', () async {
+      final player = await loaded();
+      if (player == null) {
+        markTestSkipped('Signal.ssab missing — run scripts/deploy-examples.sh');
+        return;
+      }
+      expect(player.setAnimationSection(10, 20), isTrue);
+      player
+        ..play()
+        ..advance(const Duration(milliseconds: 100));
+      final playhead = player.frameNo;
+      expect(playhead, greaterThan(10));
+      final lines = captureLog();
+
+      expect(player.setAnimationSection(20, 10), isFalse);
+      expect(player.setAnimationSection(20, 10), isFalse);
+      expect((player.startFrame, player.endFrame), (10, 20));
+      expect(player.frameNo, playhead, reason: 'the playhead stays too');
+
+      final said =
+          lines.where((l) => l.contains('setAnimationSection')).toList();
+      expect(said, hasLength(1), reason: lines.join('\n'));
+      expect(said.single, contains('(20, 10)'));
+
+      // Keyed on the pair: a different one has its own line.
+      expect(player.setAnimationSection(25, 5), isFalse);
+      expect(lines.where((l) => l.contains('(25, 5)')), hasLength(1));
+    });
+  });
+
+  group('setAnimationSectionByLabel', () {
     test('does nothing before load', () {
       final player = SpriteStudioPlayer();
       addTearDown(player.dispose);

@@ -887,11 +887,21 @@ class SpriteStudioPlayer extends ChangeNotifier {
   /// different one would clamp it to an arbitrary range. Call this again after
   /// each setup, and only once the animation is selected — a section set before
   /// [setAnimation] is wiped by it.
-  void setAnimationSection(int startFrame, int endFrame) {
+  ///
+  /// An end outside the animation (`-1`, say) is the animation's edge on that
+  /// side. With both ends inside it, an end before the start is refused: this
+  /// returns false and says so once in the log, and the section and the
+  /// playhead stay as they were. Before [load] it returns false and says
+  /// nothing.
+  bool setAnimationSection(int startFrame, int endFrame) {
     final internal = _internal;
-    if (internal == null) return;
-    internal.setAnimationSection(startFrame, endFrame);
+    if (internal == null) return false;
+    if (!internal.setAnimationSection(startFrame, endFrame)) {
+      _reportRefusedSection(startFrame, endFrame);
+      return false;
+    }
     notifyListeners();
+    return true;
   }
 
   /// [setAnimationSection] with the ends named by labels of the **current**
@@ -930,8 +940,19 @@ class SpriteStudioPlayer extends ChangeNotifier {
     }
     final from = start + startOffset;
     final to = end + endOffset;
-    setAnimationSection(from, to < from ? from : to);
-    return true;
+    return setAnimationSection(from, to < from ? from : to);
+  }
+
+  /// Says that the Brain refused a section, once per start and end: a section
+  /// set again every frame would otherwise fill the log.
+  void _reportRefusedSection(int startFrame, int endFrame) {
+    if (!_reportedRefusals.add('setAnimationSection|$startFrame|$endFrame')) {
+      return;
+    }
+    final where = _sourceLabel ?? 'the loaded pack';
+    debugPrint('SpriteStudioPlayer: $where refused '
+        'setAnimationSection($startFrame, $endFrame), whose end is before its '
+        'start, so the section stays as it was.');
   }
 
   void _reportMissingLabel(String animation, List<String> labels) {
@@ -1394,8 +1415,8 @@ class SpriteStudioPlayer extends ChangeNotifier {
         '$because.$hint');
   }
 
-  /// What [_reportRefused] and [_reportMissingLabel] have already said since
-  /// the last [load].
+  /// What [_reportRefused], [_reportRefusedSection] and [_reportMissingLabel]
+  /// have already said since the last [load].
   final Set<String> _reportedRefusals = <String>{};
 
   /// Records that track 0 now plays [name], handed over by a [crossfade] or

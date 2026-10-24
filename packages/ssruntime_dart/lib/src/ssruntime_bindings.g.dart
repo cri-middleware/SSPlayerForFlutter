@@ -1119,8 +1119,13 @@ external void ss_runtime_reset(ffi.Pointer<ffi.Void> context);
 @ffi.Native<ffi.Void Function(ffi.Pointer<ffi.Void>)>()
 external void ss_runtime_resume(ffi.Pointer<ffi.Void> context);
 
-@ffi.Native<ffi.Void Function(ffi.Pointer<ffi.Void>, ffi.Int, ffi.Int)>()
-external void ss_runtime_set_animation_section(
+/// Limits playback to `[start_frame, end_frame]`, both ends included. An end
+/// out of the animation's range (`-1`, say) is the animation's edge on that
+/// side. Returns `false`, with `InvalidParameter` for
+/// `ss_runtime_get_last_error`, when both ends are in range and the end is
+/// before the start; the section and the playhead stay as they were.
+@ffi.Native<ffi.Bool Function(ffi.Pointer<ffi.Void>, ffi.Int, ffi.Int)>()
+external bool ss_runtime_set_animation_section(
   ffi.Pointer<ffi.Void> context,
   int start_frame,
   int end_frame,
