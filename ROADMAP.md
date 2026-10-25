@@ -13,6 +13,16 @@ This file lists unfinished work only. Technical constraints live in
   avoids).
 - [ ] **`Nines` / `Text` kinds** — not drawn on either render backend.
 
+## UI integration
+
+- [ ] **Selected state** — `SpriteStudioStateView` reads disabled, pressed, hovered and focused from the
+  button's `WidgetStatesController`, but not `WidgetState.selected`, which `IconButton` (`isSelected`) and
+  `SegmentedButton` set, so a selected button shows as it would unselected. The SDK porting guide's
+  [UI integration page](https://github.com/cri-middleware/SpriteStudio-SDK/blob/HEAD/libs/ssruntime/docs/50_features/80_ui_integration.md)
+  now recommends the selected state where the host has one: a flag beside the state that plays the `selected_`
+  labels, falling back through them before the plain ones, with `pressed` right after `selected_pressed`.
+  `resolveUiSection` and `SsUiStateDriver.show` take it.
+
 ## Distribution & verification
 
 - [ ] **Physical iOS device and `armeabi-v7a` runtime check** — verified on the iOS
