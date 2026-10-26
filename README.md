@@ -43,7 +43,7 @@ Everything after that (events, per-part overrides, live reload) is the same path
 further in, on the [documentation site](docs/en/index.md).
 **Working on the Player, or the Rust runtime under it?** [Section 2](#%EF%B8%8F-2-full-build-environment-for-sdk--player-developers).
 
-You need **Flutter 3.47+ / Dart 3.13+**, and a project made in **SpriteStudio 7.5 or later**.
+You need **Flutter 3.47+ / Dart 3.13+**, and a project made in **SpriteStudio 7.6 or later**.
 
 1. **Install** the player, and the converter as a dev dependency:
 
