@@ -19,9 +19,9 @@ This file lists unfinished work only. Technical constraints live in
   button's `WidgetStatesController`, but not `WidgetState.selected`, which `IconButton` (`isSelected`) and
   `SegmentedButton` set, so a selected button shows as it would unselected. The SDK porting guide's
   [UI integration page](https://github.com/cri-middleware/SpriteStudio-SDK/blob/HEAD/libs/ssruntime/docs/50_features/80_ui_integration.md)
-  now recommends the selected state where the host has one: a flag beside the state that plays the `selected_`
+  recommends the selected state where the host has one: a flag beside the state that plays the `selected_`
   labels, falling back through them before the plain ones, with `pressed` right after `selected_pressed`.
-  `resolveUiSection` and `SsUiStateDriver.show` take it.
+  `resolveUiSection` and `SsUiStateDriver.show` would take it.
 
 ## Distribution & verification
 
