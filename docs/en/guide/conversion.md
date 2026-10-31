@@ -95,7 +95,7 @@ Every route below runs the same open-source converter and produces the same `.ss
 |---|---|---|
 | [**ssconvert**](#ssconvert-dart) | The README's route — convert `SpriteStudio_Source/` into `assets/`, by hand or in CI | `flutter pub add --dev ssconverter_dart` |
 | [**Live Reload**](#live-reload) | Reconverting on save while the app runs, from the same `SpriteStudio_Source/` | [`ssgen_flutter`](live-reload.md) |
-| [**ssconverter-web**](#ssconverter-web-browser) | A quick one-off in the browser, no install | [Open in the browser](https://cri-middleware.github.io/SSPlayerForWeb/ssconverter/) (Chromium-only) |
+| [**ssconverter-web**](#ssconverter-web-browser) | A quick one-off in the browser, no install | [Open in the browser](https://cri-middleware.github.io/SSPlayerForWeb/ssconverter/) |
 | [**SSConverter GUI**](#ssconverter-gui-desktop-gui) | A desktop GUI — drag & drop, batch, embedded toggle | [Download a binary](https://github.com/cri-middleware/SSConverterGUI/releases) |
 | [**ssconverter-cli**](#ssconverter-cli-sdk) | Non-Dart pipelines | [SDK Releases](https://github.com/cri-middleware/SpriteStudio-SDK/releases) |
 
@@ -132,10 +132,10 @@ Convert a `.sspj` in the browser and download the result — no install. It runs
 of the converter client-side, and the ZIP holds one folder named after the `.sspj`. Then
 [deploy](#deploy-the-ssab-other-routes) it.
 
-!!! note "Chromium-based browsers only"
+!!! note "Dropping a folder needs a Chromium browser"
     It is hosted on GitHub Pages: <https://cri-middleware.github.io/SSPlayerForWeb/ssconverter/>.
-    Folder selection uses the **File System Access API**, so a
-    **Chromium-based browser (Chrome / Edge)** is required.
+    Dropping a folder uses the **File System Access API**, so it needs a
+    **Chromium-based browser (Chrome / Edge)**; in other browsers, pick the folder with **Browse...**.
 
 ## SSConverter GUI (desktop GUI)
 

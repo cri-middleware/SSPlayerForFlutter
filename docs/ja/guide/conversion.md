@@ -80,7 +80,7 @@ graph LR
 |---|---|---|
 | [**ssconvert**](#ssconvertdart) | README の手順 —— `SpriteStudio_Source/` を `assets/` へ変換。手元でも CI でも | `flutter pub add --dev ssconverter_dart` |
 | [**ライブリロード**](#ライブリロード) | アプリの実行中に、同じ `SpriteStudio_Source/` から保存のたびに再変換 | [`ssgen_flutter`](live-reload.md) |
-| [**ssconverter-web**](#ssconverter-webブラウザ) | ブラウザで単発、インストール不要 | [ブラウザで開く](https://cri-middleware.github.io/SSPlayerForWeb/ssconverter/)（Chromium 専用） |
+| [**ssconverter-web**](#ssconverter-webブラウザ) | ブラウザで単発、インストール不要 | [ブラウザで開く](https://cri-middleware.github.io/SSPlayerForWeb/ssconverter/) |
 | [**SSConverter GUI**](#ssconverter-guiデスクトップ-gui) | デスクトップ GUI —— ドラッグ&ドロップ・バッチ・embedded 切替 | [バイナリをダウンロード](https://github.com/cri-middleware/SSConverterGUI/releases) |
 | [**ssconverter-cli**](#ssconverter-clisdk) | Dart 以外のパイプライン | [SDK Releases](https://github.com/cri-middleware/SpriteStudio-SDK/releases) |
 
@@ -106,8 +106,8 @@ SpriteStudio で保存すると、実行中のアプリが再変換して更新�
 
 ブラウザで `.sspj` を変換して結果をダウンロード —— インストール不要。コンバータの WebAssembly ビルドをクライアント側で実行し、ZIP には `.sspj` の名前のフォルダが 1 つ入っています。その後、[配置](#ssab-を配置するほかのルート)します。
 
-!!! note "Chromium 系ブラウザ専用"
-    GitHub Pages でホストしています（<https://cri-middleware.github.io/SSPlayerForWeb/ssconverter/>）。フォルダ選択に **File System Access API** を使うため、**Chromium 系ブラウザ**（Chrome / Edge）が必要です。
+!!! note "フォルダのドロップには Chromium 系ブラウザが必要"
+    GitHub Pages でホストしています（<https://cri-middleware.github.io/SSPlayerForWeb/ssconverter/>）。フォルダのドロップには **File System Access API** を使うため、**Chromium 系ブラウザ**（Chrome / Edge）が必要です。ほかのブラウザでは **Browse...** でフォルダを選択してください。
 
 ## SSConverter GUI（デスクトップ GUI）
 
