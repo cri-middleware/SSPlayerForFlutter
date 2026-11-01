@@ -11,7 +11,7 @@
 ## ✨ SpriteStudio を Flutter で使うメリット
 
 - **キャラクターも、画面全体も“生きる”。** 呼吸・まばたき、なびく髪や衣装、斬撃・魔法のエフェクト、さらに動く HUD やスプラッシュ画面まで——動きは専用エディタ（SpriteStudio）でビジュアルに作り込み、`SpriteStudioAnimation` はそれを再生するだけ。ボーン・メッシュ変形・パーティクルにも対応し、アニメーションのコードは書かずに済みます。
-- **手描きの絵を、ネイティブ描画で。** お手持ちのスプライト素材を動かすので、描き込んだキャラクターが描いたとおりに動きます（Lottie のようなベクター系ツールとは得意分野が異なります）。`.gif` や `.mp4` と違って自由に拡大縮小でき、シームレスにループし、アプリの操作にも反応します。描画は Flutter 自身のレンダラが行い、WebView も動画のデコードも使いません。
+- **ラスター素材を、ネイティブ描画で——ベクターでも動画でもない選択。** **ラスター**（PNG 等のビットマップ）のスプライト素材を動かすので、描き込んだイラストやリッチな質感が描いたとおりに動きます（Lottie のようなベクター系ツールとは得意分野が異なります）。`.gif` や `.mp4` と違って自由に拡大縮小でき、シームレスにループし、アプリの操作にも反応します。描画は Flutter 自身のレンダラが行い、WebView も動画のデコードも使いません。
 - **普通のウィジェットとして——Flame でも。** 他のウィジェットと同じように配置・サイズ指定・変形・クリップできます。アーティストがタイムラインに置いたユーザーデータ・シグナル・オーディオキューはコールバックで届き、パーツ単位のオーバーライドで実行時に色変え・非表示・差し替えもできます。ゲームを作るなら、[`ssplayer_flame`](./packages/ssplayer_flame) で同じアニメーションを `FlameGame` に載せられます。
 - **フレームの間も、アニメーションの間も滑らかに。** **サブフレーム補間**により、実際の表示タイミングちょうどの位置でフレームを生成します。作成時のフレームレートではなく、ディスプレイのリフレッシュレートや再生速度に追従した滑らかな表示が得られます。`transition` を指定すれば `animation` を変えたときにクロスフェードし、トラックを重ねれば再生中の動きにまばたきや照準を重ねられます。
 - **エディタから実行画面まで、シームレスな更新。** ライブリロードがアプリ実行中に `SpriteStudio_Source/` を監視します。SpriteStudio で保存するだけで、変更のあったプロジェクトだけが再変換され、実行中のアプリに反映されます。書き出しの手作業は要りません。
@@ -36,10 +36,10 @@
 
 ---
 
-## 🚀 1. クイックスタート
+## 🚀 クイックスタート
 
 **アプリで使う場合**はこのまま下へ。依存を追加する → 自分の `.sspj` を変換する → 再生する。その先（イベント、パーツ単位の上書き、ライブリロード）も同じ道の続きで、[ドキュメント](docs/ja/index.md)にあります。
-**Player 自体や、その下の Rust ランタイムを変更する場合**は [2 章](#%EF%B8%8F-2-フル開発環境sdk--player-開発者)へ。
+**Player 自体や、その下の Rust ランタイムを変更する場合**は [CONTRIBUTING.md](./CONTRIBUTING.md) と[ビルドガイド](./docs/ja/development/build.md)（変更したプレイヤーをアプリで使う方法と、スイートで見えないものの確かめ方を含む）へ。層とその理由は[プレイヤーの構成](./docs/ja/development/architecture.md)にあります。
 
 **Flutter 3.47 以上 / Dart 3.13 以上**と、**SpriteStudio 7.6 以上**で作成したプロジェクトを用意してください。
 
@@ -99,69 +99,16 @@ SpriteStudio のデータが手元に無くても始められます。[公式の
 **次に読む:** [クイックスタート（ガイド）](docs/ja/guide/quickstart.md) · [再生とイベント](docs/ja/guide/playback.md) ·
 [制約と適用範囲](docs/ja/limitations.md)
 
-## ⚙️ 2. フル開発環境（SDK / Player 開発者）
-
-### チェックアウトから動かしてみる
-
-同梱のサンプルを起動して動作を確認します。**Rust ツールチェーンは不要** —— 各パッケージの
-`hook/build.dart` が、ピン留めした SDK リリースからプリビルド（`libssruntime` / `libssconverter`）を自動ダウンロードして同梱します。
-
-**macOS / Linux:**
-```bash
-git clone https://github.com/cri-middleware/SSPlayerForFlutter.git
-cd SSPlayerForFlutter
-git submodule update --init --recursive
-scripts/deploy-examples.sh          # example 用 .ssab を生成（libssconverter は自動DL・Rust 不要）
-cd examples/overall && flutter run  # libssruntime は自動DL
-```
-
-**Windows:**
-```powershell
-git clone https://github.com/cri-middleware/SSPlayerForFlutter.git
-cd SSPlayerForFlutter
-git submodule update --init --recursive
-scripts\deploy-examples.ps1
-cd examples\overall; flutter run
-```
-
-### コアを自前でビルドする
-
-コア（Rust ランタイム / Player）をソースから開発する場合。**前提**: Rust（`rustup`）、
-Flutter / Dart は[インストール](docs/ja/guide/install.md)の下限以上（Native Assets が標準。ネイティブランタイム同梱に CocoaPods／vendored
-framework は不要）。`flatc` は `.fbs` を再生成するときだけ。cbindgen は SDK の `build.rs` が
-build-dependency として使うため個別導入不要。
-
-**macOS / Linux:**
-```bash
-git submodule update --init --recursive
-scripts/build-runtime.sh             # 例: build-runtime.sh platform=macos build=release
-#   C-API を変えたらバインディング再生成 → commit: scripts/generate-ffigen-code.sh
-scripts/deploy-examples.sh
-cd examples/overall && flutter run
-```
-
-**Windows:**
-```powershell
-git submodule update --init --recursive
-scripts\build-runtime.ps1
-scripts\deploy-examples.ps1
-cd examples\overall; flutter run
-```
-
-チェックアウトからのビルドとテストは [CONTRIBUTING.md](./CONTRIBUTING.md)、層とその理由は[プレイヤーの構成](./docs/ja/development/architecture.md)、変更したプレイヤーをアプリで使う方法とスイートで見えないものの確かめ方は[ビルドガイド](./docs/ja/development/build.md#変更したプレイヤーを使う)、ネイティブライブラリの同梱は [ネイティブランタイム](./docs/ja/development/native-runtime.md)、今後の作業は [ROADMAP.md](./ROADMAP.md) を参照してください。
-
 ## 📦 パッケージ
 
-このモノレポがリリースするものです。アニメーションを再生するだけなら最初の 1 行で足り、残りはその土台と周辺ツールです。
+アプリから直接使うパッケージです。アニメーションを再生するだけなら最初の 1 行で足ります。土台となる FFI バインディングや差分再変換パッケージ（`ssruntime_dart`・`ssgen_dart`）も含めた一覧は[パッケージ](docs/ja/packages.md)と[プレイヤーの構成](docs/ja/development/architecture.md)を参照してください。
 
 | 目的 | パッケージ | 種別 |
 |---|---|---|
-| アニメ再生（ランタイム描画） | [`ssplayer_flutter`](./packages/ssplayer_flutter) | Flutter パッケージ（全プラットフォーム・`ssruntime_dart` に依存） |
+| アニメ再生（ランタイム描画） | [`ssplayer_flutter`](./packages/ssplayer_flutter) | Flutter パッケージ（全プラットフォーム） |
 | [Flame](https://flame-engine.org/) ゲームエンジンアダプタ | [`ssplayer_flame`](./packages/ssplayer_flame) | Flutter パッケージ（`SpriteStudioComponent`） |
-| `dart:ffi` 越しのランタイムバインディング | [`ssruntime_dart`](./packages/ssruntime_dart) | 純 Dart（renderer 非依存コア） |
 | `.sspj` → `.ssab` 変換（CLI / ライブラリ） | [`ssconverter_dart`](./packages/ssconverter_dart) | 純 Dart（デスクトップ専用のホストツール） |
-| 変更されたものだけ再変換するホストライブラリ（`ssgen_flutter` の土台） | [`ssgen_dart`](./packages/ssgen_dart) | 純 Dart（デスクトップ用ホストライブラリ） |
-| 編集→実機ループのライブリロード | [`ssgen_flutter`](./packages/ssgen_flutter) | Flutter 開発ツール（`ssgen_dart` の上） |
+| 編集→実機ループのライブリロード | [`ssgen_flutter`](./packages/ssgen_flutter) | Flutter 開発ツール |
 
 ## 🎬 サンプル
 

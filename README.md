@@ -11,7 +11,7 @@ A player that renders **[SpriteStudio](https://www.webtech.co.jp/spritestudio/)*
 ## ✨ Why use SpriteStudio with Flutter?
 
 - **Bring your sprites — and whole screens — to life.** Breathing and blinking, swaying hair and clothes, flashy slash and magic effects, even an animated HUD or splash screen: the motion is built visually in a dedicated editor (SpriteStudio) and `SpriteStudioAnimation` just plays it. Bone rigs, mesh deformation and particles are all handled for you, so there is no animation code to write.
-- **Hand-drawn art, drawn natively.** It animates the sprite art you already have, so painted characters move exactly as drawn — a different fit from vector tools like Lottie. Unlike a `.gif` or an `.mp4`, it scales freely, loops seamlessly and reacts to your app, and Flutter's own renderer draws it — no WebView, no video decoding.
+- **Raster art, drawn natively — not vector, not video.** It animates **raster** (bitmap/PNG) sprite art, so painted illustrations and rich textures move exactly as drawn — a different fit from vector tools like Lottie. Unlike a `.gif` or an `.mp4`, it scales freely, loops seamlessly and reacts to your app, and Flutter's own renderer draws it — no WebView, no video decoding.
 - **A widget like any other — and a Flame component.** Position, size, transform and clip it like any other widget. Keys the artist placed on the timeline — user data, signals, audio cues — arrive as callbacks, and per-part overrides recolour, hide or swap a part at runtime. Making a game? [`ssplayer_flame`](./packages/ssplayer_flame) drops the same animation into a `FlameGame`.
 - **Smooth motion — between frames and between animations.** **Sub-frame interpolation** renders each frame at the exact display time, so motion follows your display's refresh rate and playback speed instead of the authored fps. Set `transition` and a change of `animation` crossfades instead of cutting, and further tracks lay a blink or an aim over what is playing.
 - **A seamless edit-to-runtime loop.** Live reload watches `SpriteStudio_Source/` while the app runs: save in SpriteStudio and only the changed project is re-converted and pushed into the running app — no manual export step.
@@ -36,12 +36,12 @@ For installation, the asset pipeline, and API references, see the MkDocs documen
 
 ---
 
-## 🚀 1. Quick Start
+## 🚀 Quick Start
 
 **Using it in your app?** Read on — add the dependency, convert your `.sspj`, play.
 Everything after that (events, per-part overrides, live reload) is the same path
 further in, on the [documentation site](docs/en/index.md).
-**Working on the Player, or the Rust runtime under it?** [Section 2](#%EF%B8%8F-2-full-build-environment-for-sdk--player-developers).
+**Working on the Player, or the Rust runtime under it?** [CONTRIBUTING.md](./CONTRIBUTING.md), the [Build Guide](./docs/en/development/build.md) — which also covers using a changed player in an app and checking what the suites miss — and [How the Player Is Put Together](./docs/en/development/architecture.md) for the layers and why.
 
 You need **Flutter 3.47+ / Dart 3.13+**, and a project made in **SpriteStudio 7.6 or later**.
 
@@ -104,75 +104,16 @@ No `.sspj` of your own yet? SpriteStudio's [official sample data](https://www.we
 **Read next:** [Quick Start guide](docs/en/guide/quickstart.md) · [Playback & Events](docs/en/guide/playback.md) ·
 [Limitations & Scope](docs/en/limitations.md)
 
-## ⚙️ 2. Full Build Environment (For SDK / Player Developers)
-
-### See it running from a checkout
-
-Run the bundled example to confirm the player works. **No Rust toolchain required** — each package's
-`hook/build.dart` downloads the prebuilt native libraries (`libssruntime` / `libssconverter`) from
-the pinned SDK release and bundles them.
-
-**macOS / Linux:**
-```bash
-git clone https://github.com/cri-middleware/SSPlayerForFlutter.git
-cd SSPlayerForFlutter
-git submodule update --init --recursive
-scripts/deploy-examples.sh          # generate example .ssab (libssconverter auto-downloads; no Rust)
-cd examples/overall && flutter run  # libssruntime auto-downloads
-```
-
-**Windows:**
-```powershell
-git clone https://github.com/cri-middleware/SSPlayerForFlutter.git
-cd SSPlayerForFlutter
-git submodule update --init --recursive
-scripts\deploy-examples.ps1
-cd examples\overall; flutter run
-```
-
-### Building the core yourself
-
-To develop the core (Rust runtime / Player) from source. **Prerequisites**: Rust (`rustup`),
-a Flutter/Dart SDK at or above the floor on [Installation](docs/en/guide/install.md) (native assets is
-standard — no CocoaPods / vendored framework to embed the native runtime). `flatc` only when regenerating `.fbs`; cbindgen is pulled in as a build-dependency by the
-SDK's `build.rs`, so no separate install.
-
-**macOS / Linux:**
-```bash
-git submodule update --init --recursive
-scripts/build-runtime.sh             # e.g. build-runtime.sh platform=macos build=release
-#   After a C-API change, regenerate bindings and commit: scripts/generate-ffigen-code.sh
-scripts/deploy-examples.sh
-cd examples/overall && flutter run
-```
-
-**Windows:**
-```powershell
-git submodule update --init --recursive
-scripts\build-runtime.ps1
-scripts\deploy-examples.ps1
-cd examples\overall; flutter run
-```
-
-See [CONTRIBUTING.md](./CONTRIBUTING.md) for building and testing from a checkout,
-[How the Player Is Put Together](./docs/en/development/architecture.md) for the layers and why,
-the [Build Guide](./docs/en/development/build.md#using-a-changed-player) for using a changed player
-in an app and checking what the suites miss,
-[Native Runtime](./docs/en/development/native-runtime.md) for how the native library is packaged, and
-[ROADMAP.md](./ROADMAP.md) for upcoming work.
-
 ## 📦 Packages
 
-What this monorepo releases — you need only the first row to play an animation; the rest are what it is built on and the tooling around it.
+What you install directly — you need only the first row to play an animation. For the internal binding and diff-reconversion packages (`ssruntime_dart`, `ssgen_dart`), see [Packages](docs/en/packages.md) and [How the Player Is Put Together](docs/en/development/architecture.md).
 
 | Purpose | Package | Kind |
 |---|---|---|
-| Animation playback (runtime rendering) | [`ssplayer_flutter`](./packages/ssplayer_flutter) | Flutter package (all platforms; depends on `ssruntime_dart`) |
+| Animation playback (runtime rendering) | [`ssplayer_flutter`](./packages/ssplayer_flutter) | Flutter package (all platforms) |
 | [Flame](https://flame-engine.org/) game-engine adapter | [`ssplayer_flame`](./packages/ssplayer_flame) | Flutter package (`SpriteStudioComponent`) |
-| Runtime bindings over `dart:ffi` | [`ssruntime_dart`](./packages/ssruntime_dart) | Pure Dart (renderer-agnostic core) |
 | `.sspj` → `.ssab` conversion (CLI / library) | [`ssconverter_dart`](./packages/ssconverter_dart) | Pure Dart (desktop-only host tool) |
-| Reconverts only what changed (powers `ssgen_flutter`) | [`ssgen_dart`](./packages/ssgen_dart) | Pure Dart (desktop host lib) |
-| Live reload for the edit-to-runtime loop | [`ssgen_flutter`](./packages/ssgen_flutter) | Flutter dev tooling (on `ssgen_dart`) |
+| Live reload for the edit-to-runtime loop | [`ssgen_flutter`](./packages/ssgen_flutter) | Flutter dev tooling |
 
 ## 🎬 Samples
 
