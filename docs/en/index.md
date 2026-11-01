@@ -48,18 +48,11 @@ hand-write. Playback runs through `libssruntime` provided by
 
 ## Key Features
 
-This player is designed to bring the full expressive power of SpriteStudio to Flutter with zero
-animation code to write by hand.
-
-*   **Zero animation code:** Characters, **UIs, and whole scenes** are authored in SpriteStudio; one widget plays them.
-*   **Full feature support:** Ships every core draw kind — Normal, PartColor, Mask, Mesh, Effect (particles), Instance, and Shape — plus bone hierarchies and mesh deformation.
-*   **Native GPU-accelerated drawing:** `dart:ffi` into the Rust runtime, drawn through Flutter's own renderer — `flutter_gpu` (Impeller) where available, `Canvas.drawVertices` otherwise. Not a WebView, not a video decode.
-*   **Composes with the widget tree — and [Flame](guide/flame.md):** `SpriteStudioView` is a plain `RenderBox`; the `ssplayer_flame` package adds a `SpriteStudioComponent`.
-*   **Runtime texture replacement (skins & costumes):** swap the bitmap a cellmap samples at runtime — colour variants, equipment changes, dynamic expressions — with [`setCellmapTexture()`](guide/textures.md), no per-combination animation needed.
-*   **Motion blending:** [crossfade](guide/motion-blending.md) from one animation to the next instead of cutting, lay an aim or a reaction over a walk, and blend a walk into a run by weight — all from animations authored separately.
-*   **Smooth sub-frame interpolation:** Playback follows the display refresh rate, not a fixed fps — buttery-smooth even in slow motion.
-*   **Bring your own art, with live-reload:** Convert `.sspj` → `.ssab` from a [CLI or CI](guide/conversion.md), and **[live-reload](guide/live-reload.md)** editor edits straight into the running app.
-*   **Nothing to link:** the native runtime is bundled automatically via native assets — no CocoaPods, no manual linking.
+- **Bring your sprites — and whole screens — to life.** Breathing and blinking, swaying hair and clothes, flashy slash and magic effects, even an animated HUD or splash screen: the motion is built visually in a dedicated editor (SpriteStudio) and `SpriteStudioAnimation` just plays it. Bone rigs, mesh deformation and particles are all handled for you, so there is no animation code to write.
+- **Raster art, drawn natively — not vector, not video.** It animates **raster** (bitmap/PNG) sprite art, so painted illustrations and rich textures move exactly as drawn — a different fit from vector tools like Lottie. Unlike a `.gif` or an `.mp4`, it scales freely, loops seamlessly and reacts to your app, and Flutter's own renderer draws it via `dart:ffi` and native assets — no WebView, no video decoding, and no manual native linking.
+- **A widget like any other — and a [Flame](guide/flame.md) component.** Position, size, transform and clip it like any other widget. Keys the artist placed on the timeline — user data, signals, audio cues — arrive as callbacks ([Playback & Events](guide/playback.md)), per-part overrides recolour, hide or swap a part at runtime ([Part Overrides](guide/part-overrides.md)), and [`setCellmapTexture()`](guide/textures.md) swaps textures for skins and costumes. Making a game? `ssplayer_flame` drops the same animation into a `FlameGame`.
+- **Smooth motion — between frames and between animations.** **Sub-frame interpolation** renders each frame at the exact display time, so motion follows your display's refresh rate and playback speed instead of the authored fps. Set `transition` and a change of `animation` [crossfades](guide/motion-blending.md) instead of cutting, and further tracks lay a blink or an aim over what is playing.
+- **A seamless edit-to-runtime loop.** [Live reload](guide/live-reload.md) watches `SpriteStudio_Source/` while the app runs: save in SpriteStudio and only the changed project is re-converted and pushed into the running app — no manual export step.
 
 ## Overview
 
