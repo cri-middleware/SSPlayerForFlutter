@@ -1,40 +1,65 @@
 # 🧩 プレイヤーの構成
 
-SpriteStudio Player for Flutter は、SpriteStudio-SDK の **Brain** に対する **Body** です。Brain
-（`libssruntime`、Rust `no_std`）が `.ssab` を読み込んで時間を進め、フレームごとの **SoA バッファ**（ワールド行列・ローカル頂点 / UV）と、**`DrawBatch`** プランを載せた FlatBuffers の **`FrameData`**
-を出力します。Body はそれを `dart:ffi` で受け取り、差し替え可能なレンダーバックエンド（`Canvas.drawVertices` または `flutter_gpu`（Impeller））でプランを実行します。保持シーングラフは持たず、毎フレーム作り直します。
+SpriteStudio Player for Flutter は、SpriteStudio-SDK の **Brain** に対する **Body** です。Brain（`libssruntime`、Rust `no_std`）が `.ssab` を読み込んで時間を進め、フレームごとの **SoA バッファ**（ワールド行列・ローカル頂点 / UV）と、**`DrawBatch`** プランを載せた FlatBuffers の **`FrameData`** を出力します。Body はそれを `dart:ffi` で受け取り、差し替え可能なレンダーバックエンド（`Canvas.drawVertices` または `flutter_gpu`（Impeller））でプランを実行します。保持シーングラフは持たず、毎フレーム作り直します。
 
 ## 4 レイヤー
 
 ```mermaid
+---
+config:
+  flowchart:
+    wrappingWidth: 400
+---
 flowchart TD
-    L4["L4 · 描画アダプタ<br/>SpriteStudioAnimation · SpriteStudioView (RenderBox) · SpriteStudioPartAnchor · SpriteStudioComponent (Flame)"]
-    L3["L3 · SpriteStudioPlayer<br/>ChangeNotifier · トランスポート · イベント · Ticker / advance"]
-    L2["L2 · SpriteStudioInternalPlayer<br/>Widget 非依存 · FFI ライフサイクル · SoA → geometry bake · paint"]
-    L1["L1 · ffigen @Native バインディング<br/>(ssruntime_dart パッケージ)"]
+    subgraph flame ["ssplayer_flame"]
+        F4["L4 · SpriteStudioComponent<br/>Flame アダプタ"]
+    end
+    subgraph core ["ssplayer_flutter"]
+        L4["L4 · 描画アダプタ<br/>ウィジェット · パーツ追従 · ボタン"]
+        L3["L3 · SpriteStudioPlayer<br/>トランスポート · イベント · クロック"]
+        L2["L2 · SpriteStudioInternalPlayer<br/>FFI ライフサイクル · bake · paint"]
+    end
+    subgraph rt ["ssruntime_dart"]
+        L1["L1 · @Native バインディング<br/>ランタイム FlatBuffers"]
+    end
     Brain["Brain · libssruntime (Rust)"]
-    L4 --> L3 --> L2 --> L1 --> Brain
+    L4 --> L3
+    F4 --> L3
+    L3 --> L2 --> L1 --> Brain
 ```
 
-**下方向への厳格な依存**で、下のレイヤーほど Brain に近い。各レイヤーの役割は 1 つずつ:
+矢印は呼び出しで、依存は**下方向だけ**です。下のレイヤーほど Brain に近くなります。
 
-| レイヤー | 役割 | 所在 |
-|---|---|---|
-| **L4** | 描画アダプタ —— `SpriteStudioAnimation`（プレイヤーと Ticker を自分で持つウィジェット）、`SpriteStudioView`（利用者が持つプレイヤーを描く `RenderBox`）、`SpriteStudioPartAnchor`（パーツに留める子）、`SpriteStudioStateView` / `SpriteStudioHitRegion`（ボタンの中のアニメ。`ui.dart`）、Flame の `SpriteStudioComponent` / `SpriteStudioButtonComponent` | `ssplayer_flutter`, `ssplayer_flame` |
-| **L3** | `SpriteStudioPlayer` —— トランスポート / イベント。vsync モードでは `Ticker`、外部クロックでは `advance` | `ssplayer_flutter` |
-| **L2** | `SpriteStudioInternalPlayer` —— FFI Context のライフサイクル（`.ssab` の解析は、同じバイト列の Player すべてで 1 つを共有）、SoA → geometry bake（Canvas は `ui.Vertices`、GPU はインターリーブ VBO）、`paint` = `DrawBatch.kind` ディスパッチ | `ssplayer_flutter` |
-| **L1** | ffigen `@Native` C-API バインディング + ランタイム FlatBuffers | `ssruntime_dart` |
+| レイヤー | 役割 |
+|---|---|
+| **L4** | 描画アダプタ —— `SpriteStudioAnimation`（プレイヤーと Ticker を自分で持つウィジェット）、`SpriteStudioView`（利用者が持つプレイヤーを描く `RenderBox`）、`SpriteStudioPartAnchor`（パーツに留める子）、`SpriteStudioStateView` / `SpriteStudioHitRegion`（ボタンの中のアニメ。`ui.dart`）、Flame の `SpriteStudioComponent` / `SpriteStudioButtonComponent`（外部クロックのプレイヤーを持つ）。Flame のものは、コアが `flame` を巻き込まないよう別パッケージ |
+| **L3** | `SpriteStudioPlayer` —— トランスポート / イベント。vsync モードでは `Ticker`、外部クロックでは `advance` |
+| **L2** | `SpriteStudioInternalPlayer` —— FFI Context のライフサイクル（`.ssab` の解析は、同じバイト列の Player すべてで 1 つを共有）、SoA → geometry bake（Canvas は `ui.Vertices`、GPU はインターリーブ VBO）、`paint` = `DrawBatch.kind` ディスパッチ |
+| **L1** | ffigen `@Native` C-API バインディングとランタイムの FlatBuffers（`framedata` / `effect_draw_plan`）。Flutter に依存しない純 Dart。ネイティブライブラリはパッケージのビルドフックが同梱 |
 
-**L2 は Widget 非依存**に保つことで、ヘッドレス / Flame / どちらのレンダーバックエンド（`Canvas` / `flutter_gpu`）からも再利用できます。
+**L2 は Widget 非依存**に保つことで、ヘッドレス / Flame / どちらのレンダーバックエンド（`Canvas` / `flutter_gpu`）からも再利用できます。`ssplayer_flutter` は L2–L4 を 1 つのバレルから公開し、L1 が要るコードは `ssruntime_dart` から直接 import します。全パッケージと役割は [パッケージ](../packages.md) にあります。
 
-## どこに何があるか
+## ライブリロード
 
-- **L1** —— `ssruntime_dart`（純 Dart・非 Flutter）: 生成した `@Native` C-API バインディングとランタイムの FlatBuffers（`framedata` / `effect_draw_plan`）。ネイティブライブラリはパッケージのビルドフックが同梱。
-- **L2–L4** —— `ssplayer_flutter`（公開 API のバレルと、ボタン向けのウィジェットの `ui.dart`。L1 は `ssruntime_dart` から直接 import）。
-- **Flame L4** —— `ssplayer_flame`（コアが `flame` を巻き込まないよう別パッケージ）。
-- **コンバータ** —— `ssconverter_dart`（ホスト `.sspj` → `.ssab`、デスクトップ専用）。
+```mermaid
+---
+config:
+  flowchart:
+    wrappingWidth: 400
+---
+flowchart TD
+    subgraph tools ["ホスト側のツール"]
+        watch["ssgen_flutter<br/>sswatch"] --> gen["ssgen_dart<br/>変わった分だけ再変換"]
+        gen --> conv["ssconverter_dart<br/>.sspj → .ssab"]
+    end
+    conv --> libconv["libssconverter (Rust)"]
+    subgraph app ["アプリ（デバッグビルド）"]
+        recv["受け口<br/>ssplayer_flutter の中"] -->|reload| player["L3 · SpriteStudioPlayer"]
+    end
+    watch -->|"パックを VM Service で"| recv
+```
 
-一覧と役割は [パッケージ](../packages.md) を参照してください。
+`sswatch` はソースを監視し、変わったプロジェクトを `ssgen_dart` に変換し直させて、できたパックを実行中のアプリへ送ります。`ssconverter_dart` はデスクトップ専用です。端末の上では変換できないので、ホストで変換してバイト列を送ります。受け口があるのは `SS_LIVE_RELOAD` を付けて起動したデバッグビルドだけで、アプリはツールに依存しないので、出荷するものにコンバータは入りません。
 
 ## 描画モデル
 

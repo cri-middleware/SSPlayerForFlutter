@@ -10,38 +10,67 @@ graph: everything is rebuilt each frame.
 ## The 4 layers
 
 ```mermaid
+---
+config:
+  flowchart:
+    wrappingWidth: 400
+---
 flowchart TD
-    L4["L4 · Drawing adapters<br/>SpriteStudioAnimation · SpriteStudioView (RenderBox) · SpriteStudioPartAnchor · SpriteStudioComponent (Flame)"]
-    L3["L3 · SpriteStudioPlayer<br/>ChangeNotifier · transport · events · Ticker / advance"]
-    L2["L2 · SpriteStudioInternalPlayer<br/>Widget-agnostic · FFI lifecycle · SoA → geometry bake · paint"]
-    L1["L1 · ffigen @Native bindings<br/>(ssruntime_dart package)"]
+    subgraph flame ["ssplayer_flame"]
+        F4["L4 · SpriteStudioComponent<br/>Flame adapter"]
+    end
+    subgraph core ["ssplayer_flutter"]
+        L4["L4 · Drawing adapters<br/>widgets · part anchor · buttons"]
+        L3["L3 · SpriteStudioPlayer<br/>transport · events · clock"]
+        L2["L2 · SpriteStudioInternalPlayer<br/>FFI lifecycle · bake · paint"]
+    end
+    subgraph rt ["ssruntime_dart"]
+        L1["L1 · @Native bindings<br/>runtime FlatBuffers"]
+    end
     Brain["Brain · libssruntime (Rust)"]
-    L4 --> L3 --> L2 --> L1 --> Brain
+    L4 --> L3
+    F4 --> L3
+    L3 --> L2 --> L1 --> Brain
 ```
 
-It is a **strict downward dependency**; layers below are nearer the Brain. Each layer has one job:
+An arrow is a call, and the dependency is **strictly downward**: layers below are nearer the Brain.
 
-| Layer | Responsibility | Lives in |
-|---|---|---|
-| **L4** | Drawing adapters — `SpriteStudioAnimation` (a widget that owns its player and ticker), `SpriteStudioView` (a `RenderBox` over a player you own), `SpriteStudioPartAnchor` (a child pinned to a part), `SpriteStudioStateView` / `SpriteStudioHitRegion` (an animation inside a button, in `ui.dart`) and the Flame `SpriteStudioComponent` / `SpriteStudioButtonComponent` | `ssplayer_flutter`, `ssplayer_flame` |
-| **L3** | `SpriteStudioPlayer` — transport / events; a `Ticker` in vsync mode, or externally clocked via `advance` | `ssplayer_flutter` |
-| **L2** | `SpriteStudioInternalPlayer` — FFI Context lifecycle over one `.ssab` parse shared by every player of the same bytes, SoA → geometry bake (`ui.Vertices` for Canvas / interleaved VBO for GPU), `paint` = `DrawBatch.kind` dispatch | `ssplayer_flutter` |
-| **L1** | ffigen `@Native` C-API bindings + runtime FlatBuffers | `ssruntime_dart` |
+| Layer | Responsibility |
+|---|---|
+| **L4** | Drawing adapters — `SpriteStudioAnimation` (a widget that owns its player and ticker), `SpriteStudioView` (a `RenderBox` over a player you own), `SpriteStudioPartAnchor` (a child pinned to a part), `SpriteStudioStateView` / `SpriteStudioHitRegion` (an animation inside a button, in `ui.dart`), and the Flame `SpriteStudioComponent` / `SpriteStudioButtonComponent`, which own an externally clocked player. The Flame ones are a package of their own so the core never pulls in `flame` |
+| **L3** | `SpriteStudioPlayer` — transport / events; a `Ticker` in vsync mode, or externally clocked via `advance` |
+| **L2** | `SpriteStudioInternalPlayer` — FFI Context lifecycle over one `.ssab` parse shared by every player of the same bytes, SoA → geometry bake (`ui.Vertices` for Canvas / interleaved VBO for GPU), `paint` = `DrawBatch.kind` dispatch |
+| **L1** | ffigen `@Native` C-API bindings and the runtime's FlatBuffers (`framedata` / `effect_draw_plan`), in pure Dart with no Flutter; the package's build hook bundles the native library |
 
 **L2 is kept Widget-free** so it is reusable headless / from Flame / by either render backend
-(`Canvas` or `flutter_gpu`).
+(`Canvas` or `flutter_gpu`). `ssplayer_flutter` exports L2–L4 from one barrel; code that needs L1
+imports it from `ssruntime_dart` directly. [Packages](../packages.md) lists every package with its
+role.
 
-## Where things live
+## Live reload
 
-- **L1** — `ssruntime_dart` (pure Dart, non-Flutter): the generated `@Native` C-API bindings and
-  the runtime's FlatBuffers (`framedata` / `effect_draw_plan`), with the native library bundled by
-  the package's build hook.
-- **L2–L4** — `ssplayer_flutter` (the public API barrel, and `ui.dart` for the button widgets; import L1 from
-  `ssruntime_dart` directly).
-- **Flame L4** — `ssplayer_flame` (a separate package so the core never pulls in `flame`).
-- **Converter** — `ssconverter_dart` (host `.sspj` → `.ssab`, desktop-only).
+```mermaid
+---
+config:
+  flowchart:
+    wrappingWidth: 400
+---
+flowchart TD
+    subgraph tools ["Host tooling"]
+        watch["ssgen_flutter<br/>sswatch"] --> gen["ssgen_dart<br/>reconverts what changed"]
+        gen --> conv["ssconverter_dart<br/>.sspj → .ssab"]
+    end
+    conv --> libconv["libssconverter (Rust)"]
+    subgraph app ["The app, debug build"]
+        recv["receiver<br/>in ssplayer_flutter"] -->|reload| player["L3 · SpriteStudioPlayer"]
+    end
+    watch -->|"pack, over the VM Service"| recv
+```
 
-See [Packages](../packages.md) for the full list and their roles.
+`sswatch` watches the sources, has `ssgen_dart` reconvert the projects that changed, and pushes each
+fresh pack into the running app. `ssconverter_dart` is desktop-only — a device cannot convert, so
+the host converts and sends the bytes. Only a debug build launched with `SS_LIVE_RELOAD` has the
+receiver, and the app never depends on the tooling, so what it ships stays converter-free.
 
 ## Rendering model
 
