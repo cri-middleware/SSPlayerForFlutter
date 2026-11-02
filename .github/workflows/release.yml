@@ -87,6 +87,9 @@ jobs:
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
+      # Committed here, before anything is built: build-release.sh refuses a
+      # dirty tree, and the commit holds the version change and nothing else. It
+      # is pushed only after the build has passed, and a dry run never pushes it.
       - name: Set the versions
         if: inputs.versions != ''
         env:
@@ -95,6 +98,8 @@ jobs:
           # One argument per pair, so the split is the point.
           # shellcheck disable=SC2086
           dart scripts/set-versions.dart $VERSIONS
+          git add -u -- packages
+          git commit -m "chore(release): $VERSIONS"
 
       # A Release carries a link to its package's CHANGELOG.md and no notes of
       # its own, so a version without a section there would go out with nothing
@@ -157,14 +162,9 @@ jobs:
           retention-days: 7
 
       # A branch that moved during the run rejects this push, and nothing is tagged.
-      - name: Commit the versions
+      - name: Push the version commit
         if: inputs.versions != '' && !inputs.dry_run
-        env:
-          VERSIONS: ${{ inputs.versions }}
-        run: |
-          git add -u -- packages
-          git commit -m "chore(release): $VERSIONS"
-          git push origin "HEAD:${GITHUB_REF}"
+        run: git push origin "HEAD:${GITHUB_REF}"
 
       - name: Tag and draft the Releases
         if: ${{ !inputs.dry_run }}
