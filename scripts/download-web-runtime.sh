@@ -102,26 +102,28 @@ if ! curl -fsSL -o "$TMP_DIR/$SDK_WEB_ZIP" "$SDK_RELEASE_BASE/$VERSION/$SDK_WEB_
   exit 1
 fi
 
-# The same integrity check hook/build.dart runs on the dynamic-libs archive.
-# A release without SHA256SUMS is reported rather than treated as verified.
-SHA_TOOL=""
+# The same integrity check hook/build.dart runs on the dynamic-libs archive: an
+# archive SHA256SUMS does not vouch for is not used.
 if command -v shasum > /dev/null 2>&1; then SHA_TOOL="shasum -a 256"
 elif command -v sha256sum > /dev/null 2>&1; then SHA_TOOL="sha256sum"
-fi
-if [ -n "$SHA_TOOL" ] && curl -fsSL -o "$TMP_DIR/SHA256SUMS" "$SDK_RELEASE_BASE/$VERSION/SHA256SUMS" 2> /dev/null; then
-  WANT="$(awk -v f="$SDK_WEB_ZIP" '$2 ~ f {print $1}' "$TMP_DIR/SHA256SUMS" | head -1)"
-  GOT="$($SHA_TOOL "$TMP_DIR/$SDK_WEB_ZIP" | awk '{print $1}')"
-  if [ -z "$WANT" ]; then
-    echo "$APP: SHA256SUMS carries no line for $SDK_WEB_ZIP -- not verified" >&2
-  elif [ "$WANT" != "$GOT" ]; then
-    echo "$APP: $SDK_WEB_ZIP does not match SHA256SUMS ($GOT != $WANT)" >&2
-    exit 1
-  else
-    echo "   sha256 ok"
-  fi
 else
-  echo "$APP: no SHA256SUMS for $VERSION -- the archive was not verified" >&2
+  echo "$APP: neither shasum nor sha256sum on PATH" >&2
+  exit 1
 fi
+if ! curl -fsSL -o "$TMP_DIR/SHA256SUMS" "$SDK_RELEASE_BASE/$VERSION/SHA256SUMS"; then
+  echo "$APP: could not download SHA256SUMS from SpriteStudio-SDK $VERSION" >&2
+  exit 1
+fi
+WANT="$(awk -v f="$SDK_WEB_ZIP" '$2 == f || $2 == "*" f {print $1}' "$TMP_DIR/SHA256SUMS" | head -1)"
+GOT="$($SHA_TOOL "$TMP_DIR/$SDK_WEB_ZIP" | awk '{print $1}')"
+if [ -z "$WANT" ]; then
+  echo "$APP: SHA256SUMS carries no line for $SDK_WEB_ZIP" >&2
+  exit 1
+elif [ "$WANT" != "$GOT" ]; then
+  echo "$APP: $SDK_WEB_ZIP does not match SHA256SUMS ($GOT != $WANT)" >&2
+  exit 1
+fi
+echo "   sha256 ok"
 
 unzip -q -o "$TMP_DIR/$SDK_WEB_ZIP" -d "$TMP_DIR/unpacked"
 for f in runtime-web/ssruntime.js runtime-web/ssruntime_bg.wasm runtime-web-nosimd/ssruntime_bg.wasm; do

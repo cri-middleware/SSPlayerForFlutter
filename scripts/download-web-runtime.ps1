@@ -102,28 +102,28 @@ In a working tree with cargo + wasm-pack,
         exit 1
     }
 
-    # The same integrity check hook/build.dart runs on the dynamic-libs archive.
-    # A release without SHA256SUMS is reported rather than treated as verified.
+    # The same integrity check hook/build.dart runs on the dynamic-libs archive: an
+    # archive SHA256SUMS does not vouch for is not used.
     $sums = Join-Path $tmp "SHA256SUMS"
-    $haveSums = $true
-    try { Invoke-WebRequest -Uri "$SdkReleaseBase/$version/SHA256SUMS" -OutFile $sums -UseBasicParsing } catch { $haveSums = $false }
-    if ($haveSums) {
-        $want = ""
-        foreach ($line in Get-Content -LiteralPath $sums) {
-            if ($line -match "\s$([regex]::Escape($SdkWebZip))\s*$") { $want = ($line -split '\s+')[0]; break }
-        }
-        $got = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant()
-        if (-not $want) {
-            Write-Warning "$App`: SHA256SUMS carries no line for $SdkWebZip -- not verified"
-        } elseif ($want.ToLowerInvariant() -ne $got) {
-            Write-Error "$App`: $SdkWebZip does not match SHA256SUMS ($got != $want)"
-            exit 1
-        } else {
-            Write-Host "   sha256 ok"
-        }
-    } else {
-        Write-Warning "$App`: no SHA256SUMS for $version -- the archive was not verified"
+    try { Invoke-WebRequest -Uri "$SdkReleaseBase/$version/SHA256SUMS" -OutFile $sums -UseBasicParsing }
+    catch {
+        Write-Error "$App`: could not download SHA256SUMS from SpriteStudio-SDK $version"
+        exit 1
     }
+    $want = ""
+    foreach ($line in Get-Content -LiteralPath $sums) {
+        if ($line -match "\s\*?$([regex]::Escape($SdkWebZip))\s*$") { $want = ($line -split '\s+')[0]; break }
+    }
+    $got = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+    if (-not $want) {
+        Write-Error "$App`: SHA256SUMS carries no line for $SdkWebZip"
+        exit 1
+    }
+    if ($want.ToLowerInvariant() -ne $got) {
+        Write-Error "$App`: $SdkWebZip does not match SHA256SUMS ($got != $want)"
+        exit 1
+    }
+    Write-Host "   sha256 ok"
 
     $unpacked = Join-Path $tmp "unpacked"
     # Expand-Archive is a script-module function: run from a session, it reads the
