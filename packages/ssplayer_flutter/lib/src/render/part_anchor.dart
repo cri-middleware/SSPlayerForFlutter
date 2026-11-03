@@ -244,7 +244,13 @@ class SpriteStudioPartAnchor extends StatelessWidget {
             // as drawn), so the child lands on the part across a flip with no
             // help. Cancelling only takes the mirror back out of the child's own
             // frame, on the right so the position it just followed is untouched.
-            final followed = _axes(world);
+            // Without the scale a player flip cannot travel as a mirror, so it is
+            // taken back out before the rotation is read; left in, a horizontal
+            // flip reads as a half turn and turns the child upside down.
+            final rt = player.rootTransform;
+            final followed = _axes(!scale && rt.flipX != rt.flipY
+                ? world.multiplied(rt.mirrorCancel)
+                : world);
             // Only when the scale came along: a mirror IS a sign on the scale,
             // so dropping the scale has already removed it, and cancelling again
             // would put one back.
