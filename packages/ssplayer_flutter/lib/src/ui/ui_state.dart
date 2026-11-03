@@ -100,8 +100,8 @@ typedef SsUiSection = ({
 /// Null when [tableOf] knows no [animation].
 ///
 /// Under [reducedMotion] the section is held, except where it came from
-/// [SsUiState.normal] and [animation] has a `reduced_motion` label: that
-/// label's section plays instead.
+/// [SsUiState.normal] (or the whole animation `normal` falls back to) and
+/// [animation] has a `reduced_motion` label: that label's section plays instead.
 ///
 /// A clip that names an animation or a label the pack does not have is handed
 /// to [onMissingClip], and the state goes on as if it had none.
@@ -145,7 +145,7 @@ SsUiSection? resolveUiSection(
     }
   }
   range ??= (startFrame: base.startFrame, endFrame: base.endFrame);
-  if (reducedMotion && source == SsUiState.normal) {
+  if (reducedMotion && (source == SsUiState.normal || source == null)) {
     final calm = labelSectionOf(base, ssReducedMotionLabel);
     if (calm != null) {
       return (
