@@ -1,7 +1,7 @@
 # ssplayer_flame
 
 [Flame](https://flame-engine.org/) adapter for
-[`ssplayer_flutter`](../ssplayer_flutter) — play a **SpriteStudio `.ssab`**
+[`ssplayer_flutter`](https://pub.dev/packages/ssplayer_flutter) — play a **SpriteStudio `.ssab`**
 animation inside a `FlameGame` with a single component.
 
 `SpriteStudioComponent` plays a `SpriteStudioPlayer` on Flame's game loop: the
@@ -28,6 +28,7 @@ flutter pub add flame ssplayer_flame
 ## Use
 
 ```dart
+import 'package:flame/components.dart';
 import 'package:flame/game.dart';
 import 'package:ssplayer_flame/ssplayer_flame.dart';
 
@@ -70,6 +71,8 @@ component.player?.seek(0);
   the asset key's own folder — no `baseAssetDir` needed. Pass `baseAssetDir` only
   with the bytes constructor (no asset key), or when the textures live in a
   different folder (a shared atlas). Embedded‑texture packs need nothing.
+* **Web:** call `await loadSsRuntime()` once before `runApp`, as with `ssplayer_flutter` (a no-op on
+  native); without it nothing draws and nothing fails.
 
 ## Example
 

@@ -5,7 +5,7 @@ Pure-Dart `dart:ffi` bindings for the SpriteStudio-SDK runtime (the **Brain**,
 buffers and the FlatBuffers `DrawBatch` plan.
 
 **Layer 1 — no Flutter dependency, no renderer.** This package computes what to
-draw and says nothing about how. [`ssplayer_flutter`](../ssplayer_flutter) is
+draw and says nothing about how. [`ssplayer_flutter`](https://pub.dev/packages/ssplayer_flutter) is
 the Flutter renderer built on it; a Flame game, a `flutter_gpu` backend or a
 headless Dart tool sit on it just as well.
 

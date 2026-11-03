@@ -47,7 +47,7 @@ final out = await const SsConverter()
   `flutter: assets:` are bundled, so a `SpriteStudio_Source/` beside them never
   ships.
 * **Reconverting a whole directory on every source save is a different job** —
-  see [`ssgen_dart`](../ssgen_dart), which reconverts only what went stale.
+  see [`ssgen_dart`](https://pub.dev/packages/ssgen_dart), which reconverts only what went stale.
 * Other front-ends for the same converter: the
   [SSConverterGUI](https://github.com/cri-middleware/SSConverterGUI) desktop app
   and the SDK's own `ssconverter-cli`.

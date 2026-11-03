@@ -50,7 +50,7 @@
    flutter pub add --dev ssconverter_dart
    ```
 
-   ネイティブランタイムは、最初のビルドでパッケージと一緒にビルド済みのものが入ります。Rust のツールチェーンも、プラットフォームごとの設定も要りません。
+   最初のビルドで、ビルド済みのネイティブランタイムを SpriteStudio-SDK のリリースから取得してチェックサムを検証します。Rust のツールチェーンも、プラットフォームごとの設定も要りません。
 
 2. **変換**: SpriteStudio のプロジェクトをフォルダごとアプリの `SpriteStudio_Source/` に置き、`assets/spritestudio/` へ変換して、そのフォルダを `pubspec.yaml` に登録します。
 
@@ -74,7 +74,8 @@
    ├── assets/spritestudio/
    │   └── Ringo/                 ← ssconvert が書き出す
    │       ├── Ringo.ssab
-   │       └── Ringo.png
+   │       ├── Ringo.png
+   │       └── …
    ├── lib/main.dart
    └── pubspec.yaml               ← assets/spritestudio/Ringo/ を登録
    ```
@@ -82,6 +83,8 @@
 3. **再生**: ウィジェットを 1 つ、ツリーのどこかに置きます。
 
    ```dart
+   import 'package:ssplayer_flutter/ssplayer_flutter.dart';
+
    SpriteStudioAnimation.asset(
      'assets/spritestudio/Ringo/Ringo.ssab',
      animation: 'wait1',
@@ -112,7 +115,7 @@ SpriteStudio のデータが手元に無くても始められます。[公式の
 
 ## 🎬 サンプル
 
-[`examples/`](./examples/) にすぐ動かせるアプリがあります。`scripts/run-<platform>.*` を 1 回実行すれば起動します。SDK のテストプロジェクトを各サンプルが読み込む `.ssab` へ変換し、プラットフォームのランナーを生成し、端末を選ぶところまで行います（起動中の端末が無ければエミュレータを起動します）。
+[`examples/`](./examples/) にすぐ動かせるアプリがあります。`scripts/run-<platform>.*` を 1 回実行すれば起動します。SDK のテストプロジェクトを各サンプルが読み込む `.ssab` へ変換し、プラットフォームのランナーを生成し、端末を選ぶところまで行います（起動中の端末が無ければエミュレータを起動します）。`git clone --recurse-submodules` で取得してください（テストプロジェクトは `SpriteStudio-SDK` サブモジュールにあります。通常の clone の後は `git submodule update --init --recursive`）。`run-web` は初回のみ Web ランタイムも必要です: `scripts/download-web-runtime.sh`。
 
 ```bash
 scripts/run-macos.sh                   # overall。run-linux / run-ios / run-android / run-web も同様
@@ -120,7 +123,7 @@ scripts/run-android.sh example=flame   # 別のサンプル
 scripts\run-windows.ps1                # Windows（run-android.ps1 / run-web.ps1 もあります）
 ```
 
-- [overall](./examples/overall) — まず開くのはこちら。`tests/overall` を再生し、ドロップダウンでアニメを切り替えられます。
+- [overall](./examples/overall) — まず開くのはこちら。SDK の `tests/overall` プロジェクトと Ringo・Doll・ParticleEffect を再生し、ドロップダウンでプロジェクト・パック・アニメを切り替えられます。
 - [flame](./examples/flame) — [`ssplayer_flame`](./packages/ssplayer_flame) アダプタのサンプル。`FlameGame` に `SpriteStudioComponent` を 1 つ載せて Ringo を再生し、タップで再生 / 一時停止を切り替えます。
 - [part_following](./examples/part_following) — `SpriteStudioPartAnchor` で通常の Flutter ウィジェットをパーツに貼り付け、位置・回転・スケールを毎フレーム追従させます。
 

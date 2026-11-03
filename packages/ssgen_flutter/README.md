@@ -4,9 +4,9 @@ Live-reload for SpriteStudio art: save a `.sspj` in your editor and watch the
 running app swap the animation in place — no `r`, no restart, no rebuild.
 
 **Dev tooling only.** The host runner (`sswatch`) watches your sources,
-reconverts what went stale through [`ssgen_dart`](../ssgen_dart), and pushes the
+reconverts what went stale through [`ssgen_dart`](https://pub.dev/packages/ssgen_dart), and pushes the
 fresh pack into the running app over the VM Service, where
-[`ssplayer_flutter`](../ssplayer_flutter) hands it to the player's `reload`. The
+[`ssplayer_flutter`](https://pub.dev/packages/ssplayer_flutter) hands it to the player's `reload`. The
 app never imports this package, and the runtime stays converter-free: the
 receiving end comes up only in a debug build launched for it.
 
@@ -40,6 +40,10 @@ dart run ssgen_flutter:sswatch --run -d <emulator> --device  # device
   release build carries none of this.
 * **The push channel is the VM Service** (`ext.ssgen.reload`), which is why this
   works from an IDE debugger session as well as from `--run`.
+* **On macOS desktop the debug build must run unsandboxed.** The file push hands the app a host path
+  outside its container, so with the default App Sandbox it reloads 0 players and reports no error.
+  Set `com.apple.security.app-sandbox` to `false` in `macos/Runner/DebugProfile.entitlements` (debug
+  only; Release keeps the sandbox), or add `--device`, whose bytes travel over the VM Service.
 * **A player loaded from bytes** has no asset key to be found by. Mix
   `ssplayer_flutter`'s `SsLiveReload` into the `State` that owns it — which also
   lets a screen react to the reload.

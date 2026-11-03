@@ -3,9 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:ssplayer_flutter/ssplayer_flutter.dart';
 
-/// Part-following demo — the Flutter take on ForUnity's part tracker and
-/// ForGodot's part attachment (and a direct port of SSPlayerForWeb's
-/// `examples/part-follow`).
+/// Part-following demo.
 ///
 /// A marker widget is stuck to a part of the **Ringo** character with
 /// [SpriteStudioPartAnchor], so it tracks that part's position / rotation /
@@ -17,11 +15,10 @@ import 'package:ssplayer_flutter/ssplayer_flutter.dart';
 /// a rig with SKINNED (bone-bound) mesh parts: its hands, legs, ears and tail.
 /// A skinned part's own transform stays near the character root while its art is
 /// drawn by bone skinning, so following one snaps the marker to the root rather
-/// than onto the visible mesh. The follow-target picker mirrors the Unity and
-/// Godot inspectors: skinned parts are listed but **disabled (dimmed)** so they
+/// than onto the visible mesh. In the follow-target picker,
+/// skinned parts are listed but **disabled (dimmed)** so they
 /// can't be picked by accident — yet a name typed by hand is still accepted (and
-/// flagged with a non-blocking warning), exactly as those editors allow a
-/// deliberate override. The default target, `bone_14`, is a bone in the
+/// flagged with a non-blocking warning). The default target, `bone_14`, is a bone in the
 /// right-hand chain — a bone / joint / NULL part is the recommended kind.
 ///
 /// The one rule that makes it line up: the anchor must live in the SAME
@@ -258,7 +255,7 @@ class _PartFollowingPageState extends State<PartFollowingPage>
       );
 
   // --- Follow-target picker (top-right). Skinned parts are listed but disabled,
-  // the same soft filter Unity / Godot apply; the text box accepts any name. ----
+  // a soft filter; the text box accepts any name. --------------------------------
   Widget _picker() {
     final names = _player.partNames.names.where((n) => n.isNotEmpty).toList();
     // The dropdown value must match one item; a hand-typed skinned part is still
@@ -336,8 +333,7 @@ class _PartFollowingPageState extends State<PartFollowingPage>
         ),
       );
 
-  /// Non-blocking warning, mirroring Godot's configuration warning and Unity's
-  /// "(skinned mesh)" annotation on a stored value.
+  /// Non-blocking warning for a skinned part typed by hand.
   Widget _warning() {
     String? msg;
     if (!_known) {
