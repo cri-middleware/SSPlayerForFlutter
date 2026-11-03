@@ -11,8 +11,8 @@ instance packs, textures — is the same as in a widget.
 The [documentation](https://cri-middleware.github.io/SSPlayerForFlutter/) covers both packages. The
 same pages for this version are in this package's `doc/` as Markdown, readable offline: start at
 `doc/index.md`, and the Flame page is `doc/guide/flame.md`. They are also the Agent Skill
-`skills/ssplayer-flame-docs/`, which `dart run skills@ get` installs into your coding agent's skills
-directory.
+`skills/ssplayer-flame-docs/`, which `dart run skills@ get --all` installs into your coding agent's
+skills directory (add `--agent claude`, or another agent, when the project has none yet).
 
 ## Install
 
