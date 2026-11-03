@@ -228,6 +228,11 @@ right test: under `SsPlaybackStyle.pingPong` the return leg runs backward while 
 still reads `forward`. It is `true` before anything has played, so the gate does not silence the first
 frame.
 
+**Nor for where a seek landed.** A `seek` makes the next update report the audio keys of the frame
+it landed on: at once while playing, and on the first tick after `resume()` for a seek made while
+paused. The playhead crossed none of them, so to keep a seek silent, skip the keys on the landing
+frame that the first update after it reports. The first frame after `play()` is meant to sound.
+
 ### Example: chain animations
 
 ```dart

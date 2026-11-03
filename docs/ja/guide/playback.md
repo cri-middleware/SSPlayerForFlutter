@@ -190,6 +190,8 @@ _player.onAudio = (audio) {
 `isPlayingForward` は*瞬間の*向きです。`playbackDirection` ではなくこちらで判定するのはそのためで、
 `SsPlaybackStyle.pingPong` の戻りでは `playbackDirection` が `forward` のまま実際には逆向きに進んでいます。再生前は `true` なので、このゲートが初回フレームを取りこぼすことはありません。
 
+**seek の移動先でも鳴らさない。** `seek` すると、次の更新が移動先のフレームのオーディオキーを報告します。再生中ならすぐ、一時停止中の seek なら `resume()` の後の最初の tick です。再生ヘッドはそのキーを通過していないので、seek で音を出したくなければ、seek の後の最初の更新が報告する移動先のフレームのキーを飛ばしてください。`play()` の直後の開始フレームの音は鳴らすものです。
+
 ### 例: アニメを連結する
 
 ```dart
