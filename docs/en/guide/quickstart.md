@@ -40,6 +40,7 @@ failed.
 | Parameter | Purpose |
 |---|---|
 | `animation` | Which animation to select. Omit it for the pack's first — an unselected pack draws an empty box, which is what a failed load looks like too. Change it and the same player switches; while `playing`, the new animation starts from its first frame. |
+| `transition` | How long a change of `animation` crossfades for; `Duration.zero` (the default) switches at once. See [Motion Blending](motion-blending.md#crossfade). |
 | `width` / `height` | The box to draw in. Omit them and it takes the animation's authored canvas as its size, shrunk to the constraints with its aspect kept — the way `Image` sizes from its picture. |
 | `fit` / `alignment` | How the canvas is fitted into the box, and which point of it lands where: `BoxFit.contain` (the default), `cover` or `none`, and an `Alignment`. `none` draws at 1:1 with the origin at the box centre. |
 | `frame` | A box to fit instead of the authored canvas, in player-local pixels — for an animation that runs off its canvas. |
@@ -51,11 +52,11 @@ failed.
 | `placeholder` | Shown until the first frame is drawable. Worth setting: until then there is nothing to draw, and an empty box looks exactly like a broken pack. |
 | `onLoaded` | Called once the first frame can be drawn — the pack loaded, the animation selected and, while `playing`, started. `onError`'s counterpart. |
 | `onError` | Called when the load fails, instead of the error reaching the zone unhandled. |
-| `onAnimationStarted` / `onAnimationFinished` / `onAnimationLooped` | Playback headed out / every loop has played / a loop boundary was crossed. The start the widget issues after the load counts, and comes before `onLoaded`. |
+| `onAnimationStarted` / `onAnimationFinished` / `onAnimationLooped` | Playback started / every loop has played / a loop boundary was crossed. The start the widget issues after the load counts, and comes before `onLoaded`. |
 | `onUserData` / `onSignal` / `onAudio` | A user-data, signal or audio key was crossed. Playing the sound is the app's job. See [Playback & Events](playback.md). |
 | `children` | Widgets laid over the animation, each covering its box. A `SpriteStudioPartAnchor` here follows a part with no `player`, and any widget reaches the player through `SpriteStudioAnimation.playerOf(context)`. See [Part Following](part-following.md). |
 | `onPlayerCreated` | Hands you the player for the parts of the API the parameters do not cover. Do not dispose it — the widget does. |
-| `bundle` / `backend` | Which `AssetBundle` to read from, and which render backend to draw with. |
+| `bundle` / `backend` | Which `AssetBundle` to read from, and which render backend to draw with: `SpriteStudioBackend.auto` (the default) and `.gpu` draw with flutter_gpu where the run has it (Impeller, with `--enable-flutter-gpu`) and with Canvas otherwise; `.canvas` forces Canvas. See [Limitations & Scope](../limitations.md#rendering). |
 
 Changing `assetKey`, `bundle` or `backend` builds a new player. Every other
 parameter reaches the player only when it changes, so what you set on the player

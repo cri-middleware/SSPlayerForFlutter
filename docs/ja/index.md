@@ -80,14 +80,14 @@ graph LR
 
 ## 対応バージョン
 
-- **Flutter / Dart**: 下限は[インストール](./guide/install.md)にあり、実際に強制するのは `ssplayer_flutter` の `environment:` です。native assets の下限より上にあるのは、GPU バックエンドが flutter_gpu の現行 API に対してビルドされるためです。
+- **Flutter / Dart**: 下限は[インストール](./guide/install.md)にあります。古いと `flutter pub get` が失敗します。
 - **プラットフォーム**: macOS・Windows・Linux・iOS・Android・Web（開発者プレビュー）。
 
 ## サンプル
 
 リポジトリの `examples/` フォルダにサンプルアプリがあります。
 
-- [overall](https://github.com/cri-middleware/SSPlayerForFlutter/tree/main/examples/overall) — 総合的な検証アプリ（`flutter run -d macos` → `[ssplayer] OK`）。
+- [overall](https://github.com/cri-middleware/SSPlayerForFlutter/tree/main/examples/overall) — 総合的な検証アプリ。clone した中で `scripts/run-macos.sh` を実行すると、サンプルプロジェクトを変換し、ランナーを生成して起動します。再生できると `[ssplayer] OK` を出力します。
 - [flame](https://github.com/cri-middleware/SSPlayerForFlutter/tree/main/examples/flame) — `ssplayer_flame` 経由でアニメーションを再生する `FlameGame`。
 - [part_following](https://github.com/cri-middleware/SSPlayerForFlutter/tree/main/examples/part_following) — `SpriteStudioPartAnchor` でウィジェットをパーツに追従させるサンプル。
 
@@ -99,6 +99,4 @@ graph LR
 
 ## ライセンス
 
-[LICENSE.md](https://github.com/cri-middleware/SSPlayerForFlutter/blob/main/LICENSE.md) を参照してください（参考訳: [LICENSE.ja.md](https://github.com/cri-middleware/SSPlayerForFlutter/blob/main/LICENSE.ja.md)）。
-
-サードパーティライブラリ（FlatBuffers, SpriteStudio-SDK の依存クレートなど）のライセンスについては、[THIRD_PARTY_NOTICES.md](https://github.com/cri-middleware/SSPlayerForFlutter/blob/main/THIRD_PARTY_NOTICES.md) を参照してください。
+全文と参考訳は[ライセンス](license/index.md)を、同梱するライブラリ（FlatBuffers、SpriteStudio-SDK の依存クレートなど）のライセンスは[サードパーティ通知](license/third-party.md)を参照してください。

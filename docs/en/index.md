@@ -88,14 +88,14 @@ graph LR
 
 ## Supported Versions
 
-- **Flutter / Dart**: the floor is on [Installation](./guide/install.md), and `ssplayer_flutter`'s `environment:` enforces it — it sits above the native-assets floor because the GPU backend is built against flutter_gpu's current API.
+- **Flutter / Dart**: the minimum is on [Installation](./guide/install.md); `flutter pub get` fails if yours is older.
 - **Platforms**: macOS, Windows, Linux, iOS, Android, and Web (developer preview).
 
 ## Samples
 
 Sample apps live under the `examples/` folder in the repository.
 
-- [overall](https://github.com/cri-middleware/SSPlayerForFlutter/tree/main/examples/overall) — comprehensive validation app (`flutter run -d macos` → `[ssplayer] OK`).
+- [overall](https://github.com/cri-middleware/SSPlayerForFlutter/tree/main/examples/overall) — comprehensive validation app. In a clone, `scripts/run-macos.sh` converts the sample projects, generates the runner and launches it; it prints `[ssplayer] OK` once the animation plays.
 - [flame](https://github.com/cri-middleware/SSPlayerForFlutter/tree/main/examples/flame) — a `FlameGame` playing an animation via `ssplayer_flame`.
 - [part_following](https://github.com/cri-middleware/SSPlayerForFlutter/tree/main/examples/part_following) — a widget pinned to a part with `SpriteStudioPartAnchor`.
 
@@ -107,6 +107,6 @@ Sample apps live under the `examples/` folder in the repository.
 
 ## License
 
-See [LICENSE.md](https://github.com/cri-middleware/SSPlayerForFlutter/blob/main/LICENSE.md).
-
-For third-party library licenses (such as FlatBuffers and SpriteStudio-SDK dependencies), see [THIRD_PARTY_NOTICES.md](https://github.com/cri-middleware/SSPlayerForFlutter/blob/main/THIRD_PARTY_NOTICES.md).
+See [License](license/index.md) for the full text and its Japanese reference translation, and
+[Third-Party Notices](license/third-party.md) for the libraries it ships with (such as FlatBuffers and the
+SpriteStudio-SDK's dependencies).

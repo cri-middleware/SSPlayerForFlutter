@@ -7,20 +7,19 @@
 
 ```bash
 # packages/ssplayer_flutter/（または任意のパッケージ）で
-dart doc
-# 出力: doc/api/index.html
+dart doc --output build/api
+# 出力: build/api/index.html
 ```
 
 ## 主なエントリポイント
 
-- **`SpriteStudioPlayer`**（L3）—— トランスポート / イベント。[再生とイベント](guide/playback.md) を参照。
-- **`SpriteStudioView`**（L4）—— `RenderBox` ウィジェット。[クイックスタート](guide/quickstart.md) を参照。
+- **`SpriteStudioAnimation`** —— アセットキーから、プレイヤーを自分で持たずに置けるウィジェット。[クイックスタート](guide/quickstart.md) を参照。
+- **`SpriteStudioPlayer`** —— トランスポート / イベント。[再生とイベント](guide/playback.md) を参照。
+- **`SpriteStudioView`** —— 自分で持つプレイヤーを描く `RenderBox` ウィジェット。[クイックスタート](guide/quickstart.md#プレイヤーを自分で持つ場合) を参照。
 - **`SpriteStudioComponent` / `SpriteStudioButtonComponent`**（`ssplayer_flame`）—— Flame アダプタと、それで作るボタン。[Flame 連携](guide/flame.md) を参照。
-- **`SpriteStudioPartAnchor` / `SpriteStudioAnchorHidden` / `SpriteStudioAnchorMirror`**（L4）——
-  パーツにウィジェットを追従させる。[パーツトラッキング](guide/part-following.md) を参照。
+- **`SpriteStudioPartAnchor` / `SpriteStudioAnchorHidden` / `SpriteStudioAnchorMirror`** —— パーツにウィジェットを追従させる。[パーツトラッキング](guide/part-following.md) を参照。
 - **`SsPartQuad`** —— 描かれているとおりのパーツの輪郭（`SpriteStudioPlayer.partQuad` / `hitTestPart`）。[パーツトラッキング](guide/part-following.md#パーツの輪郭) を参照。
-- **`SsRootTransform`** —— プレイヤー単位の反転 / オフセット（`flipX` / `flipY` / `offset`）。
-  [再生とイベント](guide/playback.md) を参照。
+- **`SsRootTransform`** —— プレイヤー単位の反転 / オフセット / スケール（`flipX` / `flipY` / `offset` / `scale`）。[再生とイベント](guide/playback.md) を参照。
 - **`SpriteStudioStateView` / `SpriteStudioHitRegion` / `SsUiState`**（`package:ssplayer_flutter/ui.dart`）—— ボタンの中のアニメ。[ボタンと UI の状態](guide/buttons.md) を参照。
 - **`SsBlendOp` / `SsOverridePriority` / `PartNameTable`** —— パーツオーバーライド。
   [パーツオーバーライド](guide/part-overrides.md) を参照。

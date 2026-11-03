@@ -3,6 +3,10 @@
 `SpriteStudioPlayer` exposes an intuitive transport plus event callbacks, so it drops straight into
 your app logic. This page covers controlling playback, switching animations, and reacting to events.
 
+The snippets use `_player`, a `SpriteStudioPlayer`: one you own
+([Quick Start](quickstart.md#owning-the-player-yourself)), or the one `SpriteStudioAnimation` hands you
+through `onPlayerCreated`.
+
 ## Playback control
 
 ```dart
@@ -26,7 +30,7 @@ _player.play();                    // start from the beginning
 | `setAnimationSectionByLabel(start, end, {startOffset, endOffset})` | method | The same, with the ends named by labels of the current animation |
 | `frameSkipEnabled` | `bool` | ON (default) keeps playback on the wall clock by dropping frames; OFF advances exactly one frame per tick |
 | `subFrameEnabled` | `bool` | Sub-frame interpolation (on by default) |
-| `isPlaying` / `isPausing` | `bool` (read) | Current transport state |
+| `isPlaying` / `isPausing` | `bool` (read) | `isPlaying` is true from `play()` until the animation stops or finishes, **a pause included**; `isPausing` is true only while held. "Advancing now" is `isPlaying && !isPausing` |
 | `isFinished` / `justLooped` | `bool` (read) | Every loop has played (sticky) / the last advance crossed a loop boundary (edge) |
 | `isPlayingForward` | `bool` (read) | Which way the playhead is **actually** travelling — not `playbackDirection`, which is only the configured heading. A ping-pong return leg reads `false` while that still reads `forward`. **Gate audio on it** |
 | `frameNo` / `currentAnimation` | read | Current frame / the animation track 0 plays — after a [crossfade](motion-blending.md), the incoming one from the call on |
@@ -87,16 +91,17 @@ _player.setAnimationSectionByLabel('windup', 'hit', endOffset: -1); // up to the
 animation does not have, or labels and offsets that land on a section `setAnimationSection` refuses, return
 `false`, say so once in the log, and leave the section as it was.
 
-## Flip and offset
+## Flip, offset and scale
 
-Mirror or shift **what the player draws**, leaving the widget tree alone.
+Mirror, shift or scale **what the player draws**, leaving the widget tree alone.
 
 | Property | Type | Description |
 |---|---|---|
 | `flipX` | `bool` | Mirror the drawn animation horizontally, in the manner of Flutter's own `Transform.flip(flipX: …)` |
 | `flipY` | `bool` | Mirror it vertically |
 | `offset` | `Offset` | Shift it by this many logical pixels. Applied **after** the flip, so the offset is not itself mirrored |
-| `rootTransform` | `SsRootTransform` | All three as one value — assign it to change several at once and repaint once |
+| `scale` | `double` | Scale the drawn animation about its origin. Under a fitted view it multiplies the fit's scale rather than replacing it |
+| `rootTransform` | `SsRootTransform` | All four as one value — assign it to change several at once and repaint once |
 
 ```dart
 // Face the way we are walking.
@@ -120,9 +125,9 @@ the view repaints on its own.
 
     See [Part Following](part-following.md) for what a flipped player does to a follower.
 
-!!! note "Not on the Flame adapter"
+!!! note "On the Flame adapter"
     `SpriteStudioComponent` is a Flame `PositionComponent` and already has `flipHorizontally()` and
-    friends, so the player-level flip is not exposed there.
+    friends, so it takes no flip parameter of its own.
 
 ## Switching animations
 
@@ -137,6 +142,10 @@ It resets the runtime's transport, but `SpriteStudioPlayer` remembers the `loopC
 _player.setAnimation('walk');
 _player..loopCount = 3..speedScale = 1.5..play();
 ```
+
+Selecting the animation that is already selected does nothing — the playhead, the section and the
+part overrides stay — so a state machine may assert its current clip every frame; to restart it, call
+`play()`. `setAnimation` returns `false`, and logs once, when the pack has no animation of that name.
 
 Use `animationNames` (or `SsAnimeInfo(bytes).animationNames`) to discover the available names.
 
@@ -159,7 +168,7 @@ Assign callbacks on the player. They fire as playback progresses:
 | `onUserData` | `void Function(SsUserData)` | A **User Data** marker authored on the timeline is crossed. Once per marker |
 | `onSignal` | `void Function(SsSignal)` | An active **Signal** keyframe is crossed. Inactive signals are not surfaced |
 | `onAudio` | `void Function(SsAudioEvent)` | An **Audio** trigger is crossed. The player never produces sound itself — see below |
-| `onAnimationStarted` | `VoidCallback` | Playback **heads out** — a `play()`, including one an autoplay wrapper or a host state machine issued. A `resume()` does not fire it: lifting a pause carries on, it does not start |
+| `onAnimationStarted` | `VoidCallback` | Playback **starts** — a `play()`, including one an autoplay wrapper or a host state machine issued. A `resume()` does not fire it: lifting a pause carries on, it does not start |
 | `onAnimationFinished` | `VoidCallback` | Every configured loop has played. **Never** fires while `loopCount` is infinite, and not on `stop()` |
 | `onAnimationLooped` | `VoidCallback` | Playback crosses a loop boundary (the final cycle fires `onAnimationFinished` instead) |
 | `onEvents` | `void Function(List<int> passedEventIndices)` | Low-level escape hatch: the raw event indices passed this frame, before decoding |
@@ -181,8 +190,19 @@ crossfade fire too.
 
 ```dart
 _player.onUserData = (userData) {
-  // Only the fields authored in SpriteStudio are non-null.
+  // Only the fields authored in SpriteStudio (integer, rect, point, string) are non-null.
   if (userData.string == 'footstep') _audio.play();
+};
+```
+
+### Example: react to a signal
+
+```dart
+_player.onSignal = (signal) {
+  if (signal.commandId != 'spawn') return;
+  for (final p in signal.params) {           // in authored order
+    if (p.paramId == 'count' && p.value is int) _spawn(p.value as int);
+  }
 };
 ```
 

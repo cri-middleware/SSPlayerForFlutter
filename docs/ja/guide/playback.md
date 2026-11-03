@@ -2,6 +2,8 @@
 
 `SpriteStudioPlayer` は直感的なトランスポートとイベントコールバックを備え、アプリのロジックにそのまま組み込めます。ここでは再生制御・アニメ切り替え・イベント処理を扱います。
 
+以下のコードの `_player` は `SpriteStudioPlayer` です。自分で持つもの（[クイックスタート](quickstart.md#プレイヤーを自分で持つ場合)）か、`SpriteStudioAnimation` が `onPlayerCreated` で渡すものを使います。
+
 ## 再生制御
 
 ```dart
@@ -25,7 +27,7 @@ _player.play();                    // 先頭から再生
 | `setAnimationSectionByLabel(start, end, {startOffset, endOffset})` | メソッド | 同じことを、現在のアニメのラベルで両端を指定して行う |
 | `frameSkipEnabled` | `bool` | ON（既定）はフレームを落として実時間に追従、OFF は 1 ティックにつき厳密に 1 フレーム進む |
 | `subFrameEnabled` | `bool` | サブフレーム補間（既定オン） |
-| `isPlaying` / `isPausing` | `bool`（読取） | 現在のトランスポート状態 |
+| `isPlaying` / `isPausing` | `bool`（読取） | `isPlaying` は `play()` から停止・完了までが `true` で、**一時停止中も `true`** です。`isPausing` は保持中だけ `true`。「いま進んでいる」は `isPlaying && !isPausing` です |
 | `isFinished` / `justLooped` | `bool`（読取） | 全ループを再生し終えた（sticky）/ 直前の進行でループ境界を跨いだ（エッジ） |
 | `isPlayingForward` | `bool`（読取） | 再生ヘッドが**実際に**どちら向きに進んでいるか。設定値である `playbackDirection` とは別物で、ピンポンの戻りでは `playbackDirection` が `forward` のままこちらは `false` になります。**音声はこれで抑止してください** |
 | `frameNo` / `currentAnimation` | 読取 | 現在フレーム / track 0 が再生しているアニメ名。[クロスフェード](motion-blending.md)では呼んだ時点で入ってくる側の名前になります |
@@ -73,16 +75,17 @@ _player.setAnimationSectionByLabel('windup', 'hit', endOffset: -1); // `hit` の
 
 `_start` と `_end` は SpriteStudio と同じくアニメの先頭と最後のフレームを指します。アニメに無いラベルを渡したときと、ラベルとオフセットから出たフレームが `setAnimationSection` の受け付けない区間になったときは、`false` を返してログに 1 度だけ書き、区間は変えません。
 
-## 反転とオフセット
+## 反転・オフセット・スケール
 
-プレイヤーが**描くもの**だけを反転・移動できます。ウィジェットツリーには一切触れません。
+プレイヤーが**描くもの**だけを反転・移動・拡大縮小できます。ウィジェットツリーには一切触れません。
 
 | プロパティ | 型 | 説明 |
 |---|---|---|
 | `flipX` | `bool` | 描画を左右反転（Flutter 自身の `Transform.flip(flipX: …)` と同じ考え方） |
 | `flipY` | `bool` | 描画を上下反転 |
 | `offset` | `Offset` | 描画を論理ピクセル単位でずらす。反転の**後**に適用されるため、オフセット自身は反転しません |
-| `rootTransform` | `SsRootTransform` | 上記 3 つをまとめた値。複数を同時に変えるときはこちらへ代入すれば再描画は 1 回で済みます |
+| `scale` | `double` | 描画を原点まわりに拡大縮小。フィット付きのビューでは、フィットの倍率を置き換えず掛け合わせます |
+| `rootTransform` | `SsRootTransform` | 上記 4 つをまとめた値。複数を同時に変えるときはこちらへ代入すれば再描画は 1 回で済みます |
 
 ```dart
 // 進行方向を向く
@@ -105,20 +108,21 @@ _player.flipX = velocity.dx < 0;
     反転したプレイヤーにウィジェットを追従させるときの詳細は
     [パーツトラッキング](part-following.md) を参照してください。
 
-!!! note "Flame アダプタは未対応です"
-    `SpriteStudioComponent` は Flame の `PositionComponent` として `flipHorizontally()` などを既に持つため、プレイヤー側の反転は公開していません。
+!!! note "Flame アダプタでは"
+    `SpriteStudioComponent` は Flame の `PositionComponent` として `flipHorizontally()` などを既に持つため、反転用の引数は持ちません。
 
 ## アニメを切り替える
 
 `setAnimation(name)` はアニメを選択して**先頭フレームで待機**します —— 再生は開始しません。
 
-ランタイムのトランスポートはリセットされますが、`SpriteStudioPlayer` は**あなたが設定した
-`loopCount` / `speedScale` を覚えていて再適用**するので、アニメを切り替えるたびに設定し直す必要はありません（「`setAnimation` をまたいで残るもの」の表のとおり）。
+ランタイムのトランスポートはリセットされますが、`SpriteStudioPlayer` は**あなたが設定した `loopCount` / `speedScale` を覚えていて再適用**するので、アニメを切り替えるたびに設定し直す必要はありません（「`setAnimation` をまたいで残るもの」の表のとおり）。
 
 ```dart
 _player.setAnimation('walk');
 _player..loopCount = 3..speedScale = 1.5..play();
 ```
+
+すでに選択中のアニメを指定しても何も起きません —— 再生ヘッド・区間・パーツオーバーライドはそのままなので、ステートマシンが毎フレーム現在のクリップを指定しても安全です。最初からやり直すなら `play()` を呼びます。パックに無い名前を渡すと `setAnimation` は `false` を返し、ログに 1 度だけ書きます。
 
 利用可能なアニメ名は `animationNames`（または `SsAnimeInfo(bytes).animationNames`）で取得します。
 
@@ -140,7 +144,7 @@ _player..loopCount = 3..speedScale = 1.5..play();
 | `onUserData` | `void Function(SsUserData)` | タイムラインの**ユーザーデータ**を通過したとき。1 件につき 1 回 |
 | `onSignal` | `void Function(SsSignal)` | 有効な**シグナル**キーフレームを通過したとき。無効なシグナルは通知されない |
 | `onAudio` | `void Function(SsAudioEvent)` | **オーディオ**トリガを通過したとき。プレイヤー自身は音を鳴らさない（下記参照） |
-| `onAnimationStarted` | `VoidCallback` | 再生が **head-out** したとき。自分のコードからの `play()` に限らず、autoplay ラッパーやホストのステートマシンが呼んだものも含みます。`resume()` では発火しません（一時停止の解除は続行であって開始ではないため） |
+| `onAnimationStarted` | `VoidCallback` | 再生が**始まった**とき。自分のコードからの `play()` に限らず、autoplay ラッパーやホストのステートマシンが呼んだものも含みます。`resume()` では発火しません（一時停止の解除は続行であって開始ではないため） |
 | `onAnimationFinished` | `VoidCallback` | 設定したループを全て再生し終えたとき。`loopCount` が無限のときは**発火せず**、`stop()` でも発火しない |
 | `onAnimationLooped` | `VoidCallback` | ループ境界を跨いだとき（最終周は代わりに `onAnimationFinished` が発火） |
 | `onEvents` | `void Function(List<int> passedEventIndices)` | 低レベルの逃げ道。デコード前の生の index がそのフレーム分だけ渡される |
@@ -153,8 +157,19 @@ _player..loopCount = 3..speedScale = 1.5..play();
 
 ```dart
 _player.onUserData = (userData) {
-  // SpriteStudio で設定した項目だけが非 null になります。
+  // SpriteStudio で設定した項目（integer / rect / point / string）だけが非 null になります。
   if (userData.string == 'footstep') _audio.play();
+};
+```
+
+### 例: シグナルを受け取る
+
+```dart
+_player.onSignal = (signal) {
+  if (signal.commandId != 'spawn') return;
+  for (final p in signal.params) {           // 作者が置いた順
+    if (p.paramId == 'count' && p.value is int) _spawn(p.value as int);
+  }
 };
 ```
 

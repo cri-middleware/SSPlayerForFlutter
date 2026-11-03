@@ -10,6 +10,7 @@ delivered automatically through Dart **native assets** — there is no CocoaPods
 |---|---|
 | Flutter / Dart | **Flutter 3.47+ / Dart 3.13+** (native assets is default-on from 3.38; the flutter_gpu backend sets the 3.47 floor). `ssplayer_flutter`'s `environment:` enforces it, so `flutter pub get` tells you if yours is older |
 | Platforms | macOS · Windows · Linux · iOS · Android; Web is a developer preview |
+| SpriteStudio | Projects made in SpriteStudio 7.6 or later |
 | Native toolchain | None — the native runtime is downloaded prebuilt by the `ssruntime_dart` build hook |
 
 ## Add the dependency
