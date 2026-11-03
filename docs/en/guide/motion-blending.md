@@ -6,7 +6,7 @@ authored separately.
 
 ## The model: a stack of tracks { #tracks }
 
-Tracks fold onto the **setup pose** in ascending order. Each one plays an animation, with an **alpha**
+Tracks fold onto the **setup pose** (the rest pose the animation data defines) in ascending order. Each one plays an animation, with an **alpha**
 (how much of it survives onto the pose below) and a **blend**.
 
 ```mermaid
@@ -46,13 +46,15 @@ _player.clearTrack(1);
 `clearTrack` refuses track 0 — fade it to alpha 0 instead, which settles the character onto the setup
 pose.
 
-Every track call returns `false` (or a read returns `null`) before `load`, when the runtime refuses
-it, or for a track that does not exist; none of them throws. A refusal is also logged once — the
+Every track call returns `false` (or a read returns `null`) before `load` or when the runtime refuses
+it, and `setTrackAlpha`, `setTrackBlend` and `fadeTrack` do so for a track that does not exist, so lay
+an animation on it first. The calls that lay one (`setTrackAnimation`, `crossfade`, `addTrackSource`)
+and the per-track settings create the track instead. None of them throws. A refusal is also logged once — the
 call, the track or source, the animation name it was given and the runtime's reason — so a misspelt
 name does not leave the previous animation playing in silence.
 
 !!! warning "`setAnimation` folds the stack"
-    Switching track 0 with `setAnimation` takes every overlay, fade and source with it, and resets
+    Switching track 0 with `setAnimation` takes every overlay, fade and [source](#sources) with it, and resets
     every track's alpha, blend and sync. Lay overlays again after it — or switch with a
     [crossfade](#crossfade), which keeps them.
 
@@ -125,6 +127,7 @@ final walk = _player.trackMainSource(0)!;
 final run = _player.addTrackSource(0, 'run', 0.0)!; // beside the walk, silent for now
 
 // every frame, from the character's speed
+final t = (speed / runSpeed).clamp(0.0, 1.0);
 _player.setSourceWeight(walk, 1.0 - t);
 _player.setSourceWeight(run, t);
 ```
@@ -133,8 +136,8 @@ _player.setSourceWeight(run, t);
   still its alpha.
 * A walk and a run of different lengths drift apart. Lay the run with the track's sync at
   `SsTrackSync.start` (below) to start it in step, or seek it with `setSourceFrame`.
-* A handle stays valid until its source is released — a crossfade completing, `clearTrack`,
-  `setAnimation` — and is then reused, so do not hold one past that.
+* A handle stays valid until its source is released — a crossfade completing, `setTrackAnimation` or
+  `clearTrack` on its track, `setAnimation` — and is then reused, so do not hold one past that.
 
 ## Starting in step with track 0 { #sync }
 
@@ -214,7 +217,9 @@ _player.setTrackSpeed(1, 0);           // it does not advance on its own
 _player.setTrackFrame(1, headYawFrame); // ... you drive it
 ```
 
-The animator authors the extremes; the app picks the point between them.
+The animator authors the extremes; the app picks the point between them. Author the axis so that its
+middle frame matches the setup pose: the additive blend adds the offset from it, so the middle frame
+is the neutral position.
 
 ## Events { #events }
 

@@ -2,8 +2,9 @@
 
 Runtime texture replacement swaps the bitmap a whole **cellmap** samples — from your code, at
 runtime — for costume changes, colour variants, and dynamic facial expressions, without touching the
-animation data. The draw loop binds textures by their cellmap hash, so a replacement takes effect
-immediately for every part that samples that texture.
+animation data. The draw loop binds textures by their cellmap hash, so a replacement shows on the
+next frame the player draws, for every part that samples that texture (see Notes for the
+`flutter_gpu` upload).
 
 This is separate from [Part Overrides](part-overrides.md): those change one part's colour / cell /
 visibility through the runtime; this replaces the texture *image itself* in the player's texture
@@ -35,10 +36,6 @@ sailor.dispose();
 
 With this you can build an efficient avatar / dress-up system without preparing a separate animation
 for every combination — one rig, many textures.
-
-!!! tip "See it running"
-    The `examples/overall` [live Web demo](../demo/) drives this from its panel: swapping a cellmap
-    re-skins the running animation in place.
 
 ## Discovering names
 
@@ -73,10 +70,9 @@ These are methods on `SpriteStudioPlayer`.
 that had no override; `true` when a replacement was set or actually cleared.
 
 !!! note "The same calls exist on the low-level API"
-    `setCellmapTexture(hash, image)` and `cellmapTextureOverride(hash)` are also on
-    `SpriteStudioInternalPlayer` (L2), keyed by hash. As with part overrides, the only difference is
-    that `SpriteStudioPlayer` (L3) repaints on success while L2 leaves that to you (see
-    [How the Player Is Put Together](../development/architecture.md) for the layering).
+    `SpriteStudioInternalPlayer`, the drawing engine beneath `SpriteStudioPlayer`, has them too, for a
+    headless run or a drawing adapter of your own: see
+    [How the Player Is Put Together](../development/architecture.md#driving-l2-directly).
 
 ## Notes
 
@@ -89,8 +85,11 @@ that had no override; `true` when a replacement was set or actually cleared.
   region. A texture swap assumes a same-size, same-layout atlas — a re-skin, not a re-layout.
 - **Applies tree-wide.** The whole animation — including parts inside instance children — shares one
   texture registry, so a replacement reaches every part that samples that texture, root or child alike.
-- **Takes effect even while paused.** A swap changes pixels without changing the frame number;
-  `SpriteStudioPlayer` notifies its listeners on success, so a paused player repaints immediately.
+- **Takes effect even while paused.** A swap changes pixels without changing the frame number, and
+  `SpriteStudioPlayer` notifies its listeners on success. On the `flutter_gpu` backend the new image is
+  uploaded to the GPU first, so the parts that sample it are not drawn until the upload lands, and the
+  player repaints by itself when it does; the Canvas backend draws it at once. Restoring the original
+  is immediate on both.
 - **Loading another `.ssab` clears every replacement** — the texture registry is rebuilt with the new
   pack.
 
@@ -115,7 +114,7 @@ Pick whichever matches your intent; they are independent and can be combined.
 
 ## Using it from Flame
 
-`ssplayer_flame` adds no API of its own — call `setCellmapTexture` on the player the component exposes.
+`ssplayer_flame` has no API of its own for this — call `setCellmapTexture` on the player the component exposes.
 
 ```dart
 final player = component.player!;

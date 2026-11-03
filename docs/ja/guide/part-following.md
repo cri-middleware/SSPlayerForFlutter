@@ -1,7 +1,7 @@
 # 🎯 パーツトラッキング
 
 パーツトラッキングは、指定したパーツに任意の Flutter ウィジェット（武器・エフェクト・当たり判定の目印・
-HP バーなど）を毎フレーム追従させる機能です。追従するのは**位置・回転・スケール**です。プレイヤーはそのウィジェットを生成も破棄もせず、姿勢を渡すだけの連動（Constraint）方式で、子ウィジェットのライフサイクルは通常のウィジェットと同じくユーザーが所有します。
+HP バーなど）を毎フレーム追従させる機能です。追従するのは**位置・回転・スケール**です。プレイヤーはそのウィジェットを生成も破棄もせず、姿勢を渡すだけです。子ウィジェットのライフサイクルは通常のウィジェットと同じくユーザーが所有します。
 
 `SpriteStudioPartAnchor` がパーツの姿勢を読み取り、子ウィジェットを `Transform` で包みます。
 
@@ -54,7 +54,7 @@ Stack(
 | **`rotation`** | パーツの回転を駆動するか。既定 `true` |
 | **`scale`** | パーツのスケールを駆動するか。**既定 `false`** — 追従対象はパーツの位置に置くもので、パーツに大きさを決めさせるものではありません。3 つすべて ON のときだけアフィンをそのまま適用するため、パーツの反転が厳密に一致します。姿勢は ON/OFF いずれでも**せん断（Skew）を含みません** — 追従先が追従対象パーツによってせん断されることはありません（SpriteStudio では Skew は子に伝搬しません） |
 | **`onHidden`** | パーツが hide のフレームでの挙動。`followAlways`（既定）/ `hideChild` |
-| **`onMirrored`** | プレイヤーを反転したときの子ウィジェットの扱い。`follow`（既定）/ `cancel` |
+| **`onMirrored`** | プレイヤーを反転したときの子ウィジェットの扱い。**`scale: true` のときだけ**効きます。鏡像はスケールの符号なので、`scale` が OFF なら子ウィジェットは鏡像にならず、反転後の角度で正立します。`follow`（既定）/ `cancel` |
 | **`filterQuality`** | 任意の `Transform.filterQuality`。回転・拡縮した子を滑らかにしたい場合は `FilterQuality.low` など。null なら Flutter 既定（最近傍）のまま |
 
 ### hide フレームでの挙動（`SpriteStudioAnchorHidden`）
@@ -68,7 +68,7 @@ Stack(
 
 ### プレイヤーを反転したときの挙動（`SpriteStudioAnchorMirror`）
 
-プレイヤーの [`flipX` / `flipY`](playback.md) はアンカーにもそのまま伝わるので、キャラクターが向きを変えても子ウィジェットはパーツから外れません。決めるのは、**子ウィジェット自身を鏡像にするかどうか**だけです。
+プレイヤーの [`flipX` / `flipY`](playback.md) はアンカーにもそのまま伝わるので、キャラクターが向きを変えても子ウィジェットはパーツから外れません。決めるのは、**子ウィジェット自身を鏡像にするかどうか**だけで、それも `scale` が ON のときだけです。既定の `scale: false` では子ウィジェットは鏡像にならず、反転後の位置と角度に正立したまま追従します。
 
 | 値 | 挙動 |
 |---|---|
@@ -81,7 +81,8 @@ Stack(
 SpriteStudioPartAnchor(
   player: _player,
   partName: partName,
-  onMirrored: SpriteStudioAnchorMirror.cancel, // 名前ラベルは常に正立
+  scale: true,                                  // パーツの大きさに合わせつつ…
+  onMirrored: SpriteStudioAnchorMirror.cancel, // …名前ラベルは読めるまま
   child: const Text('Player 1'),
 )
 ```
@@ -118,13 +119,13 @@ if (pose != null && !_player.isPartHiddenByIndex(partIndex)) {
 |---|---|
 | `findPartIndex(name)` | パーツインデックス。パックに無ければ `-1` |
 | `partNames` | パーツ名一覧 / 名前⇔インデックスの相互解決（`PartNameTable`） |
-| `partTransform(name)` | 直前の tick で組み立てたフレームでの、そのパーツの変換行列を `Matrix4?` で返す（プレイヤーローカル）。`load()` 前や不明なパーツでは null |
+| `partTransform(name)` | 直前の tick で組み立てたフレームでの、そのパーツの変換行列を `Matrix4?` で返す（プレイヤーローカル）。`load()` 前・アニメ選択前・不明なパーツでは null |
 | `partTransformByIndex(index)` | `partTransform` のインデックス指定版（名前解決を省略） |
 | `isPartHidden(name)` | 直前の tick で組み立てたフレームで、そのパーツが hide かを返す。`load()` 前や不明なパーツでは `false` |
 | `isPartHiddenByIndex(index)` | `isPartHidden` のインデックス指定版 |
 | `isPartSkinnedMesh(name)` | そのパーツがボーンバインドされた（スキン）メッシュか＝**追従に向かないパーツ**かを返す（上記の警告を参照）。`load()` 前・不明なパーツ・リジッドメッシュでは `false` |
 | `isPartSkinnedMeshByIndex(index)` | `isPartSkinnedMesh` のインデックス指定版 |
-| `partQuad(name)` | 直前の tick で組み立てたフレームで、そのパーツが描かれている輪郭を `SsPartQuad?` で返す（[後述](#パーツの輪郭)）。`load()` 前・不明なパーツ・hide のパーツ・自分では何も描かないパーツでは null |
+| `partQuad(name)` | 直前の tick で組み立てたフレームで、そのパーツが描かれている輪郭を `SsPartQuad?` で返す（[後述](#パーツの輪郭)）。`load()` 前・アニメ選択前・不明なパーツ・hide のパーツ・自分では何も描かないパーツでは null |
 | `partQuadByIndex(index)` | `partQuad` のインデックス指定版 |
 | `hitTestPart(point, {parts})` | `parts` に名前を挙げたパーツ（省略時はすべて）のうち、輪郭が `point` を含む一番手前のパーツのインデックス。無ければ `-1` |
 | `hitTestPartByIndex(point, {parts})` | `parts` をインデックスで渡す `hitTestPart` |
@@ -154,11 +155,10 @@ Y-Down の反転は**ランタイム側で適用済み**です。呼び出し側
 2 つが重なると**打ち消し合って**行列式は正に戻ります。したがって「`flipX` したから鏡像」とも「反転させていないから鏡像ではない」とも言えません。符号が必要なときは、そのとき手にしている行列から
 `determinant()` で読み取ってください。
 
-!!! tip "このライブラリは分解しないので、そのまま正確です"
-    姿勢は `Matrix4` のまま `Transform` ウィジェットへ渡るため、鏡像も欠落なく運ばれます。
+!!! tip "すべての軸を追従するときは分解しません"
+    `position`・`rotation`・`scale` がすべて ON なら、姿勢は `Matrix4` のまま `Transform` ウィジェットへ渡るため、鏡像も欠落なく運ばれます。どれかが OFF なら、アンカーは追従する軸から姿勢を組み直します。そのとき、子ウィジェットが裏返らないよう、先にプレイヤーの反転を取り除きます。
 
-    ただし**自分で分解する場合**、鏡像の行列から取り出した回転は一意に決まりません（水平反転で 180 度の差が残ります）。行列から回転角を取り出すようなコードを書くときは、先に `determinant()` の符号を確認してください。平行移動成分（`storage[12]` /
-    `storage[13]`）は符号に関係なく常に正確です。
+    ただし**自分で分解する場合**、鏡像の行列から取り出した回転は一意に決まりません（水平反転で 180 度の差が残ります）。行列から回転角を取り出すようなコードを書くときは、先に `determinant()` の符号を確認してください。平行移動成分（`storage[12]` / `storage[13]`）は符号に関係なく常に正確です。
 
 ### パーツの輪郭
 
@@ -172,8 +172,7 @@ final index = _player.hitTestPart(local - size.center(Offset.zero), parts: ['but
 輪郭は描かれているとおりです。セルを持つパーツは描かれている 4 隅で、スキューと頂点変形も入ります。回転したパーツなら回転した四角形になります。Mesh パーツは頂点を囲む軸平行の矩形で、ボーンにバインドされていても描かれている位置になります。Shape はサイズをピボットの周りに取った矩形です。Null・ボーン・Instance・Effect のパーツは自分では何も描かないので輪郭を持たず、hide のパーツも持ちません。アルファ 0 で描かれているパーツは輪郭を持ちます。
 
 !!! note "低レベル API にも同じ読み取りがあります"
-    `SpriteStudioPlayer`（L3）の下位にある描画エンジンにも同じ読み取りがありますが、インデックス指定のみです ——
-    `SpriteStudioInternalPlayer.partWorldMatrix(index)`、`partHidden(index)`、`partQuad(index)`、`hitTestPart(point, {parts})`（L2）です。ヘッドレス実行や独自の描画アダプタから直接叩く場合はそちらを使ってください（レイヤーについては[プレイヤーの構成](../development/architecture.md)を参照）。
+    `SpriteStudioPlayer` の下にある描画エンジン `SpriteStudioInternalPlayer` にも同じ読み取りがあります。ヘッドレス実行や独自の描画アダプタから使う場合は、[プレイヤーの構成](../development/architecture.md#driving-l2-directly)を参照してください。
 
 ## 追従のタイミングと精度
 
@@ -181,8 +180,7 @@ final index = _player.hitTestPart(local - size.center(Offset.zero), parts: ['but
 
 パーツオーバーライドと違い、これらは**純粋な読み取りでリスナーへ通知しません**（何も変更していないため）。プレイヤーのリスナーから駆動して、フレームの変換が確定した advance 直後に読み直すようにしてください。`SpriteStudioPartAnchor` は内部でこれを行っているので、ビューが再描画するのと同じ通知でリビルドされ、同じフレームに乗ります。
 
-`load()` の完了前に姿勢を問い合わせることは**エラーではありません**。オーバーライドと同様、例外を投げず
-`null` / `false` を返すため、パックのロード中に動く UI でもガードは不要です。
+`load()` の完了前やアニメの選択前に姿勢を問い合わせることは**エラーではありません**。オーバーライドと同様、例外を投げず `null` / `false` を返すため、パックのロード中に動く UI でもガードは不要です。
 
 ## 注意点
 
@@ -198,7 +196,7 @@ final index = _player.hitTestPart(local - size.center(Offset.zero), parts: ['but
 
 ## Flame から使う
 
-`ssplayer_flame` は専用の API を持たず、`SpriteStudioPartAnchor` はウィジェットなので Flame のコンポーネントツリーの中では使えません。コンポーネントが公開するプレイヤーから姿勢を読み、自前のコンポーネントを駆動してください。
+`ssplayer_flame` にこの機能の専用 API はなく、`SpriteStudioPartAnchor` はウィジェットなので Flame のコンポーネントツリーの中では使えません。コンポーネントが公開するプレイヤーから姿勢を読み、自前のコンポーネントを駆動してください。
 
 ```dart
 final player = component.player!;

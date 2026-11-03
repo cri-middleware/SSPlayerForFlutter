@@ -115,13 +115,27 @@ A button needs no SpriteStudio artwork to show a SpriteStudio effect. Lay a `Spr
 where it was clicked, play the effect once, and take the view away when it finishes. That takes a player
 and a view, and none of the widgets above:
 
+Load the effect player in `initState`: `play()` throws until the pack has loaded.
+
 ```dart
 final _button = GlobalKey();
-late final _effect = SpriteStudioPlayer(vsync: this)
-  ..loopCount = 1
-  ..onAnimationFinished = (() => setState(() => _effectAt = null))
-  ..loadAsset('assets/effects/burst.ssab', animationName: 'burst');
+late final _effect = SpriteStudioPlayer(vsync: this); // the State mixes in TickerProviderStateMixin
 Offset? _pointerAt, _effectAt;
+
+@override
+void initState() {
+  super.initState();
+  _effect
+    ..loopCount = 1
+    ..onAnimationFinished = (() => setState(() => _effectAt = null))
+    ..loadAsset('assets/effects/burst.ssab', animationName: 'burst');
+}
+
+@override
+void dispose() {
+  _effect.dispose();
+  super.dispose();
+}
 
 void _start() {
   // A key press has no pointer: the effect goes to the middle of the button.
