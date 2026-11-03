@@ -79,9 +79,9 @@ graph LR
 | ルート | 向いている用途 | 入手方法 |
 |---|---|---|
 | [**ssconvert**](#ssconvertdart) | README の手順 —— `SpriteStudio_Source/` を `assets/` へ変換。手元でも CI でも | `flutter pub add --dev ssconverter_dart` |
-| [**ライブリロード**](#ライブリロード) | アプリの実行中に、同じ `SpriteStudio_Source/` から保存のたびに再変換 | [`ssgen_flutter`](live-reload.md) |
+| [**ライブリロード**](#ライブリロード) | アプリの実行中に、同じ `SpriteStudio_Source/` から保存のたびに再変換 | `flutter pub add --dev ssgen_flutter`（[ライブリロード](live-reload.md)） |
 | [**ssconverter-web**](#ssconverter-webブラウザ) | ブラウザで単発、インストール不要 | [ブラウザで開く](https://cri-middleware.github.io/SSPlayerForWeb/ssconverter/) |
-| [**SSConverter GUI**](#ssconverter-guiデスクトップ-gui) | デスクトップ GUI —— ドラッグ&ドロップ・バッチ・embedded 切替 | [バイナリをダウンロード](https://github.com/cri-middleware/SSConverterGUI/releases) |
+| [**SSConverter GUI**](#ssconverter-guiデスクトップ-gui) | デスクトップ GUI（macOS・Windows）—— ドラッグ&ドロップ・バッチ・embedded 切替 | [バイナリをダウンロード](https://github.com/cri-middleware/SSConverterGUI/releases) |
 | [**ssconverter-cli**](#ssconverter-clisdk) | Dart 以外のパイプライン | [SDK Releases](https://github.com/cri-middleware/SpriteStudio-SDK/releases) |
 
 ## ssconvert（Dart）
@@ -111,13 +111,13 @@ SpriteStudio で保存すると、実行中のアプリが再変換して更新�
 
 ## SSConverter GUI（デスクトップ GUI）
 
-シンプルなクロスプラットフォームのデスクトップ GUI。プロジェクトをドラッグ&ドロップ、バッチ変換、embedded 出力の切替ができます。OS 向けバイナリを [**SSConverter GUI Releases**](https://github.com/cri-middleware/SSConverterGUI/releases) からダウンロードして実行します。その後、変換した `.ssab` を[配置](#ssab-を配置するほかのルート)します。
+macOS と Windows 向けのシンプルなデスクトップ GUI です（Linux では `ssconvert` か `ssconverter-cli` を使います）。プロジェクトをドラッグ&ドロップ、バッチ変換、embedded 出力の切替ができます。OS 向けのアーカイブを [**SSConverter GUI Releases**](https://github.com/cri-middleware/SSConverterGUI/releases) からダウンロードし、展開して実行します。その後、変換した `.ssab` を[配置](#ssab-を配置するほかのルート)します。
 
 ## ssconverter-cli（SDK）
 
 SpriteStudio-SDK が配布するスタンドアロンのネイティブ CLI（同じ `libssconverter`）。Dart 以外のパイプラインに向きます。
 
-- **プリビルドバイナリ** —— [**SpriteStudio-SDK の Release**](https://github.com/cri-middleware/SpriteStudio-SDK/releases) の **Assets** から `ssconverter-cli-<platform>.zip`（Windows / macOS / Linux）をダウンロード。
+- **プリビルドバイナリ** —— [**SpriteStudio-SDK の Release**](https://github.com/cri-middleware/SpriteStudio-SDK/releases) の **Assets** から、`ssconverter-cli-macos.zip`・`ssconverter-cli-windows.zip`（ARM64 は `ssconverter-cli-windows-arm64.zip`）・`ssconverter-cli-linux.zip`（ARM64 は `ssconverter-cli-linux-aarch64.zip`）のいずれかをダウンロードして展開します。以下のコマンドをそのまま使うには、中の `ssconverter-cli` を `PATH` に置きます。
 - **ソースからビルド** —— Rust ツールチェーンで、SDK リポジトリルートで `cargo install --path cli`。
 
 ```bash

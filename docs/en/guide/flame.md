@@ -6,8 +6,8 @@ inside a `FlameGame`. It owns an **externally-clocked** `SpriteStudioPlayer` (no
 game loop drives time (`update(dt)` → `advance`, `render` → paint). It is a separate package so the
 core never pulls in `flame`, and it re-exports the whole `ssplayer_flutter` API.
 
-The [live Flame demo](../demo/flame/) is `examples/flame` built for the web — the code on this
-page, running.
+The [live Flame demo](../demo/flame/) is `examples/flame` built for the web: one
+`SpriteStudioComponent` playing Ringo, tap to play / pause.
 
 ## Add the dependency
 
@@ -41,7 +41,9 @@ class RingoGame extends FlameGame {
 
 `SpriteStudioComponent.asset(path, …)` loads the `.ssab` from the asset bundle in `onLoad` and
 resolves sibling reference textures from the key's own folder. To play bytes you already hold, use the
-default constructor `SpriteStudioComponent(ssab: myBytes)`.
+default constructor: `SpriteStudioComponent(ssab: myBytes, baseAssetDir: 'assets/spritestudio/Ringo')`.
+Bytes carry no asset key, so `baseAssetDir` names the asset folder that holds the sibling reference
+textures; an embedded pack needs none.
 
 ## Key constructor options
 
@@ -54,8 +56,12 @@ default constructor `SpriteStudioComponent(ssab: myBytes)`.
 | `autoStart` | `true` | Play as soon as the resource loads (set `false` to drive it yourself) |
 | `onEvents` / `onAnimationStarted` / `onAnimationFinished` / `onAnimationLooped` | `null` | Forwarded to the player's callbacks (see [Playback & Events](playback.md)) |
 
-Standard `PositionComponent` fields (`position`, `size`, `scale`, `angle`, `anchor`, `priority`) work
-as usual.
+`position`, `scale`, `angle`, `anchor` and `priority` work as on any `PositionComponent`. `size` is
+not a scale: it is the box the animation is drawn in. The animation's origin lands on the middle of
+the box (`size / 2`), or on `position` while `size` is the default zero. On the `flutter_gpu`
+backend the box is also the frame, and anything outside it is cropped, so an explicit `size` must
+hold the artwork with room on every side of the origin (twice the authored canvas per axis is a safe
+start). `anchor` only moves the box, so `Anchor.center` has an effect once you give a `size`.
 
 ## A button
 
@@ -92,13 +98,16 @@ add(
 | `isDisabled` / `isFocused` / `reducedMotion` | `false` | Also properties, to change at any time. Flame reads no platform setting, so `reducedMotion` is the game's own choice |
 
 The animation is drawn about the middle of the box, so give the button a `size` that holds its artwork.
-The button takes its player's playback over, which is why it has no `loopCount`, `speed` or `autoStart`.
+The button takes its player's playback over, which is why it has no `loopCount`, `speed`, `autoStart`,
+`onEvents` or `onAnimation…` arguments.
 [`examples/flame/lib/button_check.dart`](https://github.com/cri-middleware/SSPlayerForFlutter/blob/main/examples/flame/lib/button_check.dart)
-runs three of them, one for each way of taking a pointer.
+is an app with three of them, one for each way of taking a pointer. It runs from a clone of the
+repository (`flutter run -t lib/button_check.dart`, set up as in the [example's README](https://github.com/cri-middleware/SSPlayerForFlutter/blob/main/examples/flame/README.md)).
 
 ## Controlling playback
 
-After `onLoad`, reach the full L3 transport through `component.player`:
+After `onLoad`, reach the whole `SpriteStudioPlayer` — transport, events, part overrides — through
+`component.player`. It is `null` until the load finishes:
 
 ```dart
 component.player?..setAnimation('attack')..play();
@@ -106,5 +115,27 @@ component.player?..setAnimation('attack')..play();
 
 The clock is Flame's, so there is no `Ticker` — transport state still lives on the player.
 
-See the runnable [`examples/flame/`](https://github.com/cri-middleware/SSPlayerForFlutter/tree/main/examples/flame)
-app for a complete `FlameGame`.
+A load that fails (a wrong asset key, a malformed `.ssab`) does not throw: the component draws nothing,
+`player` stays `null`, and the error is in `component.loadError`.
+
+## Releasing it
+
+A component releases its native runtime context and decoded textures when it is removed from the
+tree. Tearing down a `GameWidget` (a popped route, a rebuilt widget) does not remove the components,
+so release them from the game, and keep the game in a `State` field rather than creating it in
+`build`:
+
+```dart
+class RingoGame extends FlameGame {
+  // …onLoad as above…
+  @override
+  void onDispose() {
+    dispose(); // removes the children, which releases each component's player
+    super.onDispose();
+  }
+}
+```
+
+The `RingoGame` above is the whole game.
+[`examples/flame/`](https://github.com/cri-middleware/SSPlayerForFlutter/tree/main/examples/flame) is the
+same thing as an app you can run from a clone of the repository.

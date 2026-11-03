@@ -18,7 +18,7 @@
     - **デバイス（iOS / Android）** —— テクスチャ内包の embedded `.ssab` をバイトで送ります（端末はホストのパスを読めないため）。どのパックを送るかは規約で決まります ——
       **パックのアセットキーの末尾のフォルダ**（`assets/spritestudio/Ringo/Ringo.ssab` なら `Ringo`）が、変換元の `<stem>.sspj` を指します。食い違うと `sswatch` が stderr で指摘し、一致するまで何も push されません。
     - **Web（`flutter run -d chrome`・デバッグ）** —— デバイスと同じくテクスチャ内包の embedded
-      `.ssab` をバイトで送ります（VM Service 拡張は DWDS が中継）。デバッグビルドのみです。`--wasm` と `flutter build web` は VM Service を持たないので、`sswatch --run` は起動前に断ります。
+      `.ssab` をバイトで送ります（VM Service 拡張は DWDS が中継）。デバッグビルドのみです。`--wasm` のビルドは VM Service を持たないので、`sswatch --run` は `--wasm` を起動前に断ります。
 4. プレイヤーが `reload()` を呼び、再生状態を保ったままリソースを差し替えます。失敗した場合は、アプリ側の例外を `sswatch` が stderr に出します。
 5. `--device` では push のあとに `assets/` も再変換します。バイト push は実行中の isolate にしか届かないため、これが無いと次の hot restart で起動時に同梱した絵まで巻き戻ります。保存ごとに変換が 1 回増えますが、デスクトップは再変換先が `assets/` なので不要です。
 
@@ -29,10 +29,10 @@
 3. `sswatch` を実行します。ツールも機構（VM Service push）も一つで、**起動の仕方だけ**選びます（`SS_LIVE_RELOAD` define で opt-in。define なしの素の `flutter run` はアートを再変換しません）。
 
     ```bash
-    # 1コマンド（flutter run を内包し、define も自動注入）
-    dart run ssgen_flutter:sswatch --run -d macos                 # デスクトップ
+    # 1 コマンド（flutter run を内包し、define も自動注入）
+    dart run ssgen_flutter:sswatch --run -d macos                 # デスクトップ（macOS は先にデバッグの App Sandbox を切る。下の警告を参照）
     dart run ssgen_flutter:sswatch --run -d <emulator> --device   # デバイス（embedded push）
-    dart run ssgen_flutter:sswatch --run -d chrome --device       # Web（embedded push・デバッグDDC）
+    dart run ssgen_flutter:sswatch --run -d chrome --device       # Web（embedded push・デバッグ DDC）
 
     # IDE で起動する場合（デバッガを維持したまま attach）——
     #   起動側に --dart-define=SS_LIVE_RELOAD=true --vmservice-out-file=/tmp/ss.uri を付け、
@@ -42,7 +42,7 @@
     デバイスは端末で変換できないため、ホストで動く `sswatch` が embedded `.ssab` をバイトで送ります。
     `--run` は端末をそのまま `flutter run` に渡すので、`r`・`R`・`q` もいつもどおり使えます。
 
-ソースプロジェクトは `SpriteStudio_Source/<project>/` に置きます。実際の編集を保存してください（`touch` は同一バイトで見た目が変わらない上、watcher が拾わないこともあります）。
+ソースプロジェクトは `SpriteStudio_Source/<project>/` に置きます。`sswatch` は、実行したディレクトリ（アプリのルート）を基準に動き、`SpriteStudio_Source/` を監視して `assets/spritestudio/<project>/` に書き出します。別のフォルダを使うときは、そこに `spritestudio.yaml`（`source:`・`output:`・`embedded:`）を置くか、`--project-root=<dir>` で別のルートを指定します。実際の編集を保存してください（`touch` は同一バイトで見た目が変わらない上、watcher が拾わないこともあります）。
 
 !!! tip "バイト列から読み込んだプレイヤーや、リロードに反応したい画面"
     ダウンロードや実行時に選んだファイルなど、バイト列から読み込んだプレイヤーには、見つけてもらうためのアセットキーがありません。所有する `State` に `SsLiveReload` を mix-in して、パックを指定してください。同じ mixin で、リロードに合わせて画面を更新したり、`sswatch` の管理外のものを表示している間は止めたりもできます。自分で登録したプレイヤーと同じものを指定した場合は、mixin のほうが使われます。
@@ -51,9 +51,9 @@
     class _MyPageState extends State<MyPage>
         with SingleTickerProviderStateMixin, SsLiveReload<MyPage> {
       @override SpriteStudioPlayer get ssPlayer => _player;
-      @override String get ssAssetDir => 'assets/spritestudio/overall'; // 現パックの出力dir
+      @override String get ssAssetDir => 'assets/spritestudio/overall'; // 現パックの出力 dir
       @override String get ssPack => _pack;                             // 現パック（.ssab stem）
-      @override void ssOnLiveReloaded() => setState(() {});             // 任意（UI更新）
+      @override void ssOnLiveReloaded() => setState(() {});             // 任意（UI 更新）
     }
     ```
 
