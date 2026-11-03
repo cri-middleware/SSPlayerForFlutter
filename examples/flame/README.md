@@ -3,15 +3,14 @@
 The sample for verifying `ssplayer_flame`: the minimal setup, one `SpriteStudioComponent` in a
 `FlameGame` playing SpriteStudio's **Ringo** animation. **Tapping the screen toggles play / pause.**
 
-It is an example of Flame as a Layer‑4 drawing adapter. The game loop (`update(dt)`) drives the
-player's clock, and `render` hands off to the same Layer‑2 draw path as the widget
-(`SpriteStudioView`).
+It shows Flame as a drawing front end for the player: the game loop (`update(dt)`) drives the player's
+clock, and `render` draws through the same code path as the widget (`SpriteStudioView`).
 
 ## Prerequisites
 
 - **Flutter / Dart** — the minimum is on [Installation](../../docs/en/guide/install.md) (an older
   one fails `flutter pub get`).
-- The native Brain (`libssruntime`). `hook/build.dart` downloads the prebuilt from the pinned SDK
+- The native runtime (`libssruntime`). `ssruntime_dart`'s `hook/build.dart` downloads the prebuilt from the pinned SDK
   release and bundles it, so normally nothing needs placing first (no Rust needed).
   - To build it from source instead: `bash scripts/build-runtime.sh` (needs Rust)
 - The example assets (Ringo's `.ssab` + `Ringo.png`), generated:
@@ -49,7 +48,7 @@ player's clock, and `render` hands off to the same Layer‑2 draw path as the wi
 
 ```sh
 flutter pub get
-flutter run -d macos     # run (a macOS window opens, with Ringo playing in the middle)
+flutter run -d macos     # run (a macOS window opens, with Ringo playing)
 # or
 flutter build macos      # build the .app
 ```
@@ -79,24 +78,26 @@ class SpriteStudioGame extends FlameGame {
       // folder, so no baseAssetDir is needed.
       'assets/spritestudio/Ringo/Ringo.ssab',
       anchor: Anchor.center,
-      position: size / 2,
+      position: Vector2(size.x / 2, size.y), // Ringo's origin is near its lower body
     ));
   }
 }
 ```
 
+`main.dart` also re-places it in `onGameResize`.
+
 ---
 
 # ssplayer_flame_example（日本語）
 
-`ssplayer_flame` の検証用サンプル。`FlameGame` に `SpriteStudioComponent` を1つ載せ、SpriteStudio の **Ringo** アニメーションを再生する最小構成です。画面を**タップすると再生 / 一時停止** が切り替わります。
+`ssplayer_flame` の検証用サンプル。`FlameGame` に `SpriteStudioComponent` を 1 つ載せ、SpriteStudio の **Ringo** アニメーションを再生する最小構成です。画面を**タップすると再生 / 一時停止** が切り替わります。
 
-これは Layer‑4 の描画アダプタとして Flame を使う例です。ゲームループ（`update(dt)`）がプレイヤーの時計を回し、`render` が Widget 版（`SpriteStudioView`）と同じ Layer‑2 の描画パスに委譲します。
+Flame をプレイヤーの描画の入口として使う例です。ゲームループ（`update(dt)`）がプレイヤーの時計を回し、`render` が Widget 版（`SpriteStudioView`）と同じ描画経路で描きます。
 
 ## 前提
 
 - **Flutter / Dart** —— 下限は[インストール](../../docs/ja/guide/install.md)にあります（古いと `flutter pub get` が落ちます）。
-- ネイティブ Brain（`libssruntime`）。`hook/build.dart` がピン留めした SDK リリースからプリビルドを自動DL・同梱するので、通常は事前配置不要（Rust 不要）。
+- ネイティブランタイム（`libssruntime`）。`hook/build.dart` がピン留めした SDK リリースからプリビルドを自動 DL・同梱するので、通常は事前配置不要（Rust 不要）。
   - ソースからビルドする場合: `bash scripts/build-runtime.sh`（Rust 必要）
 - 例アセット（Ringo の `.ssab` + `Ringo.png`）を生成済みであること:
 
@@ -128,7 +129,7 @@ class SpriteStudioGame extends FlameGame {
 
 ```sh
 flutter pub get
-flutter run -d macos     # 実行（macOS ウィンドウが開き、Ringo が中央で再生される）
+flutter run -d macos     # 実行（macOS ウィンドウが開き、Ringo が再生される）
 # または
 flutter build macos      # .app をビルド
 ```
@@ -157,7 +158,7 @@ class SpriteStudioGame extends FlameGame {
       // baseAssetDir は不要です。
       'assets/spritestudio/Ringo/Ringo.ssab',
       anchor: Anchor.center,
-      position: size / 2,
+      position: Vector2(size.x / 2, size.y), // Ringo の原点は下半身の近くにあります
     ));
   }
 }

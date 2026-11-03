@@ -9,6 +9,7 @@ Flutter アプリに SpriteStudio Player for Flutter を追加する手順です
 |---|---|
 | Flutter / Dart | **Flutter 3.47+ / Dart 3.13+**（Native Assets は 3.38 から既定で有効。下限 3.47 は flutter_gpu バックエンドの要件）。強制するのは `ssplayer_flutter` の `environment:` です（古いと `flutter pub get` が落ちます） |
 | プラットフォーム | macOS · Windows · Linux · iOS · Android。Web は開発者プレビュー |
+| SpriteStudio | 7.6 以上で作成したプロジェクト |
 | ネイティブツールチェーン | 不要 —— ネイティブランタイムは `ssruntime_dart` のビルドフックがプリビルドを取得 |
 
 ## 依存を追加する

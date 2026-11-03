@@ -18,10 +18,10 @@ that is useful information, not a problem.
 
 - [ ] `scripts/deploy-examples.sh`, then `flutter analyze lib test` and `flutter test` in `packages/ssplayer_flutter/` — without its packs, the tests that play an animation report skipped
 - [ ] The other packages' suites (`dart test` / `flutter test` in each)
-- [ ] `cd examples/overall && flutter run` — `[ssplayer] OK`
+- [ ] `scripts/run-<platform>.sh` (`run-windows.ps1` on Windows) — `[ssplayer] OK`
 - [ ] Not run — see notes below / 未実行（理由は下記）
 
-**Environment / 環境:** `flutter --version`, OS, target platform, backend (Canvas or `SS_BACKEND=gpu`)
+**Environment / 環境:** `flutter --version`, OS, target platform, backend (Canvas, or flutter_gpu via `--gpu`)
 
 ## Checklist
 
@@ -31,6 +31,7 @@ that is useful information, not a problem.
 - [ ] Anything that exists twice changed twice — a page and its translation, a `.sh` and its `.ps1`.
 - [ ] L2 (`SpriteStudioInternalPlayer`) stays Widget-free; no Widget dependency leaks downward.
 - [ ] No per-frame allocations, and every `Context` / `Resource` is disposed.
+- [ ] Core logic goes to SpriteStudio-SDK, and nothing is committed inside the submodule.
 - [ ] Generated `*.g.dart` regenerated with the scripts and committed, never hand-edited.
 
 ## Anything reviewers should know? / レビュー時の注意点

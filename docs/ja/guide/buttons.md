@@ -90,13 +90,27 @@ driver.show(SsUiState.normal, reducedMotion: true);
 
 SpriteStudio のエフェクトを出すだけなら、ボタンの絵は SpriteStudio でなくてかまいません。クリックした位置に `SpriteStudioView` を重ね、エフェクトを 1 回再生し、終わったらビューを外します。要るのはプレイヤーとビューだけで、ここまでのウィジェットは使いません。
 
+エフェクト用のプレイヤーは `initState` で読み込みます。パックの読み込みが終わる前の `play()` は例外を投げます。
+
 ```dart
 final _button = GlobalKey();
-late final _effect = SpriteStudioPlayer(vsync: this)
-  ..loopCount = 1
-  ..onAnimationFinished = (() => setState(() => _effectAt = null))
-  ..loadAsset('assets/effects/burst.ssab', animationName: 'burst');
+late final _effect = SpriteStudioPlayer(vsync: this); // State に TickerProviderStateMixin を混ぜる
 Offset? _pointerAt, _effectAt;
+
+@override
+void initState() {
+  super.initState();
+  _effect
+    ..loopCount = 1
+    ..onAnimationFinished = (() => setState(() => _effectAt = null))
+    ..loadAsset('assets/effects/burst.ssab', animationName: 'burst');
+}
+
+@override
+void dispose() {
+  _effect.dispose();
+  super.dispose();
+}
 
 void _start() {
   // キーで押したときはポインタが無いので、ボタンの中央に出す

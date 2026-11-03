@@ -52,8 +52,8 @@ You need **Flutter 3.47+ / Dart 3.13+**, and a project made in **SpriteStudio 7.
    flutter pub add --dev ssconverter_dart
    ```
 
-   The native runtime comes prebuilt with the package on the first build — no Rust toolchain and no
-   platform setup.
+   The first build downloads the prebuilt native runtime from the SpriteStudio-SDK release and
+   verifies its checksum — no Rust toolchain and no platform setup.
 
 2. **Convert**: Put your SpriteStudio project — the whole folder — under `SpriteStudio_Source/` in
    your app, convert it into `assets/spritestudio/`, and list that folder in `pubspec.yaml`:
@@ -78,7 +78,8 @@ You need **Flutter 3.47+ / Dart 3.13+**, and a project made in **SpriteStudio 7.
    ├── assets/spritestudio/
    │   └── Ringo/                 ← written by ssconvert
    │       ├── Ringo.ssab
-   │       └── Ringo.png
+   │       ├── Ringo.png
+   │       └── …
    ├── lib/main.dart
    └── pubspec.yaml               ← lists assets/spritestudio/Ringo/
    ```
@@ -86,6 +87,8 @@ You need **Flutter 3.47+ / Dart 3.13+**, and a project made in **SpriteStudio 7.
 3. **Play** it — one widget, anywhere in your tree:
 
    ```dart
+   import 'package:ssplayer_flutter/ssplayer_flutter.dart';
+
    SpriteStudioAnimation.asset(
      'assets/spritestudio/Ringo/Ringo.ssab',
      animation: 'wait1',
@@ -119,7 +122,10 @@ What you install directly — you need only the first row to play an animation. 
 
 Runnable apps under [`examples/`](./examples/). `scripts/run-<platform>.*` starts one in a single
 step: it converts the SDK's test projects into the `.ssab` the example loads, generates the platform
-runner, and picks a device (launching an emulator if none is running).
+runner, and picks a device (launching an emulator if none is running). Clone with
+`git clone --recurse-submodules`: the test projects come from the `SpriteStudio-SDK` submodule
+(`git submodule update --init --recursive` after a plain clone). `run-web` also needs the web
+runtime once: `scripts/download-web-runtime.sh`.
 
 ```bash
 scripts/run-macos.sh                   # overall; also run-linux / run-ios / run-android / run-web
@@ -127,7 +133,7 @@ scripts/run-android.sh example=flame   # another example
 scripts\run-windows.ps1                # Windows (run-android.ps1 / run-web.ps1 there too)
 ```
 
-- [overall](./examples/overall) — The one to open. Plays `tests/overall`, with a dropdown to switch between its animations.
+- [overall](./examples/overall) — The one to open. Plays the SDK's `tests/overall` project plus Ringo, Doll and ParticleEffect, with dropdowns to switch project, pack and animation.
 - [flame](./examples/flame) — The [`ssplayer_flame`](./packages/ssplayer_flame) adapter: one `SpriteStudioComponent` in a `FlameGame` playing Ringo, tap to toggle play/pause.
 - [part_following](./examples/part_following) — Pins an ordinary Flutter widget to a part with `SpriteStudioPartAnchor`, so it tracks that part's position, rotation and scale every frame.
 

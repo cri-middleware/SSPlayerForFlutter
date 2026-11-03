@@ -34,6 +34,7 @@ SpriteStudioAnimation.asset(
 | 引数 | 役割 |
 |---|---|
 | `animation` | 選択するアニメ名。省略するとパックの最初。未選択のパックは空の箱を描き、それはロード失敗と見分けが付きません。変えると同じプレイヤーのまま切り替わり、`playing` の間は新しいアニメが先頭から再生されます。 |
+| `transition` | `animation` を変えたときにクロスフェードする長さ。`Duration.zero`（既定）なら即座に切り替えます。→ [モーションブレンド](motion-blending.md#crossfade) |
 | `width` / `height` | 描画する箱。省略すると作者のキャンバスの大きさになり、制約に収まるよう縦横比を保って縮みます（`Image` が画像の大きさを使うのと同じ）。 |
 | `fit` / `alignment` | キャンバスを箱にどう収めるかと、どの点をどこに寄せるか。`BoxFit.contain`（既定）・`cover`・`none` と `Alignment` です。`none` は等倍で、原点を箱の中央に置きます。 |
 | `frame` | 作者のキャンバスの代わりに収める箱（プレイヤーローカルのピクセル）。キャンバスの外へはみ出すアニメーション向けです。 |
@@ -49,7 +50,7 @@ SpriteStudioAnimation.asset(
 | `onUserData` / `onSignal` / `onAudio` | ユーザーデータ・シグナル・サウンドのキーの通過。音を鳴らすのはアプリの仕事です。→ [再生とイベント](playback.md) |
 | `children` | アニメーションの上に重ねるウィジェット。それぞれアニメーションと同じ箱を覆います。ここに置いた `SpriteStudioPartAnchor` は `player` なしでパーツに追従し、どのウィジェットも `SpriteStudioAnimation.playerOf(context)` でプレイヤーを取れます。→ [パーツトラッキング](part-following.md) |
 | `onPlayerCreated` | 引数でカバーしていない API に手を伸ばすためにプレイヤーを渡します。破棄はウィジェットがやるので、呼び出し側でしないでください。 |
-| `bundle` / `backend` | 読み込む `AssetBundle` と、描画バックエンド。 |
+| `bundle` / `backend` | 読み込む `AssetBundle` と、描画バックエンド。`SpriteStudioBackend.auto`（既定）と `.gpu` は、flutter_gpu が使える実行（Impeller で `--enable-flutter-gpu` 付き）では flutter_gpu で、それ以外では Canvas で描きます。`.canvas` は常に Canvas です。→ [制約と適用範囲](../limitations.md#描画) |
 
 `assetKey`・`bundle`・`backend` を変えるとプレイヤーを作り直します。それ以外の引数は、値が変わったときだけプレイヤーに届きます。なので `onPlayerCreated` でプレイヤーに設定したものは、対応する引数が変わるまでそのまま残ります。イベントの引数はそれぞれコールバックを 1 つだけ取り、渡すと `onPlayerCreated` がそのイベントに設定したものと置き換わります。
 

@@ -1,7 +1,8 @@
 # 🎨 Part Overrides
 
 Per-part runtime overrides let your code say "make this part this colour / this cell / hidden **now**".
-An override wins over both the keyframes and any animation blending, so it never fights the animation.
+An override takes priority over the keyframes (by default for the rest of the current animation; see
+[Priority modes](#priority-modes-ssoverridepriority)) and over any animation blending.
 
 ```dart
 // Tint a part with multiply (Normal parts only)
@@ -28,7 +29,9 @@ _player.clearAllPartOverrides();
     almost certainly why.
 
     Note also that `setAnimation()` **clears** every override that is not `Permanent` — so always
-    apply overrides *after* selecting the animation, never before.
+    apply overrides *after* selecting the animation, never before. Selecting the animation that is
+    already selected does nothing, so it clears nothing (`clearAllPartOverrides()` does), and a
+    `crossfade` or `setTrackAnimation` on track 0 clears nothing either.
 
 ## Methods
 
@@ -53,17 +56,13 @@ Each method takes a **part name**; the `ByIndex`-suffixed form takes a **part in
     Part indices are stable within one pack (the same `.ssab`), so if you override frequently, resolve
     the name once with `findPartIndex()` and reuse the index.
 
-!!! note "The same calls exist on the low-level API"
-    Every method listed here is available not only on `SpriteStudioPlayer` (L3) but also — under the
-    same names and signatures — on the drawing engine beneath it, `SpriteStudioInternalPlayer` (L2).
-    Reach for that one when driving the player headless or from your own drawing adapter (see
-    [How the Player Is Put Together](../development/architecture.md) for the layering).
+An override shows from the player's next tick: `SpriteStudioPlayer` notifies its listeners when a set
+or clear succeeds, and a paused one runs one zero-length tick on the next frame.
 
-    The differences are **when the change shows and who repaints**. An override shows from the
-    player's next tick. `SpriteStudioPlayer` notifies its listeners when a set or clear succeeds, and
-    a paused one runs one zero-length tick on the next frame. `SpriteStudioInternalPlayer` does
-    neither: there the override shows from the next `update`, `seek` or `setupAnimation` you make,
-    and repainting is your responsibility.
+!!! note "The same calls exist on the low-level API"
+    `SpriteStudioInternalPlayer`, the drawing engine beneath `SpriteStudioPlayer`, has them too, for a
+    headless run or a drawing adapter of your own: see
+    [How the Player Is Put Together](../development/architecture.md#driving-l2-directly).
 
 The cellmap / cell names a cell override accepts can be enumerated from the player:
 
@@ -86,19 +85,19 @@ The `blendOp` of `setPartColorOverride()` is the same set of four the authored P
 ## Priority modes (`SsOverridePriority`)
 
 Colour and cell overrides can conflict with the animation, so they take a `priority`. Visibility has
-none — it is a plain force-hide flag, and setting up an animation always clears it.
+none — it is a plain force-hide flag, and `setAnimation` to another animation always clears it.
 
 | Priority mode | Behaviour |
 |---|---|
 | `overwriteOnNextKeyframe` | Applies until the animation data updates that attribute |
-| `holdUntilNextAnimation` (default) | Wins for the current animation; cleared when a new one is set up |
+| `holdUntilNextAnimation` (default) | Wins for the current animation; cleared when `setAnimation` switches to another (a crossfade on track 0 keeps it) |
 | `permanent` | Applies for as long as the same `.ssab` is loaded (survives animation changes) |
 
 ## No need to re-apply
 
 The runtime owns the override table and its whole lifecycle. **Do not re-apply overrides every
-frame.** Set one once and it keeps being applied on every subsequent frame, including across the
-animation's own loops.
+frame.** Set one once and it keeps being applied on every subsequent frame (until its priority mode
+says otherwise), including across the animation's own loops.
 
 ```dart
 // ✅ set it once
@@ -133,7 +132,7 @@ _player.setPartColorOverride(partName, Colors.red, blendOp: SsBlendOp.mul);
 
 ## Using it from Flame
 
-`ssplayer_flame` adds no API of its own — call the methods above on the player the component
+`ssplayer_flame` has no API of its own for this — call the methods above on the player the component
 exposes.
 
 ```dart

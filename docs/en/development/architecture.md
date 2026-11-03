@@ -47,6 +47,20 @@ An arrow is a call, and the dependency is **strictly downward**: layers below ar
 imports it from `ssruntime_dart` directly. [Packages](../packages.md) lists every package with its
 role.
 
+## Driving L2 directly
+
+`SpriteStudioInternalPlayer` (L2) carries the reads, overrides and texture calls of `SpriteStudioPlayer`
+for a headless run or a drawing adapter of your own:
+
+- **Part overrides** — every method on [Part Overrides](../guide/part-overrides.md), under the same names
+  and signatures. `SpriteStudioPlayer` notifies its listeners when a set or clear succeeds, and a paused
+  one runs one zero-length tick on the next frame; `SpriteStudioInternalPlayer` does neither. There the
+  override shows from the next `update`, `seek` or `setupAnimation` you make, and repainting is yours.
+- **Texture replacement** — `setCellmapTexture(hash, image)` and `cellmapTextureOverride(hash)`, keyed
+  by hash. L3 repaints on success; L2 leaves that to you.
+- **Part reads** — `partWorldMatrix(index)`, `partHidden(index)`, `partQuad(index)` and
+  `hitTestPart(point, {parts})`, addressed by index only.
+
 ## Live reload
 
 ```mermaid
@@ -77,8 +91,8 @@ receiver, and the app never depends on the tooling, so what it ships stays conve
 The Brain emits a `DrawBatch` plan; `paint` dispatches on `DrawBatch.kind`
 (`Normal / Mesh / Effect / Instance / Shape`) and delegates each batch to the active **render
 backend**. The Brain cuts a batch wherever the part kind changes, so consecutive Normal and Mesh
-batches on one texture and blend go to the backend together, and their plain parts draw as one:
-Ringo's eight batches a frame are a single draw. Consecutive Effect batches go together too, and
+batches on one texture and blend go to the backend together, and their plain parts draw as one.
+Consecutive Effect batches go together too, and
 particles of one cellmap and blend draw as one across the effect parts. The `Canvas` backend bakes
 each batch, or each such run of them, into one indexed `ui.Vertices` (`Canvas.drawVertices`);
 the `flutter_gpu` (Impeller) backend bakes an interleaved VBO and draws through its own pipeline into
@@ -99,9 +113,10 @@ decompose the pose into a `Quaternion` / `Transform2D` instead: `Matrix4x4.rotat
 mirrored matrix, and a horizontal flip leaves an extra 180° in the extracted rotation. Code that
 decomposes the matrix here takes those caveats on, so it checks `determinant()` first.
 
-**`cancel` is exact here and approximate in the siblings.** Keeping a child unmirrored when the
-player is flipped undoes a ±1 diagonal this library applied itself when it flipped the player, so
-no rotation is left behind. The equivalent in the Unity and Godot
+**Undoing the player's flip is exact here, and approximate in the siblings.**
+`SpriteStudioAnchorMirror.cancel` (with the scale followed), and an anchor that does not follow the
+scale, take out the ±1 diagonal this library applied itself when it flipped the player, so no
+rotation is left behind. The equivalent in the Unity and Godot
 players, with scale not followed (`driveScale` / `update_scale` off), leaves a stray 180° on a
 horizontal flip.
 

@@ -10,11 +10,14 @@ need this** — the native libraries are auto-downloaded (see
 |---|---|
 | Rust (`rustup`) | Building the native libs from source |
 | Flutter / Dart | Always. The floor is on [Installation](../guide/install.md); `flutter pub get` fails if yours is older |
-| `wasm-pack` + `wasm32-unknown-unknown` target | Only for the **web** target (`cargo install wasm-pack`; `rustup target add wasm32-unknown-unknown`) |
+| `wasm-pack` + `wasm32-unknown-unknown` target | Only to **build** the web runtime (`cargo install wasm-pack`; `rustup target add wasm32-unknown-unknown`) |
 | `flatc` | Only when regenerating a `.fbs` schema |
+| libclang | Only when regenerating the ffigen bindings (ffigen loads it) |
+| `rustup target add` per cross target; for Android also `cargo install cargo-ndk` and an NDK | Only for a cross-build; the `Install targets and tools` step of `ci.yml` lists the targets |
 | cbindgen | Never install manually — it is a build-dependency of the SDK's `build.rs` |
 
-Clone with submodules — the SDK (the Brain's source) is a git submodule:
+Clone with submodules — the SDK (the Brain's source, see
+[How the Player Is Put Together](architecture.md)) is a git submodule:
 
 ```bash
 git submodule update --init --recursive
@@ -31,10 +34,12 @@ scripts/run-macos.sh                  # expect [ssplayer] OK + on-screen animati
 ```
 
 `run-linux.sh`, `run-ios.sh`, `run-android.sh` and `run-web.sh` do the same for their target, and
-take `example=<name>`, `--gpu`, `--watch` and any `flutter run` argument — the header of
+take `example=<name>`, `--gpu` and `--watch` (the last two for `overall` only) and any `flutter run`
+argument — the header of
 `scripts/run-example.sh` lists them. Windows uses the `.ps1` variant of each script
-(`run-windows.ps1` for the run). Cross-builds for android / ios are delegated to
-`SpriteStudio-SDK/scripts/release-*`; `build-runtime` itself builds the host target directly.
+(`run-windows.ps1` for the run). Android, iOS and a universal macOS build (`arch=universal`) are
+delegated to `SpriteStudio-SDK/scripts/release-*`; `build-runtime` builds the host target and the web
+wasm itself.
 
 ## Web (developer preview)
 
@@ -42,10 +47,12 @@ The web target has **no `dart:ffi` and no native assets**, so the Brain cannot s
 Instead it is built as the SDK's wasm-bindgen `web` build (a `.wasm` + JS glue) and bundled as a plain
 Flutter **asset**, then driven from Dart over `dart:js_interop`.
 
-**Setup — build the wasm runtime** (needs `wasm-pack` + the `wasm32-unknown-unknown` target):
+**Setup — get the wasm runtime.** Build it (needs `wasm-pack` and the `wasm32-unknown-unknown`
+target) or download the pinned release (needs neither Rust nor `wasm-pack`):
 
 ```bash
-scripts/build-runtime.sh platform=web        # + build=release (default) | debug
+scripts/build-runtime.sh platform=web        # builds debug unless you add build=release
+scripts/download-web-runtime.sh              # or: the pinned release, no Rust
 # → packages/ssplayer_flutter/assets/runtime-web/
 #     {ssruntime.js, ssruntime_bg.wasm, ssruntime_bg.nosimd.wasm}
 ```
@@ -55,8 +62,8 @@ Two wasm binaries are built from the same source: `ssruntime_bg.wasm` (SIMD, the
 Maker MZ). They share **one** wasm-bindgen JS glue (`ssruntime.js`); `loadSsRuntime` picks the right
 binary at runtime via a `WebAssembly.validate` SIMD probe.
 
-Like the native dylibs, the built wasm is **git-ignored** — every developer (re)builds it with the
-line above; a `git clean` removes it.
+Like the native dylibs, the wasm is **git-ignored** — each developer builds or downloads it once,
+and a `git clean` removes it.
 
 **Run:**
 
@@ -76,8 +83,10 @@ scripts/run-web.sh --wasm      # Skwasm renderer (WebAssembly build mode)
     no-op cleanly on web (nothing to configure).
 
 !!! note "First macOS runner"
-    If `examples/overall/macos/` is missing, generate it once:
-    `cd examples/overall && flutter create --platforms=macos .`
+    `scripts/run-macos.sh` generates `examples/overall/macos/` when it is missing. To make it by hand,
+    run `bash examples/overall/scripts/setup-macos.sh`: besides `flutter create` it adds the entitlements
+    the example needs (drag-and-drop, and a debug-only sandbox-off for the live-reload push), which a
+    bare `flutter create --platforms=macos .` leaves out.
 
 ## Code generation (committed; regenerate on change)
 
@@ -85,8 +94,10 @@ Generated code is **committed** so a normal checkout, and an app depending on th
 without ffigen or flatc. Regenerate and commit after the corresponding change:
 
 - **ffigen bindings** (`lib/src/*_bindings.g.dart`) — after a C-API change, run
-  `scripts/generate-ffigen-code.sh` and commit. This is **standalone** — `build-runtime` does *not*
-  run it.
+  `scripts/build-runtime.sh` first (it copies the SDK's headers into each binding package's
+  `native/include/`, which ffigen reads), then `scripts/generate-ffigen-code.sh`, and commit. The
+  generator is **standalone** — `build-runtime` does *not* run it — and a stale header regenerates
+  the old API without an error.
 - **FlatBuffers** (`lib/src/ssab/*.g.dart` asset format; `ssruntime_dart` runtime fbs) — after a
   `.fbs` change, run `scripts/generate-fbs-code.sh`. flatc always emits a serializer next to every
   reader, and the script moves those `*Builder` / `*ObjectBuilder` classes out of `lib/` (nothing
@@ -98,8 +109,11 @@ without ffigen or flatc. Regenerate and commit after the corresponding change:
 ```bash
 # in packages/ssplayer_flutter/
 flutter analyze lib test
-flutter test          # native assets bundles the Brain via hook/build.dart — no env vars, no framework
+flutter test          # the Brain comes in through ssruntime_dart's build hook (native assets) — no env vars, no framework
 ```
+
+The tests that play an animation read the packs `scripts/deploy-examples.sh` writes (the `run-*`
+scripts write them too) and report skipped without them, so a green run shows less than it looks.
 
 Every other package and example runs its own suite in its own directory; the table says which runner.
 
@@ -135,8 +149,9 @@ dependency_overrides:
 
 Inside the repository the packages find each other through the pub workspace; from outside, each one
 names the others by version, so a `path:` dependency on `ssplayer_flutter` alone still asks pub for
-`ssruntime_dart` (and `ssplayer_flame` for `ssplayer_flutter`) by version, and resolution fails.
-The native library then comes from the checkout's `native/libs/` when `build-runtime` has filled it,
+`ssruntime_dart` (and `ssplayer_flame` for `ssplayer_flutter`) by version, so pub takes the released
+ones from pub.dev and the app runs your change on top of them unnoticed. The native library then
+comes from the checkout's `packages/ssruntime_dart/native/libs/` when `build-runtime` has filled it,
 and otherwise from the pinned SDK release ([Native Runtime](native-runtime.md)). To run a patched
 runtime under the released Player instead, point the app at your own dylib
 ([Bring your own build](native-runtime.md#bring-your-own-build)).
@@ -150,7 +165,8 @@ What the suites above do not show, and how to look at it:
   `packages/…` ones, so the program fails once and stays failed: peeled PartColor, the mask coverage
   pass and the `ss_*` effects are not drawn. A green `player.paint` → `toImage` test covers the batch
   geometry only; the helpers' unit tests cover the rest, and an app run shows it.
-- **A change to `ui.Image` or `ui.ImageShader` lifetimes also runs `flutter test --platform chrome`.**
+- **A change to `ui.Image` or `ui.ImageShader` lifetimes also runs the `dart:io`-free tests under
+  `flutter test --platform chrome <file>`** (the header of each says so and gives the command).
   CanvasKit's `ImageShader.dispose` disposes its image too, where native and Skwasm only borrow it, and
   neither the VM tests nor CI go through CanvasKit.
 - **`flutter test --enable-impeller` fails the end-to-end blend test's `Sub` case, and that is the
@@ -170,8 +186,8 @@ What the suites above do not show, and how to look at it:
   bounding box from `meshVertexOffsets()` / `meshVerticesX()` / `meshVerticesY()` each tick, and look
   for the tick that jumps away from its neighbours.
 - **Live reload without a device.** Run
-  `dart run ssgen_flutter:sswatch --run -d chrome --device --web-browser-flag=--headless=new` in an
-  example. Make its runner with `flutter create --platforms=<every platform it already has>`, because
+  `dart run ssgen_flutter:sswatch --run -d chrome --device --web-browser-flag=--headless=new` in
+  `examples/overall` (the only example with `ssgen_flutter` and a `SpriteStudio_Source/`). Make its runner with `flutter create --platforms=<every platform it already has>`, because
   the command replaces the list in `.metadata` (restore `.metadata` afterwards). Stand in for a save by
   appending a newline to the `.sspj`: `touch` does not reach the watcher. To press `r` / `R` / `q`,
   pipe them through `script`, which gives `flutter run` the terminal it waits for.

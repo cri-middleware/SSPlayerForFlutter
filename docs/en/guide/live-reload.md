@@ -29,8 +29,8 @@ animation editing gets the same fast iteration as a code hot reload.
       (`assets/spritestudio/Ringo/Ringo.ssab` → `Ringo`) names the `<stem>.sspj` it came from. `sswatch` says so on stderr when the two disagree —
       nothing is pushed until they match.
     - **Web (`flutter run -d chrome`, debug)** — like a device, a texture-embedded `.ssab` is sent as
-      bytes; the VM Service extension is routed by DWDS. Debug builds only: `--wasm` and
-      `flutter build web` expose no VM Service, so `sswatch --run` refuses them up front.
+      bytes; the VM Service extension is routed by DWDS. Debug builds only: a `--wasm`
+      build exposes no VM Service, so `sswatch --run` refuses `--wasm` up front.
 4. The player calls `reload()`, swapping the resource while preserving playback state. If it
    throws, `sswatch` prints the app's error on stderr.
 5. On `--device`, `assets/` is re-converted too, after the push. A byte push only reaches the
@@ -49,7 +49,7 @@ animation editing gets the same fast iteration as a code hot reload.
 
     ```bash
     # One command (wraps `flutter run` and injects the define)
-    dart run ssgen_flutter:sswatch --run -d macos                 # desktop
+    dart run ssgen_flutter:sswatch --run -d macos                 # desktop (macOS: turn the App Sandbox off for debug first, see the warning below)
     dart run ssgen_flutter:sswatch --run -d <emulator> --device   # device (embedded push)
     dart run ssgen_flutter:sswatch --run -d chrome --device       # web (embedded push; debug DDC)
 
@@ -62,7 +62,10 @@ animation editing gets the same fast iteration as a code hot reload.
     `--run` hands `flutter run` the terminal, so its own keys (`r`, `R`, `q`) keep working alongside
     the watcher.
 
-Place your source projects under `SpriteStudio_Source/<project>/`. Save a real edit (a `touch` produces
+Place your source projects under `SpriteStudio_Source/<project>/`. `sswatch` works relative to the
+directory you run it in — your app's root: it watches `SpriteStudio_Source/` and writes
+`assets/spritestudio/<project>/`. To use other folders, put a `spritestudio.yaml` there (`source:`,
+`output:`, `embedded:`), or point at another root with `--project-root=<dir>`. Save a real edit (a `touch` produces
 identical bytes — and may not even trip the watcher).
 
 !!! tip "A player loaded from bytes, or a screen that reacts to the reload"

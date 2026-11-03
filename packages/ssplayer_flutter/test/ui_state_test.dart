@@ -40,6 +40,7 @@ final _info = SsAnimeInfo(
       _anim('with_hover', 49, {'normal': 0, 'hover': 25}),
       _anim('plain', 29, {}),
       _anim('glow', 39, {'calm': 5}),
+      _anim('calm_only', 59, {'pressed': 20, 'reduced_motion': 40}),
     ],
   ).toBytes(),
 );
@@ -240,6 +241,23 @@ void main() {
       expect(
         _flat(_resolve(SsUiState.focused, 'button', reducedMotion: true)),
         ('button', 80, 99, false),
+      );
+    });
+
+    test('plays reduced_motion where normal falls back to the whole animation',
+        () {
+      expect(
+        _flat(_resolve(SsUiState.normal, 'calm_only', reducedMotion: true)),
+        ('calm_only', 40, 59, false),
+      );
+      expect(
+        _flat(_resolve(SsUiState.hover, 'calm_only', reducedMotion: true)),
+        ('calm_only', 40, 59, false),
+      );
+      // A state with a label of its own still holds it.
+      expect(
+        _flat(_resolve(SsUiState.pressed, 'calm_only', reducedMotion: true)),
+        ('calm_only', 20, 39, true),
       );
     });
 

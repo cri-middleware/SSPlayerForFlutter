@@ -12,7 +12,7 @@ apps this is entirely automatic and you never need this page.
 
 1. **Consumer override** — `hooks.user_defines.ssruntime_dart.libssruntime` in your app's
    `pubspec.yaml`. Highest priority; bring your own dylib.
-2. **Local checkout** — `native/libs/<platform>/[<arch>]`, populated by `scripts/build-runtime.*`
+2. **Local checkout** — `packages/ssruntime_dart/native/libs/<platform>/[<arch>]`, populated by `scripts/build-runtime.*`
    (source builds).
 3. **Download** — the pinned SDK release asset, cached locally. This is the zero-setup path for
    consumers with no Rust toolchain.
@@ -35,8 +35,8 @@ Rebuild; the hook picks your file over the download. This is per-app, not a repo
 
 ## Platform packaging
 
-The same hook serves every target — it is invoked per platform/arch and picks the matching bare
-library:
+The same hook serves every native target — it is invoked per platform/arch and picks the matching bare
+library (the web has no hook: it loads the Brain as a wasm asset, see the [Build Guide](build.md)):
 
 | Platform | What the hook resolves |
 |---|---|
@@ -51,7 +51,7 @@ chosen library automatically.
 ## Using the runtime from plain Dart (headless)
 
 `ssruntime_dart` is a **pure Dart** package (no Flutter dependency), so the Layer-1 FFI bindings can
-be used headless — for command-line tooling, tests, or a non-Flutter renderer (e.g. `flutter_gpu` or
+be used headless — for command-line tooling, tests, or a renderer of your own (a `flutter_gpu` pipeline, or
 your own canvas). The Flutter drawing stack (Layers 2–4: SoA → `ui.Vertices` bake, `paint`, widgets)
 lives in `ssplayer_flutter`; the runtime and its FlatBuffers frame data do not depend on it.
 

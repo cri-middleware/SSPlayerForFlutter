@@ -17,7 +17,7 @@ Please refer to [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md).
 ## How Can I Contribute?
 
 ### Technical Constraints & Guiding Principles
-This player is a strict 4-layer "Body" over the SpriteStudio-SDK "Brain". To keep it fast and portable, please follow these principles:
+This player is a strict 4-layer "Body" ([the layers](docs/en/development/architecture.md)) over the SpriteStudio-SDK "Brain". To keep it fast and portable, please follow these principles:
 
 - **Flutter/Dart idioms first:** Use Flutter's rendering (`RenderBox`, and `Canvas.drawVertices` or `flutter_gpu` behind the render backend), null-safety, and `dispose` discipline. Match the existing Dart style in the files you touch.
 - **Respect the layer boundaries:** Keep **L2** (`SpriteStudioInternalPlayer`) Widget-free so it stays reusable headless / from Flame / behind the `flutter_gpu` backend. L1 FFI bindings live in the sibling `ssruntime_dart` package. Do not leak Widget dependencies downward.
@@ -56,19 +56,21 @@ For the complete build guide, see [docs/en/development/build.md](./docs/en/devel
 # 1. Build the native libraries + copy the C headers (Requires Rust)
 scripts/build-runtime.sh
 
-# 2. Generate example assets, then run the example
+# 2. Generate the example assets (the tests below read them too)
 scripts/deploy-examples.sh
-cd examples/overall && flutter run    # expect [ssplayer] OK
+
+# 3. Run the example; its platform runner is generated if missing
+scripts/run-macos.sh      # or run-linux.sh, run-windows.ps1, ...; expect [ssplayer] OK
 ```
-Windows uses the `.ps1` variant of each script. After a C-API change, regenerate the bindings with `scripts/generate-ffigen-code.sh` and commit; after a `.fbs` change, run `scripts/generate-fbs-code.sh`.
+Windows uses the `.ps1` variant of each script. After a C-API change, run `scripts/build-runtime.sh` (it refreshes the headers ffigen reads), then regenerate the bindings with `scripts/generate-ffigen-code.sh` and commit; after a `.fbs` change, run `scripts/generate-fbs-code.sh`.
 
 ### Test
 ```bash
 # in packages/ssplayer_flutter/
 flutter analyze lib test
-flutter test          # native assets bundles the Brain via hook/build.dart — no env vars
+flutter test          # native assets bundles the Brain via ssruntime_dart's hook/build.dart — no env vars
 ```
-Every other package and example has a suite of its own, run in its directory: `dart test` in `ssruntime_dart`, `ssconverter_dart` and `ssgen_dart`; `flutter test` in `ssplayer_flame`, `ssgen_flutter`, `examples/overall`, `examples/flame` and `examples/part_following`. Run the ones for what you touched. The tests that play an animation — most of `ssplayer_flutter`'s, and those in `ssplayer_flame`, `examples/flame` and `examples/part_following` — read the packs `scripts/deploy-examples.sh` writes, and report skipped without them.
+Every other package and example has a suite of its own, run in its directory: `dart test` in `ssruntime_dart`, `ssconverter_dart` and `ssgen_dart`; `flutter test` in `ssplayer_flame`, `ssgen_flutter`, `examples/overall`, `examples/flame` and `examples/part_following`. Run the ones for what you touched. The tests that play an animation — most of `ssplayer_flutter`'s, and those in `ssplayer_flame` and `examples/part_following` — read the packs `scripts/deploy-examples.sh` writes, and report skipped without them.
 
 ### Documentation
 Pages live as both `docs/en/<path>` and `docs/ja/<path>`; there is no fallback locale, so a page missing from one side is a nav entry pointing at nothing. If you edit one, build both locales before you finish. CI builds them too, both `--strict`, on a pull request that touches the site's sources and weekly.
@@ -91,7 +93,7 @@ what a local run with the same options builds.
 The English pages also ship inside `ssplayer_flutter` and `ssplayer_flame`: each package's `doc` is
 a symlink to `docs/en`, which pub packs as the files it points at. On Windows, enable symlinks
 (`git config core.symlinks true`, with Developer Mode) before a release run, or the checkout holds a
-one-line text file there; `build-release` refuses an archive without `doc/index.md`. The same pages
+one-line text file there; `scripts/build-release.sh` refuses an archive without `doc/index.md`. The same pages
 are each package's Agent Skill, `skills/<package, dashed>-docs/`: its `SKILL.md` is in git, and its
 `references` is the same symlink, which `build-release` checks the same way.
 
@@ -153,9 +155,9 @@ SSPlayerForFlutter にご関心をお寄せいただき、ありがとうござ�
 ## 貢献する方法
 
 ### 技術的制約と設計原則
-本プレイヤーは、SpriteStudio-SDK の「Brain」に対する厳密な 4 層構成の「Body」です。高速性と移植性を保つため、以下の原則に従ってください。
+本プレイヤーは、SpriteStudio-SDK の「Brain」に対する厳密な 4 層構成（[層の説明](docs/ja/development/architecture.md)）の「Body」です。高速性と移植性を保つため、以下の原則に従ってください。
 
-- **Flutter/Dart のパラダイムを優先:** Flutter の描画（`RenderBox`、`Canvas.drawVertices`）、null 安全、`dispose` の徹底を活用してください。編集するファイルの既存 Dart スタイルに合わせてください。
+- **Flutter/Dart のパラダイムを優先:** Flutter の描画（`RenderBox`、レンダーバックエンドの背後にある `Canvas.drawVertices` または `flutter_gpu`）、null 安全、`dispose` の徹底を活用してください。編集するファイルの既存 Dart スタイルに合わせてください。
 - **レイヤー境界を尊重:** **L2**（`SpriteStudioInternalPlayer`）は Widget 非依存に保ち、headless / Flame / `flutter_gpu` バックエンドから再利用できるようにしてください。L1 の FFI バインディングは兄弟パッケージ `ssruntime_dart` にあります。下位層へ Widget 依存を漏らさないでください。
 - **再生パスのパフォーマンス:** 再生中の毎フレームのヒープ確保は避けてください。ランタイムの SoA バッファと `DrawBatch` プランを直接消費します。`FrameData` と SoA ポインタは**次の `update` までのみ有効な借用**なので、フレーム内で消費し、`Context` / `Resource` ハンドルは `dispose` で解放してください。
 - **SDK の分離:** コアのアニメーション計算ロジックは `SpriteStudio-SDK` サブモジュール（Rust `libssruntime`）にあります。コア / アルゴリズムの修正は SDK 側リポジトリへ、Flutter 固有の描画は `packages/` へ行ってください。
@@ -192,19 +194,21 @@ SSPlayerForFlutter にご関心をお寄せいただき、ありがとうござ�
 # 1. ネイティブライブラリのビルド + C ヘッダのコピー（Rust 環境が必要です）
 scripts/build-runtime.sh
 
-# 2. アセット生成 → example 起動
+# 2. アセット生成（下のテストも読みます）
 scripts/deploy-examples.sh
-cd examples/overall && flutter run    # [ssplayer] OK を確認
+
+# 3. example を起動（プラットフォームのランナーが無ければ生成）
+scripts/run-macos.sh      # run-linux.sh・run-windows.ps1 なども。[ssplayer] OK を確認
 ```
-Windows は各スクリプトの `.ps1` を使います。C-API を変えたら `scripts/generate-ffigen-code.sh` でバインディングを再生成してコミット、`.fbs` を変えたら `scripts/generate-fbs-code.sh` を実行してください。
+Windows は各スクリプトの `.ps1` を使います。C-API を変えたら、`scripts/build-runtime.sh`（ffigen が読むヘッダーを更新します）のあとに `scripts/generate-ffigen-code.sh` でバインディングを再生成してコミット、`.fbs` を変えたら `scripts/generate-fbs-code.sh` を実行してください。
 
 ### テスト
 ```bash
 # packages/ssplayer_flutter/ で
 flutter analyze lib test
-flutter test          # Native Assets が hook/build.dart 経由で Brain を同梱。env 変数は不要
+flutter test          # Native Assets が ssruntime_dart の hook/build.dart 経由で Brain を同梱。env 変数は不要
 ```
-ほかのパッケージと example もそれぞれ自分のテストを持っており、各ディレクトリで実行します。`ssruntime_dart`・`ssconverter_dart`・`ssgen_dart` は `dart test`、`ssplayer_flame`・`ssgen_flutter`・`examples/overall`・`examples/flame`・`examples/part_following` は `flutter test` です。触ったものに対応するテストを実行してください。アニメーションを再生するテスト（`ssplayer_flutter` の大半と、`ssplayer_flame`・`examples/flame`・`examples/part_following` のもの）は `scripts/deploy-examples.sh` が書き出すパックを読むため、パックが無いと skipped として報告します。
+ほかのパッケージと example もそれぞれ自分のテストを持っており、各ディレクトリで実行します。`ssruntime_dart`・`ssconverter_dart`・`ssgen_dart` は `dart test`、`ssplayer_flame`・`ssgen_flutter`・`examples/overall`・`examples/flame`・`examples/part_following` は `flutter test` です。触ったものに対応するテストを実行してください。アニメーションを再生するテスト（`ssplayer_flutter` の大半と、`ssplayer_flame`・`examples/part_following` のもの）は `scripts/deploy-examples.sh` が書き出すパックを読むため、パックが無いと skipped として報告します。
 
 ### ドキュメント
 ページは `docs/en/<path>` と `docs/ja/<path>` の両方に存在します。フォールバックロケールは無いため、片方に欠けたページは行き先の無い nav エントリになります。編集したら、仕上げる前に両ロケールをビルドしてください。CI も、サイトのソースに触れるプルリクエストと週次の実行で、両ロケールを `--strict` でビルドします。
@@ -220,7 +224,7 @@ scripts/build-docs.sh      # 英語 → 日本語の順に、どちらも --stri
 `scripts/build-pages.sh` が公開ツリーです。上記 2 ロケールに続けて Web デモ 2 本 — `examples/overall`
 を `site/demo/flutter/`、`examples/flame` を `site/demo/flame/`、選択ページを `site/demo/` に — を建てます。`pages.yml` のビルドジョブはこのスクリプトなので、CI が建てるものは、同じオプションで手元で建てたものと一致します。
 
-英語のページは `ssplayer_flutter` と `ssplayer_flame` にも入ります。それぞれの `doc` は `docs/en` への symlink で、pub はその指す先をファイルとして詰めます。Windows でリリースを回す前は symlink を有効にしてください（`git config core.symlinks true` と開発者モード）。有効でないと、checkout にはそこに 1 行のテキストファイルが置かれます。`doc/index.md` を含まない成果物は `build-release` が拒否します。同じページは各パッケージの Agent Skill `skills/<パッケージ名のハイフン形>-docs/` でもあり、`SKILL.md` は git で管理し、`references` は同じ symlink です。`build-release` は同じように検査します。
+英語のページは `ssplayer_flutter` と `ssplayer_flame` にも入ります。それぞれの `doc` は `docs/en` への symlink で、pub はその指す先をファイルとして詰めます。Windows でリリースを回す前は symlink を有効にしてください（`git config core.symlinks true` と開発者モード）。有効でないと、checkout にはそこに 1 行のテキストファイルが置かれます。`doc/index.md` を含まない成果物は `scripts/build-release.sh` が拒否します。同じページは各パッケージの Agent Skill `skills/<パッケージ名のハイフン形>-docs/` でもあり、`SKILL.md` は git で管理し、`references` は同じ symlink です。`build-release` は同じように検査します。
 
 ```bash
 scripts/build-pages.sh serve=yes          # -> http://localhost:8000/SSPlayerForFlutter/

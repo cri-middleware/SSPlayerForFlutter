@@ -2,7 +2,7 @@
 
 Part following makes an ordinary Flutter widget (a weapon, an effect, a hit marker, a health bar)
 follow a specified part every frame — its **position, rotation and scale**. The player neither
-creates nor disposes that widget; it only supplies the pose (constraint style), and you own the
+creates nor disposes that widget; it only supplies the pose, and you own the
 child's lifecycle exactly as you own any other widget in your tree.
 
 `SpriteStudioPartAnchor` reads the part's pose and wraps its child in a `Transform`.
@@ -67,7 +67,7 @@ Stack(
 | **`rotation`** | Drive the child's rotation from the part. Default `true` |
 | **`scale`** | Drive the child's scale from the part. **Default `false`** — a follower is placed *at* the part, not sized by it. Only with all three on is the affine applied as-is, so the part's mirroring is reproduced exactly. The pose is skew-free either way — a follower is never sheared by the part it tracks (SpriteStudio does not propagate Skew to children) |
 | **`onHidden`** | Behaviour on frames where the part is hidden. `followAlways` (default) / `hideChild` |
-| **`onMirrored`** | What a flipped player does to the child. `follow` (default) / `cancel` |
+| **`onMirrored`** | What a flipped player does to the child, **with `scale: true`**: a mirror is a sign on the scale, so with `scale` off the child is never mirrored (it takes the mirrored angle and stays upright). `follow` (default) / `cancel` |
 | **`filterQuality`** | Optional `Transform.filterQuality` — e.g. `FilterQuality.low` to smooth a rotated or scaled child. Null keeps Flutter's nearest-neighbour default |
 
 ### Behaviour on hidden frames (`SpriteStudioAnchorHidden`)
@@ -84,7 +84,8 @@ Stack(
 
 A player's [`flipX` / `flipY`](playback.md) reaches the anchor as well, so a character can turn around
 without its followers coming off their parts. All this setting decides is whether the **child itself**
-is mirrored along with them.
+is mirrored along with them, and it decides that only when `scale` is on. With the default
+`scale: false` the child is never mirrored: it follows the mirrored position and angle, upright.
 
 | Value | Behaviour |
 |---|---|
@@ -98,7 +99,8 @@ Pick `follow` for anything that should turn around with the character — a weap
 SpriteStudioPartAnchor(
   player: _player,
   partName: partName,
-  onMirrored: SpriteStudioAnchorMirror.cancel, // the name plate stays readable
+  scale: true,                                  // sized by the part…
+  onMirrored: SpriteStudioAnchorMirror.cancel, // …and still readable
   child: const Text('Player 1'),
 )
 ```
@@ -137,13 +139,13 @@ if (pose != null && !_player.isPartHiddenByIndex(partIndex)) {
 |---|---|
 | `findPartIndex(name)` | Part index, or `-1` if the pack has no such part |
 | `partNames` | Part-name list and name↔index lookup (`PartNameTable`) |
-| `partTransform(name)` | The part's transform on the frame the last tick built, as a `Matrix4?` (player-local). Null before `load()` or for an unknown part |
+| `partTransform(name)` | The part's transform on the frame the last tick built, as a `Matrix4?` (player-local). Null before `load()`, until an animation is selected, or for an unknown part |
 | `partTransformByIndex(index)` | Index form of `partTransform` (skips the name lookup) |
 | `isPartHidden(name)` | Whether the part is hidden on the frame the last tick built. `false` before `load()` or for an unknown part |
 | `isPartHiddenByIndex(index)` | Index form of `isPartHidden` |
 | `isPartSkinnedMesh(name)` | Whether the part is a bone-bound (skinned) mesh — a **poor follow target** (see the warning above). `false` before `load()`, for an unknown part, and for a rigid mesh |
 | `isPartSkinnedMeshByIndex(index)` | Index form of `isPartSkinnedMesh` |
-| `partQuad(name)` | The outline the part is drawn with on the frame the last tick built, as an `SsPartQuad?` (see [below](#a-parts-outline)). Null before `load()`, for an unknown or hidden part, and for a part that draws nothing of its own |
+| `partQuad(name)` | The outline the part is drawn with on the frame the last tick built, as an `SsPartQuad?` (see [below](#a-parts-outline)). Null before `load()`, until an animation is selected, for an unknown or hidden part, and for a part that draws nothing of its own |
 | `partQuadByIndex(index)` | Index form of `partQuad` |
 | `hitTestPart(point, {parts})` | Index of the front-most part whose outline holds `point`, among the parts named in `parts` (every part when omitted), or `-1` |
 | `hitTestPartByIndex(point, {parts})` | `hitTestPart` with `parts` given as indices |
@@ -180,9 +182,11 @@ Two mirrorings **cancel**, returning the determinant to positive. So neither "I 
 mirrored" nor "I did not flip, therefore it is not" holds. When you need the sign, read it off the
 matrix you are actually holding, with `determinant()`.
 
-!!! tip "This port never decomposes, so it stays exact"
-    The pose reaches a `Transform` widget as a whole `Matrix4`, so a reflection rides along without
-    loss.
+!!! tip "With every axis followed, nothing is decomposed"
+    With `position`, `rotation` and `scale` all on, the pose reaches a `Transform` widget as a whole
+    `Matrix4`, so a reflection rides along without loss. With any of them off, the anchor rebuilds the
+    pose from the axes it follows, taking a player flip out first so that the child is not turned
+    over.
 
     Decompose it **yourself**, though, and the rotation you extract from a mirrored matrix is not well
     defined (a horizontal flip leaves an extra 180°): check the sign of
@@ -208,10 +212,9 @@ Null, bone, Instance and Effect parts draw nothing of their own and have no outl
 hidden part; a part drawn at alpha 0 still has one.
 
 !!! note "The same reads exist on the low-level API"
-    The drawing engine beneath `SpriteStudioPlayer` (L3) exposes the same reads, addressed by index only —
-    `SpriteStudioInternalPlayer.partWorldMatrix(index)`, `partHidden(index)`, `partQuad(index)` and
-    `hitTestPart(point, {parts})` (L2).
-    Reach for those when driving the player headless or from your own drawing adapter (see [How the Player Is Put Together](../development/architecture.md) for the layering).
+    `SpriteStudioInternalPlayer`, the drawing engine beneath `SpriteStudioPlayer`, has them too, for a
+    headless run or a drawing adapter of your own: see
+    [How the Player Is Put Together](../development/architecture.md#driving-l2-directly).
 
 ## Timing and accuracy
 
@@ -226,7 +229,7 @@ them from a listener on the player so you re-read right after each advance, when
 transforms are final. `SpriteStudioPartAnchor` does exactly this internally, so it rebuilds on the
 same notification the view repaints on and lands on the same frame.
 
-Querying a pose before `load()` completes is **not an error**: like the overrides, these reads return
+Querying a pose before `load()` completes or before an animation is selected is **not an error**: like the overrides, these reads return
 `null` / `false` rather than throwing, so a UI that runs while the pack is still loading needs no
 guard.
 
@@ -253,7 +256,7 @@ guard.
 
 ## Using it from Flame
 
-`ssplayer_flame` adds no API of its own, and `SpriteStudioPartAnchor` is a Widget, so it has no place
+`ssplayer_flame` has no API of its own for this, and `SpriteStudioPartAnchor` is a Widget, so it has no place
 inside a Flame component tree. Read the pose from the player the component exposes and drive your own
 component with it.
 

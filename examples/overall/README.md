@@ -1,13 +1,15 @@
 # ssplayer_flutter_example
 
-A Flutter app for verification that plays `tests/overall/overall.ssab`. The dropdown at the top
-switches between its animations (`Basic` and the rest).
+A Flutter app for verification that plays the SDK's `tests/overall` project, and `Ringo`, `Doll` and
+`ParticleEffect` beside it. The three dropdowns at the top pick the project (`sspj`), the pack (`ssab`:
+`Basic`, `Shape`, …) and the animation (`anime`); on desktop, dropping a folder or an `.ssab` on the
+window plays that instead.
 
 ## Prerequisites
 
 - **Flutter / Dart** — the minimum is on [Installation](../../docs/en/guide/install.md) (an older
   one fails `flutter pub get`).
-- The native Brain (`libssruntime`). `hook/build.dart` downloads the prebuilt from the pinned SDK
+- The native runtime (`libssruntime`). `ssruntime_dart`'s `hook/build.dart` downloads the prebuilt from the pinned SDK
   release and bundles it, so normally nothing needs placing first (no Rust needed).
   - To build it from source instead: `bash scripts/build-runtime.sh` (needs Rust)
 - The example assets (`.ssab`), generated:
@@ -30,8 +32,8 @@ switches between its animations (`Basic` and the rest).
 > `No macOS desktop project configured.`):
 >
 > ```sh
-> cd examples/overall
-> flutter create --platforms=macos .        # likewise ios,android,linux,windows,web if needed
+> bash examples/overall/scripts/setup-macos.sh   # macOS: flutter create plus the drag-and-drop and debug-sandbox entitlements
+> cd examples/overall && flutter create --platforms=ios,android,linux,windows,web .   # the other platforms, as needed
 > ```
 
 ```sh
@@ -96,7 +98,7 @@ recorded in `flutter_assets/NativeAssetsManifest.json` (`package:ssruntime_dart/
   Assets, so a newly generated `macos/` has no `Podfile`, and the build goes through without pods
   (the `.app` holds only the `App` / `FlutterMacOS` / `ssruntime` frameworks). If a `macos/Podfile`
   is left over and you get `The sandbox is not in sync with the Podfile.lock`, recreate the runner:
-  `rm -rf macos && flutter create --platforms=macos .`.
+  `rm -rf macos && bash examples/overall/scripts/setup-macos.sh`.
 - The window stays on `loading…` because the assets were never generated: run
   `bash scripts/deploy-examples.sh` first.
 
@@ -104,12 +106,12 @@ recorded in `flutter_assets/NativeAssetsManifest.json` (`package:ssruntime_dart/
 
 # ssplayer_flutter_example（日本語）
 
-`tests/overall/overall.ssab` を再生する検証用 Flutter アプリ。上部のドロップダウンでアニメ（`Basic` ほか）を切り替えられる。
+SDK の `tests/overall` プロジェクトと、並んで `Ringo`・`Doll`・`ParticleEffect` を再生する検証用 Flutter アプリ。上部の 3 つのドロップダウンで、プロジェクト（`sspj`）、パック（`ssab`: `Basic`、`Shape` ほか）、アニメ（`anime`）を切り替えられる。デスクトップではフォルダや `.ssab` をウィンドウにドロップしても再生できる。
 
 ## 前提
 
 - **Flutter / Dart** —— 下限は[インストール](../../docs/ja/guide/install.md)にあります（古いと `flutter pub get` が落ちます）。
-- ネイティブ Brain（`libssruntime`）。`hook/build.dart` がピン留めした SDK リリースからプリビルドを自動DL・同梱するので、通常は事前配置不要（Rust 不要）。
+- ネイティブランタイム（`libssruntime`）。`ssruntime_dart` の `hook/build.dart` がピン留めした SDK リリースからプリビルドを自動 DL・同梱するので、通常は事前配置不要（Rust 不要）。
   - ソースからビルドする場合: `bash scripts/build-runtime.sh`（Rust 必要）
 - 例アセット（`.ssab`）を生成済みであること:
 
@@ -128,8 +130,8 @@ recorded in `flutter_assets/NativeAssetsManifest.json` (`package:ssruntime_dart/
 > `No macOS desktop project configured.` になります）:
 >
 > ```sh
-> cd examples/overall
-> flutter create --platforms=macos .        # 必要なら ios,android,linux,windows,web も同様
+> bash examples/overall/scripts/setup-macos.sh   # macOS: flutter create に、ドラッグ&ドロップと debug のサンドボックス解除の entitlement を足す
+> cd examples/overall && flutter create --platforms=ios,android,linux,windows,web .   # ほかのプラットフォームは必要に応じて
 > ```
 
 ```sh
@@ -187,5 +189,5 @@ macOS / iOS では `flutter run` が無視します —— macOS では残り 2 
 - **CocoaPods は使いません。** プラグイン無し＋ネイティブは Native Assets 同梱なので、新規生成した
   `macos/` に `Podfile` は作られず、ビルドは pod なしで通ります（`.app` には
   `App` / `FlutterMacOS` / `ssruntime` framework のみ）。`macos/Podfile` が残っていて
-  `The sandbox is not in sync with the Podfile.lock` が出たら、runner を作り直してください: `rm -rf macos && flutter create --platforms=macos .`。
+  `The sandbox is not in sync with the Podfile.lock` が出たら、runner を作り直してください: `rm -rf macos && bash examples/overall/scripts/setup-macos.sh`。
 - アセット未生成でウィンドウが `loading…` のまま: 先に `bash scripts/deploy-examples.sh` を実行。

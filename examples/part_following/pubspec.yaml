@@ -4,8 +4,7 @@ description: >-
   Runs the Ringo character and sticks a marker to a part with
   SpriteStudioPartAnchor, tracking its position / rotation / scale every frame.
   The follow-target picker dims skinned-mesh parts (isPartSkinnedMesh), the poor
-  targets. The Flutter take on ForUnity's part tracker and ForGodot's part
-  attachment; a port of SSPlayerForWeb's part-follow example.
+  targets.
 publish_to: none
 version: 0.1.0-dev.1
 

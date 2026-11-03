@@ -7,12 +7,12 @@ guides.
 ## Not Yet Implemented
 
 !!! warning
-    - **Text parts** — not drawn on either backend. The runtime reserves the part's slot in the
-      draw plan but supplies no glyphs (glyph layout and rasterization are the player's job), and
-      the player has no Flutter text pass yet.
-    - **9-slice parts** — not drawn on either backend. The runtime builds the whole grid into its
-      dedicated `Nines` buffers, but the player does not read them yet, so the part renders as
-      nothing rather than as a stretched cell.
+    - **Text parts** — not drawn on either backend. The runtime supplies the authored string (and a
+      bitmap font's glyph atlas) and keeps the part's place in the draw order; glyph layout and
+      rasterization are the player's job, and the player has no Flutter text pass yet.
+    - **9-slice parts** — not drawn on either backend. The runtime computes the stretched grid, but
+      the player does not draw it yet, so the part renders as nothing rather than as a stretched
+      cell.
 
 Both part types still occupy their place in the draw order, so an animation that uses them plays
 with those parts missing rather than failing. They are also skipped as mask writers: a text or
@@ -24,14 +24,17 @@ ordinary part at authoring time.
 Runs on **macOS**, **Windows**, **Linux**, **iOS**, **Android**, and **Web (developer preview)**.
 
 The native runtime (`libssruntime`) is delivered per target by the **native assets** build hook — no
-CocoaPods, no manual linking. On the **Web** the runtime is a WebAssembly module bundled as a Flutter asset, and it always
-renders through the Canvas backend.
+CocoaPods, no manual linking. On the **Web** the runtime is a WebAssembly module bundled as a Flutter
+asset. The preview there means: the Canvas backend only, and live reload only in `flutter run -d chrome`
+debug builds.
 
 ## Rendering
 
-- **Two render backends.** `flutter_gpu` (Impeller) is used where available and the dart:ui **Canvas**
-  (`Canvas.drawVertices`) otherwise; the default `auto` probes and falls back safely. Web is always
-  Canvas.
+- **Two render backends.** The dart:ui **Canvas** (`Canvas.drawVertices`) is always available. The
+  `flutter_gpu` (Impeller) backend is used only when the run switches flutter_gpu on
+  (`flutter run --enable-flutter-gpu`, plus `--enable-impeller` on Android). The default `auto`
+  probes for it and falls back to Canvas without a message, and so does `SpriteStudioBackend.gpu`. Web
+  is always Canvas.
 - **Blend modes.** SpriteStudio realises every blend as a fixed-function GPU blend state, so how
   closely a mode can be reproduced depends on the backend:
 
@@ -45,9 +48,8 @@ renders through the Canvas backend.
     | `Sub`, `Invert` | exact | exact over opaque content (4 / 3 draws) |
     | `Div2`, `Overlay2` | renders as `Mix` | renders as `Mix` |
 
-    `flutter_gpu` sets the reference blend state directly, so every mode with a state of its own is
-    reproduced as-is. On the
-    Canvas backend, `Sub` and `Invert` have no single `ui.BlendMode` — Flutter's fixed enum has no
+    `flutter_gpu` sets each mode's own blend state directly, so every mode with a state of its own is
+    reproduced as-is. On the Canvas backend, `Sub` and `Invert` have no single `ui.BlendMode` — Flutter's fixed enum has no
     reverse-subtract and no destination-replace — so the player reconstructs them exactly from stock
     passes over the same geometry, four for `Sub` and three for `Invert`. The reconstruction costs three
     or two extra draws per part and prevents those parts from batching, which matters only if an
@@ -55,8 +57,7 @@ renders through the Canvas backend.
     part's edge crosses come out slightly off — a one-pixel fringe where the edge does not fall on a
     pixel boundary.
 
-    `Div2` / `Overlay2` draw as `Mix`, as in every SpriteStudio Player: no formula for either with a
-    source exists to draw them by.
+    `Div2` / `Overlay2` draw as `Mix`: no formula for either with a source exists to draw them by.
 
 - **Blends read an opaque backdrop.** The modes that sample the destination (`Mul`, `Sub`, `Screen`,
   `Exclusion`, `Invert`) match the editor where the pixels underneath are opaque — the case
@@ -93,7 +94,7 @@ the following scope.
   skinning, but its own transform stays at the setup node (usually the character root), so a follower
   snaps there rather than onto the visible art. Target a NULL / bone-point part at that spot instead
   (`isPartSkinnedMesh` flags such a part, without blocking it). A rigid, deform-only mesh follows
-  correctly. Shared by every official player — the same `libssruntime` behaviour.
+  correctly. This is `libssruntime` behaviour.
 - **Transform only, not draw order.** The following widget paints above the whole animation — it
   cannot be interleaved between the character's own parts.
 - The anchor must cover the **same box as the view** (a `Positioned.fill` sibling in one `Stack`),

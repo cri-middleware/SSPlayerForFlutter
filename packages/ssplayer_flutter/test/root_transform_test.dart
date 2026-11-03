@@ -11,6 +11,7 @@
 // The pure-math group needs no Brain; the rest drive Ringo and skip when the
 // example assets have not been deployed (`scripts/deploy-examples.sh`).
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
@@ -260,6 +261,57 @@ void main() {
   });
 
   group('SpriteStudioPartAnchor under a flip (L4 widget)', () {
+    testWidgets('a default anchor mirrors the angle and keeps the child upright',
+        (tester) async {
+      final bytes = _ringo();
+      if (bytes == null) return;
+      final player = SpriteStudioPlayer();
+      addTearDown(player.dispose);
+      await player.load(bytes,
+          animationName: SsAnimeInfo(bytes).animationNames.first,
+          loadTextures: false);
+      player.advance(const Duration(milliseconds: 16));
+
+      const childKey = Key('anchored-child');
+      await tester.pumpWidget(Directionality(
+        textDirection: TextDirection.ltr,
+        child: Center(
+          child: SizedBox(
+            width: 200,
+            height: 200,
+            child: SpriteStudioPartAnchor(
+              player: player,
+              partName: 'apple',
+              child: const SizedBox(key: childKey, width: 8, height: 8),
+            ),
+          ),
+        ),
+      ));
+      Matrix4 poseOf() => tester
+          .widget<Transform>(find.ancestor(
+              of: find.byKey(childKey), matching: find.byType(Transform)))
+          .transform;
+      double angle(Matrix4 m) => math.atan2(m.storage[1], m.storage[0]);
+      double det(Matrix4 m) =>
+          m.storage[0] * m.storage[5] - m.storage[4] * m.storage[1];
+
+      final plain = poseOf().clone();
+      for (final flip in [
+        (x: true, y: false),
+        (x: false, y: true),
+      ]) {
+        player.rootTransform =
+            SsRootTransform(flipX: flip.x, flipY: flip.y);
+        await tester.pump();
+        final flipped = poseOf();
+        expect(det(flipped), greaterThan(0),
+            reason: 'the scale is not followed, so no mirror reaches the child');
+        // The mirrored angle, not a half turn away from it.
+        final d = angle(flipped) + angle(plain);
+        expect(math.cos(d), closeTo(1.0, 1e-9), reason: 'flip $flip');
+      }
+    });
+
     testWidgets('follows the mirrored position; cancel keeps the child upright',
         (tester) async {
       final bytes = _ringo();
