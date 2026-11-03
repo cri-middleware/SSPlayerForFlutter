@@ -10,7 +10,7 @@ Rust ランタイム（`libssruntime`、"Brain"）は Dart の **Native Assets**
 
 1. **利用者オーバーライド** —— アプリの `pubspec.yaml` の
    `hooks.user_defines.ssruntime_dart.libssruntime`。最優先。自前 dylib を持ち込めます。
-2. **ローカルチェックアウト** —— `native/libs/<platform>/[<arch>]`（`scripts/build-runtime.*` が配置。ソースビルド用）。
+2. **ローカルチェックアウト** —— `packages/ssruntime_dart/native/libs/<platform>/[<arch>]`（`scripts/build-runtime.*` が配置。ソースビルド用）。
 3. **ダウンロード** —— ピン留めした SDK リリースのアセットをローカルにキャッシュ。Rust ツールチェーンのない利用者向けのゼロ設定パスです。
 
 `ssconverter_dart` はホストの `libssconverter` を同じ仕組みで同梱します（デスクトップ専用）。
@@ -31,7 +31,7 @@ hooks:
 
 ## プラットフォーム同梱
 
-同じフックがすべてのターゲットを賄います —— platform/arch ごとに呼ばれ、一致するライブラリを選びます。
+同じフックがすべてのネイティブターゲットを賄います —— platform/arch ごとに呼ばれ、一致するライブラリを選びます。web にはフックが無く、Brain は wasm アセットとして読み込まれます（[ビルドガイド](build.md)）。
 
 | プラットフォーム | フックが解決するもの |
 |---|---|
@@ -44,7 +44,7 @@ hooks:
 
 ## 純 Dart から使う（ヘッドレス）
 
-`ssruntime_dart` は **純 Dart** パッケージ（Flutter 非依存）なので、Layer 1 の FFI バインディングをヘッドレスで使えます —— CLI ツール、テスト、非 Flutter の描画（`flutter_gpu` や独自 canvas）など。
+`ssruntime_dart` は **純 Dart** パッケージ（Flutter 非依存）なので、Layer 1 の FFI バインディングをヘッドレスで使えます —— CLI ツール、テスト、独自の描画（独自の `flutter_gpu` パイプラインや canvas）など。
 Flutter の描画スタック（L2–L4: SoA → `ui.Vertices` bake、`paint`、ウィジェット）は `ssplayer_flutter`
 にあり、ランタイムとその FlatBuffers フレームデータはそれに依存しません。
 
