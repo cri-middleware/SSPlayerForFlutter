@@ -93,8 +93,9 @@ class _MyState extends State<MyWidget> with SingleTickerProviderStateMixin {
 
 * [Documentation](https://cri-middleware.github.io/SSPlayerForFlutter/) — and the same pages for
   this version, as Markdown, in this package's `doc/` (start at `doc/index.md`), readable offline,
-  and as the Agent Skill `skills/ssplayer-flutter-docs/`, which `dart run skills@ get` installs into
-  your coding agent's skills directory
+  and as the Agent Skill `skills/ssplayer-flutter-docs/`, which `dart run skills@ get --all` installs
+  into your coding agent's skills directory (add `--agent claude`, or another agent, when the
+  project has none yet)
 * [Live Web demo](https://cri-middleware.github.io/SSPlayerForFlutter/demo/flutter/) — this API running in a browser
 * [What is and is not supported](https://cri-middleware.github.io/SSPlayerForFlutter/limitations/)
 * [Repository](https://github.com/cri-middleware/SSPlayerForFlutter) · example app under [`examples/overall`](https://github.com/cri-middleware/SSPlayerForFlutter/tree/main/examples/overall)
