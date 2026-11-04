@@ -1,10 +1,11 @@
 name: CI
 
 # Two tiers, as in SpriteStudio-SDK. Every pull request builds the Brain for
-# Linux from the SDK submodule (scripts/build-runtime.sh, whose libraries the
-# packages' build hooks take before any download), then runs
-# scripts/build-release.sh as release.yml does, with the analyzer and the tests
-# (checks=full) and the web Brain compiled from the submodule too (sdk=build).
+# Linux and the web Brain from the SDK submodule (scripts/build-runtime.sh, whose
+# libraries the packages' build hooks take before any download), or restores the
+# weekly run's builds when that run last built the same submodule commit, then
+# runs scripts/build-release.sh as release.yml does, with the analyzer and the
+# tests (checks=full).
 # The weekly run and a dispatch also build the overall example for Android, iOS,
 # macOS, Linux, Windows and the Web, and build the Pages site. main takes every
 # pull request and a release is dispatched from it, so there is no release PR to
@@ -53,7 +54,38 @@ jobs:
           channel: stable
           cache: true
 
+      # The two Brain builds depend on nothing but the submodule commit, the
+      # script that drives them, this workflow and the runner image, so their key
+      # is made of those, and only an exact match counts. The weekly run always
+      # builds, which keeps proving the submodule builds with the current
+      # toolchain and keeps the Rust cache seeded, and saves the result when no
+      # build is saved under that key yet. A pull request whose key matches
+      # restores it and skips Rust altogether; one that bumps the submodule, or
+      # changes any of the rest, misses and builds as before.
+      - name: Name the Brain builds
+        id: brain
+        run: echo "key=brain-${ImageOS}-linux-debug-web-release-$(git rev-parse HEAD:SpriteStudio-SDK)-${{ hashFiles('scripts/build-runtime.sh', '.github/workflows/ci.yml') }}" >> "$GITHUB_OUTPUT"
+
+      # Everything build-runtime.sh writes: the two packages' native/
+      # directories (libraries, headers, licences), gitignored whole, and the web
+      # Brain's three files, beside the committed .gitignore and .pubignore of
+      # assets/runtime-web/.
+      - name: Restore the Brain builds
+        id: brain-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            packages/ssruntime_dart/native
+            packages/ssconverter_dart/native
+            packages/ssplayer_flutter/assets/runtime-web/ssruntime.js
+            packages/ssplayer_flutter/assets/runtime-web/ssruntime_bg.wasm
+            packages/ssplayer_flutter/assets/runtime-web/ssruntime_bg.nosimd.wasm
+          key: ${{ steps.brain.outputs.key }}
+          # The weekly run builds regardless; it only asks whether a build is saved.
+          lookup-only: ${{ github.event_name != 'pull_request' }}
+
       - name: Setup Rust toolchain
+        if: github.event_name != 'pull_request' || steps.brain-cache.outputs.cache-hit != 'true'
         uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
         with:
           # Pinned by SHA, so the channel must be named explicitly here.
@@ -61,6 +93,7 @@ jobs:
           targets: wasm32-unknown-unknown
 
       - name: Setup Rust cache
+        if: github.event_name != 'pull_request' || steps.brain-cache.outputs.cache-hit != 'true'
         uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: SpriteStudio-SDK
@@ -69,22 +102,43 @@ jobs:
           # caches every PR restores from.
           save-if: ${{ github.ref == 'refs/heads/main' }}
 
-      # sdk=build compiles the web Brain with wasm-pack.
+      # The web Brain is built with wasm-pack.
       - name: Install wasm-pack
+        if: github.event_name != 'pull_request' || steps.brain-cache.outputs.cache-hit != 'true'
         uses: taiki-e/install-action@a4d3f3f761dcd95cce1b72cb61cb6d1963438177 # v2.87.30
         with:
           tool: wasm-pack
 
       - name: Build the Brain (Linux)
+        if: github.event_name != 'pull_request' || steps.brain-cache.outputs.cache-hit != 'true'
         run: bash scripts/build-runtime.sh
+
+      # What build-release.sh's sdk=build runs, in a step of its own so the
+      # result can be saved before the packages are built.
+      - name: Build the web Brain
+        if: github.event_name != 'pull_request' || steps.brain-cache.outputs.cache-hit != 'true'
+        run: bash scripts/build-runtime.sh platform=web build=release
+
+      - name: Save the Brain builds
+        if: github.ref == 'refs/heads/main' && steps.brain-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            packages/ssruntime_dart/native
+            packages/ssconverter_dart/native
+            packages/ssplayer_flutter/assets/runtime-web/ssruntime.js
+            packages/ssplayer_flutter/assets/runtime-web/ssruntime_bg.wasm
+            packages/ssplayer_flutter/assets/runtime-web/ssruntime_bg.nosimd.wasm
+          key: ${{ steps.brain.outputs.key }}
 
       # Without the converted packs the tests that play an animation report
       # skipped instead of running.
       - name: Generate the example data
         run: bash scripts/deploy-examples.sh
 
+      # sdk=skip takes the web Brain the steps above built or restored.
       - name: Analyze, test and pack every package
-        run: ./scripts/build-release.sh out=release-dist packages=all checks=full codegen=skip sdk=build verify=yes clean=yes
+        run: ./scripts/build-release.sh out=release-dist packages=all checks=full codegen=skip sdk=skip verify=yes clean=yes
 
   # The weekly tier.
   example:
