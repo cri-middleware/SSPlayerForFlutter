@@ -14,6 +14,7 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ssplayer_flutter/ssplayer_flutter.dart';
 
@@ -430,6 +431,57 @@ void main() {
       expect(player.findPartIndex('apple'), -1);
       expect(player.setPartVisibilityOverride('apple', true), isFalse);
       expect(player.clearAllPartOverrides(), isFalse);
+    });
+
+    group('a refused set', () {
+      late List<String> said;
+      setUp(() {
+        said = <String>[];
+        final previous = debugPrint;
+        debugPrint = (String? message, {int? wrapWidth}) => said.add(message ?? '');
+        addTearDown(() => debugPrint = previous);
+      });
+
+      test('says which part, once', () async {
+        final bytes = _ringo();
+        if (bytes == null) return;
+        final player = SpriteStudioPlayer();
+        addTearDown(player.dispose);
+        await player.load(bytes, animationName: 'wait1', loadTextures: false);
+
+        const red = ui.Color(0xFFFF0000);
+        expect(player.setPartColorOverride('no_such_part', red), isFalse);
+        expect(player.setPartColorOverride('no_such_part', red), isFalse);
+        expect(said.single, contains('"no_such_part"'));
+        expect(said.single, contains('no such part'));
+
+        expect(player.setPartColorOverride('other_missing_part', red), isFalse);
+        expect(said, hasLength(2));
+      });
+
+      test('gives the Brain\'s reason when the part resolved', () async {
+        final bytes = _ringo();
+        if (bytes == null) return;
+        final player = SpriteStudioPlayer();
+        addTearDown(player.dispose);
+        await player.load(bytes, animationName: 'wait1', loadTextures: false);
+
+        expect(player.setPartCellOverride('apple', 'no_such_cellmap', 'no_cell'),
+            isFalse);
+        expect(said.single, contains('"no_such_cellmap/no_cell"'));
+        expect(said.single, isNot(contains('no such part')));
+      });
+
+      test('says nothing before load, or for a clear', () async {
+        final bytes = _ringo();
+        if (bytes == null) return;
+        final player = SpriteStudioPlayer();
+        addTearDown(player.dispose);
+        expect(player.setPartVisibilityOverride('apple', true), isFalse);
+        await player.load(bytes, animationName: 'wait1', loadTextures: false);
+        player.clearPartColorOverride('no_such_part');
+        expect(said, isEmpty);
+      });
     });
 
     test('a successful override notifies listeners so a paused player '

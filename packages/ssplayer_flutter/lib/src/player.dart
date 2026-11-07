@@ -1437,8 +1437,8 @@ class SpriteStudioPlayer extends ChangeNotifier {
         '$because.$hint');
   }
 
-  /// What [_reportRefused], [_reportRefusedSection] and [_reportMissingLabel]
-  /// have already said since the last [load].
+  /// What [_reportRefused], [_reportRefusedSection], [_reportMissingLabel] and
+  /// [_setOverride] have already said since the last [load].
   final Set<String> _reportedRefusals = <String>{};
 
   /// Records that track 0 now plays [name], handed over by a [crossfade] or
@@ -1769,13 +1769,15 @@ class SpriteStudioPlayer extends ChangeNotifier {
   /// instance-child caveats.
   bool setPartVisibilityOverrideByIndex(int partIndex, bool hide,
           {bool cascade = false}) =>
-      _override((i) =>
+      _setOverride('setPartVisibilityOverrideByIndex', partIndex,
+          'part index $partIndex', (i) =>
           i.setPartVisibilityOverrideByIndex(partIndex, hide, cascade: cascade));
 
   /// Index form of [setPartVisibilityOverride].
   bool setPartVisibilityOverride(String partName, bool hide,
           {bool cascade = false}) =>
-      _override((i) => i.setPartVisibilityOverride(partName, hide,
+      _setOverride('setPartVisibilityOverride', findPartIndex(partName),
+          'part "$partName"', (i) => i.setPartVisibilityOverride(partName, hide,
           cascade: cascade));
 
   /// Clears a part's visibility override (revert to the animation).
@@ -1798,7 +1800,8 @@ class SpriteStudioPlayer extends ChangeNotifier {
           {SsBlendOp blendOp = SsBlendOp.mix,
           SsOverridePriority priority =
               SsOverridePriority.holdUntilNextAnimation}) =>
-      _override((i) => i.setPartColorOverride(partName, color,
+      _setOverride('setPartColorOverride', findPartIndex(partName),
+          'part "$partName"', (i) => i.setPartColorOverride(partName, color,
           blendOp: blendOp, priority: priority));
 
   /// Index form of [setPartColorOverride].
@@ -1806,7 +1809,8 @@ class SpriteStudioPlayer extends ChangeNotifier {
           {SsBlendOp blendOp = SsBlendOp.mix,
           SsOverridePriority priority =
               SsOverridePriority.holdUntilNextAnimation}) =>
-      _override((i) => i.setPartColorOverrideByIndex(partIndex, color,
+      _setOverride('setPartColorOverrideByIndex', partIndex,
+          'part index $partIndex', (i) => i.setPartColorOverrideByIndex(partIndex, color,
           blendOp: blendOp, priority: priority));
 
   /// Four-corner (gradient) form of [setPartColorOverride].
@@ -1818,7 +1822,8 @@ class SpriteStudioPlayer extends ChangeNotifier {
           {SsBlendOp blendOp = SsBlendOp.mix,
           SsOverridePriority priority =
               SsOverridePriority.holdUntilNextAnimation}) =>
-      _override((i) => i.setPartColorOverrideCorners(partName, corners,
+      _setOverride('setPartColorOverrideCorners', findPartIndex(partName),
+          'part "$partName"', (i) => i.setPartColorOverrideCorners(partName, corners,
           blendOp: blendOp, priority: priority));
 
   /// Index form of [setPartColorOverrideCorners].
@@ -1826,7 +1831,8 @@ class SpriteStudioPlayer extends ChangeNotifier {
           {SsBlendOp blendOp = SsBlendOp.mix,
           SsOverridePriority priority =
               SsOverridePriority.holdUntilNextAnimation}) =>
-      _override((i) => i.setPartColorOverrideCornersByIndex(partIndex, corners,
+      _setOverride('setPartColorOverrideCornersByIndex', partIndex,
+          'part index $partIndex', (i) => i.setPartColorOverrideCornersByIndex(partIndex, corners,
           blendOp: blendOp, priority: priority));
 
   /// Clears a part's colour override (revert to the animation).
@@ -1843,7 +1849,9 @@ class SpriteStudioPlayer extends ChangeNotifier {
   bool setPartCellOverrideByIndex(int partIndex, String cellmapName, String cellName,
           {SsOverridePriority priority =
               SsOverridePriority.holdUntilNextAnimation}) =>
-      _override((i) => i.setPartCellOverrideByIndex(partIndex, cellmapName, cellName,
+      _setOverride('setPartCellOverrideByIndex', partIndex,
+          'part index $partIndex, cell "$cellmapName/$cellName"', (i) =>
+          i.setPartCellOverrideByIndex(partIndex, cellmapName, cellName,
           priority: priority));
 
   /// Index form of [setPartCellOverride].
@@ -1851,7 +1859,8 @@ class SpriteStudioPlayer extends ChangeNotifier {
           String partName, String cellmapName, String cellName,
           {SsOverridePriority priority =
               SsOverridePriority.holdUntilNextAnimation}) =>
-      _override((i) => i.setPartCellOverride(
+      _setOverride('setPartCellOverride', findPartIndex(partName),
+          'part "$partName", cell "$cellmapName/$cellName"', (i) => i.setPartCellOverride(
           partName, cellmapName, cellName,
           priority: priority));
 
@@ -1884,6 +1893,28 @@ class SpriteStudioPlayer extends ChangeNotifier {
     if (!apply(internal)) return false;
     notifyListeners();
     return true;
+  }
+
+  /// [_override] for a call that sets one, which also says so when it is refused:
+  /// the caller wrote it believing it would take effect, and a `false` nobody has
+  /// to read is not a report. Once per call and argument, as [_reportRefused].
+  /// Before [load] nothing reports, for the reason given there.
+  ///
+  /// [partIndex] says whether the part resolved, because an unresolved one never
+  /// reaches the Brain, which then holds no reason for it.
+  bool _setOverride(String call, int partIndex, String given,
+      bool Function(SpriteStudioInternalPlayer) apply) {
+    final internal = _live;
+    if (internal == null) return false;
+    if (_override(apply)) return true;
+    if (!_reportedRefusals.add('$call|$given')) return false;
+    final where = _sourceLabel ?? 'the loaded pack';
+    final reason = partIndex < 0
+        ? 'no such part, check partNames'
+        : internal.lastErrorMessage;
+    final because = reason == null ? '' : ' — $reason';
+    debugPrint('SpriteStudioPlayer: $where refused $call on $given$because.');
+    return false;
   }
 
   /// Runs one zero-length [advance] on the next frame when this player's

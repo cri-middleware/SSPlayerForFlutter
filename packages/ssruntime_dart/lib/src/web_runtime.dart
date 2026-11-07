@@ -831,17 +831,8 @@ class _WebRuntime implements SsRuntime {
   //
   // The wasm bindings signal rejection by throwing (a Rust `Result<(), JsValue>`
   // becomes a JS exception), while the C-API — and therefore [SsRuntime] —
-  // returns false. [_ok] does that translation once so both backends present the
-  // same contract to Layer 2.
-
-  static bool _ok(void Function() call) {
-    try {
-      call();
-      return true;
-    } catch (_) {
-      return false;
-    }
-  }
+  // returns false and keeps the reason. [_tracked] does that translation so both
+  // backends present the same contract to Layer 2.
 
   @override
   int findPartIndex(SsContext context, String partName) =>
@@ -850,17 +841,17 @@ class _WebRuntime implements SsRuntime {
   @override
   bool setPartVisibilityOverride(SsContext context, int part, int force,
           {required bool cascade}) =>
-      _ok(() =>
-          _ctx(context).set_part_visibility_override(part, force, cascade));
+      _tracked(context,
+          () => _ctx(context).set_part_visibility_override(part, force, cascade));
 
   @override
   bool clearPartVisibilityOverride(SsContext context, int part) =>
-      _ok(() => _ctx(context).clear_part_visibility_override(part));
+      _tracked(context, () => _ctx(context).clear_part_visibility_override(part));
 
   @override
   bool setPartColorOverride(SsContext context, int part, int blendOp, int rgba,
           int priorityMode) =>
-      _ok(() => _ctx(context)
+      _tracked(context, () => _ctx(context)
           .set_part_color_override(part, blendOp, rgba, priorityMode));
 
   @override
@@ -870,27 +861,27 @@ class _WebRuntime implements SsRuntime {
       throw ArgumentError.value(rgbaLtRtLbRb, 'rgbaLtRtLbRb',
           'must hold exactly 4 packed corners (lt, rt, lb, rb)');
     }
-    return _ok(() => _ctx(context).set_part_color_override_corners(
+    return _tracked(context, () => _ctx(context).set_part_color_override_corners(
         part, blendOp, rgbaLtRtLbRb.toJS, priorityMode));
   }
 
   @override
   bool clearPartColorOverride(SsContext context, int part) =>
-      _ok(() => _ctx(context).clear_part_color_override(part));
+      _tracked(context, () => _ctx(context).clear_part_color_override(part));
 
   @override
   bool setPartCellOverride(SsContext context, int part, int cellmapNameHash,
           int cellNameHash, int priorityMode) =>
-      _ok(() => _ctx(context).set_part_cell_override(
+      _tracked(context, () => _ctx(context).set_part_cell_override(
           part, cellmapNameHash, cellNameHash, priorityMode));
 
   @override
   bool clearPartCellOverride(SsContext context, int part) =>
-      _ok(() => _ctx(context).clear_part_cell_override(part));
+      _tracked(context, () => _ctx(context).clear_part_cell_override(part));
 
   @override
   bool clearAllPartOverrides(SsContext context) =>
-      _ok(() => _ctx(context).clear_all_part_overrides());
+      _tracked(context, () => _ctx(context).clear_all_part_overrides());
 
   @override
   SsEffectSlot? createEffectSlot(
