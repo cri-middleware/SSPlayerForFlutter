@@ -105,7 +105,7 @@ class MaskDraw {
 ///   top-level player with no instances).
 ///
 /// A part that draws only inside a mask is tested even when no coverage exists
-/// at all — SpriteStudio 7.5 draws it nowhere then — so a player gets a
+/// at all — SpriteStudio 7.6 draws it nowhere then — so a player gets a
 /// [PlayerMask] every frame, not only when something masks.
 class PlayerMask {
   const PlayerMask._({

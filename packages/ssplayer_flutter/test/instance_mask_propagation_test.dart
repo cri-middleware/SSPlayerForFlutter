@@ -1,5 +1,5 @@
 // A clipping mask written INSIDE an instance child must keep clipping the
-// parent animation's parts drawn after the instance (SS7.5
+// parent animation's parts drawn after the instance (SpriteStudio 7.6
 // InstancePropagation). The top-level player bakes every writer of the
 // instance tree into one coverage, transformed by the chain of slot matrices,
 // and places each on its interval of the tree sequence: a clipping writer's
