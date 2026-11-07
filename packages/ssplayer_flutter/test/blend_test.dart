@@ -31,7 +31,7 @@ void main() {
     test('Sub / Invert have no stock equivalent → difference approximation', () {
       // Reverse-subtract (Sub) and dst-replace `Cs·(1-Cb)` (Invert) are not
       // expressible in Flutter's fixed blend enum; both take the closest honest
-      // approximation rather than the old (wrong) `darken` / silent `srcOver`.
+      // approximation.
       expect(blendModeFor(fbs.BlendType.Sub), ui.BlendMode.difference);
       expect(blendModeFor(fbs.BlendType.Invert), ui.BlendMode.difference);
       expect(blendModeFor(fbs.BlendType.Sub), isNot(ui.BlendMode.darken));

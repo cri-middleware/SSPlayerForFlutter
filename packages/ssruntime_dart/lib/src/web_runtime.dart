@@ -250,7 +250,7 @@ extension type _JsCtx(JSObject _) implements JSObject {
   // by reference. See [_JsOwned]: the caller must free it.
   external _JsOwned get_active_effect_event(int slotIndex);
   external _JsOwned get_active_event_instance(int slotIndex);
-  // Override layer (web/mod.rs §Override Layer). Every setter but
+  // Override layer. Every setter but
   // `clear_all_part_overrides` returns a Rust `Result`, which wasm-bindgen
   // surfaces as a THROW rather than a false — the callers below translate.
   external int find_part_index(String partName);
@@ -407,8 +407,8 @@ class _WebRuntime implements SsRuntime {
       ctx.lastError = null;
       return true;
     } catch (e) {
-      // `catch (_)` used to drop this. The wasm face formats the Brain's error
-      // with `Display`, so what arrives is the wording a user should see.
+      // The wasm face formats the Brain's error with `Display`, so what arrives
+      // is the wording a user should see.
       ctx.lastError = e.toString();
       return false;
     }
@@ -525,9 +525,8 @@ class _WebRuntime implements SsRuntime {
     // (e.g. a paint that races ahead of the async .ssab load); the native C-API
     // returns null there. Mirror native so the Body's null path handles it.
     try {
-      // One evaluation. The old buf/len pair each ran a full `get_frame_data`,
-      // so every painted frame cost the Brain twice; `prepare_frame_data`
-      // builds it and returns the length, and the pointer is then a pure read.
+      // One evaluation: `prepare_frame_data` builds the frame and returns its
+      // length; the pointer is then a pure read.
       final len = c.prepare_frame_data(frameNo);
       if (len == 0) return null;
       return _u8(c.get_frame_data_buf(), len);

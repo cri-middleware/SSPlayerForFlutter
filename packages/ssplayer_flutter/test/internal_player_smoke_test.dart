@@ -2,7 +2,7 @@
 //
 // Requires:
 //   * scripts/build-runtime.sh   (produces native/libs/<host>/libssruntime.*, which
-//     native assets bundles -- no environment variable)
+//     native assets bundles)
 //   * scripts/deploy-examples.sh (produces examples/overall/assets/spritestudio/overall/*.ssab)
 //
 //   flutter test test/internal_player_smoke_test.dart

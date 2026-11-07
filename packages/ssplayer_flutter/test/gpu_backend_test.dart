@@ -4,14 +4,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ssplayer_flutter/src/render/backend/backend_kind.dart';
 import 'package:ssplayer_flutter/src/render/backend/gpu_capability.dart';
 
-// Phase 0 scaffolding checks for the flutter_gpu backend: the capability probe
-// and backend resolution. Running this file also exercises the package's new
-// hook/build.dart (it compiles ssplayer.shaderbundle.json through impellerc),
-// so a broken shader or manifest fails the test build here.
+// The flutter_gpu backend's capability probe and backend resolution. Running this
+// file also exercises the package's hook/build.dart (it compiles
+// ssplayer.shaderbundle.json through impellerc), so a broken shader or manifest
+// fails the test build here.
 //
 // The headless flutter_tester has no Impeller context, so isFlutterGpuAvailable()
 // is expected to be false here — this asserts the graceful Canvas fallback, not
-// the GPU path (which is verified on a real macOS/iOS/Android run in Phase 1+).
+// the GPU path.
 void main() {
   test('SpriteStudioBackend has the three expected kinds', () {
     expect(SpriteStudioBackend.values,
@@ -51,8 +51,7 @@ void main() {
   // `RenderPass` keeps its uniform/texture bindings across `draw()` calls, keyed
   // by (shader, uniform name), so a draw that does not clear first inherits the
   // *previous pipeline's* live bindings. Several pipelines share this backend's
-  // one pass, and the result on Metal is a silently mis-rendered draw — the
-  // official Mask sample lost its gates and platform exactly this way. Routing
+  // one pass, and the result on Metal is a silently mis-rendered draw. Routing
   // every draw through `_beginDraw` is what makes that impossible, and this
   // pins it: a new draw path that calls `bindPipeline` directly fails here
   // rather than on someone's device.

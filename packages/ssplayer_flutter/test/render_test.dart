@@ -1,4 +1,4 @@
-// Headless render test: proves the Phase-1 Normal-batch path actually rasterizes
+// Headless render test: proves the Normal-batch path actually rasterizes
 // a textured, non-blank frame (geometry bake + UV + ImageShader + drawVertices).
 //
 //   flutter test test/render_test.dart

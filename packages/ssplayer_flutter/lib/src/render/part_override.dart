@@ -20,11 +20,6 @@ enum SsBlendOp {
   final int value;
 }
 
-/// Keyframe-vs-override precedence for the two attributes that can conflict
-/// with the animation — colour and cell.
-///
-/// Visibility has no priority mode: a force-hide always wins and is always
-/// cleared by `setAnimation` (i.e. it behaves like [holdUntilNextAnimation]).
 /// The four corner colours of a gradient override, in one value.
 ///
 /// A record rather than four positional parameters: the colour methods then read
@@ -38,19 +33,23 @@ typedef SsCornerColors = ({
   ui.Color rightBottom,
 });
 
+/// Keyframe-vs-override precedence for the two attributes that can conflict
+/// with the animation — colour and cell.
+///
+/// Visibility has no priority mode: a force-hide always wins and is always
+/// cleared by `setAnimation` (i.e. it behaves like [holdUntilNextAnimation]).
 enum SsOverridePriority {
-  /// SS6 `NON`: the keyframe takes the attribute back on any frame the
-  /// animation drives it, so the override only shows on frames the animation
-  /// leaves that attribute alone. Cleared by `setAnimation`.
+  /// The keyframe takes the attribute back on any frame the animation drives it,
+  /// so the override only shows on frames the animation leaves that attribute
+  /// alone. Cleared by `setAnimation`.
   overwriteOnNextKeyframe(0),
 
-  /// SS6 `NOW_ANIMATION` (the usual choice): the override wins for the whole of
-  /// the current animation, and `setAnimation` clears it.
+  /// The usual choice: the override wins for the whole of the current animation,
+  /// and `setAnimation` clears it.
   holdUntilNextAnimation(1),
 
-  /// SS6 `PERMANENT`: the override wins and survives animation changes. Only
-  /// within one `.ssab` — re-validated against the new part count, and binding
-  /// another pack clears it.
+  /// The override wins and survives animation changes. Only within one `.ssab` —
+  /// re-validated against the new part count, and binding another pack clears it.
   permanent(2);
 
   const SsOverridePriority(this.value);

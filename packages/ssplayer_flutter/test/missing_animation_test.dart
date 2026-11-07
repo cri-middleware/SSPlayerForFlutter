@@ -1,10 +1,10 @@
 // A name the pack does not have has to come back as a failure and say so.
 //
-// Two paths reach `setupAnimation`, and both used to lose the answer: `load`
-// assigned `currentAnimation` from its argument BEFORE setting it up, so a bad
-// `animationName` left the player naming an animation it had never selected —
-// and `setAnimation` compares against that same field, so re-asking for the very
-// same bad name returned `true` without doing anything.
+// Two paths reach `setupAnimation`. `load` must not assign `currentAnimation`
+// before setting it up: a bad `animationName` would leave the player naming an
+// animation it never selected, and `setAnimation` compares against that same
+// field, so re-asking for the very same bad name would return `true` without
+// doing anything.
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -36,9 +36,8 @@ void main() {
     // Not 'no_such_animation': nothing was set up, so nothing is current.
     expect(player.currentAnimation, isNull);
 
-    // The real bug this guards: `setAnimation` early-returns on
-    // `currentAnimation == name`, so the stale assignment made a second attempt
-    // at the same bad name report success.
+    // `setAnimation` early-returns on `currentAnimation == name`, so a stale
+    // assignment would make a second attempt at the same bad name report success.
     expect(player.setAnimation('no_such_animation'), isFalse);
   });
 

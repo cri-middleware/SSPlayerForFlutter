@@ -1,6 +1,5 @@
 // ffigen generator: the Layer 1 dart:ffi bindings, from the C-API header the
 // SDK build.rs emits (native/include/ssruntime.h, copied in by build-runtime).
-// No cbindgen here.
 //
 // Regenerate with:  scripts/generate-ffigen-code.sh  (runs packages/*/tool/ffigen.dart;
 // standalone — run after a C-API change). The output is COMMITTED.
@@ -22,7 +21,7 @@ Future<void> main() async {
         path: packageRoot.resolve('lib/src/ssruntime_bindings.g.dart'),
       ),
       // Native assets: generate top-level `@Native(assetId: ...)` functions that
-      // resolve the code asset bundled by hook/build.dart (no DynamicLibrary).
+      // resolve the code asset bundled by hook/build.dart.
       // The asset id MUST match the hook's CodeAsset(package: 'ssruntime_dart',
       // name: 'ssruntime').
       style: const NativeExternalBindings(
@@ -42,7 +41,7 @@ Future<void> main() async {
           // native scratch copy: `ss_resource_create_copy` copies the bytes onto
           // the Brain's own heap synchronously and never retains the pointer,
           // and a leaf call has no safepoint so the GC cannot move the list
-          // mid-call. See internal_player.load.
+          // mid-call. See NativeRuntime.createResourceCopy.
           if (node.originalName == 'ss_resource_create_copy') {
             node.isLeaf = true;
           }

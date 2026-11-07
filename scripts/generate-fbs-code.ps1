@@ -31,8 +31,7 @@ $BuildersOutDir = Join-Path $RootDir "packages/ssplayer_flutter/test/support"
 
 # `reader` is the library a test imports; the write-side shim re-exports it so
 # only the URI changes. Every schema gets a shim, including ones nothing reads
-# yet (ssqb — sequence playback is still on the roadmap), so the fixture builders
-# are already there when the feature lands.
+# yet (ssqb), so the fixture builders are there when something does.
 $ReaderLibrary = @{
     "ssab"             = "package:ssplayer_flutter/src/ssab/ssab.g.dart"
     "ssqb"             = "package:ssplayer_flutter/src/ssab/ssqb.g.dart"

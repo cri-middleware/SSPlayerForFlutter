@@ -1,5 +1,5 @@
 // Runtime texture replacement (a Player-side override): ForGodot's
-// `set_cellmap_texture`, ported. Three layers, from pure to end-to-end:
+// `set_cellmap_texture`, ported. Four layers, from pure to end-to-end:
 //
 //   1. [TextureRegistry]   — override wins over the original; restore falls back
 //                            to it; the override image is never disposed by us;
@@ -176,7 +176,6 @@ void main() {
       expect(info.textureHashForName('common'), _commonNameHash);
       expect(info.textureHashForName('costume.png'), _extNameHash);
       expect(info.textureHashForName('nope'), isNull);
-      // The cellmap-only helper is unchanged.
       expect(info.cellmapTextureHash('common'), _commonNameHash);
       expect(info.cellmapTextureHash('costume.png'), isNull);
     });

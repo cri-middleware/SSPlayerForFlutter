@@ -116,7 +116,7 @@ void main() {
     });
 
     test('reuses scratch across bakes: a smaller second bake trims cleanly', () {
-      // Item-2 buffer-reuse contract: the builder bakes into grow-only scratch,
+      // The builder bakes into grow-only scratch,
       // so a large bake followed by a smaller one on the SAME instance must
       // return a view trimmed to the second bake's exact size — no stale tail
       // from the first bake leaking through. Every real caller consumes a bake
@@ -201,7 +201,7 @@ void main() {
         );
 
     // A tint whose lt corner is the whole-only value; the other corners are
-    // deliberately different so the bake must ignore them (「Mesh=全頂点同値」).
+    // deliberately different so the bake must ignore them.
     PartColor tint() => PartColor(
           coef: partColorCoef(fbs.BlendType.Mul),
           lt: const PartColorCorner(0.1, 0.2, 0.3, 0.9, 0.5),
@@ -215,7 +215,7 @@ void main() {
     test('every vertex carries the lt corner colour + rate — the whole-only rule',
         () {
       // What makes the peeled mesh path need no shader of its own: the
-      // gradient collapses to the lt corner on every vertex («全頂点同値»).
+      // gradient collapses to the lt corner on every vertex.
       final pc = tint();
       final g = GeometryBuilder().buildMeshPartColorInterleaved(<int>[0],
           <PartColor>[pc], <Float32List?>[null], frameWith(twoPartMesh()),

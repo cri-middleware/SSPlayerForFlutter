@@ -393,7 +393,7 @@ class _NativeRuntime implements SsRuntime {
   // The C-API's "nothing there" values become null: NaN for a float, -1 for a
   // signed integer, `SS_RUNTIME_INVALID_HANDLE` for a handle or an enum.
 
-  /// `SS_RUNTIME_INVALID_HANDLE`; ffigen emits no constants.
+  /// `SS_RUNTIME_INVALID_HANDLE`.
   static const int _invalidHandle = 0xFFFFFFFF;
 
   static int? _handle(int value) => value == _invalidHandle ? null : value;

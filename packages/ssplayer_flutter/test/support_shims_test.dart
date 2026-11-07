@@ -1,7 +1,7 @@
 // Smoke test for the generated write-side shims in `test/support/`, which
 // scripts/strip_fbs_builders.dart splits out of `lib/` (nothing there writes a
 // FlatBuffer). `test/support/**` is excluded from analysis, and the ssqb shim
-// has no caller at all until sequence playback lands, so without this a broken
+// has no caller at all, so without this a broken
 // regeneration would sit unnoticed until someone reached for it. Each case
 // builds a buffer and reads it back through the re-exported reader, which pins
 // both halves of the shim: the builders, and the `export` that lets a test swap
@@ -21,7 +21,6 @@ void main() {
   });
 
   test('the ssqb shim round-trips a buffer through the re-exported reader', () {
-    // No production caller yet — `.ssqb` sequence playback is still roadmap.
     final bytes = ssqb.SequenceItemObjectBuilder(
       refAnimePackHash: 7,
       repeatCount: 3,

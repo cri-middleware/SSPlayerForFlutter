@@ -339,7 +339,7 @@ class SpriteStudioComponent extends PositionComponent {
   /// This is the component's only release path, and Flame reaches it only when
   /// the component is *removed from the tree*. Tearing down a `GameWidget` does
   /// not do that: `disposeCurrentGame` calls `finalizeRemoval()` and the game's
-  /// `onDispose()`, neither of which walks the children (flame 1.38.0). So a
+  /// `onDispose()`, neither of which walks the children. So a
   /// game that is simply dropped — a popped route, a rebuilt widget — never runs
   /// this, and leaks one Brain plus one texture set per teardown.
   ///

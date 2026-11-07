@@ -135,9 +135,9 @@ void main() {
       return;
     }
     // No renderBackendOverride → the default CanvasBackend, whose coverage pass
-    // now walks plan.bubbled. Textures are not decoded headless, so a quad
-    // writer's cutout is skipped, but the bubbled loop, its slot transform and
-    // any shape/mesh bit-fill still run — a crash-smoke over the new bake path.
+    // walks plan.bubbled. Textures are not decoded headless, so a quad writer's
+    // cutout is skipped, but the bubbled loop, its slot transform and any
+    // shape/mesh bit-fill still run — a crash-smoke over the bake path.
     final player = SpriteStudioInternalPlayer.load(
       a.parent,
       instancePacks: packs(a.child),

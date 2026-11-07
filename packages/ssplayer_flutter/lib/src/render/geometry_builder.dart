@@ -598,7 +598,7 @@ class PartColorQuad {
   /// [texWidth]/[texHeight] — the axis-aligned bounding box of the four corner
   /// UVs.
   ///
-  /// The `ss-circle` / `ss-spot` integration shaders (§`SHDR`) centre their
+  /// The `ss-circle` / `ss-spot` integration shaders centre their
   /// polar unwrap / spotlight on the *cell*, not the atlas, so they need to know
   /// where in the atlas the cell sits. Derived from the quad's own corners
   /// (which is how the Web port does it) rather than from cell metadata, so it
@@ -659,10 +659,10 @@ class PartColorQuad {
 ///    child's recursive paint never races the parent's scratch.
 class GeometryBuilder {
   /// A Normal part is a fan of four triangles around its centre vertex:
-  /// `lt,rt,lb,rb,centre` → `{c,lt,rt, c,rt,rb, c,rb,lb, c,lb,lt}`, in the
-  /// winding the two-triangle split had. Two triangles cut the part along one
-  /// diagonal, so a deformed part bends along it and a four-corner PartColor
-  /// shades along it; the Editor draws neither that way.
+  /// `lt,rt,lb,rb,centre` → `{c,lt,rt, c,rt,rb, c,rb,lb, c,lb,lt}`. Two triangles
+  /// would cut the part along one diagonal, so a deformed part would bend along it
+  /// and a four-corner PartColor would shade along it; the Editor draws neither
+  /// that way.
   static const List<int> fanIndices = [4, 0, 1, 4, 1, 3, 4, 3, 2, 4, 2, 0];
 
   /// Vertices per Normal part: its four corners and the centre of [fanIndices].
@@ -2292,9 +2292,8 @@ class GeometryBuilder {
   ///
   /// Returns null when the SoA is out of range or the quad is degenerate
   /// (`|det| ~ 0`, e.g. a zero-size part) — nothing visible to draw. Assumes a
-  /// non-deformed (affine) quad, which holds for a Normal sprite; vertex-deform
-  /// (`AttributeVertex`) breaks the affine assumption and is handled with the
-  /// Mesh/deform path.
+  /// non-deformed (affine) quad: on a vertex-deformed part (`AttributeVertex`) the
+  /// outline is right but the texture inside it is mapped as if undeformed.
   ///
   /// **Aliases scratch** — every call refills and returns the SAME
   /// [PartColorQuad] (and the same backing `Float32List`s), so consume it before

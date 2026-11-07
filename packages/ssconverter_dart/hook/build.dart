@@ -7,8 +7,8 @@ import 'package:crypto/crypto.dart';
 import 'package:hooks/hooks.dart';
 
 /// Native-assets build hook: resolves the prebuilt `libssconverter` and registers
-/// it as a **code asset** so the `@Native` bindings load it without a
-/// `DynamicLibrary.open`. Desktop only (the converter is a host tool).
+/// it as a **code asset** so the `@Native` bindings load it. Desktop only (the
+/// converter is a host tool).
 ///
 /// The asset id is `package:ssconverter_dart/ssconverter`; the generated
 /// `@ffi.Native` bindings' `DefaultAsset` must match.
@@ -30,9 +30,8 @@ import 'package:hooks/hooks.dart';
 ///      library — the path for a consumer with no Rust toolchain. The converter
 ///      ships as a bare dylib/.so/.dll on every desktop OS (no framework), so
 ///      extraction is a plain copy. Cached under `outputDirectoryShared`. The
-///      archive is a **flat tree rooted at `libs/<platform>/…`** (the old
-///      `output/dynamic/runtime/` wrapper was dropped in SDK PR #317); the
-///      per-target [_Target.zipEntrySuffix]s are anchored to that `libs/` root.
+///      archive is a **flat tree rooted at `libs/<platform>/…`**; the per-target
+///      [_Target.zipEntrySuffix]s are anchored to that `libs/` root.
 void main(List<String> args) async {
   await build(args, (input, output) async {
     // WEB has no code assets (buildCodeAssets == false) and no dart:ffi, so this
@@ -75,8 +74,7 @@ class _Target {
 
   /// Entry to pull out of `spritestudio-sdk-dynamic-libs.zip` (branch 3), anchored
   /// to the archive's flat `libs/<platform>/…` root. Matched with `endsWith` (not
-  /// equality) so an optional `./` prefix — or any future wrapper directory — is
-  /// still tolerated.
+  /// equality) so an optional `./` prefix is still tolerated.
   final String zipEntrySuffix;
 
   /// Bare output file name (drives the extension the code asset needs).

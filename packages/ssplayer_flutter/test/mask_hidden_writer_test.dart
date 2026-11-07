@@ -3,9 +3,9 @@
 // The Brain drops a hidden `PartTypeMask` and a hidden clipping writer from
 // `draw_order`, so for those "hidden" needed no check here. A hidden
 // `draw_as_mask` Shape / Nines is the exception: only its colour batch goes, and
-// its Mask batch stays in the plan. This port relied on `draw_order` alone, so
-// hiding `Shape-Mask-True` in the SDK's Mask animation left its square hole
-// cut in the jigsaw behind it. SpriteStudio 7.6 removes the hole; so does every
+// its Mask batch stays in the plan. Relying on `draw_order` alone, hiding
+// `Shape-Mask-True` in the SDK's Mask animation would leave its square hole cut
+// in the jigsaw behind it. SpriteStudio 7.6 removes the hole; so does every
 // sibling that reads `hide` alongside `mask`.
 //
 // Shaders don't execute headless, so this drives a spy backend and asserts on

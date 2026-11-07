@@ -34,9 +34,8 @@ import 'dart:typed_data';
 /// do not keep it past the frame.
 abstract interface class SsRuntime {
   // The compile-time-selected backend is exposed via a conditional export in
-  // `ssruntime_dart.dart` (native FFI vs web js_interop), added together with the
-  // two backend implementations. It is kept OFF this interface so this file stays
-  // backend-free and analyzes on every platform.
+  // `ssruntime_dart.dart` (native FFI vs web js_interop). It is kept OFF this
+  // interface so this file stays backend-free and analyzes on every platform.
 
   // --- Resource / Context lifecycle --------------------------------------
 

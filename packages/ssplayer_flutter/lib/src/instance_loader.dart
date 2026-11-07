@@ -31,9 +31,8 @@ class InstancePackLoadResult {
 /// `.ssae`, side by side).
 ///
 /// A same-pack sub-animation — an instance part pointing at another animation in
-/// its *own* `.ssab`, the common case — needs nothing from here: the ssab's
-/// `external_instances` manifest correctly omits it and the player resolves it
-/// against its own bytes.
+/// its *own* `.ssab` — needs nothing from here: the ssab's `external_instances`
+/// manifest correctly omits it and the player resolves it against its own bytes.
 class SsInstanceLoader {
   /// Walks [rootSsab]'s `external_instances` transitively and fetches each pack.
   ///

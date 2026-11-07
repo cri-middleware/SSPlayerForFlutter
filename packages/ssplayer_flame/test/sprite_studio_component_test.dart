@@ -74,12 +74,10 @@ void main() {
 
   test('zero-size component falls back to a finite, origin-centred render box',
       () async {
-    // Regression: a component given no `size` has a 0×0 box, so `render` used to
-    // pass an empty `dst`. The Canvas backend tolerates that (it only reads
-    // `dst.center`), but the flutter_gpu backend needs a real render target and
-    // drew a blank frame. `render` now sizes a fallback box from the animation's
-    // authored canvas, so the point-placed (size-less) component stays visible on
-    // both backends. This drives the Canvas backend (headless) and checks the
+    // A component given no `size` has a 0×0 box. The Canvas backend tolerates an
+    // empty `dst` (it only reads `dst.center`), but the flutter_gpu backend needs
+    // a real render target, so `render` sizes a fallback box from the animation's
+    // authored canvas. This drives the Canvas backend (headless) and checks the
     // fallback both paints and reports a positive canvas size.
     final ssabPath = _firstExisting([
       'examples/flame/assets/spritestudio/Ringo/Ringo.ssab',
@@ -90,7 +88,7 @@ void main() {
       return;
     }
 
-    // No `size:` — the default zero box is exactly the case that regressed.
+    // No `size:` — the default zero box.
     final component = SpriteStudioComponent.asset(
       ssabPath,
       bundle: _DiskBundle(),

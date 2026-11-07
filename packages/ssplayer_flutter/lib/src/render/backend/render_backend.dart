@@ -16,7 +16,7 @@ import 'render_host.dart';
 /// default, the only Web path, and the visual-parity reference) and
 /// `FlutterGpuBackend` (Impeller). Both end at the same `paint(canvas)` — the GPU
 /// backend has no on-screen target and composites its render target back with
-/// `canvas.drawImage` in [finish] — so the L2 `paint` signature never changes.
+/// `canvas.drawImageRect` in [finish] — so the L2 `paint` signature never changes.
 ///
 /// A backend instance is per-player but shared across the instance recursion:
 /// [emitTextured] & friends take the [RenderHost] *per call* so a child's batches
@@ -113,12 +113,9 @@ abstract class RenderBackend {
   // propagates an instance part's tint". Only alpha crosses, and it crosses as
   // `DrawFrame.alphaScale`, folded per part.
   //
-  // A `pushGroupTint`/`popGroupTint` pair used to live here (Canvas `saveLayer`,
-  // GPU sub-texture). Besides applying a tint that should not exist, it
-  // *isolated* the subtree, which silently broke every non-source-over blend
-  // inside it — an additive child drew over an empty layer instead of the scene.
-  // Do not reintroduce it without a spec change; a tint that needs isolation is
-  // the shape of the bug, not of the feature.
+  // A tint that isolates the subtree would also break every non-source-over blend
+  // inside it: an additive child would draw over an empty layer instead of the
+  // scene.
 
   /// Releases backend-owned GPU/Canvas resources. Called from the player's
   /// `dispose()`.

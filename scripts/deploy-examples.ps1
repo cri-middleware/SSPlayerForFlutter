@@ -68,7 +68,7 @@ if (-not (Get-Command dart -ErrorAction SilentlyContinue)) {
 
 # Resolve the converter package deps once (the CLI loads the PREBUILT
 # libssconverter via native assets — hook/build.dart bundles the dylib that
-# build-runtime.ps1 produces; no SSCONVERTER_LIBRARY_PATH needed).
+# build-runtime.ps1 produces).
 Push-Location $ConvPkg
 try { & dart pub get 2>&1 | Out-Null } finally { Pop-Location }
 

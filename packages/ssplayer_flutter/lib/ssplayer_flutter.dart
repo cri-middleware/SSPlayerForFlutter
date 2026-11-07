@@ -3,7 +3,7 @@
 /// A dart:ffi "Body" over the SpriteStudio-SDK Rust "Brain" (libssruntime).
 /// Layering (top → bottom): [SpriteStudioView] (L4 adapter) →
 /// [SpriteStudioPlayer] (L3 control) → [SpriteStudioInternalPlayer] (L2 draw
-/// engine) → [SsRuntimeBindings] (L1 dart:ffi).
+/// engine) → [SsRuntime] (L1: dart:ffi or wasm).
 library;
 
 // Layer 4 — drawing adapters.
@@ -104,9 +104,7 @@ export 'src/live_reload/channel.dart' show SsDevChannel, SsLiveReloadTarget;
 export 'src/live_reload/mixin.dart' show SsLiveReload;
 export 'src/live_reload/protocol.dart' show ssLiveReloadDefine;
 
-// Layer 1 — the raw dart:ffi C-API (the "escape hatch") lives in the pure-Dart
-// `ssruntime_dart` package as native-assets `@Native` functions. Import it
-// directly for low-level access: `package:ssruntime_dart/ssruntime_dart.dart`.
+// Layer 1 — the SsRuntime API: `package:ssruntime_dart/ssruntime_dart.dart`.
 
 // Web bootstrap: on the web the Brain is a wasm module loaded asynchronously, so
 // call `await loadSsRuntime()` once (e.g. in `main`, before `runApp`) before any

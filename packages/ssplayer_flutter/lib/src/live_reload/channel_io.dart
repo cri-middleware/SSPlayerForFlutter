@@ -5,7 +5,7 @@ import 'package:flutter/services.dart' show AssetBundle, CachingAssetBundle;
 
 /// Native (`dart:io`) side of the dev push channel's `file` source: read a
 /// reconverted `.ssab` off disk and resolve its sibling textures through a
-/// filesystem-keyed [AssetBundle]. The web build swaps in `dev_channel_stub.dart`
+/// filesystem-keyed [AssetBundle]. The web build swaps in `channel_stub.dart`
 /// (there is no host filesystem there — a web push always carries bytes).
 const bool supportsFilePush = true;
 

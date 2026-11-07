@@ -13,10 +13,7 @@ import 'package:hooks/hooks.dart';
 /// under `flutter: assets:` in pubspec.yaml, so it bundles as a normal asset and
 /// loads at runtime with
 /// `gpu.ShaderLibrary.fromAsset('packages/ssplayer_flutter/'
-/// 'build/shaderbundles/ssplayer.shaderbundle')`. (The DataAsset mode
-/// `dataAssetsIfAvailable` silently falls back to this on Flutter 3.44 — the
-/// tool does not yet copy DataAssets into the asset bundle — so we take the
-/// deterministic path explicitly. Revisit when DataAsset bundling ships.)
+/// 'build/shaderbundles/ssplayer.shaderbundle')`.
 ///
 /// This is a *separate* hook from `ssruntime_dart`'s code-asset hook (which
 /// delivers `libssruntime`); each package runs its own `hook/build.dart` and

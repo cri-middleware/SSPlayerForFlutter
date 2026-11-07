@@ -166,8 +166,8 @@ class PartColor {
   /// The caller passes the **already-fetched** vector rather than a `FrameData`
   /// so it can be fetched ONCE per frame: `frameData.partsColor` builds a fresh
   /// lazy list wrapper — and a full-length backing cache on first index — every
-  /// call, so re-fetching it here per part churned `O(pcParts × total)` throwaway
-  /// arrays each frame. `DrawFrame.partsColor` caches it; hand that in.
+  /// call, so re-fetching it here per part would churn `O(pcParts × total)`
+  /// throwaway arrays each frame. `DrawFrame.partsColor` caches it; hand that in.
   ///
   /// Guarded by `part.part_color >= 0` (the sibling ports' `hasPc` test) rather
   /// than `update_flag` — reading the raw `update_flag` bitfield is the only safe

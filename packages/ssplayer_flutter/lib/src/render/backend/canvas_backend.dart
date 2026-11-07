@@ -108,7 +108,8 @@ class CanvasBackend implements RenderBackend {
   final ui.Path _quadPathScratch = ui.Path();
   final ui.Path _trianglesPathScratch = ui.Path();
 
-  /// Debug-only re-entrancy guard, asserted at the top of every `emit*`.
+  /// Debug-only re-entrancy guard, asserted at the top of [emitTextured] and
+  /// [emitShape].
   ///
   /// Every `emit*` flushes its run before returning, so an empty run list is
   /// exactly "no other `emit*` is part-way through". A future change that made
@@ -756,8 +757,8 @@ class CanvasBackend implements RenderBackend {
     if (geometry == null) return;
     final matrix = tinted?.wholeTintMatrix();
     // Built once for the whole part: a `ColorFilter` is immutable, so building
-    // it inside the pass loop allocated one per pass for the same tint. Through
-    // the memo, so a run of parts sharing a tint also shares its filter.
+    // it inside the pass loop would allocate one per pass for the same tint.
+    // Through the memo, so a run of parts sharing a tint also shares its filter.
     final tint = matrix == null ? null : _tintFilter(matrix);
     final vertices = geometry.toVertices();
 

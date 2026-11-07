@@ -8,8 +8,8 @@
 #   packages/ssconverter_dart/native/include/ssconverter.h -> lib/src/ssconverter_bindings.g.dart
 #
 # The headers are emitted by the SpriteStudio-SDK `build.rs` (cbindgen, C) and
-# copied into each package's native/include/ by build-runtime.sh — so this script
-# runs NO cbindgen of its own. It is a STANDALONE step (NOT part of build-runtime,
+# copied into each package's native/include/ by build-runtime.sh. This script is a
+# STANDALONE step (NOT part of build-runtime,
 # like generate-fbs-code): run it after a C-API change (or a tool/ffigen.dart
 # edit), then commit the result.
 #

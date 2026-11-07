@@ -8,9 +8,10 @@
 /// `gpu_capability.dart` (which consults the capability probe). This enum is
 /// kept dependency-free so it is importable on every platform, including Web.
 ///
-/// The two backends are pixel-for-pixel equivalent *within the render box*, but
-/// they disagree about what lies outside it: [gpu] renders into an offscreen the
-/// size of the box and crops anything beyond it, while [canvas] draws unbounded.
+/// Within the render box the two backends draw alike, apart from the blends over
+/// a transparent backdrop on the Limitations page. They disagree about what lies
+/// outside it: [gpu] renders into an offscreen the size of the box and crops
+/// anything beyond it, while [canvas] draws unbounded.
 /// Give the adapter a box that fits the art and the question does not arise —
 /// see [SpriteStudioView] for the details and the sizing recipe.
 enum SpriteStudioBackend {

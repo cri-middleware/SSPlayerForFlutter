@@ -1,4 +1,4 @@
-// Verifies the externally-clocked L3 path added for the Flame adapter: a
+// Verifies the externally-clocked L3 path the Flame adapter uses: a
 // SpriteStudioPlayer built WITHOUT a `vsync` has no Ticker, so the host drives
 // time by calling `advance(delta)` each frame (what a Flame component forwards
 // from its `update(dt)`). The vsync path is exercised by transport/loop tests.
@@ -28,8 +28,7 @@ void main() {
     final bytes = Uint8List.fromList(File(ssabPath).readAsBytesSync());
     final animName = ssab.SsAnimeBinary(bytes).animations!.first.name!;
 
-    // No `vsync`: externally clocked. Constructing one used to be impossible
-    // (vsync was required); this is the surface the Flame adapter relies on.
+    // No `vsync`: externally clocked.
     final player = SpriteStudioPlayer();
     addTearDown(player.dispose);
 

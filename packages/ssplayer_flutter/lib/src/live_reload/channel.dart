@@ -66,7 +66,7 @@ abstract interface class SsLiveReloadTarget {
 /// describe or a screen that wants to hear about the reload; where one names a
 /// player that also joined by itself, the target is the one used.
 ///
-/// This is the transport that replaces "ride Flutter's own hot reload":
+/// It does not ride Flutter's own hot reload:
 ///   * it needs **no `r`** — the host tool triggers it directly, and
 ///   * it works while the app runs under an **IDE debugger** (the tool does not
 ///     own `flutter run`), on desktop and device alike.

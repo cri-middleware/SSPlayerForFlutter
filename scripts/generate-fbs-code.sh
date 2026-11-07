@@ -70,8 +70,7 @@ for f in \
   # Route by schema origin: runtime output -> ssruntime_dart, asset format -> Player.
   # `reader` is the library a test imports; the write-side shim re-exports it so
   # only the URI changes. Every schema gets a shim, including ones nothing reads
-  # yet (ssqb — sequence playback is still on the roadmap), so the fixture
-  # builders are already there when the feature lands.
+  # yet (ssqb), so the fixture builders are there when something does.
   case "$name" in
     framedata)
       out="$RT_FBS_OUT_DIR"; reader="package:ssruntime_dart/framedata.dart" ;;

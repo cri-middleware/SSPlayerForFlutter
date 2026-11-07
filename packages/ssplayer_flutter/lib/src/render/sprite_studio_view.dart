@@ -22,9 +22,8 @@ import 'placement.dart';
 /// The canvas is then fitted into the box by [fit] and [alignment]: `contain`
 /// by default, centred. [frame] fits a different box — a tighter one around the
 /// art, or a larger one for an animation that runs off its canvas. `BoxFit.none`
-/// draws as the player did before fitting: scale 1, the origin at the box
-/// centre, and [SpriteStudioPlayer.offset] / [SpriteStudioPlayer.scale] to place
-/// it by hand.
+/// draws unfitted: scale 1, the origin at the box centre, and
+/// [SpriteStudioPlayer.offset] / [SpriteStudioPlayer.scale] to place it by hand.
 ///
 /// The fit is handed to the player ([SpriteStudioPlayer.place]) rather than
 /// kept here, so a [SpriteStudioPartAnchor] covering the same box lands on the
@@ -108,6 +107,9 @@ class SpriteStudioView extends LeafRenderObjectWidget {
   }
 }
 
+/// The render object behind [SpriteStudioView]: sizes the box, hands the fit to
+/// the player, and paints it. Use the widget unless you are composing render
+/// objects yourself.
 class SpriteStudioRenderBox extends RenderBox {
   SpriteStudioRenderBox({
     required SpriteStudioPlayer player,

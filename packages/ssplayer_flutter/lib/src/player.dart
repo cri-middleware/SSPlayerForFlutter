@@ -61,6 +61,9 @@ class SpriteStudioPlayer extends ChangeNotifier {
   Ticker? _ticker;
 
   SpriteStudioInternalPlayer? _internal;
+
+  /// The Layer 2 engine for the current pack, or null until a [load] has built it
+  /// and after [dispose]. For a drawing adapter of your own.
   SpriteStudioInternalPlayer? get internal => _internal;
 
   Duration _lastElapsed = Duration.zero;
@@ -70,7 +73,6 @@ class SpriteStudioPlayer extends ChangeNotifier {
 
   // Transport state cached on the Player (not just the internal) so it survives
   // a resource swap in [reload] and can be set before the first [load].
-  // `subFrame` above is the pre-existing precedent for this pattern.
   String? _currentAnimation;
 
   /// The asset key the pack came from, for a report about it and for the
@@ -247,6 +249,8 @@ class SpriteStudioPlayer extends ChangeNotifier {
   /// loop, so it fires [onAnimationFinished] instead.
   VoidCallback? onAnimationLooped;
 
+  /// The textures this player draws with, keyed by texture hash. Throws a
+  /// [StateError] before [load].
   TextureRegistry get textures =>
       _internal?.textures ?? (throw StateError('load() first'));
 
@@ -272,9 +276,9 @@ class SpriteStudioPlayer extends ChangeNotifier {
       _animeInfo?.cellNames(cellmapName) ?? const <String>[];
 
   /// The [textures] key for the cellmap named [cellmapName] (null before [load]
-  /// or for an unknown name). Feed it to `textures.register(hash, image)` to
-  /// swap a whole cellmap's bitmap at runtime — every part that samples it,
-  /// Normal and Mesh alike, then draws the new image.
+  /// or for an unknown name). Feed it to [setCellmapTextureByHash] to swap a
+  /// whole cellmap's bitmap at runtime — every part that samples it, Normal and
+  /// Mesh alike, then draws the new image.
   int? cellmapTextureHash(String cellmapName) =>
       _animeInfo?.cellmapTextureHash(cellmapName);
 
@@ -369,10 +373,9 @@ class SpriteStudioPlayer extends ChangeNotifier {
   ///
   /// It is the canvas of the **first animation selected since the pack was
   /// loaded**, and stays put when the animation changes. Canvases differ between
-  /// the animations of one pack — Ringo's `dead` is 1300 wide where the rest are
-  /// 800 — and following each would re-lay a view out on every switch and shrink
-  /// the character the moment it dies. To fit something else, give the view a
-  /// `frame`.
+  /// the animations of one pack, and following each would re-lay a view out on
+  /// every switch and shrink the character the moment one with a wider canvas
+  /// starts. To fit something else, give the view a `frame`.
   ui.Rect? get canvasRect => _canvasRect;
   ui.Rect? _canvasRect;
 
@@ -510,10 +513,10 @@ class SpriteStudioPlayer extends ChangeNotifier {
       if (!_disposed && identical(_internal, internal)) notifyListeners();
     };
     internal.subFrameEnabled = _subFrame;
-    // Assigned from the result, not ahead of it. Assigning first left
-    // `currentAnimation` naming an animation that was never set up — and, worse,
-    // made [setAnimation] return `true` for that same name without doing
-    // anything, because its early return compares against this field.
+    // Assigned from the result, not ahead of it: assigning first would leave
+    // `currentAnimation` naming an animation that was never set up, and make
+    // [setAnimation] return `true` for it, because its early return compares
+    // against this field.
     if (animationName != null && !internal.setupAnimation(animationName)) {
       _reportMissingAnimation(animationName);
       _currentAnimation = null;
@@ -707,10 +710,9 @@ class SpriteStudioPlayer extends ChangeNotifier {
     if (_reportedMissingAnimation == name) return;
     _reportedMissingAnimation = name;
     final where = _sourceLabel ?? 'the loaded pack';
-    // The Brain's own reason, verbatim. It used to say "has no animation",
-    // which is the common case and not the only one: a player whose pack never
-    // bound fails the same call with `SSAB data is not loaded`, and being told
-    // the name is missing sends the reader to look at the wrong thing.
+    // The Brain's own reason, verbatim: a missing name is the common cause, not
+    // the only one (a player whose pack never bound fails the same call with
+    // `SSAB data is not loaded`).
     final reason = _internal?.lastErrorMessage;
     final because = reason == null ? '' : ' — $reason';
     debugPrint(
@@ -753,12 +755,9 @@ class SpriteStudioPlayer extends ChangeNotifier {
   /// and a **no-op on a stopped or finished animation** — starting one is
   /// [play]'s job, and it rewinds.
   ///
-  /// It used to fall back to [play] when nothing was playing, which made a
-  /// `resume()` that hit a stopped player silently lose the playhead here and
-  /// nowhere else in the family. The Brain publishes four distinct verbs and
-  /// asks Players not to fold them into three;
-  /// mapping one button onto the four is [togglePlayPause]'s job, and it is the
-  /// only place that knows a button exists.
+  /// The Brain publishes four distinct verbs and asks Players not to fold them
+  /// into three; mapping one button onto the four is [togglePlayPause]'s job, and
+  /// it is the only place that knows a button exists.
   void resume() {
     final internal = _internal;
     if (internal == null) return;
@@ -810,6 +809,8 @@ class SpriteStudioPlayer extends ChangeNotifier {
     }
   }
 
+  /// Moves the playhead to [frame] (fractional allowed) without changing whether
+  /// it is playing. Throws a [StateError] before [load].
   void seek(double frame) {
     _requireInternal().seek(frame);
     notifyListeners();
@@ -838,10 +839,10 @@ class SpriteStudioPlayer extends ChangeNotifier {
 
   /// Which way the playhead walks, and what it does at the far end. Both
   /// **survive** [setAnimation] — "play this backwards" describes the
-  /// playback, not the clip that happens to be loaded (SDK #375), which is the
-  /// same reason [speedScale] and [frameSkipEnabled] carry across. What does not carry is
-  /// the heading within a round trip: a new animation always starts on the
-  /// outward leg, so a transition never begins mid-bounce.
+  /// playback, not the clip that happens to be loaded, which is the same reason
+  /// [speedScale] and [frameSkipEnabled] carry across. What does not carry is the
+  /// heading within a round trip: a new animation always starts on the outward
+  /// leg, so a transition never begins mid-bounce.
   ///
   /// With [SsPlaybackStyle.pingPong] one loop is a full round trip, so a
   /// [loopCount] of 1 plays there and back once.
@@ -979,37 +980,20 @@ class SpriteStudioPlayer extends ChangeNotifier {
   /// Overrides the advance rate, in absolute frames per second.
   ///
   /// The override is the host's rather than the clip's, so it **survives**
-  /// [setAnimation] the way [speedScale] and [frameSkipEnabled] do (SDK #370). Hand it
-  /// `0` (or any negative value) to clear it and go back to whatever each
-  /// animation was authored at. To scale playback without replacing the
-  /// authored rate, use [speedScale] instead.
+  /// [setAnimation] the way [speedScale] and [frameSkipEnabled] do. Hand it `0` (or
+  /// any negative value) to clear it and go back to whatever each animation was
+  /// authored at. To scale playback without replacing the authored rate, use
+  /// [speedScale] instead.
   set frameRate(int fps) {
     _frameRate = fps;
     _internal?.frameRate = fps;
   }
 
-  // `setupAnimation` resets the Brain's loop count and section to the new
-  // animation's; the speed, the fps override, the skip-frames and the
-  // direction / style survive it there. What follows is why each setting is
-  // still pushed here.
-  //
-  // The caller's own settings, pushed at a point where they are guaranteed to
-  // reach a freshly set-up player. `loop` is the one that has to be here: the
-  // Brain resets it on every transition. `speed` and `skipFrames` survive setup
-  // on their own since SDK #369/#370, so these two only matter for the first
-  // setup after a value was set.
-  //
-  // `frameRate` is here for the same reason as `speed` and `skipFrames`, and
-  // not for the reason `loop` is: the Brain keeps an fps override across a
-  // transition, so this is not about surviving setup. It is about reaching a
-  // player that did not exist when the host set it — before the first [load],
-  // and again after [reload] builds a new one.
-  //
-  // The playback direction / style are the ones that genuinely need nothing:
-  // they survive setup in the Brain and have no pre-[load] path, because they
-  // are set through a method rather than cached here. The section is the one
-  // thing left to reset, and deliberately -- a range of frame numbers means
-  // nothing against a different animation.
+  // Loop count is the one setting the Brain resets on every setup. Speed,
+  // skip-frames and frame rate survive it, but a value set before the first
+  // load, or before a reload builds a new engine, has no engine to reach, so all
+  // four are pushed here. The section is deliberately not carried: frame numbers
+  // mean nothing in a different animation.
   void _applyTransportSettings(SpriteStudioInternalPlayer internal) {
     if (_loop != null) internal.loopCount = _loop!;
     if (_speed != null) internal.speedScale = _speed!;
@@ -1017,6 +1001,8 @@ class SpriteStudioPlayer extends ChangeNotifier {
     if (_frameRate != null) internal.frameRate = _frameRate!;
   }
 
+  /// The playhead, in frames of the current animation (fractional between two);
+  /// 0 before [load].
   double get frameNo => _internal?.frameNo ?? 0;
 
   /// First and last frame of the range being played, and its length in frames
@@ -1555,9 +1541,9 @@ class SpriteStudioPlayer extends ChangeNotifier {
   /// skipping the decode, when there are none or no decoded callback is registered.
   ///
   /// Each index is looked up in the `events()` of the animation of the source
-  /// that fired it. Reading them all against [currentAnimation] reported a
-  /// different event, or none, as soon as anything else could fire: the
-  /// outgoing side of a crossfade, an overlay with its threshold lowered.
+  /// that fired it. Reading them all against [currentAnimation] would report a
+  /// different event, or none, as soon as anything else could fire: the outgoing
+  /// side of a crossfade, an overlay with its threshold lowered.
   SsPassedEvents? _decodePassedEvents(
       SpriteStudioInternalPlayer internal, List<int> passed) {
     if (passed.isEmpty) return null;

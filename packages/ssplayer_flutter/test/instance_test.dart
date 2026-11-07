@@ -34,9 +34,9 @@ void main() {
     });
 
     test('a reference to the own pack resolves to the own binary', () {
-      // The overwhelmingly common case: an animation instancing a sibling
-      // animation in the same .ssab. It is deliberately absent from
-      // external_instances, so nothing would ever put it in `packs`.
+      // An animation instancing a sibling animation in the same .ssab. It is
+      // deliberately absent from external_instances, so nothing would ever put
+      // it in `packs`.
       final got = InstancePart.resolvePack(partWith(1),
           ownBytes: own, ownPackHash: 1);
       expect(got, same(own));
@@ -373,9 +373,9 @@ void main() {
       player.play();
 
       // Straight to the middle of the animation — no `update` in between, which
-      // is exactly what a scrubber (or a paused, frozen frame) does. `seek` used
-      // to move only the parent's playhead, leaving every slot on its initial
-      // "not visible", so the children silently vanished from the frame.
+      // is exactly what a scrubber (or a paused, frozen frame) does. A `seek` that
+      // moved only the parent's playhead would leave every slot on its initial
+      // "not visible", and the children would vanish from the frame.
       final mid = (player.startFrame + player.endFrame) / 2.0;
       player.seek(mid);
 

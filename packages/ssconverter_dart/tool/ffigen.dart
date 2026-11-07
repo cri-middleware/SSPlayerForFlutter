@@ -1,6 +1,6 @@
 // ffigen generator: the low-level dart:ffi bindings for the SpriteStudio-SDK
 // converter (libssconverter), from the C-API header the SDK build.rs emits
-// (native/include/ssconverter.h, copied in by build-runtime). No cbindgen here.
+// (native/include/ssconverter.h, copied in by build-runtime).
 //
 // Regenerate with:  scripts/generate-ffigen-code.sh  (runs packages/*/tool/ffigen.dart;
 // standalone — run after a C-API change). The output is COMMITTED.

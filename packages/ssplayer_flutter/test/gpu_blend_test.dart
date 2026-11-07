@@ -84,8 +84,7 @@ void main() {
   });
 
   test('no mode silently falls back to Mix except Div2 / Overlay2', () {
-    // Mix's own state, i.e. "unimplemented" in the old table. Any *other* mode
-    // resolving to it means a row was dropped.
+    // Any *other* mode resolving to Mix's own state means a row was dropped.
     final mix = _rgbOf(FlutterGpuBackend.blendEquationFor(fbs.BlendType.Mix));
     final fellBack = fbs.BlendType.values
         .where((t) => _rgbOf(FlutterGpuBackend.blendEquationFor(t)) == mix)

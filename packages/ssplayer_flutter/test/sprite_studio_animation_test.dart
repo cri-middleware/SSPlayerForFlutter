@@ -1,5 +1,5 @@
-// The owning widget: everything the quickstart used to make the caller write —
-// the ticker, the load, the selection, the disposal — done once, here.
+// The owning widget: the ticker, the load, the selection and the disposal, done
+// once, here.
 import 'dart:io';
 
 import 'package:flutter/services.dart';

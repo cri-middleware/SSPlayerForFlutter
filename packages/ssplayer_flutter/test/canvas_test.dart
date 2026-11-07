@@ -1,6 +1,5 @@
 // `canvasSize` is the animation's `<canvasSize>`, never mixed with its
-// `<pivot>`. The two shared one `Rect` until the schema split them, so a reader
-// that took `x2 - x1` subtracted the pivot from the size.
+// `<pivot>`.
 //
 // Built here rather than read from a fixture: a synthetic pack pins the
 // arithmetic with a pivot chosen to make a wrong reading obvious.
@@ -34,14 +33,12 @@ Uint8List packWithCanvas({
 
 void main() {
   test('canvasSize is the authored size, whatever the pivot is', () {
-    // A centred pivot: the old `x2 - x1` reading happened to be right here,
-    // which is why this went unnoticed.
+    // A centred pivot.
     final centred = SsAnimeInfo(
         packWithCanvas(pivotX: 0, pivotY: 0, width: 320, height: 240));
     expect(centred.canvasSize('anime_1'), const Size(320, 240));
 
-    // A moved pivot: the old reading reported 320.5 x 240, so a caller sizing a
-    // box from it was wrong by the pivot rather than by the canvas.
+    // A moved pivot: the size must not move with it.
     final moved = SsAnimeInfo(
         packWithCanvas(pivotX: -0.5, pivotY: 0, width: 320, height: 240));
     expect(moved.canvasSize('anime_1'), const Size(320, 240));

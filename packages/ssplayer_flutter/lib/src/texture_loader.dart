@@ -75,8 +75,7 @@ class SsTextureLoader {
       if (registry.contains(cm.nameHash)) return;
       // Sampling is the registry's (bilinear + clamp unless the app registers
       // the atlas itself). The SpriteStudio settings in `filterMode` and
-      // `wrapMode` are deliberately not read — the Porting Guide leaves both
-      // to the engine.
+      // `wrapMode` are deliberately not read: sampling is the app's choice.
       // 1. Embedded bytes take priority.
       final asset = embedded[cm.imagePathHash];
       final data = asset?.data;

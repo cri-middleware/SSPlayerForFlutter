@@ -35,7 +35,7 @@
 #   2. The Brain as a wasm pair in assets/runtime-web. sdk=download takes it from
 #      the SpriteStudio-SDK release the native-asset hooks are pinned to, which
 #      needs no Rust at all; sdk=build compiles it here with wasm-pack, in RELEASE
-#      -- a debug wasm is 1.4 MB against ~270 KB and has no business in a
+#      -- a debug wasm is several times larger and has no business in a
 #      published site.
 #   3. The example's web/ runner, which this repository deliberately git-ignores
 #      along with the other platform runners: `flutter create --platforms=web .`
@@ -49,8 +49,8 @@
 # therefore does nothing for the host side -- it just does not build it.
 #
 # base= is baked into the demo at build time (--base-href), which is why it is an
-# option here and was not one in the Zensical-only siblings: the documentation
-# uses relative links and does not care, the Flutter app does. It defaults to the
+# option here: the documentation uses relative links and does not care, the
+# Flutter app does. It defaults to the
 # project-site path (/<repo>/), so serve=yes hangs the tree off a scratch root at
 # that path rather than serving site/ directly -- otherwise every asset URL in
 # the demo 404s.
@@ -303,7 +303,7 @@ else
 fi
 
 # --- demo -----------------------------------------------------------------
-# The web Brain now comes from scripts/download-web-runtime.sh, which owns the
+# The web Brain comes from scripts/download-web-runtime.sh, which owns the
 # whole of it: the tag packages/ssruntime_dart/hook/build.dart pins, the
 # download, the SHA256SUMS check, and the flattening of the release's two
 # wasm-bindgen packages into the one-directory layout the loader's SIMD probe
@@ -324,7 +324,7 @@ build_demo () {
       # Two builds, because the demo needs two different things: the host libs
       # deploy-examples.sh drives over dart:ffi to convert the .sspj projects, and
       # the wasm the browser loads. Release for both -- what a downloaded SDK
-      # would have been, and a debug wasm is four times the size.
+      # would have been, and a debug wasm is several times larger.
       step ./scripts/build-runtime.sh build=release
       step ./scripts/build-runtime.sh platform=web build=release
       ;;
