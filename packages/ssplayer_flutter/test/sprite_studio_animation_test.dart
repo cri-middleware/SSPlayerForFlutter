@@ -185,6 +185,28 @@ void main() {
     expect(player.frameNo, player.startFrame);
   });
 
+  testWidgets('an event parameter replaces what onPlayerCreated put there',
+      (tester) async {
+    if (assetDir == null) {
+      markTestSkipped('overall assets missing — run scripts/deploy-examples.sh');
+      return;
+    }
+    var fromParameter = 0;
+    var fromCreated = 0;
+    await tester.pumpWidget(wrap(SpriteStudioAnimation.asset(
+      'assets/x/Basic.ssab',
+      width: 100,
+      height: 100,
+      bundle: _DirBundle(assetDir),
+      onAnimationStarted: () => fromParameter++,
+      onPlayerCreated: (p) => p.onAnimationStarted = () => fromCreated++,
+    )));
+    await pumpUntil(tester, () => _drawing);
+
+    expect(fromParameter, 1);
+    expect(fromCreated, 0);
+  });
+
   testWidgets('changing the asset key builds a new player', (tester) async {
     if (assetDir == null) {
       markTestSkipped('overall assets missing — run scripts/deploy-examples.sh');

@@ -294,8 +294,9 @@ class _SpriteStudioAnimationState extends State<SpriteStudioAnimation>
       ..flipY = widget.flipY
       ..offset = widget.offset
       ..scale = widget.scale;
-    _wireEvents(player, null);
     widget.onPlayerCreated?.call(player);
+    // After it, so an event parameter replaces what it put on the player.
+    _wireEvents(player, null);
     _load(player);
   }
 
