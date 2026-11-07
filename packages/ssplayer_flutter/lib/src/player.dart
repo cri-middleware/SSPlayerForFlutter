@@ -62,6 +62,11 @@ class SpriteStudioPlayer extends ChangeNotifier {
 
   SpriteStudioInternalPlayer? _internal;
 
+  /// Which load is the current one. Each load takes the next value and gives way
+  /// once it no longer holds the latest, so overlapping loads leave one engine,
+  /// the last one asked for, however their reads finish.
+  int _loadSerial = 0;
+
   /// The Layer 2 engine for the current pack, or null until a [load] has built it
   /// and after [dispose]. For a drawing adapter of your own.
   SpriteStudioInternalPlayer? get internal => _internal;
@@ -425,7 +430,9 @@ class SpriteStudioPlayer extends ChangeNotifier {
     Map<String, Uint8List>? instancePacks,
   }) async {
     final bnd = bundle ?? rootBundle;
+    final serial = ++_loadSerial;
     final data = await bnd.load(assetKey);
+    if (_disposed || serial != _loadSerial) return;
     final bytes = data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
     _pendingSourceLabel = assetKey;
     await load(
@@ -453,7 +460,10 @@ class SpriteStudioPlayer extends ChangeNotifier {
   /// with a [FormatException] (an identify check, not full validation). Load only
   /// `.ssab` you produced or bundled — never a pack from an untrusted source.
   ///
-  /// Returns once textures are loaded; the widget repaints when it resolves.
+  /// Returns once textures are loaded; the widget repaints when it resolves. A
+  /// later load replaces one still in flight, which then returns without having
+  /// loaded anything, so check that yours is still the one you want before using
+  /// the player after the `await`.
   Future<void> load(
     Uint8List ssab, {
     String? animationName,
@@ -463,6 +473,7 @@ class SpriteStudioPlayer extends ChangeNotifier {
     bool loadTextures = true,
     Map<String, Uint8List>? instancePacks,
   }) async {
+    final serial = ++_loadSerial;
     // Quiesce the clock and drop the old engine BEFORE the async fetch below.
     // A still-running ticker (from a prior `play`) would otherwise fire
     // `_onTick` during the await and drive the just-disposed internal
@@ -502,7 +513,7 @@ class SpriteStudioPlayer extends ChangeNotifier {
       baseAssetDir: baseAssetDir,
       provided: instancePacks,
     );
-    if (_disposed) return;
+    if (_disposed || serial != _loadSerial) return;
     _lastInstanceReport = packs;
 
     final internal = SpriteStudioInternalPlayer.load(
@@ -577,7 +588,9 @@ class SpriteStudioPlayer extends ChangeNotifier {
   }) async {
     final bnd = bundle ?? rootBundle;
     bnd.evict(assetKey);
+    final serial = ++_loadSerial;
     final data = await bnd.load(assetKey);
+    if (_disposed || serial != _loadSerial) return;
     final bytes = data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
     _pendingSourceLabel = assetKey;
     await reload(
@@ -607,8 +620,7 @@ class SpriteStudioPlayer extends ChangeNotifier {
   ///
   /// If the previously-selected animation is gone from the new bytes it falls
   /// back to the first one; an out-of-range playhead is left to the Brain to
-  /// clamp. Assumes single-flight — callers must not overlap [reload]/[load]
-  /// (the dev watcher debounces to guarantee this).
+  /// clamp. Like [load], it gives way to a later load.
   Future<void> reload(
     Uint8List ssab, {
     TextureRegistry? textures,
@@ -630,7 +642,7 @@ class SpriteStudioPlayer extends ChangeNotifier {
     // Instance packs are re-fetched by `load`, so a live-reload picks up an
     // edited child `.ssab` too — the child pack is a separate file the watcher
     // may well have just reconverted.
-    await load(
+    final loading = load(
       ssab,
       textures: textures,
       baseAssetDir: baseAssetDir,
@@ -638,7 +650,10 @@ class SpriteStudioPlayer extends ChangeNotifier {
       loadTextures: loadTextures,
       instancePacks: instancePacks,
     );
-    if (_disposed || _internal == null) return;
+    // Read here, not at the top: [load] takes its serial before its first await.
+    final serial = _loadSerial;
+    await loading;
+    if (_disposed || serial != _loadSerial || _internal == null) return;
 
     final names = animationNames;
     // The box comes back from the animation it came from, re-read so an edit to
