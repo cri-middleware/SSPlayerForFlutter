@@ -167,12 +167,19 @@ class SpriteStudioButtonComponent extends SpriteStudioComponent
   );
 
   @override
-  Future<void> onLoad() async {
-    await super.onLoad();
+  Future<void> loadPlayer() async {
+    await super.loadPlayer();
     final player = this.player;
     if (player == null) return;
     _driver = SsUiStateDriver(player, animation: animation, clips: clips);
     _show();
+  }
+
+  @override
+  void onRemove() {
+    _driver = null;
+    _pressed = false;
+    super.onRemove();
   }
 
   void _show() => _driver?.show(uiState, reducedMotion: _reducedMotion);

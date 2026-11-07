@@ -10,12 +10,54 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flame/components.dart';
+import 'package:flame/game.dart';
 import 'package:flutter/services.dart' show AssetBundle, CachingAssetBundle;
+import 'package:flutter/widgets.dart' show SizedBox;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ssplayer_flame/ssplayer_flame.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  testWidgets('a component added back after its removal loads again',
+      (tester) async {
+    final ssabPath = _firstExisting([
+      'examples/flame/assets/spritestudio/Ringo/Ringo.ssab',
+      '../../examples/flame/assets/spritestudio/Ringo/Ringo.ssab',
+    ]);
+    if (ssabPath == null) {
+      markTestSkipped('Ringo.ssab missing — run scripts/deploy-examples.sh');
+      return;
+    }
+    Future<void> settle() async {
+      for (var i = 0; i < 40; i++) {
+        await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 5)));
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+    }
+
+    final game = FlameGame();
+    await tester.pumpWidget(GameWidget(game: game));
+    final component = SpriteStudioComponent.asset(ssabPath,
+        bundle: _DiskBundle(), size: Vector2(100, 100));
+    addTearDown(() => component.player?.dispose());
+
+    game.add(component);
+    await settle();
+    expect(component.player, isNotNull);
+
+    component.removeFromParent();
+    await settle();
+    expect(component.player, isNull);
+
+    game.add(component);
+    await settle();
+    expect(component.player, isNotNull, reason: '${component.loadError}');
+    expect(component.player!.isPlaying, isTrue);
+
+    await tester.pumpWidget(const SizedBox());
+  });
 
   test('SpriteStudioComponent loads, advances, and paints a textured frame',
       () async {

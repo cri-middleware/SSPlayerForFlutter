@@ -1,8 +1,9 @@
+import 'dart:async' show unawaited;
 import 'dart:typed_data';
 import 'dart:ui' show Canvas, Offset, Rect;
 
 import 'package:flame/components.dart';
-import 'package:flutter/foundation.dart' show VoidCallback;
+import 'package:flutter/foundation.dart' show VoidCallback, protected;
 import 'package:flutter/services.dart' show AssetBundle;
 import 'package:ssplayer_flutter/ssplayer_flutter.dart';
 
@@ -207,8 +208,9 @@ class SpriteStudioComponent extends PositionComponent {
 
   SpriteStudioPlayer? _player;
 
-  /// The underlying player — null until [onLoad] completes, then the full L3
-  /// transport surface (`pause`, `seek`, `setAnimation`, `animationNames`, …).
+  /// The underlying player — null until [onLoad] completes and while the component
+  /// is out of the tree, otherwise the full L3 transport surface (`pause`, `seek`,
+  /// `setAnimation`, `animationNames`, …).
   /// The clock is Flame's, so do NOT expect a Ticker; state still lives here.
   ///
   /// Part overrides are reached the same way — `player!.setPartColorOverride`
@@ -228,6 +230,26 @@ class SpriteStudioComponent extends PositionComponent {
   Object? get loadError => _loadError;
   Object? _loadError;
 
+  /// Whether [onRemove] let the player go, so that being added back loads it
+  /// again: Flame runs [onLoad] once in a component's life, and [onMount] and
+  /// [onRemove] each time it enters and leaves the tree.
+  bool _released = false;
+
+  /// Which [loadPlayer] is the current one, so one started before a removal does
+  /// not land on top of the one started by being added back.
+  int _loadSerial = 0;
+
+  @override
+  Future<void> onLoad() => loadPlayer();
+
+  @override
+  void onMount() {
+    super.onMount();
+    if (!_released) return;
+    _released = false;
+    unawaited(loadPlayer());
+  }
+
   /// Builds the player and loads the `.ssab`.
   ///
   /// **Never completes with an error.** Flame chains `onLoad` as
@@ -237,8 +259,10 @@ class SpriteStudioComponent extends PositionComponent {
   /// the life of the app. A bad asset key must not be able to do that, so the
   /// failure is caught, the half-built player released, and the error parked in
   /// [loadError].
-  @override
-  Future<void> onLoad() async {
+  @protected
+  Future<void> loadPlayer() async {
+    final serial = ++_loadSerial;
+    _loadError = null;
     final player = SpriteStudioPlayer() // no vsync → Flame drives the clock
       ..onEvents = onEvents
       ..onAnimationStarted = onAnimationStarted
@@ -264,7 +288,7 @@ class SpriteStudioComponent extends PositionComponent {
       }
 
       // The component may have been removed while we awaited the fetch/decode.
-      if (isRemoving || isRemoved) {
+      if (serial != _loadSerial || isRemoving || isRemoved) {
         player.dispose();
         return;
       }
@@ -355,6 +379,7 @@ class SpriteStudioComponent extends PositionComponent {
   void onRemove() {
     _player?.dispose();
     _player = null;
+    _released = true;
     super.onRemove();
   }
 }
