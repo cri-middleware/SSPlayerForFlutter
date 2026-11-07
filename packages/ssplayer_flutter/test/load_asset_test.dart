@@ -5,6 +5,7 @@
 // is observable in the keys the loader asks for, and the root-level (empty-base)
 // case proves `_joinAsset` never prepends a stray leading slash.
 import 'dart:io';
+import 'dart:typed_data' show Uint8List;
 
 import 'package:flutter/services.dart' show ByteData, CachingAssetBundle;
 import 'package:flutter_test/flutter_test.dart';
@@ -41,6 +42,26 @@ void main() {
     expect(bundle.requested.where((k) => k.startsWith('assets/x/')).length,
         greaterThan(1),
         reason: 'textures should be requested under the derived folder');
+  });
+
+  test('a bundle that hands out views into a larger buffer loads packs and textures',
+      () async {
+    if (assetDir == null) {
+      markTestSkipped('overall assets missing — run scripts/deploy-examples.sh');
+      return;
+    }
+    final player = SpriteStudioPlayer();
+    addTearDown(player.dispose);
+
+    await player.loadAsset('x/Instance.ssab', bundle: _OffsetBundle(assetDir));
+
+    expect(player.lastInstanceReport!.unresolved, isEmpty);
+    final internal = player.internal!;
+    expect(
+        internal.instanceParts
+            .where((p) => internal.instanceSlotFor(p.partIndex) != null),
+        isNotEmpty);
+    expect(player.lastTextureReport!.unresolved, isEmpty);
   });
 
   test('loadAsset with a root-level key resolves textures without a leading slash',
@@ -86,6 +107,22 @@ class _RebasingBundle extends CachingAssetBundle {
     final name = key.substring(key.lastIndexOf('/') + 1);
     final bytes = await File('$root/$name').readAsBytes();
     return ByteData.sublistView(bytes);
+  }
+}
+
+/// Serves each asset as a view that starts partway into its buffer.
+class _OffsetBundle extends CachingAssetBundle {
+  _OffsetBundle(this.root);
+
+  final String root;
+
+  @override
+  Future<ByteData> load(String key) async {
+    final name = key.substring(key.lastIndexOf('/') + 1);
+    final bytes = await File('$root/$name').readAsBytes();
+    const offset = 16;
+    final padded = Uint8List(offset + bytes.length)..setAll(offset, bytes);
+    return ByteData.sublistView(padded, offset);
   }
 }
 
