@@ -3,7 +3,7 @@
 // A part's own `mask_influence` / `visible_inside_mask` compose with those of
 // the instance part directly above it — `mask_influence` with AND,
 // `visible_inside_mask` with OR — and with nothing further up. That is what
-// SpriteStudio 7.5 draws (InstancePropagationTired3 and the S01_Overlap /
+// SpriteStudio 7.6 draws (InstancePropagationTired3 and the S01_Overlap /
 // OV_Top data behind the ForGodot fix): under an instance part with
 // `mask_influence == 0` the instance's own parts go unmasked, but a
 // grandchild whose own instance part opts in is masked again. This port used

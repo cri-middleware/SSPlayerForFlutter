@@ -1513,7 +1513,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
     // ONE coverage serves the whole instance tree, and the top-level player
     // ([masking] == null) builds it: every writer of the tree, however deeply
     // nested, is baked into it and placed on one sequence numbering the tree's
-    // parts in draw order. That is how SpriteStudio 7.5 scopes them — a mask
+    // parts in draw order. That is how SpriteStudio 7.6 scopes them — a mask
     // inside an instance clips the sub-animation's own parts, a clipping mask
     // keeps clipping the caller's later parts, and an outer mask reaches every
     // level below. An instance child receives its view of it ([PlayerMask])

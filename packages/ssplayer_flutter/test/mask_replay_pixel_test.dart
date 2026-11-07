@@ -46,7 +46,7 @@ void main() {
     test('three invert writers cover — parity, NOT "exactly one"', () async {
       // The case that separates the two readings, and the reason the SS6PU
       // investigation insisted on a 3-overlap: with two writers "parity" and
-      // "exactly one covers" agree, so only three tell them apart. SS7.5 is
+      // "exactly one covers" agree, so only three tell them apart. SpriteStudio 7.6 is
       // parity.
       expect(await _covered(bits: 0x7, invert: 0x7), isTrue);
     });

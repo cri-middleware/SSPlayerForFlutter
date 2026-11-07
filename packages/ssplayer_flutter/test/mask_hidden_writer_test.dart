@@ -5,7 +5,7 @@
 // `draw_as_mask` Shape / Nines is the exception: only its colour batch goes, and
 // its Mask batch stays in the plan. This port relied on `draw_order` alone, so
 // hiding `Shape-Mask-True` in the SDK's Mask animation left its square hole
-// cut in the jigsaw behind it. SpriteStudio 7.5 removes the hole; so does every
+// cut in the jigsaw behind it. SpriteStudio 7.6 removes the hole; so does every
 // sibling that reads `hide` alongside `mask`.
 //
 // Shaders don't execute headless, so this drives a spy backend and asserts on
