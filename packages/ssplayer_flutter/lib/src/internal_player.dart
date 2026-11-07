@@ -1670,17 +1670,10 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
       final world = GeometryBuilder.world2dOf(part, frame, _world2dScratch);
       if (world == null) continue;
 
-      // The instance part's own PartColor does not tint the child (see below);
-      // only its alpha is read. The runtime emits `part_color` for any part that
-      // carries the attribute, so an instance part can have one.
-      final st = frame.partOf(part);
-      final pc = st == null ? null : PartColor.read(frame.partsColor, st);
-
       // The instance part's own alpha modulates the entire child, and compounds
-      // down a nested chain (see [PartColor.instanceAlpha] for the PartColor
-      // case, where the corner alpha replaces `PartState.alpha`).
-      final alpha = PartColor.instanceAlpha(pc,
-          partAlpha: frame.alphaOf(part), chainScale: frame.alphaScale);
+      // down a nested chain. It is `PartState.alpha` whether or not the part has
+      // a PartColor, whose corner alphas also carry the colour's own.
+      final alpha = frame.alphaOf(part);
       if (alpha <= 0.0) continue;
 
       // The child tests its parts against the tree's one coverage, through
@@ -1706,9 +1699,6 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
       // Isolating the subtree in a layer to apply a tint would also break every
       // framebuffer blend inside it: an `add` child part would composite against
       // the empty layer instead of the scene.
-      //
-      // [PartColor.instanceAlpha] above still reads the tint's `lt` alpha, which
-      // is the one channel that does cross.
       backend.pushTransform(canvas, world);
       state.child._paintTree(
         canvas,

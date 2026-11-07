@@ -34,8 +34,7 @@ class PartColorCorner {
 /// **Shape** bypasses the formula (rate forced to 1, baked
 /// straight into the vertex colour); **Mesh** is *whole-only* — the `lt` corner
 /// applies to every vertex, which is what [wholeTintMatrix] evaluates. An
-/// Instance part's PartColor does not tint its child subtree; only its `lt`
-/// alpha crosses ([instanceAlpha]).
+/// Instance part's PartColor does not reach its child subtree.
 class PartColor {
   const PartColor({
     required this.coef,
@@ -93,18 +92,6 @@ class PartColor {
           lb: lb.withAlpha(lb.a * scale),
           rb: rb.withAlpha(rb.a * scale),
         );
-
-  /// The alpha an Instance part hands down to its child sub-animation.
-  ///
-  /// Without a PartColor that is the part's own composed alpha ([partAlpha],
-  /// which `DrawFrame.alphaOf` already folded the chain's [chainScale] into).
-  /// **With** one it is the tint's `lt` alpha instead — the Brain pre-folds the
-  /// part's hierarchical alpha into the corner alphas, so using both
-  /// would apply it twice — times the chain scale, which lives in the *parent's*
-  /// FrameData and so cannot have been pre-folded.
-  static double instanceAlpha(PartColor? pc,
-          {required double partAlpha, required double chainScale}) =>
-      pc == null ? partAlpha : (pc.lt.a * chainScale).clamp(0.0, 1.0);
 
   /// The formula as a row-major 4×5 `ColorFilter.matrix`, evaluated from
   /// the **`lt`** corner — the *Whole-only* rule a Mesh part follows

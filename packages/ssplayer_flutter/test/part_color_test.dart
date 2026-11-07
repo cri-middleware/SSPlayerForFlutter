@@ -391,30 +391,6 @@ void main() {
     });
   });
 
-  group('PartColor.instanceAlpha', () {
-    test('without a tint the part alpha passes through', () {
-      expect(
-          PartColor.instanceAlpha(null, partAlpha: 0.4, chainScale: 0.5), 0.4);
-    });
-
-    test('with a tint the corner alpha replaces PartState.alpha', () {
-      // The Brain pre-folded the hierarchical alpha into the corner, so
-      // `partAlpha` must be dropped — multiplying the two would apply the
-      // hierarchy twice (0.5 × 0.5 = 0.25 would be the bug).
-      final pc = PartColor(
-        coef: partColorCoef(fbs.BlendType.Mix),
-        lt: const PartColorCorner(1, 1, 1, 0.5, 1),
-        rt: const PartColorCorner(1, 1, 1, 1, 1),
-        lb: const PartColorCorner(1, 1, 1, 1, 1),
-        rb: const PartColorCorner(1, 1, 1, 1, 1),
-      );
-      expect(PartColor.instanceAlpha(pc, partAlpha: 0.5, chainScale: 1.0), 0.5);
-      // …but the chain scale lives in the PARENT's FrameData, so it is still
-      // owed and multiplies on top.
-      expect(PartColor.instanceAlpha(pc, partAlpha: 0.5, chainScale: 0.5), 0.25);
-    });
-  });
-
   test('PartColor.read resolves real PartsColor.ssab part colours', () async {
     final ssabPath = _firstExisting([
       'examples/overall/assets/spritestudio/overall/PartsColor.ssab',
