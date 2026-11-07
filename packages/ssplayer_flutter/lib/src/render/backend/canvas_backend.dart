@@ -29,11 +29,14 @@ const double _maxCoverageDim = 1024.0;
 /// textures, mask roles, effect plans) through the [RenderHost] passed to each
 /// emit call, so one instance serves an entire instance-recursion tree.
 class CanvasBackend implements RenderBackend {
-  /// No-op: nothing here is prepared asynchronously, so there is never a frame
-  /// to re-request. (Fragment programs do load lazily, but a part whose program
-  /// is not ready falls back to a visible draw rather than being skipped.)
+  /// Fragment programs load lazily, and a draw that finds one still loading falls
+  /// back to a plainer one: no tint, no effect, no mask. A paused, seeked or
+  /// single-shot player has no next frame of its own to correct that, so the load
+  /// completing fires this.
   @override
-  set onResourcesReady(ui.VoidCallback? callback) {}
+  set onResourcesReady(ui.VoidCallback? callback) =>
+      _onResourcesReady = callback;
+  ui.VoidCallback? _onResourcesReady;
 
   /// PartColor + mask-replay fragment program — the shader every
   /// *peeled* part goes through. Compiled once, shared across players.
@@ -287,6 +290,8 @@ class CanvasBackend implements RenderBackend {
 
   @override
   void dispose() {
+    // A paint asked for by a program landing would come too late.
+    _onResourcesReady = null;
     releaseCoverage();
     _partColorShaders.dispose();
     _maskWriteShaders.dispose();
@@ -299,7 +304,7 @@ class CanvasBackend implements RenderBackend {
   @override
   MaskContext? renderCoverage(DrawFrame frame, RenderHost host, MaskPlan plan,
       Map<int, int> textureByRank) {
-    final program = _maskWriteProgram.get();
+    final program = _maskWriteProgram.get(this);
     if (program == null) return null; // still compiling — draw unmasked this frame
     final coverage = _renderCoverage(plan, frame, host, program, textureByRank);
     if (coverage == null) return null;
@@ -631,7 +636,7 @@ class CanvasBackend implements RenderBackend {
   /// standing invitation to drift.
   void _drawMaskedShape(ui.Canvas canvas, int part, DrawFrame frame,
       RenderHost host, List<BlendPass> passes, MaskDraw mask) {
-    final program = _partColorProgram.get();
+    final program = _partColorProgram.get(this);
     final geometry =
         host.geometry.buildShapeParts(host.geometry.singlePart(part), frame);
     if (geometry == null) return;
@@ -765,7 +770,7 @@ class CanvasBackend implements RenderBackend {
     // Inflated so neither the layer nor the gate rect can shave the geometry's
     // outermost pixel row (the bbox lands exactly on it).
     final bounds = geometry.bounds.inflate(1.0);
-    final program = mask == null ? null : _partColorProgram.get();
+    final program = mask == null ? null : _partColorProgram.get(this);
     if (mask == null || program == null) {
       // Unmasked (or the gate program is still compiling — draw ungated rather
       // than dropping the part): one plain draw per pass, tint and all.
@@ -932,7 +937,7 @@ class CanvasBackend implements RenderBackend {
     List<BlendPass> passes,
     MaskDraw? mask,
   ) {
-    final program = _partColorProgram.get();
+    final program = _partColorProgram.get(this);
     final image = host.textures.imageFor(batch.textureHash);
     final quad = host.geometry.buildPartColorQuad(part, frame);
     if (program == null || image == null || quad == null) {
@@ -1053,7 +1058,7 @@ class CanvasBackend implements RenderBackend {
     fbs.DrawBatch batch,
     List<BlendPass> passes,
   ) {
-    final program = _ssPrograms[sh.id]!.get();
+    final program = _ssPrograms[sh.id]!.get(this);
     final image = host.textures.imageFor(batch.textureHash);
     final quad = host.geometry.buildPartColorQuad(part, frame);
     if (program == null || image == null || quad == null) {
@@ -1352,9 +1357,10 @@ class CanvasBackend implements RenderBackend {
 /// A `FragmentProgram` loaded lazily from an asset and cached process-wide.
 ///
 /// Loading is async but `paint` is synchronous, so [get] kicks the load off the
-/// first time the program is actually needed and returns null until it resolves
-/// (callers fall back for a frame or two). A load failure — e.g. no asset bundle
-/// under headless `flutter test` — latches, so we stop retrying every frame.
+/// first time the program is actually needed and returns null until it resolves;
+/// the callers fall back, and each [backend] that asked hears when it lands. A
+/// load failure — e.g. no asset bundle under headless `flutter test` — latches,
+/// so we stop retrying every frame.
 class _LazyProgram {
   _LazyProgram(this._asset);
 
@@ -1362,18 +1368,27 @@ class _LazyProgram {
   ui.FragmentProgram? _program;
   bool _loading = false;
   bool _failed = false;
+  final Set<CanvasBackend> _waiters = <CanvasBackend>{};
 
-  ui.FragmentProgram? get() {
+  ui.FragmentProgram? get(CanvasBackend backend) {
     final loaded = _program;
     if (loaded != null) return loaded;
-    if (_failed || _loading) return null;
+    if (_failed) return null;
+    _waiters.add(backend);
+    if (_loading) return null;
     _loading = true;
     ui.FragmentProgram.fromAsset(_asset).then((p) {
       _program = p;
       _loading = false;
+      final waiters = _waiters.toList(growable: false);
+      _waiters.clear();
+      for (final waiter in waiters) {
+        waiter._onResourcesReady?.call();
+      }
     }, onError: (Object _) {
       _failed = true;
       _loading = false;
+      _waiters.clear();
     });
     return null;
   }

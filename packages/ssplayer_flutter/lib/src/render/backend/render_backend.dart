@@ -27,11 +27,11 @@ abstract class RenderBackend {
   /// the host can paint the frame again and pick it up.
   ///
   /// The GPU backend uploads textures asynchronously (`Image.toByteData`) and
-  /// skips the parts using one until it lands. Without this hook that only
-  /// resolves on the *next* paint, which a playing animation supplies and a
-  /// paused, seeked or single-shot one never does — leaving it blank forever.
-  /// Always fired outside the synchronous paint (after an await). No-op on
-  /// Canvas, which prepares nothing asynchronously.
+  /// skips the parts using one until it lands; Canvas loads its fragment programs
+  /// the same way and draws without them until they land. Without this hook that
+  /// only resolves on the *next* paint, which a playing animation supplies and a
+  /// paused, seeked or single-shot one never does — leaving it wrong forever.
+  /// Always fired outside the synchronous paint (after an await).
   set onResourcesReady(ui.VoidCallback? callback);
 
   /// Begins a top-level frame — called only from the root `paint()`, never from
