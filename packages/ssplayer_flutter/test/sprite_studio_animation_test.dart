@@ -185,6 +185,32 @@ void main() {
     expect(player.frameNo, player.startFrame);
   });
 
+  testWidgets('changing the asset key builds a new player', (tester) async {
+    if (assetDir == null) {
+      markTestSkipped('overall assets missing — run scripts/deploy-examples.sh');
+      return;
+    }
+    final bundle = _DirBundle(assetDir);
+    final created = <SpriteStudioPlayer>[];
+    Widget at(String key) => wrap(SpriteStudioAnimation.asset(
+          key,
+          width: 100,
+          height: 100,
+          bundle: bundle,
+          onPlayerCreated: created.add,
+        ));
+
+    await tester.pumpWidget(at('assets/x/Basic.ssab'));
+    await pumpUntil(tester, () => _drawing);
+
+    await tester.pumpWidget(at('assets/x/Mask.ssab'));
+    expect(tester.takeException(), isNull);
+    await pumpUntil(tester, () => _drawing);
+
+    expect(created, hasLength(2));
+    expect(created.last.isPlaying, isTrue);
+  });
+
   testWidgets('changing the animation does not rebuild the player',
       (tester) async {
     if (assetDir == null) {

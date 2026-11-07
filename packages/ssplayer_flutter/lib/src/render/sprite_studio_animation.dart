@@ -239,7 +239,7 @@ class SpriteStudioAnimation extends StatefulWidget {
 }
 
 class _SpriteStudioAnimationState extends State<SpriteStudioAnimation>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   SpriteStudioPlayer? _player;
   bool _ready = false;
 
