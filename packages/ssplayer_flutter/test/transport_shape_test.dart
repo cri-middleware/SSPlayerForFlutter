@@ -119,8 +119,7 @@ void main() {
     expect(player.playbackStyle, SsPlaybackStyle.pingPong);
 
     // Host policy, like the speed and the frame skip: "play this backwards" is
-    // a decision about the playback, so the Brain keeps it across a transition
-    // and nothing on this side has to re-apply it for a switch.
+    // a decision about the playback, so the Brain keeps it across a transition.
     player.setAnimation(player.animationNames.first);
     expect(player.playbackDirection, SsPlaybackDirection.backward);
     expect(player.playbackStyle, SsPlaybackStyle.pingPong);

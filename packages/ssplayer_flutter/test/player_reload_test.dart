@@ -85,6 +85,35 @@ void main() {
 
   // `isPlaying` is "active", which stays true across a pause — so a reload that
   // keys off it alone force-resumes a preview the user deliberately paused.
+  testWidgets('load and reload keep the playback direction and style',
+      (tester) async {
+    if (ssabPath == null) {
+      markTestSkipped('Basic.ssab missing — run deploy-examples.sh');
+      return;
+    }
+    final bytes = Uint8List.fromList(File(ssabPath).readAsBytesSync());
+    final player = SpriteStudioPlayer(vsync: tester);
+    addTearDown(player.dispose);
+
+    // Set before there is an engine to take it.
+    player.setPlaybackDirection(
+        SsPlaybackDirection.backward, SsPlaybackStyle.pingPong);
+    await player.load(bytes, loadTextures: false);
+    expect(player.playbackDirection, SsPlaybackDirection.backward);
+    expect(player.playbackStyle, SsPlaybackStyle.pingPong);
+
+    player.setAnimation(player.animationNames.first);
+    await player.reload(bytes, loadTextures: false);
+    expect(player.playbackDirection, SsPlaybackDirection.backward);
+    expect(player.playbackStyle, SsPlaybackStyle.pingPong);
+
+    player.setPlaybackDirection(
+        SsPlaybackDirection.forward, SsPlaybackStyle.normal);
+    await player.load(bytes, loadTextures: false);
+    expect(player.playbackDirection, SsPlaybackDirection.forward);
+    expect(player.playbackStyle, SsPlaybackStyle.normal);
+  });
+
   testWidgets('reload leaves a PAUSED player paused', (tester) async {
     if (ssabPath == null) {
       markTestSkipped('Basic.ssab missing — run deploy-examples.sh');

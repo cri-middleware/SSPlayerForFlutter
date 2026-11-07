@@ -97,6 +97,8 @@ class SpriteStudioPlayer extends ChangeNotifier {
   double? _speed;
   bool? _skipFrames;
   int? _frameRate;
+  SsPlaybackDirection? _direction;
+  SsPlaybackStyle? _style;
 
   /// Sub-frame interpolation (default ON): smooth playback beyond the source
   /// FPS. Applies to the current and future loaded animations.
@@ -848,18 +850,19 @@ class SpriteStudioPlayer extends ChangeNotifier {
   /// With [SsPlaybackStyle.pingPong] one loop is a full round trip, so a
   /// [loopCount] of 1 plays there and back once.
   SsPlaybackDirection get playbackDirection =>
-      _internal?.playbackDirection ?? SsPlaybackDirection.forward;
+      _internal?.playbackDirection ?? _direction ?? SsPlaybackDirection.forward;
 
   /// See [playbackDirection].
   SsPlaybackStyle get playbackStyle =>
-      _internal?.playbackStyle ?? SsPlaybackStyle.normal;
+      _internal?.playbackStyle ?? _style ?? SsPlaybackStyle.normal;
 
   /// See [playbackDirection]. Both are set together because the Brain takes
   /// them as one call — pass the current value for whichever you are not
-  /// changing. Nothing is cached here because nothing needs to be: the Brain
-  /// keeps the choice across a transition on its own.
+  /// changing. Can be set before [load], and survives [load] and [reload].
   void setPlaybackDirection(
       SsPlaybackDirection direction, SsPlaybackStyle style) {
+    _direction = direction;
+    _style = style;
     _internal?.setPlaybackDirection(direction, style);
   }
 
@@ -991,15 +994,16 @@ class SpriteStudioPlayer extends ChangeNotifier {
   }
 
   // Loop count is the one setting the Brain resets on every setup. Speed,
-  // skip-frames and frame rate survive it, but a value set before the first
-  // load, or before a reload builds a new engine, has no engine to reach, so all
-  // four are pushed here. The section is deliberately not carried: frame numbers
-  // mean nothing in a different animation.
+  // skip-frames, frame rate and direction survive it, but a value set before the
+  // first load, or before a reload builds a new engine, has no engine to reach, so
+  // all of them are pushed here. The section is deliberately not carried: frame
+  // numbers mean nothing in a different animation.
   void _applyTransportSettings(SpriteStudioInternalPlayer internal) {
     if (_loop != null) internal.loopCount = _loop!;
     if (_speed != null) internal.speedScale = _speed!;
     if (_skipFrames != null) internal.frameSkipEnabled = _skipFrames!;
     if (_frameRate != null) internal.frameRate = _frameRate!;
+    if (_direction != null) internal.setPlaybackDirection(_direction!, _style!);
   }
 
   /// The playhead, in frames of the current animation (fractional between two);
@@ -1226,9 +1230,14 @@ class SpriteStudioPlayer extends ChangeNotifier {
   /// [setPlaybackDirection] for one track.
   bool setTrackPlaybackDirection(
           int track, SsPlaybackDirection direction, SsPlaybackStyle style) =>
-      _setting('setTrackPlaybackDirection',
-          (i) => i.setTrackPlaybackDirection(track, direction, style),
-          track: track);
+      _setting('setTrackPlaybackDirection', (i) {
+        if (!i.setTrackPlaybackDirection(track, direction, style)) return false;
+        if (track == 0) {
+          _direction = direction;
+          _style = style;
+        }
+        return true;
+      }, track: track);
 
   /// See [setTrackPlaybackDirection].
   SsPlaybackDirection? trackPlaybackDirection(int track) =>
