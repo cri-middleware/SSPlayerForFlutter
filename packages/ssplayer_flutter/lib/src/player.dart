@@ -1507,18 +1507,24 @@ class SpriteStudioPlayer extends ChangeNotifier {
 
     internal.update(delta);
 
+    // Everything the update reported is read before anything fires: a callback
+    // that sets up another animation clears it, and a source handle read after
+    // that names the new animation.
     final passed = internal.passedEventIndices();
-    if (passed.isNotEmpty) {
-      onEvents?.call(passed);
-      _dispatchDecodedEvents(internal, passed);
-    }
-
+    final decoded = _decodePassedEvents(internal, passed);
     // `justLooped` is a pulse the runtime clears on entry to every update, so it
     // is read verbatim. `isFinished` is a sticky state, so it goes through a
     // rising edge that `play` re-arms.
-    if (internal.justLooped) onAnimationLooped?.call();
-
+    final looped = internal.justLooped;
     final finished = internal.isFinished;
+
+    if (passed.isNotEmpty) {
+      onEvents?.call(passed);
+      if (decoded != null) _fireDecodedEvents(decoded);
+    }
+
+    if (looped) onAnimationLooped?.call();
+
     if (finished && !_prevFinished) onAnimationFinished?.call();
     _prevFinished = finished;
 
@@ -1545,18 +1551,19 @@ class SpriteStudioPlayer extends ChangeNotifier {
   /// was drawn; see [tickKeptPose].
   bool _tickKeptPose = false;
 
-  /// Decodes the raw [passed] event indices and fires the per-event callbacks.
-  /// Skips the decode entirely when no decoded callback is registered.
+  /// Decodes the raw [passed] event indices for the per-event callbacks. Null,
+  /// skipping the decode, when there are none or no decoded callback is registered.
   ///
   /// Each index is looked up in the `events()` of the animation of the source
   /// that fired it. Reading them all against [currentAnimation] reported a
   /// different event, or none, as soon as anything else could fire: the
   /// outgoing side of a crossfade, an overlay with its threshold lowered.
-  void _dispatchDecodedEvents(
+  SsPassedEvents? _decodePassedEvents(
       SpriteStudioInternalPlayer internal, List<int> passed) {
-    if (onUserData == null && onSignal == null && onAudio == null) return;
+    if (passed.isEmpty) return null;
+    if (onUserData == null && onSignal == null && onAudio == null) return null;
     final info = _animeInfo;
-    if (info == null) return;
+    if (info == null) return null;
 
     final sources = internal.passedEventSourceHandles();
     final userData = <SsUserData>[];
@@ -1583,18 +1590,23 @@ class SpriteStudioPlayer extends ChangeNotifier {
       }
       start = end;
     }
+    return (userData: userData, signals: signals, audios: audios);
+  }
+
+  /// Fires the per-event callbacks with what [_decodePassedEvents] decoded.
+  void _fireDecodedEvents(SsPassedEvents decoded) {
     if (onUserData != null) {
-      for (final u in userData) {
+      for (final u in decoded.userData) {
         onUserData!(u);
       }
     }
     if (onSignal != null) {
-      for (final s in signals) {
+      for (final s in decoded.signals) {
         onSignal!(s);
       }
     }
     if (onAudio != null) {
-      for (final a in audios) {
+      for (final a in decoded.audios) {
         onAudio!(a);
       }
     }

@@ -41,6 +41,47 @@ void main() {
     }
   });
 
+  test('A callback that sets up another animation loses nothing the update '
+      'reported', () async {
+    final path = _firstExisting(const [
+      'examples/overall/assets/spritestudio/Doll/Action02_Body.ssab',
+      '../../examples/overall/assets/spritestudio/Doll/Action02_Body.ssab',
+    ]);
+    if (path == null) {
+      markTestSkipped('Action02_Body.ssab missing — run deploy-examples.sh');
+      return;
+    }
+    final bytes = Uint8List.fromList(File(path).readAsBytesSync());
+    final names = SsAnimeInfo(bytes).animationNames;
+    expect(names.length, greaterThan(1), reason: 'fixture sanity');
+
+    final player = SpriteStudioPlayer();
+    addTearDown(player.dispose);
+    await player.load(bytes, animationName: names.first, loadTextures: false);
+    player
+      ..loopCount = 1
+      ..play();
+
+    var reported = false;
+    var finished = false;
+    player
+      // A decoded callback is what makes a tick look up the events' sources.
+      ..onUserData = ((_) {})
+      ..onAnimationFinished = (() => finished = true)
+      ..onEvents = (_) {
+        reported = true;
+        player.setAnimation(names[1]);
+      };
+    // One tick past the end, so it reports both the events and the finish.
+    player.advance(const Duration(seconds: 100));
+
+    expect(reported, isTrue,
+        reason: 'fixture sanity: the animation has events');
+    expect(player.currentAnimation, names[1]);
+    expect(finished, isTrue,
+        reason: 'the update reported it before the callback ran');
+  });
+
   test('Signals surface through onSignal over one play-through', () async {
     final path = _fixture('Signal.ssab');
     if (path == null) {
