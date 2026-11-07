@@ -18,9 +18,12 @@ external void ss_converter_abort(ffi.Pointer<Context> context);
 
 /// Start converting one `.sspj` into `output_dir`, **on a worker thread**.
 ///
-/// Returns immediately. Poll `ss_converter_is_finished`, then call
+/// Returns once the worker is spawned. Poll `ss_converter_is_finished`, then call
 /// `ss_converter_get_result` for the outcome and `ss_converter_get_error`
 /// for the text when it is not `Success`.
+///
+/// If a conversion is still running on this context, this waits for it first; call
+/// `ss_converter_abort` and poll `ss_converter_is_finished` before starting another.
 ///
 /// `callback` is invoked **on the worker thread** with a message that is only
 /// valid for the duration of the call; copy anything you keep, and do not touch
@@ -48,7 +51,7 @@ external void ss_converter_convert(
   LogCallback callback,
 );
 
-/// A conversion context, or null if the allocation failed.
+/// Create a conversion context.
 ///
 /// **A context runs one job at a time** — a conversion
 /// (`ss_converter_convert`) or a directory scan (`ss_converter_scan_dir`).
@@ -63,7 +66,9 @@ external ffi.Pointer<Context> ss_converter_create();
 /// Release a context from `ss_converter_create`. Null is accepted and ignored.
 ///
 /// Every borrowed pointer taken from this context — the scan results, the error
-/// text — dies with it.
+/// text — dies with it. A job still running is neither stopped nor waited for, and
+/// its `callback` keeps being called, so call `ss_converter_abort` and wait for
+/// `ss_converter_is_finished` first.
 @ffi.Native<ffi.Void Function(ffi.Pointer<Context>)>()
 external void ss_converter_destroy(ffi.Pointer<Context> context);
 
@@ -74,7 +79,7 @@ external void ss_converter_destroy(ffi.Pointer<Context> context);
 /// before `ss_converter_get_result` has been called, which is what fills this
 /// in. **The text is borrowed from the context**: do not free it, and do not
 /// keep it past the next conversion on that context or the context's own
-/// destruction.
+/// destruction. A null `context` leaves the out pointers untouched.
 @ffi.Native<
   ffi.Void Function(
     ffi.Pointer<Context>,
@@ -122,8 +127,9 @@ external bool ss_converter_scan_budget_exceeded(ffi.Pointer<Context> ctx);
 /// Returns immediately; poll `ss_converter_is_finished`. The three budgets
 /// bound the walk — `max_depth` directories deep, `max_entries` entries, and
 /// `max_millis` of wall clock; `ss_converter_scan_budget_exceeded` reports
-/// whether one of them cut the walk short, in which case the results are a
-/// prefix rather than the whole tree.
+/// whether one of them cut the walk short, in which case the results are partial.
+/// `max_millis == 0` means no time limit. A symbolic link to a directory is not
+/// followed, unless it is `dir` itself.
 ///
 /// See `ss_converter_create` on one job at a time: a context scanning is not
 /// a context converting.
@@ -146,8 +152,8 @@ external void ss_converter_scan_dir(
   int max_millis,
 );
 
-/// `.sspj` files the scan has found so far. Safe to poll while it runs, unlike
-/// `ss_converter_scan_result_count`.
+/// `.sspj` files the scan has found so far, which is what to poll while it runs:
+/// the paths themselves are published when it finishes.
 @ffi.Native<ffi.UintPtr Function(ffi.Pointer<Context>)>()
 external int ss_converter_scan_found(ffi.Pointer<Context> ctx);
 
@@ -155,8 +161,8 @@ external int ss_converter_scan_found(ffi.Pointer<Context> ctx);
 /// count that `ss_converter_scan_result_count` last reported.
 ///
 /// **Borrowed from the context** — do not free it. It dies at the next
-/// `ss_converter_scan_result_count`, the next `ss_converter_convert` on
-/// this context, or the context's own destruction.
+/// `ss_converter_scan_result_count`, `ss_converter_scan_dir` or
+/// `ss_converter_convert` on this context, or the context's own destruction.
 @ffi.Native<ffi.Pointer<ffi.Char> Function(ffi.Pointer<Context>, ffi.UintPtr)>()
 external ffi.Pointer<ffi.Char> ss_converter_scan_result_at(
   ffi.Pointer<Context> ctx,
@@ -167,8 +173,8 @@ external ffi.Pointer<ffi.Char> ss_converter_scan_result_at(
 ///
 /// Despite the name this rebuilds the context's result strings from the
 /// scanner, which is what makes them readable by
-/// `ss_converter_scan_result_at` — so call it before the first read, and
-/// again whenever you want newer results.
+/// `ss_converter_scan_result_at` — so call it after `ss_converter_is_finished`,
+/// before the first read.
 ///
 /// **It invalidates every pointer a previous `ss_converter_scan_result_at`
 /// handed out.** Read the paths you want, or copy them, before calling this
@@ -180,9 +186,11 @@ external int ss_converter_scan_result_count(ffi.Pointer<Context> ctx);
 @ffi.Native<ffi.UintPtr Function(ffi.Pointer<Context>)>()
 external int ss_converter_scan_visited(ffi.Pointer<Context> ctx);
 
+/// The `.ssab` schema version this converter writes.
 @ffi.Native<ffi.Uint32 Function()>()
 external int ss_converter_ssab_schema_version();
 
+/// The `.ssqb` schema version this converter writes.
 @ffi.Native<ffi.Uint32 Function()>()
 external int ss_converter_ssqb_schema_version();
 
@@ -201,15 +209,27 @@ external ffi.Pointer<ffi.Char> ss_converter_version();
 @ffi.Native<ffi.Void Function(ffi.Pointer<ffi.Char>)>()
 external void ss_converter_version_free(ffi.Pointer<ffi.Char> s);
 
-const int ASSET_PATH_SEPARATOR = 47;
-
+/// The outcome `ss_converter_get_result` reports.
 enum CConverterError {
+  /// The conversion finished and wrote its output.
   Success(0),
+
+  /// A file could not be read or written.
   ErrorIo(-1),
+
+  /// The `.sspj` or a file it references could not be parsed.
   ErrorSspj(-2),
+
+  /// The project parsed but could not be converted.
   ErrorConversion(-3),
+
+  /// No conversion was ever started on this context.
   ErrorNotYetStarted(-4),
+
+  /// `ss_converter_abort` stopped the conversion.
   ErrorAborted(-5),
+
+  /// A null context, or the worker panicked.
   ErrorUnknown(-99);
 
   final int value;
