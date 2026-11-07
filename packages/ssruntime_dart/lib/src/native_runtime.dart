@@ -672,6 +672,10 @@ class _NativeRuntime implements SsRuntime {
       ss_effect_slot_destroy((slot as _NativeEffectSlot).ptr);
 
   @override
+  bool effectSlotIsIndependent(SsEffectSlot slot) =>
+      ss_effect_slot_is_independent((slot as _NativeEffectSlot).ptr);
+
+  @override
   SsEffectStep stepEffectSlot(
     SsEffectSlot slot,
     SsContext context,

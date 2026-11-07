@@ -760,6 +760,12 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   InstanceSlot<SpriteStudioInternalPlayer>? instanceSlotFor(int partIndex) =>
       _instances.slotFor(partIndex);
 
+  /// Whether an effect or instance part in this tree runs on its own clock, and
+  /// so has to keep getting ticks through a [pause].
+  bool get playsOnItsOwn =>
+      _effects.anyIndependent ||
+      _instances.slots.any((s) => s.isIndependent || s.child.playsOnItsOwn);
+
   // --- Events (polling) ----------------------------------------------------
 
   /// Indices, into an ssab `events()` table, that were passed on the last

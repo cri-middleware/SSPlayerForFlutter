@@ -740,14 +740,15 @@ class SpriteStudioPlayer extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Pauses playback in place — every track and every fade. The Brain's
-  /// `pause` is one-way and idempotent, and ignores a request made while
-  /// nothing is playing, so no gate is needed.
+  /// Pauses playback in place — every track and every fade. An independent
+  /// instance or effect part carries on, on its own clock. The Brain's `pause` is
+  /// one-way and idempotent, and ignores a request made while nothing is playing,
+  /// so no gate is needed.
   void pause() {
     final internal = _internal;
     if (internal == null) return;
     internal.pause();
-    if (_ticker?.isActive ?? false) _ticker!.stop();
+    if ((_ticker?.isActive ?? false) && !internal.playsOnItsOwn) _ticker!.stop();
     notifyListeners();
   }
 

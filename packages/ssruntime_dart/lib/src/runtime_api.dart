@@ -344,6 +344,7 @@ abstract interface class SsRuntime {
       SsResource resource, int effectNameHash, int seed);
   void resetEffectSlot(SsEffectSlot slot);
   void destroyEffectSlot(SsEffectSlot slot);
+  bool effectSlotIsIndependent(SsEffectSlot slot);
 
   /// Fetches the active `EventEffect` for [slotIndex] (== part index) against
   /// [context] and steps [slot] one frame. The active-event fetch is fused in so

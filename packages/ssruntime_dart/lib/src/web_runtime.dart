@@ -288,6 +288,7 @@ extension type _JsEffect(JSObject _) implements JSObject {
       double fps, bool parentLooped, bool yFlip, int vertStride, bool draw);
   external int get_draw_plan_buf();
   external int get_draw_plan_len();
+  external bool is_independent();
   external void reset();
   external void free();
 }
@@ -912,6 +913,10 @@ class _WebRuntime implements SsRuntime {
   @override
   void destroyEffectSlot(SsEffectSlot slot) =>
       (slot as _WebEffectSlot).js.free();
+
+  @override
+  bool effectSlotIsIndependent(SsEffectSlot slot) =>
+      (slot as _WebEffectSlot).js.is_independent();
 
   @override
   SsEffectStep stepEffectSlot(
