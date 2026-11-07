@@ -324,8 +324,19 @@ void main() {
         final bytes = Uint8List.fromList(File(path).readAsBytesSync());
         final player = SpriteStudioInternalPlayer.load(bytes);
         addTearDown(player.dispose);
-        expect(player.setupAnimation(SsAnimeInfo(bytes).animationNames.first),
-            isTrue);
+        final info = SsAnimeInfo(bytes);
+        expect(player.setupAnimation(info.animationNames.first), isTrue);
+        // A textured part draws only with its texture, and any image exercises
+        // the paths this compares.
+        for (final cellmap in info.cellmapNames) {
+          final recorder = ui.PictureRecorder();
+          ui.Canvas(recorder)
+              .drawColor(const ui.Color(0xFFFFFFFF), ui.BlendMode.src);
+          final picture = recorder.endRecording();
+          player.textures
+              .register(info.cellmapTextureHash(cellmap)!, await picture.toImage(4, 4));
+          picture.dispose();
+        }
         player.play();
         player.update(const Duration(milliseconds: 100));
 

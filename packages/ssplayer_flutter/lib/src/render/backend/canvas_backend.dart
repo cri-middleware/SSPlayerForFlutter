@@ -493,6 +493,8 @@ class CanvasBackend implements RenderBackend {
       int to, DrawFrame frame, RenderHost host, PlayerMask masking) {
     assert(_noEmitInFlight);
     final first = batches[from];
+    // Without its texture a `drawVertices` would fill the part with flat white.
+    if (host.textures.imageFor(first.textureHash) == null) return;
     final geometry = host.geometry;
     final drawOrder = frame.drawOrder;
     final passes = blendPassesFor(first.blendType);
