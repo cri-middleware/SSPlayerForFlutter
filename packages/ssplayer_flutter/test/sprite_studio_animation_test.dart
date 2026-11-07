@@ -546,6 +546,50 @@ void main() {
       expect(at.dy, closeTo(view.center.dy + t.y, 1e-6));
     });
 
+    testWidgets('an anchor moves with the fit on a player that is not playing',
+        (tester) async {
+      if (assetDir == null) {
+        markTestSkipped('overall assets missing');
+        return;
+      }
+      final bundle = _DirBundle(assetDir);
+      final part = await aPart(tester, bundle);
+      final marker = GlobalKey();
+      SpriteStudioPlayer? seen;
+      Widget fitted(BoxFit fit) => wrap(Center(
+            child: SizedBox(
+              width: 300,
+              height: 100,
+              child: SpriteStudioAnimation.asset(
+                'assets/x/Basic.ssab',
+                bundle: bundle,
+                fit: fit,
+                playing: false,
+                onPlayerCreated: (p) => seen = p,
+                children: [
+                  SpriteStudioPartAnchor(
+                    partName: part,
+                    child: SizedBox(key: marker, width: 1, height: 1),
+                  ),
+                ],
+              ),
+            ),
+          ));
+      await tester.pumpWidget(fitted(BoxFit.contain));
+      await pumpUntil(tester, () => find.byKey(marker).evaluate().isNotEmpty);
+      final before = tester.getTopLeft(find.byKey(marker));
+
+      await tester.pumpWidget(fitted(BoxFit.cover));
+      await tester.pump();
+
+      final view = tester.getRect(find.byType(SpriteStudioView));
+      final t = seen!.partTransform(part)!.getTranslation();
+      final at = tester.getTopLeft(find.byKey(marker));
+      expect(at, isNot(before));
+      expect(at.dx, closeTo(view.center.dx + t.x, 1e-6));
+      expect(at.dy, closeTo(view.center.dy + t.y, 1e-6));
+    });
+
     testWidgets('are built with the first frame, not over the placeholder',
         (tester) async {
       if (assetDir == null) {

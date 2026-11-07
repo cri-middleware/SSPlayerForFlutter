@@ -188,13 +188,17 @@ class SpriteStudioPlayer extends ChangeNotifier {
   /// Held here rather than in the view so that the part poses carry the fit as
   /// they carry the flip: [partTransform] is the pose as drawn, and a
   /// [SpriteStudioPartAnchor] over the view lands on the part without knowing
-  /// the view fitted anything. It does not notify: the view calling it is
-  /// laying out, and paints next.
+  /// the view fitted anything. It notifies after the frame: the view calling it
+  /// is laying out and paints next, but a follower may already have built, and a
+  /// stopped player has no tick coming to move it.
   void place(ui.Size view, SsPlacement? placement) {
     if (view == _placeView && placement == _placement) return;
     _placeView = view;
     _placement = placement;
     _applyRoot();
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      if (!_disposed) notifyListeners();
+    });
   }
 
   /// [rootTransform] fitted by the last [place] — what the backends draw with.
