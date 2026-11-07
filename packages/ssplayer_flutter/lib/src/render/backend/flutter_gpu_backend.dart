@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
@@ -435,6 +436,10 @@ class FlutterGpuBackend implements RenderBackend {
   // Per-frame state (valid between beginFrame and finish; _active gates use).
   bool _active = false;
   ui.Canvas? _canvas;
+
+  /// Coverage pixels per player-local pixel this frame: the root's scale when it
+  /// enlarges, so a mask on a view fitted larger than its canvas keeps its edge.
+  double _coverageScale = 1.0;
   // The logical-pixel rect the device-resolution offscreen composites into.
   ui.Rect? _compositeRect;
   gpu.Texture? _target;
@@ -544,6 +549,7 @@ class FlutterGpuBackend implements RenderBackend {
     _active = false;
     _frameCoverages.clear();
     _canvas = canvas;
+    _coverageScale = math.max(1.0, root.scale.abs());
     final logical = dst?.size ?? sourceSize ?? ui.Size.zero;
     if (logical.width <= 0 || logical.height <= 0) return;
     _compositeRect = dst ?? (ui.Offset.zero & logical);
@@ -1400,7 +1406,9 @@ class FlutterGpuBackend implements RenderBackend {
     if (bounds.width <= 0 || bounds.height <= 0) return null;
     final longEdge =
         bounds.width > bounds.height ? bounds.width : bounds.height;
-    final scale = longEdge > _kMaxCoverageDim ? _kMaxCoverageDim / longEdge : 1.0;
+    final scale = longEdge * _coverageScale > _kMaxCoverageDim
+        ? _kMaxCoverageDim / longEdge
+        : _coverageScale;
     final pw = (bounds.width * scale).ceil().clamp(1, _kMaxCoverageDim.toInt());
     final ph = (bounds.height * scale).ceil().clamp(1, _kMaxCoverageDim.toInt());
     // Past 24 writers the texture splits into tiles rather than growing: each
