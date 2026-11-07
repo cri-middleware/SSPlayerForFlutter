@@ -15,6 +15,58 @@ import 'package:ssplayer_flutter/src/ssab/ssab.g.dart' as ssab;
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  group('a finish callback may end the engine it fired from', () {
+    late Uint8List bytes;
+    setUp(() {
+      final path = _firstExisting([
+        'examples/overall/assets/spritestudio/Ringo/Ringo.ssab',
+        '../../examples/overall/assets/spritestudio/Ringo/Ringo.ssab',
+      ]);
+      bytes = path == null
+          ? Uint8List(0)
+          : Uint8List.fromList(File(path).readAsBytesSync());
+    });
+
+    Future<SpriteStudioPlayer> oneShot() async {
+      final player = SpriteStudioPlayer();
+      await player.load(bytes, loadTextures: false);
+      player
+        ..setAnimation('wait1')
+        ..loopCount = 1
+        ..play();
+      return player;
+    }
+
+    test('by disposing the player', () async {
+      if (bytes.isEmpty) {
+        markTestSkipped('Ringo.ssab missing — run scripts/deploy-examples.sh');
+        return;
+      }
+      final player = await oneShot();
+      var fired = false;
+      player.onAnimationFinished = () {
+        fired = true;
+        player.dispose();
+      };
+      _advanceUntil(player, () => fired);
+    });
+
+    test('by loading another pack', () async {
+      if (bytes.isEmpty) {
+        markTestSkipped('Ringo.ssab missing — run scripts/deploy-examples.sh');
+        return;
+      }
+      final player = await oneShot();
+      addTearDown(player.dispose);
+      Future<void>? loading;
+      player.onAnimationFinished =
+          () => loading = player.load(bytes, loadTextures: false);
+      _advanceUntil(player, () => loading != null);
+      await loading;
+      expect(player.internal, isNotNull);
+    });
+  });
+
   final ssabPath = _firstExisting([
     'examples/overall/assets/spritestudio/overall/Basic.ssab',
     '../../examples/overall/assets/spritestudio/overall/Basic.ssab',
@@ -67,6 +119,13 @@ void main() {
     // After dispose: still safe (guards on _disposed).
     player.advance(const Duration(milliseconds: 16));
   });
+}
+
+void _advanceUntil(SpriteStudioPlayer player, bool Function() done) {
+  for (var i = 0; i < 2000 && !done(); i++) {
+    player.advance(const Duration(milliseconds: 100));
+  }
+  expect(done(), isTrue);
 }
 
 String? _firstExisting(List<String> paths) {

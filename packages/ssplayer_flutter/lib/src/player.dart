@@ -1543,6 +1543,10 @@ class SpriteStudioPlayer extends ChangeNotifier {
     if (finished && !_prevFinished) onAnimationFinished?.call();
     _prevFinished = finished;
 
+    // A callback may have disposed this player or started another load, which
+    // releases `internal`: a read of it from here on would be a use after free.
+    if (_disposed || !identical(_internal, internal)) return;
+
     // Track 0's finish does not stop the Brain's clock: an overlay or a fade
     // keeps moving on it, so the Ticker stops only once nothing does. Read
     // after the callback, which may well have started something new.
