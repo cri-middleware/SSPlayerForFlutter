@@ -351,6 +351,16 @@ class _WebRuntime implements SsRuntime {
   _JsCtx _ctx(SsContext c) => (c as _WebContext).js;
   _JsRes _res(SsResource r) => (r as _WebResource).js;
 
+  /// What the wasm face threw, in the Brain's words: a JS `Error` stringifies
+  /// with its class in front.
+  static String _reason(Object error) {
+    final text = error.toString();
+    return text.startsWith('Error: ') ? text.substring('Error: '.length) : text;
+  }
+
+  @override
+  int? get ssabSchemaVersion => null;
+
   @override
   SsResource? createResourceCopy(Uint8List ssab) {
     // Reject a non-.ssab / truncated buffer with a friendly error before it
@@ -358,12 +368,12 @@ class _WebRuntime implements SsRuntime {
     assertSsabIdentifier(ssab);
     try {
       // `new SSRuntimeResource(data)` copies the bytes into wasm memory (Result
-      // → throws on a bad pack).
+      // → throws on a bad pack, with the versions when they are what differs).
       final js = _class('SSRuntimeResource')
           .callAsConstructor<JSObject>(ssab.toJS) as _JsRes;
       return _WebResource(js);
-    } catch (_) {
-      return null;
+    } catch (e) {
+      throw StateError(_reason(e));
     }
   }
 
@@ -410,7 +420,7 @@ class _WebRuntime implements SsRuntime {
     } catch (e) {
       // The wasm face formats the Brain's error with `Display`, so what arrives
       // is the wording a user should see.
-      ctx.lastError = e.toString();
+      ctx.lastError = _reason(e);
       return false;
     }
   }
@@ -642,7 +652,7 @@ class _WebRuntime implements SsRuntime {
       ctx.lastError = null;
       return true;
     } catch (e) {
-      ctx.lastError = e.toString();
+      ctx.lastError = _reason(e);
       return false;
     }
   }

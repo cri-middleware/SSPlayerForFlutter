@@ -164,6 +164,30 @@ void main() {
     expect(b.textures, isNot(same(a.textures)));
   });
 
+  test('a pack of another schema version says which versions differ', () {
+    if (basic == null) {
+      markTestSkipped('Basic.ssab missing — run scripts/deploy-examples.sh');
+      return;
+    }
+    // `version` is the root table's first field.
+    final other = Uint8List.fromList(basic);
+    final data = ByteData.sublistView(other);
+    final table = data.getUint32(0, Endian.little);
+    final vtable = table - data.getInt32(table, Endian.little);
+    final field = data.getUint16(vtable + 4, Endian.little);
+    data.setUint32(table + field, 999, Endian.little);
+
+    final open = SsabPack.debugOpenCount;
+    expect(
+        () => SsabPack.open(other),
+        throwsA(isA<StateError>().having(
+            (e) => e.message,
+            'message',
+            allOf(contains('999'),
+                contains('version ${ssRuntime.ssabSchemaVersion}')))));
+    expect(SsabPack.debugOpenCount, open);
+  });
+
   test('a pack that fails to load leaves nothing open', () {
     final open = SsabPack.debugOpenCount;
     expect(() => SpriteStudioInternalPlayer.load(Uint8List(64)),

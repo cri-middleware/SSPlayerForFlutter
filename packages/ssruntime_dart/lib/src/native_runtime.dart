@@ -74,6 +74,9 @@ class _NativeRuntime implements SsRuntime {
   // --- Resource / Context lifecycle --------------------------------------
 
   @override
+  int? get ssabSchemaVersion => ss_runtime_ssab_schema_version();
+
+  @override
   SsResource? createResourceCopy(Uint8List ssab) {
     // The Brain parses `.ssab` unchecked (documented UB on malformed input), so
     // reject anything without the "SSAB" file identifier here — before the bytes

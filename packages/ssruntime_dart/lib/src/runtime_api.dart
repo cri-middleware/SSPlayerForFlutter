@@ -39,9 +39,14 @@ abstract interface class SsRuntime {
 
   // --- Resource / Context lifecycle --------------------------------------
 
+  /// The `.ssab` schema version this runtime reads, for a report on a pack
+  /// [createResourceCopy] rejected. Null on the web, whose rejection names it.
+  int? get ssabSchemaVersion;
+
   /// Copies `ssab` onto the Brain's heap (copy mode — the only mode that works
   /// on web, where Body and Brain memory spaces differ). Returns null when the
-  /// Brain rejects the pack.
+  /// Brain rejects the pack; on the web, whose runtime gives its reason, throws a
+  /// [StateError] carrying it instead.
   ///
   /// Throws a [FormatException] when `ssab` lacks the `"SSAB"` FlatBuffers file
   /// identifier (`hasSsabIdentifier`): the Brain parses `.ssab` unchecked and is

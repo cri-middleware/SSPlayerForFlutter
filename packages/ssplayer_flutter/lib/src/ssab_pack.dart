@@ -7,6 +7,7 @@ import 'render/effect.dart';
 import 'render/instance.dart';
 import 'render/mask.dart';
 import 'render/part_override.dart';
+import 'ssab/ssab.g.dart' as asset;
 
 /// One `.ssab` as every player reading it shares it: the runtime's parse of it,
 /// and the static tables this layer reads out of it once.
@@ -90,7 +91,12 @@ final class SsabPack {
     // non-`.ssab` header.
     final resource = ssRuntime.createResourceCopy(ssab);
     if (resource == null) {
-      throw StateError('ss_resource_create_copy returned null (bad .ssab?)');
+      final reads = ssRuntime.ssabSchemaVersion;
+      final version = asset.SsAnimeBinary(ssab).version;
+      throw StateError(reads != null && version != reads
+          ? 'This .ssab has schema version $version and this runtime reads '
+              'version $reads. Convert it again with a matching converter.'
+          : 'The runtime could not read this .ssab.');
     }
     final pack = SsabPack._(ssab, resource, maskFlags, partNames, effectParts,
         instanceParts, packHash)
