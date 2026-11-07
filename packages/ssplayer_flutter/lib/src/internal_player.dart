@@ -578,8 +578,8 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
         _context,
         parentFrame: sampled,
         deltaSeconds: deltaMs / 1000.0,
-        // The animation's authored fps (converts the delta to frames for
-        // independent slots), NOT the display's.
+        // The rate the animation plays at, the override included (converts the
+        // delta to frames for independent slots), NOT the display's.
         fps: frameRate > 0 ? frameRate.toDouble() : 60.0,
         parentLooped: looped,
         // Which effect parts that frame draws: a hidden one keeps time without
