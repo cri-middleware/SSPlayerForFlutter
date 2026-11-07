@@ -60,6 +60,7 @@ class _MyState extends State<MyWidget> with SingleTickerProviderStateMixin {
 
   Future<void> _init() async {
     await _player.loadAsset('assets/spritestudio/Ringo/Ringo.ssab');
+    if (!mounted) return;
     _player
       ..setAnimation('wait1')
       ..loopCount = -1

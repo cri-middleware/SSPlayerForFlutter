@@ -22,7 +22,8 @@ _player.clearAllPartOverrides();
 !!! warning "Select an animation first"
     The runtime holds overrides in a table sized to the part count, and that table is only allocated
     when you call **`setAnimation()`** (or `load(animationName: ...)`). Before that, every call is
-    rejected and returns `false`.
+    rejected and returns `false`. With `SpriteStudioAnimation`, make these calls from `onLoaded`:
+    `onPlayerCreated` comes before the pack loads.
 
     What makes this easy to miss: **part-name resolution already works** beforehand, because names are
     read from the `.ssab`. If `findPartIndex()` returns a valid index but `set` keeps failing, this is

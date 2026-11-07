@@ -174,9 +174,10 @@ class SpriteStudioAnimation extends StatefulWidget {
   /// unhandled async error. The widget then keeps showing [placeholder].
   final void Function(Object error, StackTrace stackTrace)? onError;
 
-  /// Handed the player as soon as it exists, before the load — for the parts of
-  /// the L3 surface this widget does not wrap (part overrides, an anchor). Do
-  /// not dispose it; this widget does.
+  /// Handed the player as soon as it exists, before the load, for settings that
+  /// can go on ahead of it. What needs the pack — part overrides, tracks, texture
+  /// replacement, transport — goes in [onLoaded]. Do not dispose it; this widget
+  /// does.
   ///
   /// Called after the other parameters are applied, so what it sets on the
   /// player stands until the matching parameter changes.

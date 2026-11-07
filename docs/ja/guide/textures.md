@@ -7,7 +7,7 @@
 ## 例: 衣装の着せ替え
 
 差し替え用テクスチャはデコード済みの `ui.Image` です。アセット（などどこからでも）読み込み、
-`setCellmapTexture()` に渡します。
+`setCellmapTexture()` に渡します。パックが要るので、`SpriteStudioAnimation` では `onLoaded` 以降に呼んでください。
 
 ```dart
 import 'dart:ui' as ui;

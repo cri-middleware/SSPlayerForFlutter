@@ -5,7 +5,7 @@ your app logic. This page covers controlling playback, switching animations, and
 
 The snippets use `_player`, a `SpriteStudioPlayer`: one you own
 ([Quick Start](quickstart.md#owning-the-player-yourself)), or the one `SpriteStudioAnimation` hands you
-through `onPlayerCreated`.
+through `onLoaded`.
 
 ## Playback control
 

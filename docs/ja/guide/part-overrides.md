@@ -19,7 +19,7 @@ _player.clearAllPartOverrides();
 
 !!! warning "アニメーションを選択してから設定する"
     オーバーライドはランタイムがパーツ数ぶんのテーブルとして保持しますが、そのテーブルが確保されるのは
-    **`setAnimation()`（または `load(animationName: ...)`）を実行した時点**です。それ以前はすべての呼び出しが `false` で拒否されます。
+    **`setAnimation()`（または `load(animationName: ...)`）を実行した時点**です。それ以前はすべての呼び出しが `false` で拒否されます。`SpriteStudioAnimation` では `onLoaded` で呼んでください。`onPlayerCreated` はパックを読み込む前に呼ばれます。
 
     ややこしいのは、**パーツ名の解決だけは先に成功する**ことです（パーツ名は `.ssab` から読むため）。「`findPartIndex()` は有効な値を返すのに `set` が失敗する」場合は、まずこれを疑ってください。
 

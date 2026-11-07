@@ -2,7 +2,7 @@
 
 `SpriteStudioPlayer` は直感的なトランスポートとイベントコールバックを備え、アプリのロジックにそのまま組み込めます。ここでは再生制御・アニメ切り替え・イベント処理を扱います。
 
-以下のコードの `_player` は `SpriteStudioPlayer` です。自分で持つもの（[クイックスタート](quickstart.md#プレイヤーを自分で持つ場合)）か、`SpriteStudioAnimation` が `onPlayerCreated` で渡すものを使います。
+以下のコードの `_player` は `SpriteStudioPlayer` です。自分で持つもの（[クイックスタート](quickstart.md#プレイヤーを自分で持つ場合)）か、`SpriteStudioAnimation` が `onLoaded` で渡すものを使います。
 
 ## 再生制御
 
