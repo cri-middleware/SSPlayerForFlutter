@@ -42,8 +42,6 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 PKG_DIR="$ROOT_DIR/packages/ssplayer_flutter"
-LIB_ROOT="$PKG_DIR/native"
-LIBS_DIR="$LIB_ROOT/libs"
 # The host converter (libssconverter) lives in its own desktop-only package.
 CONV_PKG_DIR="$ROOT_DIR/packages/ssconverter_dart"
 CONV_LIBS_DIR="$CONV_PKG_DIR/native/libs"
@@ -94,8 +92,7 @@ CARGO_FLAGS=""; [ "$BUILD_MODE" = "release" ] && CARGO_FLAGS="--release"
 # The runtime is no_std: a host cdylib needs an allocator + panic handler.
 build_ss()        { ( cd "$SDK_DIR" && cargo build $CARGO_FLAGS "$@" -p ssruntime-ffi --features libc_alloc,panic-handler ); }
 build_converter() { ( cd "$SDK_DIR" && cargo build $CARGO_FLAGS "$@" -p ssconverter-ffi ); }
-place() { mkdir -p "$LIBS_DIR/$1"; cp "$2" "$LIBS_DIR/$1/${3:-$(basename "$2")}"; echo "   -> native/libs/$1/${3:-$(basename "$2")}"; }
-# Same, but into the ssconverter_dart package (the host converter's home).
+# Into the ssconverter_dart package (the host converter's home).
 place_conv() { mkdir -p "$CONV_LIBS_DIR/$1"; cp "$2" "$CONV_LIBS_DIR/$1/${3:-$(basename "$2")}"; echo "   -> ssconverter_dart native/libs/$1/${3:-$(basename "$2")}"; }
 # The runtime (libssruntime) lives in ssruntime_dart — its native-assets
 # hook/build.dart bundles this bare dylib/.so/.dll as a code asset (no framework).
