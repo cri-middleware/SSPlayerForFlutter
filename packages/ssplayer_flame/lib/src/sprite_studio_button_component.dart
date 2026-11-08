@@ -170,7 +170,8 @@ class SpriteStudioButtonComponent extends SpriteStudioComponent
   Future<void> loadPlayer() async {
     await super.loadPlayer();
     final player = this.player;
-    if (player == null) return;
+    // A load superseded by a later one also returns here, to the later player.
+    if (player == null || identical(player, _driver?.player)) return;
     _driver = SsUiStateDriver(player, animation: animation, clips: clips);
     _show();
   }

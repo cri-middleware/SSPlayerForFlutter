@@ -95,7 +95,8 @@ final class SsabPack {
       final version = asset.SsAnimeBinary(ssab).version;
       throw StateError(reads != null && version != reads
           ? 'This .ssab has schema version $version and this runtime reads '
-              'version $reads. Convert it again with a matching converter.'
+              'version $reads: the converter and the player are from '
+              'different releases.'
           : 'The runtime could not read this .ssab.');
     }
     final pack = SsabPack._(ssab, resource, maskFlags, partNames, effectParts,

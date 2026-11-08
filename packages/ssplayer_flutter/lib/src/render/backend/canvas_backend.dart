@@ -292,6 +292,11 @@ class CanvasBackend implements RenderBackend {
   void dispose() {
     // A paint asked for by a program landing would come too late.
     _onResourcesReady = null;
+    _partColorProgram._waiters.remove(this);
+    _maskWriteProgram._waiters.remove(this);
+    for (final program in _ssPrograms.values) {
+      program._waiters.remove(this);
+    }
     releaseCoverage();
     _partColorShaders.dispose();
     _maskWriteShaders.dispose();

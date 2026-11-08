@@ -201,10 +201,15 @@ class SpriteStudioPlayer extends ChangeNotifier {
     _placeView = view;
     _placement = placement;
     _applyRoot();
+    if (_placeNotifyScheduled) return;
+    _placeNotifyScheduled = true;
     SchedulerBinding.instance.addPostFrameCallback((_) {
+      _placeNotifyScheduled = false;
       if (!_disposed) notifyListeners();
     });
   }
+
+  bool _placeNotifyScheduled = false;
 
   /// [rootTransform] fitted by the last [place] — what the backends draw with.
   SsRootTransform get _placedRoot {

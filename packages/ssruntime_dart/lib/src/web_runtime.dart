@@ -366,11 +366,11 @@ class _WebRuntime implements SsRuntime {
     // Reject a non-.ssab / truncated buffer with a friendly error before it
     // reaches the wasm module (which parses unchecked). See native_runtime.dart.
     assertSsabIdentifier(ssab);
+    final resourceClass = _class('SSRuntimeResource');
     try {
       // `new SSRuntimeResource(data)` copies the bytes into wasm memory (Result
       // → throws on a bad pack, with the versions when they are what differs).
-      final js = _class('SSRuntimeResource')
-          .callAsConstructor<JSObject>(ssab.toJS) as _JsRes;
+      final js = resourceClass.callAsConstructor<JSObject>(ssab.toJS) as _JsRes;
       return _WebResource(js);
     } catch (e) {
       throw StateError(_reason(e));
