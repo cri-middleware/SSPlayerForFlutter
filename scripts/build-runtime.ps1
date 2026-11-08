@@ -19,13 +19,13 @@
 #   libssconverter → packages/ssconverter_dart/native/libs/<platform>/[<arch>]/ (host tool)
 #   packages/ssruntime_dart/native/libs/LICENSE.md, THIRD-PARTY-LICENSES.ssruntime.md
 #   packages/ssconverter_dart/native/libs/LICENSE.md
-# No macos framework / macos/Frameworks symlink: native assets replace the
-# CocoaPods framework path (Flutter re-wraps the bare dylib at build time).
+# Native assets embed the bare dylib; Flutter re-wraps it at build time.
+# iOS uses bare per-slice dylibs, NOT an xcframework:
+#   native/libs/ios/iphoneos/arm64/libssruntime.dylib          (device)
+#   native/libs/ios/iphonesimulator/{arm64,x86_64}/libssruntime.dylib
 # Web is the exception: it has no build hook / native asset, so `platform=web`
 # builds the wasm-bindgen `web` runtime and places it as a Flutter ASSET under
 # packages/ssplayer_flutter/assets/runtime-web/ (loaded via dart:js_interop).
-# (NB: ios output still lands under ssplayer_flutter/native/libs; host desktop
-# platforms use the layout above.)
 #
 # After building, this copies the SDK build.rs-emitted plain-C headers into
 # native/include/. The ffigen bindings are COMMITTED (like the .fbs accessors), so
@@ -44,8 +44,6 @@ $ErrorActionPreference = "Stop"
 
 $RootDir = Split-Path -Parent (Split-Path -Parent $PSCommandPath)
 $PkgDir  = Join-Path $RootDir "packages/ssplayer_flutter"
-$LibRoot = Join-Path $PkgDir "native"
-$LibsDir = Join-Path $LibRoot "libs"
 # The host converter (libssconverter) lives in its own desktop-only package.
 $ConvPkgDir  = Join-Path $RootDir "packages/ssconverter_dart"
 $ConvLibsDir = Join-Path $ConvPkgDir "native/libs"
@@ -118,14 +116,7 @@ function Build-Converter {
     try { & cargo build @CargoFlags @Extra -p ssconverter-ffi; if ($LASTEXITCODE) { throw "cargo build ssconverter failed" } }
     finally { Pop-Location }
 }
-function Place($sub, $src, $name) {
-    if (-not $name) { $name = Split-Path $src -Leaf }
-    $d = Join-Path $LibsDir $sub
-    New-Item -ItemType Directory -Force -Path $d | Out-Null
-    Copy-Item $src (Join-Path $d $name) -Force
-    Write-Host "   -> native/libs/$sub/$name"
-}
-# Same, but into the ssconverter_dart package (the host converter's home).
+# Into the ssconverter_dart package (the host converter's home).
 function Place-Conv($sub, $src, $name) {
     if (-not $name) { $name = Split-Path $src -Leaf }
     $d = Join-Path $ConvLibsDir $sub
@@ -133,19 +124,13 @@ function Place-Conv($sub, $src, $name) {
     Copy-Item $src (Join-Path $d $name) -Force
     Write-Host "   -> ssconverter_dart native/libs/$sub/$name"
 }
-# Same, but into the ssruntime_dart package (the runtime's native-assets home).
+# Into the ssruntime_dart package (the runtime's native-assets home).
 function Place-Rt($sub, $src, $name) {
     if (-not $name) { $name = Split-Path $src -Leaf }
     $d = Join-Path $RtLibsDir $sub
     New-Item -ItemType Directory -Force -Path $d | Out-Null
     Copy-Item $src (Join-Path $d $name) -Force
     Write-Host "   -> ssruntime_dart native/libs/$sub/$name"
-}
-# Read the SDK workspace version (for the framework Info.plist on the host path).
-function Get-SdkVersion() {
-    $m = (Get-Content (Join-Path $SdkDir "Cargo.toml") |
-          Select-String -Pattern '^version = "(.*)"' | Select-Object -First 1)
-    if ($m) { return $m.Matches.Groups[1].Value } else { return "0.0.0" }
 }
 
 # Run an SDK release script, preferring the .ps1 variant and falling back to the
@@ -244,18 +229,26 @@ switch ($PLATFORM) {
                          @{triple="armv7-linux-androideabi";abi="armeabi-v7a"},
                          @{triple="x86_64-linux-android";abi="x86_64"})) {
             $src = "$T/$($p.triple)/$BUILD_MODE/libssruntime.so"
-            if (Test-Path $src) { Place "android/$($p.abi)" $src }
+            if (Test-Path $src) { Place-Rt "android/$($p.abi)" $src }
         }
     }
 
     "ios" {
         Invoke-Release "release-ios-xcframework" $BUILD_MODE
-        $dest = Join-Path $LibsDir "ios"; New-Item -ItemType Directory -Force -Path $dest | Out-Null
-        Remove-Item -Recurse -Force "$dest/libssruntime.xcframework" -ErrorAction SilentlyContinue
-        # Ship the DYNAMIC xcframework so the app embeds one framework and dyld
-        # resolves the Brain via @rpath; the `@Native` bindings load it as a native-asset code asset.
-        Copy-Item -Recurse -Force "$T/xcframework/dynamic/libssruntime.xcframework" "$dest/"
-        Write-Host "   -> native/libs/ios/libssruntime.xcframework"
+        # No xcframework: hook/build.dart selects a bare per-slice dylib by
+        # (targetSdk, arch). device-arm64, simulator-arm64 and simulator-x86_64 are
+        # distinct Mach-O targets (same arch can't coexist in a fat binary — that is
+        # exactly what an xcframework separates). Flutter's native-assets embedding
+        # wraps the chosen slice into a framework and (re)signs it, as on macOS.
+        foreach ($p in @(@{triple="aarch64-apple-ios";slot="ios/iphoneos/arm64"},
+                         @{triple="aarch64-apple-ios-sim";slot="ios/iphonesimulator/arm64"},
+                         @{triple="x86_64-apple-ios";slot="ios/iphonesimulator/x86_64"})) {
+            $src = "$T/$($p.triple)/$BUILD_MODE/libssruntime.dylib"
+            if (Test-Path $src) {
+                Place-Rt $p.slot $src
+                & install_name_tool -id "@rpath/libssruntime.dylib" (Join-Path $RtLibsDir "$($p.slot)/libssruntime.dylib") 2>$null
+            }
+        }
     }
 
     "web" {
@@ -315,16 +308,15 @@ switch ($PLATFORM) {
 
 # --- C headers (ffigen input): consume the plain-C headers the SDK build.rs
 # emitted (Language::C, <crate>.h; .hpp is the C++ twin). Single source of truth
-# = the SDK; no local cbindgen. Each crate's header goes to its OWN package:
-# ssruntime → ssplayer_flutter, ssconverter → ssconverter_dart.
+# = the SDK. Each crate's header goes to its OWN package: ssruntime →
+# ssruntime_dart, ssconverter → ssconverter_dart.
 $RtIncludeDir = Join-Path $RtPkgDir "native/include"
 $ConvIncludeDir = Join-Path $ConvPkgDir "native/include"
 New-Item -ItemType Directory -Force -Path $RtIncludeDir, $ConvIncludeDir | Out-Null
 # The generating build scripts live in the *-ffi crates and write beside
-# themselves, so these are `libs/<crate>-ffi/target/`. They moved there with the
-# SDK's "split the binary faces into *-ffi crates" refactor; the old
-# `libs/<crate>/target/` paths are written by nothing now, and because these
-# copies are guarded a stale path fails silently.
+# themselves, so these are `libs/<crate>-ffi/target/`. These copies are guarded,
+# so a stale path fails silently: the header never updates and ffigen keeps
+# regenerating yesterday's C-API.
 $rh = Join-Path $SdkDir "libs/ssruntime-ffi/target/ssruntime.h"
 if (Test-Path $rh) { Copy-Item $rh (Join-Path $RtIncludeDir "ssruntime.h") -Force; Write-Host "   -> ssruntime_dart native/include/ssruntime.h" }
 $ch = Join-Path $SdkDir "libs/ssconverter-ffi/target/ssconverter.h"

@@ -1,11 +1,10 @@
-// Play/pause/resume transport (L3). Pins the regression where a play/pause
-// button froze after one press: the Brain keeps `isPlaying` true while paused
-// and its `pause` merely *toggles* a hold, so a naive `isPlaying ? pause : play`
-// re-paused every tap and never restarted the ticker.
+// Play/pause/resume transport (L3). A play/pause button must not freeze after one
+// press: the Brain keeps `isPlaying` true while paused and its `pause` merely
+// *toggles* a hold, so a naive `isPlaying ? pause : play` would re-pause every tap
+// and never restart the ticker.
 //
 // Also pins the four-verb contract itself: `resume` lifts a hold and does
-// NOTHING else. It used to head out through `play` when nothing was playing,
-// and this was the only Player in the family that did.
+// NOTHING else.
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -102,8 +101,7 @@ void main() {
     await pumpFrames();
     expect(player.frameNo, closeTo(0, 1e-6), reason: 'and nothing advanced');
 
-    // Stopped mid-run: the playhead stays put, and resume still does nothing --
-    // the bug this replaces sent it back to the head instead.
+    // Stopped mid-run: the playhead stays put, and resume still does nothing.
     player.play();
     await pumpFrames();
     final stoppedAt = player.frameNo;

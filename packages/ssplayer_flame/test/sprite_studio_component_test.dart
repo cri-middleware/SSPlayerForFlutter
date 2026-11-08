@@ -9,13 +9,72 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
-import 'package:flame/components.dart';
+import 'package:flame/game.dart';
+import 'package:flutter/foundation.dart'
+    show FlutterError, FlutterErrorDetails;
 import 'package:flutter/services.dart' show AssetBundle, CachingAssetBundle;
+import 'package:flutter/widgets.dart' show SizedBox;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ssplayer_flame/ssplayer_flame.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  test('a failed load names the asset and reports the error it keeps', () async {
+    final reported = <FlutterErrorDetails>[];
+    final previous = FlutterError.onError;
+    FlutterError.onError = reported.add;
+    addTearDown(() => FlutterError.onError = previous);
+
+    final component =
+        SpriteStudioComponent.asset('no/such/pack.ssab', bundle: _DiskBundle());
+    await component.onLoad();
+
+    expect(component.player, isNull);
+    expect(component.loadError, isNotNull);
+    expect(reported.single.exception, same(component.loadError));
+    expect(reported.single.context.toString(), contains('no/such/pack.ssab'));
+  });
+
+  testWidgets('a component added back after its removal loads again',
+      (tester) async {
+    final ssabPath = _firstExisting([
+      'examples/flame/assets/spritestudio/Ringo/Ringo.ssab',
+      '../../examples/flame/assets/spritestudio/Ringo/Ringo.ssab',
+    ]);
+    if (ssabPath == null) {
+      markTestSkipped('Ringo.ssab missing — run scripts/deploy-examples.sh');
+      return;
+    }
+    Future<void> settle() async {
+      for (var i = 0; i < 40; i++) {
+        await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 5)));
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+    }
+
+    final game = FlameGame();
+    await tester.pumpWidget(GameWidget(game: game));
+    final component = SpriteStudioComponent.asset(ssabPath,
+        bundle: _DiskBundle(), size: Vector2(100, 100));
+    addTearDown(() => component.player?.dispose());
+
+    game.add(component);
+    await settle();
+    expect(component.player, isNotNull);
+
+    component.removeFromParent();
+    await settle();
+    expect(component.player, isNull);
+
+    game.add(component);
+    await settle();
+    expect(component.player, isNotNull, reason: '${component.loadError}');
+    expect(component.player!.isPlaying, isTrue);
+
+    await tester.pumpWidget(const SizedBox());
+  });
 
   test('SpriteStudioComponent loads, advances, and paints a textured frame',
       () async {
@@ -74,12 +133,10 @@ void main() {
 
   test('zero-size component falls back to a finite, origin-centred render box',
       () async {
-    // Regression: a component given no `size` has a 0×0 box, so `render` used to
-    // pass an empty `dst`. The Canvas backend tolerates that (it only reads
-    // `dst.center`), but the flutter_gpu backend needs a real render target and
-    // drew a blank frame. `render` now sizes a fallback box from the animation's
-    // authored canvas, so the point-placed (size-less) component stays visible on
-    // both backends. This drives the Canvas backend (headless) and checks the
+    // A component given no `size` has a 0×0 box. The Canvas backend tolerates an
+    // empty `dst` (it only reads `dst.center`), but the flutter_gpu backend needs
+    // a real render target, so `render` sizes a fallback box from the animation's
+    // authored canvas. This drives the Canvas backend (headless) and checks the
     // fallback both paints and reports a positive canvas size.
     final ssabPath = _firstExisting([
       'examples/flame/assets/spritestudio/Ringo/Ringo.ssab',
@@ -90,7 +147,7 @@ void main() {
       return;
     }
 
-    // No `size:` — the default zero box is exactly the case that regressed.
+    // No `size:` — the default zero box.
     final component = SpriteStudioComponent.asset(
       ssabPath,
       bundle: _DiskBundle(),

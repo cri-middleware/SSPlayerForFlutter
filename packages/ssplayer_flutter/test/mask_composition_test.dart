@@ -6,9 +6,9 @@
 // SpriteStudio 7.6 draws (InstancePropagationTired3 and the S01_Overlap /
 // OV_Top data behind the ForGodot fix): under an instance part with
 // `mask_influence == 0` the instance's own parts go unmasked, but a
-// grandchild whose own instance part opts in is masked again. This port used
-// to chain both flags down the whole hierarchy, so one opted-out caller
-// unmasked its entire subtree.
+// grandchild whose own instance part opts in is masked again. Chaining both
+// flags down the whole hierarchy would let one opted-out caller unmask its
+// entire subtree.
 //
 // The composition applies whether or not anything masks the caller, and the
 // same one level decides a writer's OP. The identity (influence = true,
@@ -177,8 +177,7 @@ void main() {
     });
 
     test('a part keeps its own polarity under a plain caller', () {
-      // The flattening bug in the other direction: the callee asked to draw
-      // inside, the caller did not, and the caller used to win.
+      // The callee asked to draw inside, the caller did not: the callee wins.
       final plainCaller = MaskComposition.ofInstancePart(_plain);
       expect(plan.bitsFor(0, _inside, comp: plainCaller)!.visibleInside, isTrue);
     });

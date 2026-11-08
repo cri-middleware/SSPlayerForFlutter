@@ -66,8 +66,8 @@ const List<String> _packs = <String>[
 // verify the pack by eye in the example app on both backends instead.
 
 // A subset for the reload regression — the heaviest GPU resource sets: Basic
-// (sprite pipeline + atlas texture), PartsColor (partcolor pipeline + per-part
-// UBO + coverage texture). Enough to prove the backend rebuilds cleanly after a
+// (sprite pipeline + atlas texture), PartsColor (partcolor pipeline + coverage
+// texture). Enough to prove the backend rebuilds cleanly after a
 // live-reload's dispose→recreate without re-running the whole matrix.
 const List<String> _reloadPacks = <String>['Basic', 'PartsColor'];
 
@@ -105,7 +105,7 @@ void main() {
   }
 
   // A dev-time live-reload disposes the internal player AND its GPU backend
-  // (dropping `_gpuTextures` / `_frameCoverages` / pipelines) then rebuilds a
+  // (dropping the shared uploads, `_frameCoverages` and the pipelines) then rebuilds a
   // fresh one for the new bytes, with the playhead preserved. Verify the GPU
   // path still produces correct pixels after that teardown — a stale/leaked
   // texture or an un-rebuilt pipeline would show up as divergence from Canvas.

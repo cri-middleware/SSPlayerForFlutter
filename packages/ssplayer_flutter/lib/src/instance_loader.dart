@@ -31,9 +31,8 @@ class InstancePackLoadResult {
 /// `.ssae`, side by side).
 ///
 /// A same-pack sub-animation — an instance part pointing at another animation in
-/// its *own* `.ssab`, the common case — needs nothing from here: the ssab's
-/// `external_instances` manifest correctly omits it and the player resolves it
-/// against its own bytes.
+/// its *own* `.ssab` — needs nothing from here: the ssab's `external_instances`
+/// manifest correctly omits it and the player resolves it against its own bytes.
 class SsInstanceLoader {
   /// Walks [rootSsab]'s `external_instances` transitively and fetches each pack.
   ///
@@ -82,7 +81,9 @@ class SsInstanceLoader {
 
           final path = _joinAsset(baseAssetDir, '$name.ssab');
           try {
-            final data = (await bnd.load(path)).buffer.asUint8List();
+            final loaded = await bnd.load(path);
+            final data = loaded.buffer
+                .asUint8List(loaded.offsetInBytes, loaded.lengthInBytes);
             // Key by the pack's OWN name_hash, not a hash of the file name: it
             // is what `PartTypeInstance.ref_anime_pack_hash` is compared against.
             packs[InstancePart.packHashOf(data)] = data;

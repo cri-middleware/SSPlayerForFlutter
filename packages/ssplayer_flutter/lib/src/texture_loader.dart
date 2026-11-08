@@ -75,8 +75,7 @@ class SsTextureLoader {
       if (registry.contains(cm.nameHash)) return;
       // Sampling is the registry's (bilinear + clamp unless the app registers
       // the atlas itself). The SpriteStudio settings in `filterMode` and
-      // `wrapMode` are deliberately not read — the Porting Guide leaves both
-      // to the engine.
+      // `wrapMode` are deliberately not read: sampling is the app's choice.
       // 1. Embedded bytes take priority.
       final asset = embedded[cm.imagePathHash];
       final data = asset?.data;
@@ -90,7 +89,7 @@ class SsTextureLoader {
       if (path != null && path.isNotEmpty && baseAssetDir != null) {
         final assetPath = _joinAsset(baseAssetDir, path);
         try {
-          final bytes = (await bnd.load(assetPath)).buffer.asUint8List();
+          final bytes = _viewOf(await bnd.load(assetPath));
           await SharedImages.register(
               registry, cm.nameHash, bytes, decodeImage);
           return;
@@ -128,7 +127,7 @@ class SsTextureLoader {
       if (name != null && name.isNotEmpty && baseAssetDir != null) {
         try {
           final assetPath = _joinAsset(baseAssetDir, name);
-          final bytes = (await bnd.load(assetPath)).buffer.asUint8List();
+          final bytes = _viewOf(await bnd.load(assetPath));
           await SharedImages.register(
               registry, ext.nameHash, bytes, decodeImage);
         } catch (_) {
@@ -159,6 +158,10 @@ class SsTextureLoader {
       codec.dispose();
     }
   }
+
+  /// What a bundle handed out is a view, and not always of a whole buffer.
+  static Uint8List _viewOf(ByteData data) =>
+      data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
 
   static Uint8List _asBytes(List<int> data) =>
       data is Uint8List ? data : Uint8List.fromList(data);

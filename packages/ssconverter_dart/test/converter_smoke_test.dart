@@ -7,8 +7,7 @@ import 'package:ssconverter_dart/ssconverter_dart.dart';
 ///
 /// `dart test` runs `hook/build.dart`, which bundles the prebuilt
 /// `libssconverter` (from `native/libs/`, produced by scripts/build-runtime.sh)
-/// as a code asset; the `@Native` bindings resolve it — no
-/// `SSCONVERTER_LIBRARY_PATH` / `DynamicLibrary.open`.
+/// as a code asset; the `@Native` bindings resolve it.
 void main() {
   const conv = SsConverter();
 

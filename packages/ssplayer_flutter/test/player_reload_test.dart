@@ -9,6 +9,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ssplayer_flutter/ssplayer_flutter.dart';
+// ignore: implementation_imports
+import 'package:ssplayer_flutter/src/ssab_pack.dart';
 
 void main() {
   final ssabPath = _firstExisting([
@@ -85,6 +87,87 @@ void main() {
 
   // `isPlaying` is "active", which stays true across a pause — so a reload that
   // keys off it alone force-resumes a preview the user deliberately paused.
+  testWidgets('load and reload keep the playback direction and style',
+      (tester) async {
+    if (ssabPath == null) {
+      markTestSkipped('Basic.ssab missing — run deploy-examples.sh');
+      return;
+    }
+    final bytes = Uint8List.fromList(File(ssabPath).readAsBytesSync());
+    final player = SpriteStudioPlayer(vsync: tester);
+    addTearDown(player.dispose);
+
+    // Set before there is an engine to take it.
+    player.setPlaybackDirection(
+        SsPlaybackDirection.backward, SsPlaybackStyle.pingPong);
+    await player.load(bytes, loadTextures: false);
+    expect(player.playbackDirection, SsPlaybackDirection.backward);
+    expect(player.playbackStyle, SsPlaybackStyle.pingPong);
+
+    player.setAnimation(player.animationNames.first);
+    await player.reload(bytes, loadTextures: false);
+    expect(player.playbackDirection, SsPlaybackDirection.backward);
+    expect(player.playbackStyle, SsPlaybackStyle.pingPong);
+
+    player.setPlaybackDirection(
+        SsPlaybackDirection.forward, SsPlaybackStyle.normal);
+    await player.load(bytes, loadTextures: false);
+    expect(player.playbackDirection, SsPlaybackDirection.forward);
+    expect(player.playbackStyle, SsPlaybackStyle.normal);
+  });
+
+  group('overlapping loads leave the last one asked for', () {
+    final dir = ssabPath == null ? null : File(ssabPath).parent.path;
+    Uint8List read(String name) =>
+        Uint8List.fromList(File('$dir/$name').readAsBytesSync());
+
+    test('load: a slow first load gives way to a quick second one', () async {
+      if (dir == null) {
+        markTestSkipped('assets missing — run deploy-examples.sh');
+        return;
+      }
+      TestWidgetsFlutterBinding.ensureInitialized();
+      final open = SsabPack.debugOpenCount;
+      final player = SpriteStudioPlayer();
+
+      // Instance.ssab's children come through the bundle, which gives the first
+      // load something to wait for.
+      final first = player.load(read('Instance.ssab'),
+          bundle: _DelayedBundle(dir), baseAssetDir: 'x', loadTextures: false);
+      final basic = read('Basic.ssab');
+      await player.load(basic, loadTextures: false);
+      await first;
+
+      final names = SsAnimeInfo(basic).animationNames;
+      expect(player.animationNames, names);
+      expect(player.setAnimation(names.first), isTrue);
+      expect(player.internal!.instanceParts, isEmpty);
+
+      player.dispose();
+      expect(SsabPack.debugOpenCount, open);
+    });
+
+    test('loadAsset: the last call wins whichever read lands first', () async {
+      if (dir == null) {
+        markTestSkipped('assets missing — run deploy-examples.sh');
+        return;
+      }
+      TestWidgetsFlutterBinding.ensureInitialized();
+      final player = SpriteStudioPlayer();
+      addTearDown(player.dispose);
+
+      final first = player.loadAsset('x/Instance.ssab',
+          bundle: _DelayedBundle(dir), loadTextures: false);
+      await player.loadAsset('x/Basic.ssab',
+          bundle: _DelayedBundle(dir, delay: Duration.zero), loadTextures: false);
+      await first;
+
+      expect(player.animationNames,
+          SsAnimeInfo(read('Basic.ssab')).animationNames);
+      expect(player.internal!.instanceParts, isEmpty);
+    });
+  });
+
   testWidgets('reload leaves a PAUSED player paused', (tester) async {
     if (ssabPath == null) {
       markTestSkipped('Basic.ssab missing — run deploy-examples.sh');
@@ -135,6 +218,20 @@ void main() {
     }
     expect(said.single, contains(key));
   });
+}
+
+/// Serves the file of [root] named by a key's last segment, after [delay].
+class _DelayedBundle extends CachingAssetBundle {
+  _DelayedBundle(this.root, {this.delay = const Duration(milliseconds: 40)});
+  final String root;
+  final Duration delay;
+
+  @override
+  Future<ByteData> load(String key) async {
+    await Future<void>.delayed(delay);
+    final name = key.substring(key.lastIndexOf('/') + 1);
+    return ByteData.sublistView(await File('$root/$name').readAsBytes());
+  }
 }
 
 /// Serves [bytes] for any key.

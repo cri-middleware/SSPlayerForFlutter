@@ -70,15 +70,10 @@ class MaskPartFlags {
   );
 
   /// Whether this part's shape is the plain 4-corner sprite quad
-  /// (`local_vertices`) — true for Normal and Mask parts.
-  ///
-  /// Mesh / Text / Nines carry their own geometry, which the coverage pass
-  /// cannot rasterise yet. Such a part is dropped as a *writer*
-  /// ([MaskPlan.build]) rather than clipping its targets with the wrong shape:
-  /// a Mesh can never be a pure mask, but it CAN be a
-  /// clipping writer, and rasterising its undeformed quad would clip to a
-  /// rectangle instead of the deformed mesh. Not writing at all is the more
-  /// predictable of the two wrongs until the geometry is wired up.
+  /// (`local_vertices`) — true for Normal and Mask parts. Shape and Mesh parts
+  /// carry their own geometry ([shapeGeometry], [meshGeometry]); Text and Nines
+  /// have none the coverage pass can rasterise, so [drawableWriter] is false for
+  /// them.
   final bool quadGeometry;
 
   /// A Shape part: its coverage is its **polygon**, taken from the shape
@@ -179,11 +174,10 @@ class MaskPartFlags {
 /// A part's own `mask_influence` / `visible_inside_mask` compose with those of
 /// the instance part **directly** above it — `mask_influence` with AND,
 /// `visible_inside_mask` with OR — and with nothing further up. SpriteStudio
-/// 7.5 composes one level only: under an instance part with
-/// `mask_influence == 0` the instance's own parts are left unmasked, while a
-/// grandchild whose own instance part opts in is masked again. Chaining the
-/// flags down the whole hierarchy (as this port once did) settles "not masked"
-/// for the entire subtree instead.
+/// composes one level only: under an instance part with `mask_influence == 0` the
+/// instance's own parts are left unmasked, while a grandchild whose own instance
+/// part opts in is masked again. Chaining the flags down the whole hierarchy would
+/// settle "not masked" for the entire subtree instead.
 ///
 /// It composes whether or not a mask reaches the caller: the value depends on
 /// the instance part alone. [identity] is the unit of both operations and what
@@ -219,12 +213,9 @@ class MaskComposition {
   /// Under this composition: is a part with [flags] subject to the mask
   /// test at all? Target-ness is the composed `mask_influence` ALONE.
   ///
-  /// `mask_write` must NOT force it: a clipping writer
-  /// draws its colour first, then writes its clip below, so gating its own
-  /// colour with its own `mask_write` made a `visible_inside_mask` writer with
-  /// no covering mask vanish. A clipping writer's own colour is clipped by OTHER
-  /// masks purely on its real (composed) `mask_influence`; with influence 0 it
-  /// draws unmasked.
+  /// `mask_write` must NOT force it: a clipping writer draws its colour first,
+  /// then writes its clip below. Its own colour is clipped by OTHER masks purely
+  /// on its real (composed) `mask_influence`; with influence 0 it draws unmasked.
   bool targets(MaskPartFlags flags) => influence && flags.maskInfluence;
 
   /// Under this composition: which side of the mask a part draws on.

@@ -34,15 +34,19 @@ import 'dart:typed_data';
 /// do not keep it past the frame.
 abstract interface class SsRuntime {
   // The compile-time-selected backend is exposed via a conditional export in
-  // `ssruntime_dart.dart` (native FFI vs web js_interop), added together with the
-  // two backend implementations. It is kept OFF this interface so this file stays
-  // backend-free and analyzes on every platform.
+  // `ssruntime_dart.dart` (native FFI vs web js_interop). It is kept OFF this
+  // interface so this file stays backend-free and analyzes on every platform.
 
   // --- Resource / Context lifecycle --------------------------------------
 
+  /// The `.ssab` schema version this runtime reads, for a report on a pack
+  /// [createResourceCopy] rejected. Null on the web, whose rejection names it.
+  int? get ssabSchemaVersion;
+
   /// Copies `ssab` onto the Brain's heap (copy mode — the only mode that works
   /// on web, where Body and Brain memory spaces differ). Returns null when the
-  /// Brain rejects the pack.
+  /// Brain rejects the pack; on the web, whose runtime gives its reason, throws a
+  /// [StateError] carrying it instead.
   ///
   /// Throws a [FormatException] when `ssab` lacks the `"SSAB"` FlatBuffers file
   /// identifier (`hasSsabIdentifier`): the Brain parses `.ssab` unchecked and is
@@ -345,6 +349,7 @@ abstract interface class SsRuntime {
       SsResource resource, int effectNameHash, int seed);
   void resetEffectSlot(SsEffectSlot slot);
   void destroyEffectSlot(SsEffectSlot slot);
+  bool effectSlotIsIndependent(SsEffectSlot slot);
 
   /// Fetches the active `EventEffect` for [slotIndex] (== part index) against
   /// [context] and steps [slot] one frame. The active-event fetch is fused in so

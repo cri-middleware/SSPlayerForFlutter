@@ -12,10 +12,9 @@
 //
 // `blend_pixel_test.dart` proves the per-pixel maths; this proves the *plumbing*
 // — that `blendPassesFor`'s multi-pass plan survives the peel/run logic, the
-// z-order and the real textures. The `SUB` case is the specific regression guard:
-// SpriteStudio's Sub can only ever darken an opaque backdrop, and the old
-// single-pass `difference` mapping brightened it wherever the sprite was the
-// brighter of the two.
+// z-order and the real textures. The `SUB` case guards one thing: SpriteStudio's
+// Sub can only ever darken an opaque backdrop, where a single-pass `difference`
+// would brighten it wherever the sprite was the brighter of the two.
 import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;

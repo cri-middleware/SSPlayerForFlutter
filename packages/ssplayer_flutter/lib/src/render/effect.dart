@@ -162,6 +162,10 @@ class EffectSlots {
   /// whole effect path.
   bool get isEmpty => parts.isEmpty;
 
+  /// Whether any slot runs on its own clock, going by the last key each one saw.
+  bool get anyIndependent => _slots.values.any(
+      (slot) => slot != null && ssRuntime.effectSlotIsIndependent(slot));
+
   /// The plan for [partIndex] as of the last [step], or null when that slot was
   /// invisible (dead, not yet started, or out of its lifetime) or its part
   /// hidden.

@@ -58,6 +58,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   /// bytes, its own instance children among them.
   final SsabPack _pack;
 
+  /// The pack this player holds, for a test to compare holders by.
   @visibleForTesting
   SsabPack get pack => _pack;
 
@@ -158,6 +159,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   /// on the other setting visibly stutters at integer frames while its parent
   /// runs smooth.
   bool get subFrameEnabled => _subFrame;
+  /// See [SpriteStudioPlayer.subFrameEnabled].
   set subFrameEnabled(bool value) {
     _subFrame = value;
     for (final part in _instances.parts) {
@@ -186,11 +188,11 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   SsRootTransform rootTransform = SsRootTransform.identity;
 
   bool _disposed = false;
+
+  /// Whether [dispose] has run. Every call but this one is then an error.
   bool get isDisposed => _disposed;
 
-  // The SoA out-parameter scratch cells and the Context/Resource NativeFinalizers
-  // moved into the native SsRuntime backend (ssruntime_dart) so this layer is
-  // dart:ffi-free and compiles for the web. GC backstop is [SsRuntime.registerForGc].
+  // GC backstop is [SsRuntime.registerForGc].
 
   /// Loads `ssab` into a fresh Context, binds it, and recursively spawns any
   /// instance children.
@@ -366,6 +368,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   /// Canonical name→id hash (never re-implement FNV-1a on the Dart side).
   int hashString(String name) => ssRuntime.hashString(name);
 
+  /// See [SpriteStudioPlayer.play].
   void play([double? startFrame]) {
     _ensureAlive();
     if (startFrame == null) {
@@ -386,21 +389,25 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
     _instances.reset();
   }
 
+  /// See [SpriteStudioPlayer.pause].
   void pause() {
     _ensureAlive();
     ssRuntime.pause(_context);
   }
 
+  /// See [SpriteStudioPlayer.resume].
   void resume() {
     _ensureAlive();
     ssRuntime.resume(_context);
   }
 
+  /// See [SpriteStudioPlayer.stop].
   void stop() {
     _ensureAlive();
     ssRuntime.stop(_context);
   }
 
+  /// See [SpriteStudioPlayer.isPlaying].
   bool get isPlaying => ssRuntime.isPlaying(_context);
 
   /// Whether playback is paused. Note the Brain keeps [isPlaying] `true` while
@@ -433,18 +440,26 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   /// callers wanting a one-shot notification must take the rising edge.
   bool get isFinished => ssRuntime.isFinished(_context);
 
+  /// See [SpriteStudioPlayer.justLooped].
   bool get justLooped => ssRuntime.justLooped(_context);
 
   /// Which way the playhead is actually travelling — see
   /// [SpriteStudioPlayer.isPlayingForward].
   bool get isPlayingForward => ssRuntime.isPlayingForward(_context);
+  /// See [SpriteStudioPlayer.frameNo].
   double get frameNo => ssRuntime.frameNo(_context);
+  /// See [SpriteStudioPlayer.startFrame].
   int get startFrame => ssRuntime.startFrame(_context);
+  /// See [SpriteStudioPlayer.endFrame].
   int get endFrame => ssRuntime.endFrame(_context);
+  /// See [SpriteStudioPlayer.frameRate].
   int get frameRate => ssRuntime.frameRate(_context);
 
+  /// See [SpriteStudioPlayer.loopCount].
   set loopCount(int count) => ssRuntime.setLoopCount(_context, count);
+  /// See [SpriteStudioPlayer.speedScale].
   set speedScale(double rate) => ssRuntime.setSpeedScale(_context, rate);
+  /// See [SpriteStudioPlayer.frameRate].
   set frameRate(int fps) => ssRuntime.setFrameRate(_context, fps);
   /// Moves the playhead, then re-resolves the slot-based kinds *at the new
   /// frame*. Without that second half an instance child keeps whatever
@@ -489,17 +504,22 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
     return true;
   }
 
+  /// See [SpriteStudioPlayer.setPlaybackDirection].
   void setPlaybackDirection(SsPlaybackDirection direction,
           SsPlaybackStyle style) =>
       ssRuntime.setPlaybackDirection(_context, direction.value, style.value);
 
+  /// See [SpriteStudioPlayer.playbackDirection].
   SsPlaybackDirection get playbackDirection =>
       SsPlaybackDirection.fromValue(ssRuntime.playbackDirection(_context));
 
+  /// See [SpriteStudioPlayer.playbackStyle].
   SsPlaybackStyle get playbackStyle =>
       SsPlaybackStyle.fromValue(ssRuntime.playbackStyle(_context));
 
+  /// See [SpriteStudioPlayer.frameSkipEnabled].
   set frameSkipEnabled(bool skip) => ssRuntime.setSkipFrames(_context, skip);
+  /// See [SpriteStudioPlayer.frameSkipEnabled].
   bool get frameSkipEnabled => ssRuntime.skipFrames(_context);
 
   // --- Per-frame update ----------------------------------------------------
@@ -510,6 +530,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   /// [delta] in milliseconds; use [updateMs] to control the raw value.
   double update(Duration delta) => updateMs(delta.inMicroseconds / 1000.0);
 
+  /// [update] with the delta in milliseconds, as the Brain takes it.
   double updateMs(double deltaMs) {
     _ensureAlive();
     // Read before the update: a fade or an overlay that ends on this one still
@@ -739,6 +760,12 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   InstanceSlot<SpriteStudioInternalPlayer>? instanceSlotFor(int partIndex) =>
       _instances.slotFor(partIndex);
 
+  /// Whether an effect or instance part in this tree runs on its own clock, and
+  /// so has to keep getting ticks through a [pause].
+  bool get playsOnItsOwn =>
+      _effects.anyIndependent ||
+      _instances.slots.any((s) => s.isIndependent || s.child.playsOnItsOwn);
+
   // --- Events (polling) ----------------------------------------------------
 
   /// Indices, into an ssab `events()` table, that were passed on the last
@@ -797,94 +824,116 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
     return source;
   }
 
+  /// See [SpriteStudioPlayer.setTrackAnimation].
   bool setTrackAnimation(int track, String name) {
     _ensureAlive();
     return _posed(ssRuntime.setTrackAnimation(_context, track, name));
   }
 
+  /// See [SpriteStudioPlayer.trackCount].
   int get trackCount => ssRuntime.trackCount(_context);
 
+  /// See [SpriteStudioPlayer.clearTrack].
   bool clearTrack(int track) {
     _ensureAlive();
     return _posed(ssRuntime.clearTrack(_context, track));
   }
 
+  /// See [SpriteStudioPlayer.setTrackAlpha].
   bool setTrackAlpha(int track, double alpha) {
     _ensureAlive();
     return _posed(ssRuntime.setTrackAlpha(_context, track, alpha));
   }
 
+  /// See [SpriteStudioPlayer.trackAlpha].
   double? trackAlpha(int track) => ssRuntime.trackAlpha(_context, track);
 
+  /// See [SpriteStudioPlayer.setTrackBlend].
   bool setTrackBlend(int track, SsTrackBlend blend) {
     _ensureAlive();
     return _posed(ssRuntime.setTrackBlend(_context, track, blend.value));
   }
 
+  /// See [SpriteStudioPlayer.trackBlend].
   SsTrackBlend? trackBlend(int track) {
     final blend = ssRuntime.trackBlend(_context, track);
     return blend == null ? null : SsTrackBlend.fromValue(blend);
   }
 
+  /// See [SpriteStudioPlayer.setTrackSync].
   bool setTrackSync(int track, SsTrackSync sync) {
     _ensureAlive();
     return ssRuntime.setTrackSync(_context, track, sync.value);
   }
 
+  /// See [SpriteStudioPlayer.trackSync].
   SsTrackSync? trackSync(int track) {
     final sync = ssRuntime.trackSync(_context, track);
     return sync == null ? null : SsTrackSync.fromValue(sync);
   }
 
+  /// See [SpriteStudioPlayer.crossfade].
   bool crossfade(int track, String name, Duration duration) {
     _ensureAlive();
     return _posed(ssRuntime.crossfade(
         _context, track, name, duration.inMicroseconds / 1000.0));
   }
 
+  /// See [SpriteStudioPlayer.fadeTrack].
   bool fadeTrack(int track, double targetAlpha, Duration duration) {
     _ensureAlive();
     return _posed(ssRuntime.fadeTrack(
         _context, track, targetAlpha, duration.inMicroseconds / 1000.0));
   }
 
+  /// See [SpriteStudioPlayer.trackFadeProgress].
   double? trackFadeProgress(int track) =>
       ssRuntime.trackFadeProgress(_context, track);
 
+  /// See [SpriteStudioPlayer.cancelTrackFade].
   bool cancelTrackFade(int track) {
     _ensureAlive();
     return _posed(ssRuntime.cancelTrackFade(_context, track));
   }
 
+  /// See [SpriteStudioPlayer.setTrackFrame].
   bool setTrackFrame(int track, double frame) {
     _ensureAlive();
     return _posed(ssRuntime.setTrackFrame(_context, track, frame));
   }
 
+  /// See [SpriteStudioPlayer.trackFrame].
   double? trackFrame(int track) => ssRuntime.trackFrame(_context, track);
 
+  /// See [SpriteStudioPlayer.setTrackSpeed].
   bool setTrackSpeed(int track, double speed) {
     _ensureAlive();
     return ssRuntime.setTrackSpeed(_context, track, speed);
   }
 
+  /// See [SpriteStudioPlayer.trackSpeed].
   double? trackSpeed(int track) => ssRuntime.trackSpeed(_context, track);
 
+  /// See [SpriteStudioPlayer.setTrackFrameRate].
   bool setTrackFrameRate(int track, int fps) {
     _ensureAlive();
     return ssRuntime.setTrackFrameRate(_context, track, fps);
   }
 
+  /// See [SpriteStudioPlayer.trackFrameRate].
   int? trackFrameRate(int track) => ssRuntime.trackFrameRate(_context, track);
 
+  /// See [SpriteStudioPlayer.setTrackFrameSkipEnabled].
   bool setTrackFrameSkipEnabled(int track, bool skip) {
     _ensureAlive();
     return ssRuntime.setTrackSkipFrames(_context, track, skip);
   }
 
+  /// See [SpriteStudioPlayer.trackFrameSkipEnabled].
   bool? trackFrameSkipEnabled(int track) =>
       ssRuntime.trackSkipFrames(_context, track);
 
+  /// See [SpriteStudioPlayer.setTrackPlaybackDirection].
   bool setTrackPlaybackDirection(
       int track, SsPlaybackDirection direction, SsPlaybackStyle style) {
     _ensureAlive();
@@ -892,63 +941,78 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
         _context, track, direction.value, style.value);
   }
 
+  /// See [SpriteStudioPlayer.trackPlaybackDirection].
   SsPlaybackDirection? trackPlaybackDirection(int track) {
     final direction = ssRuntime.trackPlaybackDirection(_context, track);
     return direction == null ? null : SsPlaybackDirection.fromValue(direction);
   }
 
+  /// See [SpriteStudioPlayer.trackPlaybackStyle].
   SsPlaybackStyle? trackPlaybackStyle(int track) {
     final style = ssRuntime.trackPlaybackStyle(_context, track);
     return style == null ? null : SsPlaybackStyle.fromValue(style);
   }
 
+  /// See [SpriteStudioPlayer.setTrackLoopCount].
   bool setTrackLoopCount(int track, int count) {
     _ensureAlive();
     return ssRuntime.setTrackLoopCount(_context, track, count);
   }
 
+  /// See [SpriteStudioPlayer.trackLoopCount].
   int? trackLoopCount(int track) => ssRuntime.trackLoopCount(_context, track);
 
+  /// See [SpriteStudioPlayer.isTrackFinished].
   bool isTrackFinished(int track) => ssRuntime.isTrackFinished(_context, track);
 
   /// A pulse, like [justLooped]: the Brain clears it on entry to every update,
   /// so it describes the last one.
   bool trackJustLooped(int track) => ssRuntime.trackJustLooped(_context, track);
 
+  /// See [SpriteStudioPlayer.setTrackOutgoingEventThreshold].
   bool setTrackOutgoingEventThreshold(int track, double threshold) {
     _ensureAlive();
     return ssRuntime.setTrackOutgoingEventThreshold(_context, track, threshold);
   }
 
+  /// See [SpriteStudioPlayer.trackOutgoingEventThreshold].
   double? trackOutgoingEventThreshold(int track) =>
       ssRuntime.trackOutgoingEventThreshold(_context, track);
 
+  /// See [SpriteStudioPlayer.trackMainSource].
   int? trackMainSource(int track) => ssRuntime.trackMainSource(_context, track);
 
+  /// See [SpriteStudioPlayer.addTrackSource].
   int? addTrackSource(int track, String name, double weight) {
     _ensureAlive();
     return _posedSource(ssRuntime.addTrackSource(_context, track, name, weight));
   }
 
+  /// See [SpriteStudioPlayer.setSourceWeight].
   bool setSourceWeight(int source, double weight) {
     _ensureAlive();
     return _posed(ssRuntime.setSourceWeight(_context, source, weight));
   }
 
+  /// See [SpriteStudioPlayer.sourceWeight].
   double? sourceWeight(int source) => ssRuntime.sourceWeight(_context, source);
 
+  /// See [SpriteStudioPlayer.setSourceFrame].
   bool setSourceFrame(int source, double frame) {
     _ensureAlive();
     return _posed(ssRuntime.setSourceFrame(_context, source, frame));
   }
 
+  /// See [SpriteStudioPlayer.sourceFrame].
   double? sourceFrame(int source) => ssRuntime.sourceFrame(_context, source);
 
+  /// See [SpriteStudioPlayer.setSourceEventThreshold].
   bool setSourceEventThreshold(int source, double threshold) {
     _ensureAlive();
     return ssRuntime.setSourceEventThreshold(_context, source, threshold);
   }
 
+  /// See [SpriteStudioPlayer.sourceEventThreshold].
   double? sourceEventThreshold(int source) =>
       ssRuntime.sourceEventThreshold(_context, source);
 
@@ -1237,8 +1301,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
   /// at the setup pose, usually near the character root. Following it snaps the
   /// follower near the root rather than onto the visible art. A rigid
   /// (deform-only) mesh reads false — it follows correctly. Out-of-range → false.
-  /// Backs [SpriteStudioPlayer.isPartSkinnedMesh]; behaviour is unchanged, this
-  /// only lets a caller mark the target.
+  /// Backs [SpriteStudioPlayer.isPartSkinnedMesh].
   bool partSkinnedMesh(int partIndex) => _partNames.isSkinnedMeshAt(partIndex);
 
   /// The outline [partIndex] is drawn with on the frame this player last built,
@@ -1459,7 +1522,7 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
     if (frameData == null || batches == null) return;
 
     // Decide which optional SoA blocks this frame needs in ONE pass over the
-    // batch plan (was two separate `any` scans). Mesh SoA is fetched only when a
+    // batch plan. Mesh SoA is fetched only when a
     // Mesh batch is present; shape SoA when a Shape OR Mask batch is — a
     // *pure-mask* shape's colour batch is emitted with `kind == Mask`, not
     // `Shape`, so keying only off Shape would starve the coverage pass of its
@@ -1607,17 +1670,10 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
       final world = GeometryBuilder.world2dOf(part, frame, _world2dScratch);
       if (world == null) continue;
 
-      // The instance part's own PartColor does not tint the child (see below);
-      // only its alpha is read. The runtime emits `part_color` for any part that
-      // carries the attribute, so an instance part can have one.
-      final st = frame.partOf(part);
-      final pc = st == null ? null : PartColor.read(frame.partsColor, st);
-
       // The instance part's own alpha modulates the entire child, and compounds
-      // down a nested chain (see [PartColor.instanceAlpha] for the PartColor
-      // case, where the corner alpha replaces `PartState.alpha`).
-      final alpha = PartColor.instanceAlpha(pc,
-          partAlpha: frame.alphaOf(part), chainScale: frame.alphaScale);
+      // down a nested chain. It is `PartState.alpha` whether or not the part has
+      // a PartColor, whose corner alphas also carry the colour's own.
+      final alpha = frame.alphaOf(part);
       if (alpha <= 0.0) continue;
 
       // The child tests its parts against the tree's one coverage, through
@@ -1640,16 +1696,9 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
       // The Editor agrees: a sub-animation under an instance
       // part carrying a Mul PartColor renders untinted there.
       //
-      // This Body used to tint the subtree with `wholeTintMatrix` through a
-      // `saveLayer` (Canvas) / sub-texture (GPU). That was wrong twice over. The
-      // tint itself does not belong — an Animate import whose instance part
-      // carried `mul #262626` came out at 15% brightness — and isolating the
-      // subtree to apply it ALSO broke every framebuffer blend inside it: an
-      // `add` child part composited against the empty layer instead of the
-      // scene, turning a glow into an opaque dark blob on both backends.
-      //
-      // [PartColor.instanceAlpha] above still reads the tint's `lt` alpha, which
-      // is the one channel that does cross.
+      // Isolating the subtree in a layer to apply a tint would also break every
+      // framebuffer blend inside it: an `add` child part would composite against
+      // the empty layer instead of the scene.
       backend.pushTransform(canvas, world);
       state.child._paintTree(
         canvas,
@@ -1937,6 +1986,8 @@ class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {
 
   // --- Teardown ------------------------------------------------------------
 
+  /// Releases the native context, its instance children and effect slots, this
+  /// player's hold on the pack and the render backend. Idempotent.
   void dispose() {
     if (_disposed) return;
     _disposed = true;

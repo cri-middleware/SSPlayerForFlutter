@@ -76,7 +76,7 @@ void main() {
     expect(player.frameRate, authored * 2, reason: 'the override takes');
 
     // The override is the host's, not the clip's, so the Brain keeps it across
-    // a transition (SDK #370) — the same rule that keeps speed and frame skip.
+    // a transition — the same rule that keeps speed and frame skip.
     // Clear it by setting 0 (or any negative), which hands playback back to the
     // authored rate.
     player.setAnimation(player.animationNames.first);
@@ -88,10 +88,8 @@ void main() {
   });
 
   test('a frameRate override set before load reaches the player', () async {
-    // The other three transport settings are cached on the Player so they can
-    // be set before the first load; `frameRate` was the one that only pushed to
-    // a Layer 2 that did not exist yet, so the write went nowhere and the
-    // read-back said 0.
+    // The transport settings are cached on the Player so they can be set before
+    // the first load, when there is no Layer 2 to push them to.
     if (ssabPath == null) {
       markTestSkipped('Basic.ssab missing — run deploy-examples.sh');
       return;

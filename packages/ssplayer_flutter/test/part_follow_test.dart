@@ -485,7 +485,7 @@ void main() {
           );
 
       // The default, spelled by omission: it must match the sibling players'
-      // follow-always, not the hide-the-child this player used to ship.
+      // follow-always.
       await tester.pumpWidget(Directionality(
         textDirection: TextDirection.ltr,
         child: Center(

@@ -28,8 +28,7 @@ class SsConverterException implements Exception {
 /// Converts a SpriteStudio `.sspj` project into optimized `.ssab` binary(ies).
 /// The native library is delivered via **native assets** — `hook/build.dart`
 /// bundles the prebuilt `libssconverter` as a code asset and the `@Native`
-/// bindings resolve it, so there is no `DynamicLibrary.open` /
-/// `SSCONVERTER_LIBRARY_PATH`. Desktop only (Windows / macOS / Linux).
+/// bindings resolve it. Desktop only (Windows / macOS / Linux).
 ///
 /// Lifetime: each [convert] owns its native `Context` for the duration of the
 /// call (create → convert → poll `is_finished` → get_result → destroy); no
@@ -37,7 +36,7 @@ class SsConverterException implements Exception {
 class SsConverter {
   const SsConverter();
 
-  /// The converter version string (e.g. `7.0.0-beta.1+<sha>`).
+  /// The converter version string (`<version>+<sha>`).
   String get version {
     final p = ss_converter_version();
     if (p == ffi.nullptr) return 'unknown';
@@ -110,7 +109,7 @@ class SsConverter {
         cSspj.cast(),
         cOut.cast(),
         embedded,
-        ffi.nullptr, // log callback: none in v1
+        ffi.nullptr, // log callback: none
       );
       // The worker thread is spawned synchronously inside convert(); poll it to
       // completion. is_running goes false-without-finished only when the call

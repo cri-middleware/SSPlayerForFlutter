@@ -101,8 +101,8 @@ enum SpriteStudioAnchorMirror {
 /// the follower goes with it. That holds only over the view's own box, which
 /// is one more reason for the `Positioned.fill` above.
 ///
-/// **v1 limits.** Tracks top-level parts only — a part nested inside an Instance
-/// part lives in a child player and is not addressable here yet.
+/// **Limit.** Tracks top-level parts only: a part nested inside an Instance part
+/// lives in a child player and cannot be addressed here.
 class SpriteStudioPartAnchor extends StatelessWidget {
   const SpriteStudioPartAnchor({
     super.key,

@@ -155,8 +155,7 @@ void main() {
 
   // The device push is the only path whose routing depends on a naming
   // convention (the app's `ssAssetDir` last segment naming a `<stem>.sspj`).
-  // Nothing else here reaches it, and a mismatch used to reload nothing in
-  // silence — so pin every outcome.
+  // Nothing else here reaches it, so pin every outcome.
   group('ssProjectStem / ssAssetDirStem', () {
     test('a .sspj path loses its extension, either separator', () {
       expect(ssProjectStem('SpriteStudio_Source/Ringo/Ringo.sspj'), 'Ringo');

@@ -250,7 +250,7 @@ extension type _JsCtx(JSObject _) implements JSObject {
   // by reference. See [_JsOwned]: the caller must free it.
   external _JsOwned get_active_effect_event(int slotIndex);
   external _JsOwned get_active_event_instance(int slotIndex);
-  // Override layer (web/mod.rs §Override Layer). Every setter but
+  // Override layer. Every setter but
   // `clear_all_part_overrides` returns a Rust `Result`, which wasm-bindgen
   // surfaces as a THROW rather than a false — the callers below translate.
   external int find_part_index(String partName);
@@ -288,6 +288,7 @@ extension type _JsEffect(JSObject _) implements JSObject {
       double fps, bool parentLooped, bool yFlip, int vertStride, bool draw);
   external int get_draw_plan_buf();
   external int get_draw_plan_len();
+  external bool is_independent();
   external void reset();
   external void free();
 }
@@ -350,19 +351,29 @@ class _WebRuntime implements SsRuntime {
   _JsCtx _ctx(SsContext c) => (c as _WebContext).js;
   _JsRes _res(SsResource r) => (r as _WebResource).js;
 
+  /// What the wasm face threw, in the Brain's words: a JS `Error` stringifies
+  /// with its class in front.
+  static String _reason(Object error) {
+    final text = error.toString();
+    return text.startsWith('Error: ') ? text.substring('Error: '.length) : text;
+  }
+
+  @override
+  int? get ssabSchemaVersion => null;
+
   @override
   SsResource? createResourceCopy(Uint8List ssab) {
     // Reject a non-.ssab / truncated buffer with a friendly error before it
     // reaches the wasm module (which parses unchecked). See native_runtime.dart.
     assertSsabIdentifier(ssab);
+    final resourceClass = _class('SSRuntimeResource');
     try {
       // `new SSRuntimeResource(data)` copies the bytes into wasm memory (Result
-      // → throws on a bad pack).
-      final js = _class('SSRuntimeResource')
-          .callAsConstructor<JSObject>(ssab.toJS) as _JsRes;
+      // → throws on a bad pack, with the versions when they are what differs).
+      final js = resourceClass.callAsConstructor<JSObject>(ssab.toJS) as _JsRes;
       return _WebResource(js);
-    } catch (_) {
-      return null;
+    } catch (e) {
+      throw StateError(_reason(e));
     }
   }
 
@@ -407,9 +418,9 @@ class _WebRuntime implements SsRuntime {
       ctx.lastError = null;
       return true;
     } catch (e) {
-      // `catch (_)` used to drop this. The wasm face formats the Brain's error
-      // with `Display`, so what arrives is the wording a user should see.
-      ctx.lastError = e.toString();
+      // The wasm face formats the Brain's error with `Display`, so what arrives
+      // is the wording a user should see.
+      ctx.lastError = _reason(e);
       return false;
     }
   }
@@ -525,9 +536,8 @@ class _WebRuntime implements SsRuntime {
     // (e.g. a paint that races ahead of the async .ssab load); the native C-API
     // returns null there. Mirror native so the Body's null path handles it.
     try {
-      // One evaluation. The old buf/len pair each ran a full `get_frame_data`,
-      // so every painted frame cost the Brain twice; `prepare_frame_data`
-      // builds it and returns the length, and the pointer is then a pure read.
+      // One evaluation: `prepare_frame_data` builds the frame and returns its
+      // length; the pointer is then a pure read.
       final len = c.prepare_frame_data(frameNo);
       if (len == 0) return null;
       return _u8(c.get_frame_data_buf(), len);
@@ -642,7 +652,7 @@ class _WebRuntime implements SsRuntime {
       ctx.lastError = null;
       return true;
     } catch (e) {
-      ctx.lastError = e.toString();
+      ctx.lastError = _reason(e);
       return false;
     }
   }
@@ -831,17 +841,8 @@ class _WebRuntime implements SsRuntime {
   //
   // The wasm bindings signal rejection by throwing (a Rust `Result<(), JsValue>`
   // becomes a JS exception), while the C-API — and therefore [SsRuntime] —
-  // returns false. [_ok] does that translation once so both backends present the
-  // same contract to Layer 2.
-
-  static bool _ok(void Function() call) {
-    try {
-      call();
-      return true;
-    } catch (_) {
-      return false;
-    }
-  }
+  // returns false and keeps the reason. [_tracked] does that translation so both
+  // backends present the same contract to Layer 2.
 
   @override
   int findPartIndex(SsContext context, String partName) =>
@@ -850,17 +851,17 @@ class _WebRuntime implements SsRuntime {
   @override
   bool setPartVisibilityOverride(SsContext context, int part, int force,
           {required bool cascade}) =>
-      _ok(() =>
-          _ctx(context).set_part_visibility_override(part, force, cascade));
+      _tracked(context,
+          () => _ctx(context).set_part_visibility_override(part, force, cascade));
 
   @override
   bool clearPartVisibilityOverride(SsContext context, int part) =>
-      _ok(() => _ctx(context).clear_part_visibility_override(part));
+      _tracked(context, () => _ctx(context).clear_part_visibility_override(part));
 
   @override
   bool setPartColorOverride(SsContext context, int part, int blendOp, int rgba,
           int priorityMode) =>
-      _ok(() => _ctx(context)
+      _tracked(context, () => _ctx(context)
           .set_part_color_override(part, blendOp, rgba, priorityMode));
 
   @override
@@ -870,27 +871,27 @@ class _WebRuntime implements SsRuntime {
       throw ArgumentError.value(rgbaLtRtLbRb, 'rgbaLtRtLbRb',
           'must hold exactly 4 packed corners (lt, rt, lb, rb)');
     }
-    return _ok(() => _ctx(context).set_part_color_override_corners(
+    return _tracked(context, () => _ctx(context).set_part_color_override_corners(
         part, blendOp, rgbaLtRtLbRb.toJS, priorityMode));
   }
 
   @override
   bool clearPartColorOverride(SsContext context, int part) =>
-      _ok(() => _ctx(context).clear_part_color_override(part));
+      _tracked(context, () => _ctx(context).clear_part_color_override(part));
 
   @override
   bool setPartCellOverride(SsContext context, int part, int cellmapNameHash,
           int cellNameHash, int priorityMode) =>
-      _ok(() => _ctx(context).set_part_cell_override(
+      _tracked(context, () => _ctx(context).set_part_cell_override(
           part, cellmapNameHash, cellNameHash, priorityMode));
 
   @override
   bool clearPartCellOverride(SsContext context, int part) =>
-      _ok(() => _ctx(context).clear_part_cell_override(part));
+      _tracked(context, () => _ctx(context).clear_part_cell_override(part));
 
   @override
   bool clearAllPartOverrides(SsContext context) =>
-      _ok(() => _ctx(context).clear_all_part_overrides());
+      _tracked(context, () => _ctx(context).clear_all_part_overrides());
 
   @override
   SsEffectSlot? createEffectSlot(
@@ -913,6 +914,10 @@ class _WebRuntime implements SsRuntime {
   @override
   void destroyEffectSlot(SsEffectSlot slot) =>
       (slot as _WebEffectSlot).js.free();
+
+  @override
+  bool effectSlotIsIndependent(SsEffectSlot slot) =>
+      (slot as _WebEffectSlot).js.is_independent();
 
   @override
   SsEffectStep stepEffectSlot(

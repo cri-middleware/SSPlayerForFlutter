@@ -69,8 +69,8 @@ void main() {
       expect(player.setAnimation('walk'), isTrue);
       expect(player.trackFadeProgress(0), isNotNull);
 
-      // The outgoing one is not. Recorded as still selected, this was a no-op
-      // and the character could not go back.
+      // The outgoing one is not. Recorded as still selected, this would be a
+      // no-op and the character could not go back.
       expect(player.setAnimation('wait1'), isTrue);
       expect(player.currentAnimation, 'wait1');
       expect(player.trackFadeProgress(0), isNull,

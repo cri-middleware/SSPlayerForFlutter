@@ -10,8 +10,8 @@
 #   scripts/build-pages.ps1 base=/ zip=yes   # a tree for an upload host, packed
 #
 # base= is baked into the demo at build time (--base-href), which is why it is an
-# option here and was not one in the Zensical-only siblings: the documentation
-# uses relative links and does not care, the Flutter app does. It defaults to the
+# option here: the documentation uses relative links and does not care, the
+# Flutter app does. It defaults to the
 # project-site path (/<repo>/), so serve=yes hangs the tree off a scratch root at
 # that path rather than serving site/ directly -- otherwise every asset URL in
 # the demo 404s.
@@ -379,7 +379,7 @@ try {
                 # host libs deploy-examples drives over dart:ffi to convert the
                 # .sspj projects, and the wasm the browser loads. Release for
                 # both -- what a downloaded SDK would have been, and a debug wasm
-                # is four times the size.
+                # is several times larger.
                 Step "build-runtime.ps1 build=release" { & $buildRuntimeScript build=release }
                 Step "build-runtime.ps1 platform=web build=release" { & $buildRuntimeScript platform=web build=release }
             }

@@ -209,7 +209,7 @@ void main() {
                 'got $got, reference $want');
         // Every SS row composites alpha as source-over, so an opaque backdrop
         // stays opaque — a mode that eats alpha would punch a hole instead of
-        // recolouring (the bug the GPU backend's Sub used to have).
+        // recolouring.
         expect(gotAlpha, 255,
             reason: '${type.name} must not disturb an opaque backdrop alpha');
       }

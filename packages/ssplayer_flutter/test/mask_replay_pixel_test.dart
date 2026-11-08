@@ -5,17 +5,15 @@
 // The rule being pinned: `Invert` (mask_influence == 1) and `IncrementWrap`
 // (mask_influence == 0) are each their own inverse in isolation but do NOT
 // commute, so they may not share one accumulator. Replaying both into a single
-// 8-bit `stencil` — which this port did —
-// makes coverage depend on the order the writers happen to be walked
-// in: `incr then invert` lands on 254 (covered) where `invert then incr` wraps
-// back to 0 (not covered). Two planes and their union is the fix; a GPU stencil
-// gets there by splitting `WriteMask` per OP (which is what caps ForUnity's
-// counter at 7 overlapping masks under URP), a shader replay by keeping two
-// ordinary variables and taking no bit budget at all.
+// 8-bit `stencil` would make coverage depend on the order the writers happen to
+// be walked in: `incr then invert` lands on 254 (covered) where `invert then
+// incr` wraps back to 0 (not covered). So they replay into two planes and take
+// the union; a GPU stencil gets there by splitting `WriteMask` per OP (which is
+// what caps ForUnity's counter at 7 overlapping masks under URP), a shader replay
+// by keeping two ordinary variables and taking no bit budget at all.
 //
-// The defect came from SS6PlayerForUnity and was fixed in SSPlayerForUnity and
-// SSPlayerForGodot first; the same change lands in `shaders/gpu/partcolor.frag`,
-// which headless tests cannot reach (see `_gpuNote` below).
+// `shaders/gpu/partcolor.frag` does the same, which headless tests cannot reach
+// (see `_gpuNote` below).
 //
 // Scope is resolved on the CPU here — the shader receives the writers as
 // two disjoint 24-bit sets — so a test drives it exactly as the backend does:
@@ -44,10 +42,9 @@ void main() {
     });
 
     test('three invert writers cover — parity, NOT "exactly one"', () async {
-      // The case that separates the two readings, and the reason the SS6PU
-      // investigation insisted on a 3-overlap: with two writers "parity" and
-      // "exactly one covers" agree, so only three tell them apart. SpriteStudio 7.6 is
-      // parity.
+      // The case that separates the two readings: with two writers "parity" and
+      // "exactly one covers" agree, so only three tell them apart. SpriteStudio
+      // 7.6 is parity.
       expect(await _covered(bits: 0x7, invert: 0x7), isTrue);
     });
 
@@ -63,10 +60,10 @@ void main() {
 
     test('an increment and an invert writer overlapping cover, either way round',
         () async {
-      // THE regression. One shared accumulator made these two disagree: bit 0
-      // increment then bit 1 invert gave 254 (covered), the same two writers
-      // swapped gave 0 (not covered) — the same picture, decided by which part
-      // happened to sit earlier in draw_order.
+      // One shared accumulator would make these two disagree: bit 0 increment
+      // then bit 1 invert gives 254 (covered), the same two writers swapped give
+      // 0 (not covered) — the same picture, decided by which part happens to sit
+      // earlier in draw_order.
       expect(await _covered(bits: 0x3, increment: 0x1, invert: 0x2), isTrue);
       expect(await _covered(bits: 0x3, increment: 0x2, invert: 0x1), isTrue);
     });
@@ -75,7 +72,7 @@ void main() {
         () async {
       // Two inverts cancel to "not covered" on their own plane; the increment
       // writer covers on its own. The union is covered — with one accumulator
-      // the increment was swallowed by the inverts around it.
+      // the increment would be swallowed by the inverts around it.
       expect(await _covered(bits: 0x7, increment: 0x1, invert: 0x6), isTrue);
       expect(await _covered(bits: 0x7, increment: 0x4, invert: 0x3), isTrue);
     });

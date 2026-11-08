@@ -34,9 +34,9 @@ void main() {
     });
 
     test('a reference to the own pack resolves to the own binary', () {
-      // The overwhelmingly common case: an animation instancing a sibling
-      // animation in the same .ssab. It is deliberately absent from
-      // external_instances, so nothing would ever put it in `packs`.
+      // An animation instancing a sibling animation in the same .ssab. It is
+      // deliberately absent from external_instances, so nothing would ever put
+      // it in `packs`.
       final got = InstancePart.resolvePack(partWith(1),
           ownBytes: own, ownPackHash: 1);
       expect(got, same(own));
@@ -373,9 +373,9 @@ void main() {
       player.play();
 
       // Straight to the middle of the animation — no `update` in between, which
-      // is exactly what a scrubber (or a paused, frozen frame) does. `seek` used
-      // to move only the parent's playhead, leaving every slot on its initial
-      // "not visible", so the children silently vanished from the frame.
+      // is exactly what a scrubber (or a paused, frozen frame) does. A `seek` that
+      // moved only the parent's playhead would leave every slot on its initial
+      // "not visible", and the children would vanish from the frame.
       final mid = (player.startFrame + player.endFrame) / 2.0;
       player.seek(mid);
 
@@ -440,6 +440,73 @@ void main() {
       for (final s in syncedVisible()) {
         expect(s.child.frameNo, closeTo(s.childFrame, 1e-3));
       }
+    });
+
+    testWidgets('pausing a vsync player leaves an independent child running',
+        (tester) async {
+      final a = assets;
+      if (a == null) {
+        markTestSkipped('Instance.ssab missing');
+        return;
+      }
+      final player = SpriteStudioPlayer(vsync: tester);
+      addTearDown(player.dispose);
+      await player.load(a.bytes,
+          instancePacks: {'Instance_SourceAnime': a.child}, loadTextures: false);
+      player.setAnimation(player.animationNames.first);
+      player.play();
+      for (var i = 0; i < 20; i++) {
+        await tester.pump(const Duration(milliseconds: 33));
+      }
+      final internal = player.internal!;
+      final independent = [
+        for (final p in internal.instanceParts)
+          if (internal.instanceSlotFor(p.partIndex)?.isIndependent ?? false)
+            internal.instanceSlotFor(p.partIndex)!
+      ];
+      expect(internal.playsOnItsOwn, isTrue);
+
+      player.pause();
+      final parent = player.frameNo;
+      final before = [for (final s in independent) s.child.frameNo];
+      for (var i = 0; i < 10; i++) {
+        await tester.pump(const Duration(milliseconds: 33));
+      }
+
+      expect(player.frameNo, parent);
+      expect([for (final s in independent) s.child.frameNo], isNot(before));
+
+      player.resume();
+      await tester.pump(const Duration(milliseconds: 33));
+      await tester.pump(const Duration(milliseconds: 33));
+      expect(player.frameNo, greaterThan(parent));
+      player.stop();
+    });
+
+    testWidgets('pausing a vsync player with nothing independent stops its ticker',
+        (tester) async {
+      final ssab = _firstExisting([
+        'examples/overall/assets/spritestudio/overall/Basic.ssab',
+        '../../examples/overall/assets/spritestudio/overall/Basic.ssab',
+      ]);
+      if (ssab == null) {
+        markTestSkipped('Basic.ssab missing');
+        return;
+      }
+      final player = SpriteStudioPlayer(vsync: tester);
+      addTearDown(player.dispose);
+      await player.load(Uint8List.fromList(File(ssab).readAsBytesSync()),
+          loadTextures: false);
+      player.setAnimation(player.animationNames.first);
+      player.play();
+      await tester.pump(const Duration(milliseconds: 33));
+
+      player.pause();
+      var ticks = 0;
+      player.addListener(() => ticks++);
+      await tester.pump(const Duration(milliseconds: 33));
+      await tester.pump(const Duration(milliseconds: 33));
+      expect(ticks, 0);
     });
 
     test('an independent child keeps running while the parent is paused', () {

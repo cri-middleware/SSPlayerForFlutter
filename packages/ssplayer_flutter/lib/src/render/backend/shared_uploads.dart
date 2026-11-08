@@ -1,12 +1,11 @@
 /// What backends upload from an image, made once for every backend that draws
 /// that image.
 ///
-/// Players of one pack draw the same decoded atlas (`SharedImages`), yet every
-/// backend read it back and uploaded a copy of its own: a 2 MB texture per
-/// player for Ringo's atlas. Keyed on the image itself, the upload is shared,
-/// and an image that changes — a runtime replacement, an atlas decoded afresh
-/// after a reload — is another key with an upload of its own, so there is
-/// nothing to evict when a registry starts handing out a different image.
+/// Players of one pack draw the same decoded atlas (`SharedImages`), so the
+/// upload is keyed on the image itself and shared. An image that changes — a
+/// runtime replacement, an atlas decoded afresh after a reload — is another key
+/// with an upload of its own, so there is nothing to evict when a registry starts
+/// handing out a different image.
 ///
 /// An upload lives as long as its image object can be reached. Generic over
 /// what an upload makes, so the sharing is testable without a GPU context, as

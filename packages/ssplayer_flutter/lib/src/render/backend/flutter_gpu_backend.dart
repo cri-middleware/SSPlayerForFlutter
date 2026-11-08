@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
@@ -27,9 +28,10 @@ RenderBackend createFlutterGpuBackend() => FlutterGpuBackend();
 /// at display resolution ([_resolutionScale]) so HiDPI edges stay crisp — and
 /// composites it back onto the Flutter canvas via `drawImageRect` into the
 /// logical `dst` in [finish] (flutter_gpu has no on-screen target).
-/// **Implemented: Normal, Mesh, Shape, Effect** (Effect with
-/// its Add/Mix blend), all reusing one textured pipeline — Shape samples a 1×1
-/// white texel so its per-vertex colour (incl. PartColor) passes through.
+/// **Implemented: Normal, Mesh, Shape, Effect** (Effect with its Add/Mix blend).
+/// Plain Normal / Mesh / Effect share one textured pipeline; a Shape draws its
+/// per-vertex colour through the ShapeMask pipeline (the sprite pipeline with a
+/// white texel is only the fallback).
 ///
 /// Per-batch blend is **exact for every SS mode** (see [blendEquationFor]):
 /// SpriteStudio realises each one as a fixed-function GPU blend state, which is
@@ -54,10 +56,8 @@ class FlutterGpuBackend implements RenderBackend {
   static const String _kShaderBundle =
       'packages/ssplayer_flutter/build/shaderbundles/ssplayer.shaderbundle';
 
-  /// Sign of the NDC Y axis relative to player-local Y-Down. Isolated so the
-  /// macOS gate can flip it in one place if the composited image is upside-down
-  /// (Impeller render-target NDC orientation is the one thing that must be
-  /// confirmed on-device). `-1` assumes a Metal-style +Y-up NDC.
+  /// Sign of the NDC Y axis relative to player-local Y-Down; `-1` assumes a
+  /// Metal-style +Y-up NDC.
   static const double _kNdcYSign = -1.0;
 
   // --- Framebuffer blend equations -----------------------------------------
@@ -192,10 +192,10 @@ class FlutterGpuBackend implements RenderBackend {
     }
   }
 
-  /// The two pipelines, built once and shared across all players/backends. The
-  /// sprite pipeline draws plain Normal/Mesh/Shape/Effect; the PartColor pipeline
-  /// draws peeled PartColor/mask parts. Each latches a load failure so a
-  /// missing bundle is not retried every frame.
+  /// The pipelines, built once and shared across all players/backends: sprite
+  /// (plain Normal / Mesh / Effect), PartColor, mask write, ShapeMask and
+  /// integration shader. Each latches a load failure so a missing bundle is not
+  /// retried every frame.
   static gpu.RenderPipeline? _spritePipeline;
   static bool _spritePipelineFailed = false;
   static gpu.RenderPipeline? _partColorPipeline;
@@ -352,20 +352,13 @@ class FlutterGpuBackend implements RenderBackend {
   /// across `draw()` calls: flutter_gpu keys each one by *(shader, uniform name)*
   /// (`RenderPass._bindTexture` / `_bindAsUniform`), so a binding stays live
   /// until something replaces that exact key. Five pipelines share this backend's
-  /// single pass (sprite / PartColor / ss-shader / ShapeMask / colour-matrix) and
+  /// single pass (sprite / PartColor / ss-shader / ShapeMask / mask write) and
   /// their shaders are *different objects*, so re-binding by name inside the next
   /// draw does NOT replace the previous pipeline's entries — it adds to them. The
   /// leftovers are then applied alongside the current draw's, and on
   /// macOS/Metal that silently mis-renders: the sampler and vertex-buffer state
   /// the resolved binding set lands on is not the one the bound pipeline
   /// describes.
-  ///
-  /// Observed on the official SpriteStudio Mask sample (`Walk_Gate.ssab`): a
-  /// plain sprite run drawn *after* a peeled PartColor run rendered as opaque
-  /// black, or not at all — the gates and the platform vanished while the
-  /// PartColor background beside them was pixel-exact. Neither the atlas upload
-  /// nor the baked vertices were wrong (both were dumped and verified); only the
-  /// draw order mattered, and clearing first fixes it exactly.
   ///
   /// The cost is one call per draw, and every call site here re-binds its whole
   /// state (pipeline, uniforms, vertex/index buffers, textures, blend) before
@@ -443,6 +436,10 @@ class FlutterGpuBackend implements RenderBackend {
   // Per-frame state (valid between beginFrame and finish; _active gates use).
   bool _active = false;
   ui.Canvas? _canvas;
+
+  /// Coverage pixels per player-local pixel this frame: the root's scale when it
+  /// enlarges, so a mask on a view fitted larger than its canvas keeps its edge.
+  double _coverageScale = 1.0;
   // The logical-pixel rect the device-resolution offscreen composites into.
   ui.Rect? _compositeRect;
   gpu.Texture? _target;
@@ -451,10 +448,8 @@ class FlutterGpuBackend implements RenderBackend {
 
   /// Recycled offscreen render targets (see [TargetRing]).
   ///
-  /// The backend used to allocate a fresh device-resolution target every frame
-  /// — at DPR 3 a 640x480 box is a ~44 MB texture, 60 times a second — and
-  /// `gpu.Texture` has no explicit destroy, so every one of them left its GPU
-  /// allocation waiting on the GC. Recycling is safe content-wise because the
+  /// `gpu.Texture` has no explicit destroy, so a per-frame target would leave its
+  /// GPU allocation waiting on the GC. Recycling is safe content-wise because the
   /// colour attachment's default `LoadAction.clear` zeroes the target at the
   /// start of every pass, and safe timing-wise at depth 3 (see [TargetRing]).
   late final TargetRing<gpu.Texture> _targets = TargetRing<gpu.Texture>(
@@ -487,7 +482,8 @@ class FlutterGpuBackend implements RenderBackend {
   // parent's — see `SpriteStudioInternalPlayer._paintTree`), so every field below
   // is shared across the recursion. That is only sound because instance recursion
   // happens BETWEEN batches — `_emitInstanceBatch` is its own `DrawBatchKind` — so
-  // no `emit*` is ever re-entered while its run is live. [_emitDepth] asserts it.
+  // no `emit*` is ever re-entered while its run is live. [_noEmitInFlight] asserts
+  // it.
   //
   // The run lists are per emit kind rather than one shared list: three empty
   // lists cost nothing and the kinds stop being coupled at all.
@@ -528,7 +524,8 @@ class FlutterGpuBackend implements RenderBackend {
   /// stack is live at once, and each entry must survive until its `pop`.
   final List<Float32List> _matPool = <Float32List>[];
 
-  /// Debug-only re-entrancy guard, asserted at the top of every `emit*`.
+  /// Debug-only re-entrancy guard, asserted at the top of [emitTextured] and
+  /// [emitShape].
   ///
   /// Every `emit*` flushes its runs before returning, so an empty run list is
   /// exactly "no other `emit*` is part-way through". A future change that made
@@ -552,6 +549,7 @@ class FlutterGpuBackend implements RenderBackend {
     _active = false;
     _frameCoverages.clear();
     _canvas = canvas;
+    _coverageScale = math.max(1.0, root.scale.abs());
     final logical = dst?.size ?? sourceSize ?? ui.Size.zero;
     if (logical.width <= 0 || logical.height <= 0) return;
     _compositeRect = dst ?? (ui.Offset.zero & logical);
@@ -1074,12 +1072,10 @@ class FlutterGpuBackend implements RenderBackend {
   /// [ui.Image] → `toByteData(rawRgba)` → `createTexture(w, h)` → `overwrite` —
   /// not a hand-built byte list.
   ///
-  /// A `hostVisible` texture `overwrite`n from a literal `ByteData` sampled as
-  /// zero on Metal, so the Shape path (which multiplies this texel by the baked
-  /// vertex colour) drew nothing; the atlas, which samples fine, differs only in
-  /// coming from a decoded image, so the Shape texel does too. The decode also
-  /// defers the write past the frame's command buffer (the atlas relies on the
-  /// same), and 8×8 sidesteps any 1×1 upload edge case.
+  /// A `hostVisible` texture `overwrite`n from a literal `ByteData` samples as
+  /// zero on Metal. The decode also defers the write past the frame's command
+  /// buffer (the atlas relies on the same), and 8×8 sidesteps any 1×1 upload edge
+  /// case.
   Future<void> _uploadWhite() async {
     try {
       const w = 8, h = 8;
@@ -1277,11 +1273,8 @@ class FlutterGpuBackend implements RenderBackend {
   /// [parts] is a single mask-target shape; when null the mask is disabled
   /// (`mask_bits.w = 0`, the shader passes the colour straight through) and [parts]
   /// is a run of plain shapes batched into one draw. Either way there is **no
-  /// texture sample for the colour** — matching the Godot/WebGL siblings — which is
-  /// why this replaced the sprite + white-texel path: a `hostVisible` white texel
-  /// sampled as zero on Metal, so `texel * colour` collapsed to nothing and plain
-  /// Shapes were invisible. Falls back to sprite + white only if the mask pipeline
-  /// is unavailable.
+  /// texture sample for the colour** — matching the Godot/WebGL siblings. Falls
+  /// back to sprite + white only if the mask pipeline is unavailable.
   void _drawShapeBatch(List<int> parts, MaskDraw? mask, DrawFrame frame,
       RenderHost host, gpu.ColorBlendEquation blend) {
     final pass = _pass!;
@@ -1413,7 +1406,9 @@ class FlutterGpuBackend implements RenderBackend {
     if (bounds.width <= 0 || bounds.height <= 0) return null;
     final longEdge =
         bounds.width > bounds.height ? bounds.width : bounds.height;
-    final scale = longEdge > _kMaxCoverageDim ? _kMaxCoverageDim / longEdge : 1.0;
+    final scale = longEdge * _coverageScale > _kMaxCoverageDim
+        ? _kMaxCoverageDim / longEdge
+        : _coverageScale;
     final pw = (bounds.width * scale).ceil().clamp(1, _kMaxCoverageDim.toInt());
     final ph = (bounds.height * scale).ceil().clamp(1, _kMaxCoverageDim.toInt());
     // Past 24 writers the texture splits into tiles rather than growing: each

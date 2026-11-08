@@ -360,10 +360,8 @@ void main() {
 
   test('a real Mask.ssab frame resolves a mask test for its Mesh parts',
       () async {
-    // Mesh mask targets used to fall through unmasked because the Mesh
-    // emit path never consulted the plan. Mask.ssab has mesh parts inside a
-    // writer's scope, so this pins that the data really exercises the path —
-    // without it the mesh gate could regress silently.
+    // Mask.ssab has mesh parts inside a writer's scope, so this pins that the
+    // data really exercises the Mesh emit path's mask gate.
     final ssabPath = _firstExisting([
       'examples/overall/assets/spritestudio/overall/Mask.ssab',
       '../../examples/overall/assets/spritestudio/overall/Mask.ssab',

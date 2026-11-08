@@ -65,7 +65,7 @@ command -v dart >/dev/null || {
 
 # Resolve the converter package deps once (the CLI loads the PREBUILT
 # libssconverter via native assets — hook/build.dart bundles the dylib that
-# build-runtime.sh produces; no SSCONVERTER_LIBRARY_PATH needed).
+# build-runtime.sh produces).
 ( cd "$CONV_PKG" && dart pub get >/dev/null 2>&1 )
 
 # Stage a source project, then convert THAT copy (not the SDK original):

@@ -220,12 +220,10 @@ List<BlendPass> _planFor(fbs.BlendType type) {
 /// of its own.
 ///
 /// The filter never goes on the textured draw's `colorFilter`: Impeller drops
-/// that from a `drawVertices` that samples an `ImageShader` (Skia applies it),
-/// which left every Sub / Invert inversion drawing the part's own colours
-/// instead of white, and a tinted Mesh part untinted. Nor on a layer's
-/// `colorFilter`: Impeller composites a second `difference` layer against the
-/// backdrop the first one read, so Sub's second inversion undid the first and
-/// dropped the part. It goes on the draw's `imageFilter`, which both renderers
+/// that from a `drawVertices` that samples an `ImageShader` (Skia applies it).
+/// Nor on a layer's `colorFilter`: Impeller composites a second `difference`
+/// layer against the backdrop the first one read, so Sub's second inversion would
+/// undo the first. It goes on the draw's `imageFilter`, which both renderers
 /// apply and which composites against the current backdrop. The black pass
 /// needs no texel, so it draws the bare geometry, whose vertex colours the
 /// filter does reach; an image filter would blacken its whole extent.

@@ -673,7 +673,7 @@ enum SsPushRouting {
 ///
 /// Pure, because this convention — the app's `ssAssetDir` last segment naming
 /// the `<stem>.sspj` — is the one coupling in the device path that the desktop
-/// file push does not have, and the one thing that used to fail in silence.
+/// file push does not have.
 SsPushRouting routeEmbeddedPush({
   required String assetDir,
   required Set<String> convertedStems,

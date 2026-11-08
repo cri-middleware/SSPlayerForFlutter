@@ -74,6 +74,9 @@ class _NativeRuntime implements SsRuntime {
   // --- Resource / Context lifecycle --------------------------------------
 
   @override
+  int? get ssabSchemaVersion => ss_runtime_ssab_schema_version();
+
+  @override
   SsResource? createResourceCopy(Uint8List ssab) {
     // The Brain parses `.ssab` unchecked (documented UB on malformed input), so
     // reject anything without the "SSAB" file identifier here — before the bytes
@@ -393,7 +396,7 @@ class _NativeRuntime implements SsRuntime {
   // The C-API's "nothing there" values become null: NaN for a float, -1 for a
   // signed integer, `SS_RUNTIME_INVALID_HANDLE` for a handle or an enum.
 
-  /// `SS_RUNTIME_INVALID_HANDLE`; ffigen emits no constants.
+  /// `SS_RUNTIME_INVALID_HANDLE`.
   static const int _invalidHandle = 0xFFFFFFFF;
 
   static int? _handle(int value) => value == _invalidHandle ? null : value;
@@ -670,6 +673,10 @@ class _NativeRuntime implements SsRuntime {
   @override
   void destroyEffectSlot(SsEffectSlot slot) =>
       ss_effect_slot_destroy((slot as _NativeEffectSlot).ptr);
+
+  @override
+  bool effectSlotIsIndependent(SsEffectSlot slot) =>
+      ss_effect_slot_is_independent((slot as _NativeEffectSlot).ptr);
 
   @override
   SsEffectStep stepEffectSlot(

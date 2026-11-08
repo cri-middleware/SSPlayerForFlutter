@@ -5,7 +5,7 @@ your app logic. This page covers controlling playback, switching animations, and
 
 The snippets use `_player`, a `SpriteStudioPlayer`: one you own
 ([Quick Start](quickstart.md#owning-the-player-yourself)), or the one `SpriteStudioAnimation` hands you
-through `onPlayerCreated`.
+through `onLoaded`.
 
 ## Playback control
 
@@ -17,7 +17,7 @@ _player.play();                    // start from the beginning
 | Member | Kind | Description |
 |---|---|---|
 | `play()` | method | Start the set-up animation from the beginning |
-| `pause()` / `resume()` | method | Pause (holds the current frame) / lift the hold and carry on in place. Both are idempotent, and `resume()` is a **no-op on a stopped or finished animation** — starting one is `play()`'s job, and it rewinds |
+| `pause()` / `resume()` | method | Pause (holds the current frame; independent instances and effects keep running) / lift the hold and carry on in place. Both are idempotent, and `resume()` is a **no-op on a stopped or finished animation** — starting one is `play()`'s job, and it rewinds |
 | `togglePlayPause()` | method | One tap for a play/pause button: pause while advancing, resume while held, and `play()` from the head when stopped or finished |
 | `stop()` | method | Stop playback. The playhead **stays where it stands** — nothing rewinds, so the frame it stopped on keeps drawing. `play()` is what returns to the head |
 | `seek(double frame)` | method | Jump to a frame (fractional allowed). Independent instances / effects do not follow |

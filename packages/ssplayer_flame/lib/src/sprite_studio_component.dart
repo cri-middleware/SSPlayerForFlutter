@@ -1,8 +1,15 @@
+import 'dart:async' show unawaited;
 import 'dart:typed_data';
 import 'dart:ui' show Canvas, Offset, Rect;
 
 import 'package:flame/components.dart';
-import 'package:flutter/foundation.dart' show VoidCallback;
+import 'package:flutter/foundation.dart'
+    show
+        ErrorDescription,
+        FlutterError,
+        FlutterErrorDetails,
+        VoidCallback,
+        protected;
 import 'package:flutter/services.dart' show AssetBundle;
 import 'package:ssplayer_flutter/ssplayer_flutter.dart';
 
@@ -207,8 +214,9 @@ class SpriteStudioComponent extends PositionComponent {
 
   SpriteStudioPlayer? _player;
 
-  /// The underlying player — null until [onLoad] completes, then the full L3
-  /// transport surface (`pause`, `seek`, `setAnimation`, `animationNames`, …).
+  /// The underlying player — null until [onLoad] completes and while the component
+  /// is out of the tree, otherwise the full L3 transport surface (`pause`, `seek`,
+  /// `setAnimation`, `animationNames`, …).
   /// The clock is Flame's, so do NOT expect a Ticker; state still lives here.
   ///
   /// Part overrides are reached the same way — `player!.setPartColorOverride`
@@ -221,12 +229,32 @@ class SpriteStudioComponent extends PositionComponent {
 
   /// Why [onLoad] failed, or null if it did not.
   ///
-  /// A load error is captured rather than thrown (see [onLoad]), so this is the
-  /// only place it surfaces: [player] stays null and the component renders
-  /// nothing. Check it after `add`ing if a missing or malformed `.ssab` is a
-  /// case your game needs to react to.
+  /// A load error is captured rather than thrown (see [loadPlayer]) and reported
+  /// through [FlutterError.reportError]: [player] stays null and the component
+  /// renders nothing. Check this after `add`ing if a missing or malformed `.ssab`
+  /// is a case your game needs to react to.
   Object? get loadError => _loadError;
   Object? _loadError;
+
+  /// Whether [onRemove] let the player go, so that being added back loads it
+  /// again: Flame runs [onLoad] once in a component's life, and [onMount] and
+  /// [onRemove] each time it enters and leaves the tree.
+  bool _released = false;
+
+  /// Which [loadPlayer] is the current one, so one started before a removal does
+  /// not land on top of the one started by being added back.
+  int _loadSerial = 0;
+
+  @override
+  Future<void> onLoad() => loadPlayer();
+
+  @override
+  void onMount() {
+    super.onMount();
+    if (!_released) return;
+    _released = false;
+    unawaited(loadPlayer());
+  }
 
   /// Builds the player and loads the `.ssab`.
   ///
@@ -235,10 +263,12 @@ class SpriteStudioComponent extends PositionComponent {
   /// `isLoaded` false forever; every subsequent lifecycle event on this parent
   /// then returns `block`, and the parent's whole add/remove queue stalls for
   /// the life of the app. A bad asset key must not be able to do that, so the
-  /// failure is caught, the half-built player released, and the error parked in
-  /// [loadError].
-  @override
-  Future<void> onLoad() async {
+  /// failure is caught, the half-built player released, the error parked in
+  /// [loadError] and reported.
+  @protected
+  Future<void> loadPlayer() async {
+    final serial = ++_loadSerial;
+    _loadError = null;
     final player = SpriteStudioPlayer() // no vsync → Flame drives the clock
       ..onEvents = onEvents
       ..onAnimationStarted = onAnimationStarted
@@ -264,7 +294,7 @@ class SpriteStudioComponent extends PositionComponent {
       }
 
       // The component may have been removed while we awaited the fetch/decode.
-      if (isRemoving || isRemoved) {
+      if (serial != _loadSerial || isRemoving || isRemoved) {
         player.dispose();
         return;
       }
@@ -285,9 +315,18 @@ class SpriteStudioComponent extends PositionComponent {
         ..subFrameEnabled = subFrameEnabled;
       if (autoStart) player.play();
       _player = player;
-    } catch (e) {
-      _loadError = e;
+    } catch (error, stack) {
       player.dispose();
+      // A load that was superseded, or outlived its component, is nobody's.
+      if (serial != _loadSerial || isRemoving || isRemoved) return;
+      _loadError = error;
+      FlutterError.reportError(FlutterErrorDetails(
+        exception: error,
+        stack: stack,
+        library: 'ssplayer_flame',
+        context: ErrorDescription(
+            'while loading ${_assetPath ?? 'a SpriteStudio pack from bytes'}'),
+      ));
     }
   }
 
@@ -339,7 +378,7 @@ class SpriteStudioComponent extends PositionComponent {
   /// This is the component's only release path, and Flame reaches it only when
   /// the component is *removed from the tree*. Tearing down a `GameWidget` does
   /// not do that: `disposeCurrentGame` calls `finalizeRemoval()` and the game's
-  /// `onDispose()`, neither of which walks the children (flame 1.38.0). So a
+  /// `onDispose()`, neither of which walks the children. So a
   /// game that is simply dropped — a popped route, a rebuilt widget — never runs
   /// this, and leaks one Brain plus one texture set per teardown.
   ///
@@ -355,6 +394,7 @@ class SpriteStudioComponent extends PositionComponent {
   void onRemove() {
     _player?.dispose();
     _player = null;
+    _released = true;
     super.onRemove();
   }
 }

@@ -116,12 +116,12 @@ component.player?..setAnimation('attack')..play();
 The clock is Flame's, so there is no `Ticker` — transport state still lives on the player.
 
 A load that fails (a wrong asset key, a malformed `.ssab`) does not throw: the component draws nothing,
-`player` stays `null`, and the error is in `component.loadError`.
+`player` stays `null`, the error is in `component.loadError`, and it goes to `FlutterError.onError`.
 
 ## Releasing it
 
 A component releases its native runtime context and decoded textures when it is removed from the
-tree. Tearing down a `GameWidget` (a popped route, a rebuilt widget) does not remove the components,
+tree, and loads them again if you add it back. Tearing down a `GameWidget` (a popped route, a rebuilt widget) does not remove the components,
 so release them from the game, and keep the game in a `State` field rather than creating it in
 `build`:
 

@@ -197,10 +197,6 @@ class _PlayerPageState extends State<PlayerPage>
       final wanted = Uri.base.queryParameters['pack'];
       if (wanted != null && _packs.contains(wanted)) _pack = wanted;
     }
-    // Render backend selector for the flutter_gpu bring-up: run with
-    // `--dart-define=SS_BACKEND=gpu` to exercise the flutter_gpu backend
-    // (mobile/desktop only; falls back to Canvas where Impeller is unavailable),
-    // otherwise the default Canvas path. Lets the same pack be A/B-compared.
     // ignore: avoid_print
     print('[ssplayer] $_backendReport');
     _player = SpriteStudioPlayer(vsync: this, backend: _selectedBackend)
@@ -700,7 +696,7 @@ class _PlayerPageState extends State<PlayerPage>
 
 /// AssetBundle whose keys are absolute filesystem paths, so a dropped folder's
 /// `.ssab` and its sibling reference textures load through the exact same code
-/// path as bundled assets — no library change, and `dart:io` stays in the app.
+/// path as bundled assets, and `dart:io` stays in the app.
 class _FileBundle extends CachingAssetBundle {
   @override
   Future<ByteData> load(String key) async {

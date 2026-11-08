@@ -61,6 +61,14 @@ class SpriteStudioPlayer extends ChangeNotifier {
   Ticker? _ticker;
 
   SpriteStudioInternalPlayer? _internal;
+
+  /// Which load is the current one. Each load takes the next value and gives way
+  /// once it no longer holds the latest, so overlapping loads leave one engine,
+  /// the last one asked for, however their reads finish.
+  int _loadSerial = 0;
+
+  /// The Layer 2 engine for the current pack, or null until a [load] has built it
+  /// and after [dispose]. For a drawing adapter of your own.
   SpriteStudioInternalPlayer? get internal => _internal;
 
   Duration _lastElapsed = Duration.zero;
@@ -70,7 +78,6 @@ class SpriteStudioPlayer extends ChangeNotifier {
 
   // Transport state cached on the Player (not just the internal) so it survives
   // a resource swap in [reload] and can be set before the first [load].
-  // `subFrame` above is the pre-existing precedent for this pattern.
   String? _currentAnimation;
 
   /// The asset key the pack came from, for a report about it and for the
@@ -95,6 +102,8 @@ class SpriteStudioPlayer extends ChangeNotifier {
   double? _speed;
   bool? _skipFrames;
   int? _frameRate;
+  SsPlaybackDirection? _direction;
+  SsPlaybackStyle? _style;
 
   /// Sub-frame interpolation (default ON): smooth playback beyond the source
   /// FPS. Applies to the current and future loaded animations.
@@ -184,14 +193,23 @@ class SpriteStudioPlayer extends ChangeNotifier {
   /// Held here rather than in the view so that the part poses carry the fit as
   /// they carry the flip: [partTransform] is the pose as drawn, and a
   /// [SpriteStudioPartAnchor] over the view lands on the part without knowing
-  /// the view fitted anything. It does not notify: the view calling it is
-  /// laying out, and paints next.
+  /// the view fitted anything. It notifies after the frame: the view calling it
+  /// is laying out and paints next, but a follower may already have built, and a
+  /// stopped player has no tick coming to move it.
   void place(ui.Size view, SsPlacement? placement) {
     if (view == _placeView && placement == _placement) return;
     _placeView = view;
     _placement = placement;
     _applyRoot();
+    if (_placeNotifyScheduled) return;
+    _placeNotifyScheduled = true;
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      _placeNotifyScheduled = false;
+      if (!_disposed) notifyListeners();
+    });
   }
+
+  bool _placeNotifyScheduled = false;
 
   /// [rootTransform] fitted by the last [place] — what the backends draw with.
   SsRootTransform get _placedRoot {
@@ -247,6 +265,8 @@ class SpriteStudioPlayer extends ChangeNotifier {
   /// loop, so it fires [onAnimationFinished] instead.
   VoidCallback? onAnimationLooped;
 
+  /// The textures this player draws with, keyed by texture hash. Throws a
+  /// [StateError] before [load].
   TextureRegistry get textures =>
       _internal?.textures ?? (throw StateError('load() first'));
 
@@ -272,9 +292,9 @@ class SpriteStudioPlayer extends ChangeNotifier {
       _animeInfo?.cellNames(cellmapName) ?? const <String>[];
 
   /// The [textures] key for the cellmap named [cellmapName] (null before [load]
-  /// or for an unknown name). Feed it to `textures.register(hash, image)` to
-  /// swap a whole cellmap's bitmap at runtime — every part that samples it,
-  /// Normal and Mesh alike, then draws the new image.
+  /// or for an unknown name). Feed it to [setCellmapTextureByHash] to swap a
+  /// whole cellmap's bitmap at runtime — every part that samples it, Normal and
+  /// Mesh alike, then draws the new image.
   int? cellmapTextureHash(String cellmapName) =>
       _animeInfo?.cellmapTextureHash(cellmapName);
 
@@ -369,10 +389,9 @@ class SpriteStudioPlayer extends ChangeNotifier {
   ///
   /// It is the canvas of the **first animation selected since the pack was
   /// loaded**, and stays put when the animation changes. Canvases differ between
-  /// the animations of one pack — Ringo's `dead` is 1300 wide where the rest are
-  /// 800 — and following each would re-lay a view out on every switch and shrink
-  /// the character the moment it dies. To fit something else, give the view a
-  /// `frame`.
+  /// the animations of one pack, and following each would re-lay a view out on
+  /// every switch and shrink the character the moment one with a wider canvas
+  /// starts. To fit something else, give the view a `frame`.
   ui.Rect? get canvasRect => _canvasRect;
   ui.Rect? _canvasRect;
 
@@ -416,7 +435,9 @@ class SpriteStudioPlayer extends ChangeNotifier {
     Map<String, Uint8List>? instancePacks,
   }) async {
     final bnd = bundle ?? rootBundle;
+    final serial = ++_loadSerial;
     final data = await bnd.load(assetKey);
+    if (_disposed || serial != _loadSerial) return;
     final bytes = data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
     _pendingSourceLabel = assetKey;
     await load(
@@ -444,7 +465,10 @@ class SpriteStudioPlayer extends ChangeNotifier {
   /// with a [FormatException] (an identify check, not full validation). Load only
   /// `.ssab` you produced or bundled — never a pack from an untrusted source.
   ///
-  /// Returns once textures are loaded; the widget repaints when it resolves.
+  /// Returns once textures are loaded; the widget repaints when it resolves. A
+  /// later load replaces one still in flight, which then returns without having
+  /// loaded anything, so check that yours is still the one you want before using
+  /// the player after the `await`.
   Future<void> load(
     Uint8List ssab, {
     String? animationName,
@@ -454,6 +478,7 @@ class SpriteStudioPlayer extends ChangeNotifier {
     bool loadTextures = true,
     Map<String, Uint8List>? instancePacks,
   }) async {
+    final serial = ++_loadSerial;
     // Quiesce the clock and drop the old engine BEFORE the async fetch below.
     // A still-running ticker (from a prior `play`) would otherwise fire
     // `_onTick` during the await and drive the just-disposed internal
@@ -493,7 +518,7 @@ class SpriteStudioPlayer extends ChangeNotifier {
       baseAssetDir: baseAssetDir,
       provided: instancePacks,
     );
-    if (_disposed) return;
+    if (_disposed || serial != _loadSerial) return;
     _lastInstanceReport = packs;
 
     final internal = SpriteStudioInternalPlayer.load(
@@ -510,10 +535,10 @@ class SpriteStudioPlayer extends ChangeNotifier {
       if (!_disposed && identical(_internal, internal)) notifyListeners();
     };
     internal.subFrameEnabled = _subFrame;
-    // Assigned from the result, not ahead of it. Assigning first left
-    // `currentAnimation` naming an animation that was never set up — and, worse,
-    // made [setAnimation] return `true` for that same name without doing
-    // anything, because its early return compares against this field.
+    // Assigned from the result, not ahead of it: assigning first would leave
+    // `currentAnimation` naming an animation that was never set up, and make
+    // [setAnimation] return `true` for it, because its early return compares
+    // against this field.
     if (animationName != null && !internal.setupAnimation(animationName)) {
       _reportMissingAnimation(animationName);
       _currentAnimation = null;
@@ -568,7 +593,9 @@ class SpriteStudioPlayer extends ChangeNotifier {
   }) async {
     final bnd = bundle ?? rootBundle;
     bnd.evict(assetKey);
+    final serial = ++_loadSerial;
     final data = await bnd.load(assetKey);
+    if (_disposed || serial != _loadSerial) return;
     final bytes = data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
     _pendingSourceLabel = assetKey;
     await reload(
@@ -598,8 +625,7 @@ class SpriteStudioPlayer extends ChangeNotifier {
   ///
   /// If the previously-selected animation is gone from the new bytes it falls
   /// back to the first one; an out-of-range playhead is left to the Brain to
-  /// clamp. Assumes single-flight — callers must not overlap [reload]/[load]
-  /// (the dev watcher debounces to guarantee this).
+  /// clamp. Like [load], it gives way to a later load.
   Future<void> reload(
     Uint8List ssab, {
     TextureRegistry? textures,
@@ -621,7 +647,7 @@ class SpriteStudioPlayer extends ChangeNotifier {
     // Instance packs are re-fetched by `load`, so a live-reload picks up an
     // edited child `.ssab` too — the child pack is a separate file the watcher
     // may well have just reconverted.
-    await load(
+    final loading = load(
       ssab,
       textures: textures,
       baseAssetDir: baseAssetDir,
@@ -629,7 +655,10 @@ class SpriteStudioPlayer extends ChangeNotifier {
       loadTextures: loadTextures,
       instancePacks: instancePacks,
     );
-    if (_disposed || _internal == null) return;
+    // Read here, not at the top: [load] takes its serial before its first await.
+    final serial = _loadSerial;
+    await loading;
+    if (_disposed || serial != _loadSerial || _internal == null) return;
 
     final names = animationNames;
     // The box comes back from the animation it came from, re-read so an edit to
@@ -707,10 +736,9 @@ class SpriteStudioPlayer extends ChangeNotifier {
     if (_reportedMissingAnimation == name) return;
     _reportedMissingAnimation = name;
     final where = _sourceLabel ?? 'the loaded pack';
-    // The Brain's own reason, verbatim. It used to say "has no animation",
-    // which is the common case and not the only one: a player whose pack never
-    // bound fails the same call with `SSAB data is not loaded`, and being told
-    // the name is missing sends the reader to look at the wrong thing.
+    // The Brain's own reason, verbatim: a missing name is the common cause, not
+    // the only one (a player whose pack never bound fails the same call with
+    // `SSAB data is not loaded`).
     final reason = _internal?.lastErrorMessage;
     final because = reason == null ? '' : ' — $reason';
     debugPrint(
@@ -738,14 +766,15 @@ class SpriteStudioPlayer extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Pauses playback in place — every track and every fade. The Brain's
-  /// `pause` is one-way and idempotent, and ignores a request made while
-  /// nothing is playing, so no gate is needed.
+  /// Pauses playback in place — every track and every fade. An independent
+  /// instance or effect part carries on, on its own clock. The Brain's `pause` is
+  /// one-way and idempotent, and ignores a request made while nothing is playing,
+  /// so no gate is needed.
   void pause() {
     final internal = _internal;
     if (internal == null) return;
     internal.pause();
-    if (_ticker?.isActive ?? false) _ticker!.stop();
+    if ((_ticker?.isActive ?? false) && !internal.playsOnItsOwn) _ticker!.stop();
     notifyListeners();
   }
 
@@ -753,12 +782,9 @@ class SpriteStudioPlayer extends ChangeNotifier {
   /// and a **no-op on a stopped or finished animation** — starting one is
   /// [play]'s job, and it rewinds.
   ///
-  /// It used to fall back to [play] when nothing was playing, which made a
-  /// `resume()` that hit a stopped player silently lose the playhead here and
-  /// nowhere else in the family. The Brain publishes four distinct verbs and
-  /// asks Players not to fold them into three;
-  /// mapping one button onto the four is [togglePlayPause]'s job, and it is the
-  /// only place that knows a button exists.
+  /// The Brain publishes four distinct verbs and asks Players not to fold them
+  /// into three; mapping one button onto the four is [togglePlayPause]'s job, and
+  /// it is the only place that knows a button exists.
   void resume() {
     final internal = _internal;
     if (internal == null) return;
@@ -810,6 +836,8 @@ class SpriteStudioPlayer extends ChangeNotifier {
     }
   }
 
+  /// Moves the playhead to [frame] (fractional allowed) without changing whether
+  /// it is playing. Throws a [StateError] before [load].
   void seek(double frame) {
     _requireInternal().seek(frame);
     notifyListeners();
@@ -838,26 +866,27 @@ class SpriteStudioPlayer extends ChangeNotifier {
 
   /// Which way the playhead walks, and what it does at the far end. Both
   /// **survive** [setAnimation] — "play this backwards" describes the
-  /// playback, not the clip that happens to be loaded (SDK #375), which is the
-  /// same reason [speedScale] and [frameSkipEnabled] carry across. What does not carry is
-  /// the heading within a round trip: a new animation always starts on the
-  /// outward leg, so a transition never begins mid-bounce.
+  /// playback, not the clip that happens to be loaded, which is the same reason
+  /// [speedScale] and [frameSkipEnabled] carry across. What does not carry is the
+  /// heading within a round trip: a new animation always starts on the outward
+  /// leg, so a transition never begins mid-bounce.
   ///
   /// With [SsPlaybackStyle.pingPong] one loop is a full round trip, so a
   /// [loopCount] of 1 plays there and back once.
   SsPlaybackDirection get playbackDirection =>
-      _internal?.playbackDirection ?? SsPlaybackDirection.forward;
+      _internal?.playbackDirection ?? _direction ?? SsPlaybackDirection.forward;
 
   /// See [playbackDirection].
   SsPlaybackStyle get playbackStyle =>
-      _internal?.playbackStyle ?? SsPlaybackStyle.normal;
+      _internal?.playbackStyle ?? _style ?? SsPlaybackStyle.normal;
 
   /// See [playbackDirection]. Both are set together because the Brain takes
   /// them as one call — pass the current value for whichever you are not
-  /// changing. Nothing is cached here because nothing needs to be: the Brain
-  /// keeps the choice across a transition on its own.
+  /// changing. Can be set before [load], and survives [load] and [reload].
   void setPlaybackDirection(
       SsPlaybackDirection direction, SsPlaybackStyle style) {
+    _direction = direction;
+    _style = style;
     _internal?.setPlaybackDirection(direction, style);
   }
 
@@ -979,44 +1008,30 @@ class SpriteStudioPlayer extends ChangeNotifier {
   /// Overrides the advance rate, in absolute frames per second.
   ///
   /// The override is the host's rather than the clip's, so it **survives**
-  /// [setAnimation] the way [speedScale] and [frameSkipEnabled] do (SDK #370). Hand it
-  /// `0` (or any negative value) to clear it and go back to whatever each
-  /// animation was authored at. To scale playback without replacing the
-  /// authored rate, use [speedScale] instead.
+  /// [setAnimation] the way [speedScale] and [frameSkipEnabled] do. Hand it `0` (or
+  /// any negative value) to clear it and go back to whatever each animation was
+  /// authored at. To scale playback without replacing the authored rate, use
+  /// [speedScale] instead.
   set frameRate(int fps) {
     _frameRate = fps;
     _internal?.frameRate = fps;
   }
 
-  // `setupAnimation` resets the Brain's loop count and section to the new
-  // animation's; the speed, the fps override, the skip-frames and the
-  // direction / style survive it there. What follows is why each setting is
-  // still pushed here.
-  //
-  // The caller's own settings, pushed at a point where they are guaranteed to
-  // reach a freshly set-up player. `loop` is the one that has to be here: the
-  // Brain resets it on every transition. `speed` and `skipFrames` survive setup
-  // on their own since SDK #369/#370, so these two only matter for the first
-  // setup after a value was set.
-  //
-  // `frameRate` is here for the same reason as `speed` and `skipFrames`, and
-  // not for the reason `loop` is: the Brain keeps an fps override across a
-  // transition, so this is not about surviving setup. It is about reaching a
-  // player that did not exist when the host set it — before the first [load],
-  // and again after [reload] builds a new one.
-  //
-  // The playback direction / style are the ones that genuinely need nothing:
-  // they survive setup in the Brain and have no pre-[load] path, because they
-  // are set through a method rather than cached here. The section is the one
-  // thing left to reset, and deliberately -- a range of frame numbers means
-  // nothing against a different animation.
+  // Loop count is the one setting the Brain resets on every setup. Speed,
+  // skip-frames, frame rate and direction survive it, but a value set before the
+  // first load, or before a reload builds a new engine, has no engine to reach, so
+  // all of them are pushed here. The section is deliberately not carried: frame
+  // numbers mean nothing in a different animation.
   void _applyTransportSettings(SpriteStudioInternalPlayer internal) {
     if (_loop != null) internal.loopCount = _loop!;
     if (_speed != null) internal.speedScale = _speed!;
     if (_skipFrames != null) internal.frameSkipEnabled = _skipFrames!;
     if (_frameRate != null) internal.frameRate = _frameRate!;
+    if (_direction != null) internal.setPlaybackDirection(_direction!, _style!);
   }
 
+  /// The playhead, in frames of the current animation (fractional between two);
+  /// 0 before [load].
   double get frameNo => _internal?.frameNo ?? 0;
 
   /// First and last frame of the range being played, and its length in frames
@@ -1239,9 +1254,14 @@ class SpriteStudioPlayer extends ChangeNotifier {
   /// [setPlaybackDirection] for one track.
   bool setTrackPlaybackDirection(
           int track, SsPlaybackDirection direction, SsPlaybackStyle style) =>
-      _setting('setTrackPlaybackDirection',
-          (i) => i.setTrackPlaybackDirection(track, direction, style),
-          track: track);
+      _setting('setTrackPlaybackDirection', (i) {
+        if (!i.setTrackPlaybackDirection(track, direction, style)) return false;
+        if (track == 0) {
+          _direction = direction;
+          _style = style;
+        }
+        return true;
+      }, track: track);
 
   /// See [setTrackPlaybackDirection].
   SsPlaybackDirection? trackPlaybackDirection(int track) =>
@@ -1422,8 +1442,8 @@ class SpriteStudioPlayer extends ChangeNotifier {
         '$because.$hint');
   }
 
-  /// What [_reportRefused], [_reportRefusedSection] and [_reportMissingLabel]
-  /// have already said since the last [load].
+  /// What [_reportRefused], [_reportRefusedSection], [_reportMissingLabel] and
+  /// [_setOverride] have already said since the last [load].
   final Set<String> _reportedRefusals = <String>{};
 
   /// Records that track 0 now plays [name], handed over by a [crossfade] or
@@ -1528,6 +1548,10 @@ class SpriteStudioPlayer extends ChangeNotifier {
     if (finished && !_prevFinished) onAnimationFinished?.call();
     _prevFinished = finished;
 
+    // A callback may have disposed this player or started another load, which
+    // releases `internal`: a read of it from here on would be a use after free.
+    if (_disposed || !identical(_internal, internal)) return;
+
     // Track 0's finish does not stop the Brain's clock: an overlay or a fade
     // keeps moving on it, so the Ticker stops only once nothing does. Read
     // after the callback, which may well have started something new.
@@ -1555,9 +1579,9 @@ class SpriteStudioPlayer extends ChangeNotifier {
   /// skipping the decode, when there are none or no decoded callback is registered.
   ///
   /// Each index is looked up in the `events()` of the animation of the source
-  /// that fired it. Reading them all against [currentAnimation] reported a
-  /// different event, or none, as soon as anything else could fire: the
-  /// outgoing side of a crossfade, an overlay with its threshold lowered.
+  /// that fired it. Reading them all against [currentAnimation] would report a
+  /// different event, or none, as soon as anything else could fire: the outgoing
+  /// side of a crossfade, an overlay with its threshold lowered.
   SsPassedEvents? _decodePassedEvents(
       SpriteStudioInternalPlayer internal, List<int> passed) {
     if (passed.isEmpty) return null;
@@ -1750,13 +1774,15 @@ class SpriteStudioPlayer extends ChangeNotifier {
   /// instance-child caveats.
   bool setPartVisibilityOverrideByIndex(int partIndex, bool hide,
           {bool cascade = false}) =>
-      _override((i) =>
+      _setOverride('setPartVisibilityOverrideByIndex', partIndex,
+          'part index $partIndex', (i) =>
           i.setPartVisibilityOverrideByIndex(partIndex, hide, cascade: cascade));
 
   /// Index form of [setPartVisibilityOverride].
   bool setPartVisibilityOverride(String partName, bool hide,
           {bool cascade = false}) =>
-      _override((i) => i.setPartVisibilityOverride(partName, hide,
+      _setOverride('setPartVisibilityOverride', findPartIndex(partName),
+          'part "$partName"', (i) => i.setPartVisibilityOverride(partName, hide,
           cascade: cascade));
 
   /// Clears a part's visibility override (revert to the animation).
@@ -1779,7 +1805,8 @@ class SpriteStudioPlayer extends ChangeNotifier {
           {SsBlendOp blendOp = SsBlendOp.mix,
           SsOverridePriority priority =
               SsOverridePriority.holdUntilNextAnimation}) =>
-      _override((i) => i.setPartColorOverride(partName, color,
+      _setOverride('setPartColorOverride', findPartIndex(partName),
+          'part "$partName"', (i) => i.setPartColorOverride(partName, color,
           blendOp: blendOp, priority: priority));
 
   /// Index form of [setPartColorOverride].
@@ -1787,7 +1814,8 @@ class SpriteStudioPlayer extends ChangeNotifier {
           {SsBlendOp blendOp = SsBlendOp.mix,
           SsOverridePriority priority =
               SsOverridePriority.holdUntilNextAnimation}) =>
-      _override((i) => i.setPartColorOverrideByIndex(partIndex, color,
+      _setOverride('setPartColorOverrideByIndex', partIndex,
+          'part index $partIndex', (i) => i.setPartColorOverrideByIndex(partIndex, color,
           blendOp: blendOp, priority: priority));
 
   /// Four-corner (gradient) form of [setPartColorOverride].
@@ -1799,7 +1827,8 @@ class SpriteStudioPlayer extends ChangeNotifier {
           {SsBlendOp blendOp = SsBlendOp.mix,
           SsOverridePriority priority =
               SsOverridePriority.holdUntilNextAnimation}) =>
-      _override((i) => i.setPartColorOverrideCorners(partName, corners,
+      _setOverride('setPartColorOverrideCorners', findPartIndex(partName),
+          'part "$partName"', (i) => i.setPartColorOverrideCorners(partName, corners,
           blendOp: blendOp, priority: priority));
 
   /// Index form of [setPartColorOverrideCorners].
@@ -1807,7 +1836,8 @@ class SpriteStudioPlayer extends ChangeNotifier {
           {SsBlendOp blendOp = SsBlendOp.mix,
           SsOverridePriority priority =
               SsOverridePriority.holdUntilNextAnimation}) =>
-      _override((i) => i.setPartColorOverrideCornersByIndex(partIndex, corners,
+      _setOverride('setPartColorOverrideCornersByIndex', partIndex,
+          'part index $partIndex', (i) => i.setPartColorOverrideCornersByIndex(partIndex, corners,
           blendOp: blendOp, priority: priority));
 
   /// Clears a part's colour override (revert to the animation).
@@ -1824,7 +1854,9 @@ class SpriteStudioPlayer extends ChangeNotifier {
   bool setPartCellOverrideByIndex(int partIndex, String cellmapName, String cellName,
           {SsOverridePriority priority =
               SsOverridePriority.holdUntilNextAnimation}) =>
-      _override((i) => i.setPartCellOverrideByIndex(partIndex, cellmapName, cellName,
+      _setOverride('setPartCellOverrideByIndex', partIndex,
+          'part index $partIndex, cell "$cellmapName/$cellName"', (i) =>
+          i.setPartCellOverrideByIndex(partIndex, cellmapName, cellName,
           priority: priority));
 
   /// Index form of [setPartCellOverride].
@@ -1832,7 +1864,8 @@ class SpriteStudioPlayer extends ChangeNotifier {
           String partName, String cellmapName, String cellName,
           {SsOverridePriority priority =
               SsOverridePriority.holdUntilNextAnimation}) =>
-      _override((i) => i.setPartCellOverride(
+      _setOverride('setPartCellOverride', findPartIndex(partName),
+          'part "$partName", cell "$cellmapName/$cellName"', (i) => i.setPartCellOverride(
           partName, cellmapName, cellName,
           priority: priority));
 
@@ -1865,6 +1898,28 @@ class SpriteStudioPlayer extends ChangeNotifier {
     if (!apply(internal)) return false;
     notifyListeners();
     return true;
+  }
+
+  /// [_override] for a call that sets one, which also says so when it is refused:
+  /// the caller wrote it believing it would take effect, and a `false` nobody has
+  /// to read is not a report. Once per call and argument, as [_reportRefused].
+  /// Before [load] nothing reports, for the reason given there.
+  ///
+  /// [partIndex] says whether the part resolved, because an unresolved one never
+  /// reaches the Brain, which then holds no reason for it.
+  bool _setOverride(String call, int partIndex, String given,
+      bool Function(SpriteStudioInternalPlayer) apply) {
+    final internal = _live;
+    if (internal == null) return false;
+    if (_override(apply)) return true;
+    if (!_reportedRefusals.add('$call|$given')) return false;
+    final where = _sourceLabel ?? 'the loaded pack';
+    final reason = partIndex < 0
+        ? 'no such part, check partNames'
+        : internal.lastErrorMessage;
+    final because = reason == null ? '' : ' — $reason';
+    debugPrint('SpriteStudioPlayer: $where refused $call on $given$because.');
+    return false;
   }
 
   /// Runs one zero-length [advance] on the next frame when this player's

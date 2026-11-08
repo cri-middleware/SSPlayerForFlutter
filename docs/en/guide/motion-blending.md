@@ -4,6 +4,8 @@ Play several animations on one character at once, and move between them without 
 underneath, an aim laid over it, a one-shot reaction crossfading in — from animations an animator
 authored separately.
 
+Every call here needs the pack, so with `SpriteStudioAnimation` make them from `onLoaded`.
+
 ## The model: a stack of tracks { #tracks }
 
 Tracks fold onto the **setup pose** (the rest pose the animation data defines) in ascending order. Each one plays an animation, with an **alpha**

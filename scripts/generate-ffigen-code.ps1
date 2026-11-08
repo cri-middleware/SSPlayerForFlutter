@@ -4,8 +4,8 @@
 # an ffigen generator (tool/ffigen.dart), from the plain-C headers the native
 # build already produced
 # (packages/*/native/include/*.h -> that package's lib/src/*_bindings.g.dart).
-# PowerShell counterpart of scripts/generate-ffigen-code.sh. Runs NO cbindgen —
-# the SpriteStudio-SDK build.rs emits the C headers and build-runtime.ps1 copies
+# PowerShell counterpart of scripts/generate-ffigen-code.sh. The
+# SpriteStudio-SDK build.rs emits the C headers and build-runtime.ps1 copies
 # them into each package. STANDALONE (NOT part of build-runtime, like
 # generate-fbs-code): run after a C-API change or a tool/ffigen.dart edit, then commit.
 #

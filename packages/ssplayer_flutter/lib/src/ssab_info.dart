@@ -132,8 +132,8 @@ class SsAnimeInfo {
   /// The texture-registry key for the cellmap named [cellmapName], or null when
   /// the pack has no such cellmap. This is the cellmap's pre-baked name hash —
   /// equal to `DrawBatch.texture_hash` — so a runtime whole-cellmap texture swap
-  /// (`player.textures.register(hash, image)`) targets the same key the loader
-  /// registered under, without any Dart-side re-hashing (which would risk
+  /// (`player.setCellmapTextureByHash(hash, image)`) targets the same key the
+  /// loader registered under, without any Dart-side re-hashing (which would risk
   /// diverging from the Brain's FNV-1a).
   int? cellmapTextureHash(String cellmapName) {
     for (final c in _root.cellmaps ?? const <ssab.CellMap>[]) {

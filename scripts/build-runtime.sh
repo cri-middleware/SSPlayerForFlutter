@@ -17,8 +17,7 @@
 #   libssconverter → packages/ssconverter_dart/native/libs/<platform>/[<arch>]/ (host tool)
 #   packages/ssruntime_dart/native/libs/LICENSE.md, THIRD-PARTY-LICENSES.ssruntime.md
 #   packages/ssconverter_dart/native/libs/LICENSE.md
-# No macos framework / macos/Frameworks symlink: native assets replace the
-# CocoaPods framework path (Flutter re-wraps the bare dylib at build time).
+# Native assets embed the bare dylib; Flutter re-wraps it at build time.
 # iOS uses bare per-slice dylibs, NOT an xcframework:
 #   native/libs/ios/iphoneos/arm64/libssruntime.dylib          (device)
 #   native/libs/ios/iphonesimulator/{arm64,x86_64}/libssruntime.dylib  (simulator)
@@ -43,8 +42,6 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 PKG_DIR="$ROOT_DIR/packages/ssplayer_flutter"
-LIB_ROOT="$PKG_DIR/native"
-LIBS_DIR="$LIB_ROOT/libs"
 # The host converter (libssconverter) lives in its own desktop-only package.
 CONV_PKG_DIR="$ROOT_DIR/packages/ssconverter_dart"
 CONV_LIBS_DIR="$CONV_PKG_DIR/native/libs"
@@ -95,16 +92,12 @@ CARGO_FLAGS=""; [ "$BUILD_MODE" = "release" ] && CARGO_FLAGS="--release"
 # The runtime is no_std: a host cdylib needs an allocator + panic handler.
 build_ss()        { ( cd "$SDK_DIR" && cargo build $CARGO_FLAGS "$@" -p ssruntime-ffi --features libc_alloc,panic-handler ); }
 build_converter() { ( cd "$SDK_DIR" && cargo build $CARGO_FLAGS "$@" -p ssconverter-ffi ); }
-place() { mkdir -p "$LIBS_DIR/$1"; cp "$2" "$LIBS_DIR/$1/${3:-$(basename "$2")}"; echo "   -> native/libs/$1/${3:-$(basename "$2")}"; }
-# Same, but into the ssconverter_dart package (the host converter's home).
+# Into the ssconverter_dart package (the host converter's home).
 place_conv() { mkdir -p "$CONV_LIBS_DIR/$1"; cp "$2" "$CONV_LIBS_DIR/$1/${3:-$(basename "$2")}"; echo "   -> ssconverter_dart native/libs/$1/${3:-$(basename "$2")}"; }
 # The runtime (libssruntime) lives in ssruntime_dart — its native-assets
 # hook/build.dart bundles this bare dylib/.so/.dll as a code asset (no framework).
 RT_LIBS_DIR="$RT_PKG_DIR/native/libs"
 place_rt() { mkdir -p "$RT_LIBS_DIR/$1"; cp "$2" "$RT_LIBS_DIR/$1/${3:-$(basename "$2")}"; echo "   -> ssruntime_dart native/libs/$1/${3:-$(basename "$2")}"; }
-
-# Read the SDK workspace version (for the framework Info.plist on the host path).
-sdk_version() { sed -n 's/^version = "\(.*\)"/\1/p' "$SDK_DIR/Cargo.toml" | head -1; }
 
 # Licenses ship next to the library they cover: the SDK LICENSE.md with BOTH
 # binding packages (each ships a CRI dylib), the ssruntime third-party notices
@@ -123,8 +116,7 @@ T="$SDK_DIR/target"
 case "$PLATFORM" in
   macos)
     # Native assets: ship BARE dylibs (@rpath install id). ssruntime_dart's and
-    # ssconverter_dart's hook/build.dart bundle them as code assets — no
-    # CocoaPods framework, no macos/Frameworks symlink, no ffiPlugin.
+    # ssconverter_dart's hook/build.dart bundle them as code assets.
     if [ "$IS_HOST_BUILD" = true ] && [ "$ARCH" != universal ]; then
       # Fast host/debug path: plain single-arch `cargo build` (honours build=debug).
       build_ss; build_converter
@@ -249,16 +241,14 @@ esac
 
 # --- C headers (ffigen input): consume the plain-C headers the SDK build.rs
 # emitted (Language::C, <crate>.h; .hpp is the C++ twin). The SDK is the single
-# source of truth for the C-API surface — no local cbindgen. Each crate's header
-# goes to its OWN binding package: ssruntime → ssruntime_dart, ssconverter →
-# ssconverter_dart (copied only when that crate was part of this build).
+# source of truth for the C-API surface. Each crate's header goes to its OWN
+# binding package: ssruntime → ssruntime_dart, ssconverter → ssconverter_dart
+# (copied only when that crate was part of this build).
 mkdir -p "$RT_PKG_DIR/native/include" "$CONV_PKG_DIR/native/include"
 # The generating build scripts live in the *-ffi crates and write beside
-# themselves, so these are `libs/<crate>-ffi/target/`. They moved there with the
-# SDK's "split the binary faces into *-ffi crates" refactor; the old
-# `libs/<crate>/target/` paths are written by nothing now, and because these
-# copies are guarded a stale path fails silently — the header simply never
-# updates and ffigen keeps regenerating yesterday's C-API.
+# themselves, so these are `libs/<crate>-ffi/target/`. These copies are guarded,
+# so a stale path fails silently: the header never updates and ffigen keeps
+# regenerating yesterday's C-API.
 rh="$SDK_DIR/libs/ssruntime-ffi/target/ssruntime.h"
 [ -f "$rh" ] && { cp "$rh" "$RT_PKG_DIR/native/include/ssruntime.h"; echo "   -> ssruntime_dart native/include/ssruntime.h"; }
 ch="$SDK_DIR/libs/ssconverter-ffi/target/ssconverter.h"

@@ -50,12 +50,12 @@ failed.
 | `flipX` / `flipY` | Mirror the drawn animation. |
 | `offset` / `scale` | Shift the drawn animation after the fit, and multiply the fit's scale. |
 | `placeholder` | Shown until the first frame is drawable. Worth setting: until then there is nothing to draw, and an empty box looks exactly like a broken pack. |
-| `onLoaded` | Called once the first frame can be drawn — the pack loaded, the animation selected and, while `playing`, started. `onError`'s counterpart. |
+| `onLoaded` | Called with the player once the first frame can be drawn — the pack loaded, the animation selected and, while `playing`, started. `onError`'s counterpart, and where to make the calls the parameters do not cover: part overrides, tracks and texture replacement all need the pack. |
 | `onError` | Called when the load fails, instead of the error reaching the zone unhandled. |
 | `onAnimationStarted` / `onAnimationFinished` / `onAnimationLooped` | Playback started / every loop has played / a loop boundary was crossed. The start the widget issues after the load counts, and comes before `onLoaded`. |
 | `onUserData` / `onSignal` / `onAudio` | A user-data, signal or audio key was crossed. Playing the sound is the app's job. See [Playback & Events](playback.md). |
 | `children` | Widgets laid over the animation, each covering its box. A `SpriteStudioPartAnchor` here follows a part with no `player`, and any widget reaches the player through `SpriteStudioAnimation.playerOf(context)`. See [Part Following](part-following.md). |
-| `onPlayerCreated` | Hands you the player for the parts of the API the parameters do not cover. Do not dispose it — the widget does. |
+| `onPlayerCreated` | Hands you the player as soon as it exists, before the pack loads, for settings that can go on ahead of it. Do not dispose it — the widget does. |
 | `bundle` / `backend` | Which `AssetBundle` to read from, and which render backend to draw with: `SpriteStudioBackend.auto` (the default) and `.gpu` draw with flutter_gpu where the run has it (Impeller, with `--enable-flutter-gpu`) and with Canvas otherwise; `.canvas` forces Canvas. See [Limitations & Scope](../limitations.md#rendering). |
 
 Changing `assetKey`, `bundle` or `backend` builds a new player. Every other
@@ -94,6 +94,7 @@ class _MyState extends State<MyWidget> with SingleTickerProviderStateMixin {
 
   Future<void> _init() async {
     await _player.loadAsset('assets/spritestudio/Ringo/Ringo.ssab');
+    if (!mounted) return;
     _player
       ..setAnimation(_player.animationNames.first)
       ..loopCount = -1
@@ -109,7 +110,7 @@ class _MyState extends State<MyWidget> with SingleTickerProviderStateMixin {
 }
 ```
 
-`SpriteStudioAnimation` will hand you its own player through `onPlayerCreated:`
+`SpriteStudioAnimation` will hand you its own player through `onLoaded:`
 if you only need to reach past the props occasionally — but the moment you want
 to control when it is built and disposed, it is `SpriteStudioView`'s job.
 

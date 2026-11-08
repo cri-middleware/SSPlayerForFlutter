@@ -1,7 +1,7 @@
 // Set the version of one or more packages -- the decision a release makes by hand.
 //
-//   dart scripts/set-versions.dart ssruntime_dart@7.0.0-beta.2
-//   dart scripts/set-versions.dart ssruntime_dart@7.0.0-beta.2 ssplayer_flutter@7.0.0-beta.2
+//   dart scripts/set-versions.dart ssruntime_dart@<version>
+//   dart scripts/set-versions.dart ssruntime_dart@<version> ssplayer_flutter@<version>
 //
 // Each argument is <directory under packages/>@<version>. For each, this writes
 // the `version:` of that package, raises the `^` constraint every other package
@@ -79,7 +79,7 @@ String? field(String pubspec, String name) =>
 void main(List<String> args) {
   if (args.isEmpty) {
     stderr.writeln(
-      'set-versions: name at least one <package>@<version>, e.g. ssruntime_dart@7.0.0-beta.2',
+      'set-versions: name at least one <package>@<version>',
     );
     exit(2);
   }

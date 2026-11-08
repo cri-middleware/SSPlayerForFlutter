@@ -13,7 +13,8 @@ registry.
 ## Example: changing an outfit
 
 A replacement texture is a decoded `ui.Image`. Load one from an asset (or anywhere), then hand it to
-`setCellmapTexture()`:
+`setCellmapTexture()`. It needs the pack, so with `SpriteStudioAnimation` call it from `onLoaded` or
+later:
 
 ```dart
 import 'dart:ui' as ui;

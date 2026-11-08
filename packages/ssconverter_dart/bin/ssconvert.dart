@@ -62,8 +62,6 @@ Future<void> main(List<String> argv) async {
   final outDir = args.option('out_dir') ??
       SsConverter.defaultOutputDir(sspj, embedded: embedded);
 
-  // libssconverter is delivered via native assets (hook/build.dart); the
-  // @Native bindings resolve it — no path / SSCONVERTER_LIBRARY_PATH needed.
   const conv = SsConverter();
 
   stdout.writeln(

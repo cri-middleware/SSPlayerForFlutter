@@ -1,5 +1,5 @@
-// The owning widget: everything the quickstart used to make the caller write —
-// the ticker, the load, the selection, the disposal — done once, here.
+// The owning widget: the ticker, the load, the selection and the disposal, done
+// once, here.
 import 'dart:io';
 
 import 'package:flutter/services.dart';
@@ -183,6 +183,54 @@ void main() {
     expect(player.isFinished, isFalse);
     expect(player.isPlaying, isTrue);
     expect(player.frameNo, player.startFrame);
+  });
+
+  testWidgets('an event parameter replaces what onPlayerCreated put there',
+      (tester) async {
+    if (assetDir == null) {
+      markTestSkipped('overall assets missing — run scripts/deploy-examples.sh');
+      return;
+    }
+    var fromParameter = 0;
+    var fromCreated = 0;
+    await tester.pumpWidget(wrap(SpriteStudioAnimation.asset(
+      'assets/x/Basic.ssab',
+      width: 100,
+      height: 100,
+      bundle: _DirBundle(assetDir),
+      onAnimationStarted: () => fromParameter++,
+      onPlayerCreated: (p) => p.onAnimationStarted = () => fromCreated++,
+    )));
+    await pumpUntil(tester, () => _drawing);
+
+    expect(fromParameter, 1);
+    expect(fromCreated, 0);
+  });
+
+  testWidgets('changing the asset key builds a new player', (tester) async {
+    if (assetDir == null) {
+      markTestSkipped('overall assets missing — run scripts/deploy-examples.sh');
+      return;
+    }
+    final bundle = _DirBundle(assetDir);
+    final created = <SpriteStudioPlayer>[];
+    Widget at(String key) => wrap(SpriteStudioAnimation.asset(
+          key,
+          width: 100,
+          height: 100,
+          bundle: bundle,
+          onPlayerCreated: created.add,
+        ));
+
+    await tester.pumpWidget(at('assets/x/Basic.ssab'));
+    await pumpUntil(tester, () => _drawing);
+
+    await tester.pumpWidget(at('assets/x/Mask.ssab'));
+    expect(tester.takeException(), isNull);
+    await pumpUntil(tester, () => _drawing);
+
+    expect(created, hasLength(2));
+    expect(created.last.isPlaying, isTrue);
   });
 
   testWidgets('changing the animation does not rebuild the player',
@@ -516,6 +564,50 @@ void main() {
       expect(view.size, const Size(300, 200));
       final t = seen!.partTransform(part)!.getTranslation();
       final at = tester.getTopLeft(find.byKey(marker));
+      expect(at.dx, closeTo(view.center.dx + t.x, 1e-6));
+      expect(at.dy, closeTo(view.center.dy + t.y, 1e-6));
+    });
+
+    testWidgets('an anchor moves with the fit on a player that is not playing',
+        (tester) async {
+      if (assetDir == null) {
+        markTestSkipped('overall assets missing');
+        return;
+      }
+      final bundle = _DirBundle(assetDir);
+      final part = await aPart(tester, bundle);
+      final marker = GlobalKey();
+      SpriteStudioPlayer? seen;
+      Widget fitted(BoxFit fit) => wrap(Center(
+            child: SizedBox(
+              width: 300,
+              height: 100,
+              child: SpriteStudioAnimation.asset(
+                'assets/x/Basic.ssab',
+                bundle: bundle,
+                fit: fit,
+                playing: false,
+                onPlayerCreated: (p) => seen = p,
+                children: [
+                  SpriteStudioPartAnchor(
+                    partName: part,
+                    child: SizedBox(key: marker, width: 1, height: 1),
+                  ),
+                ],
+              ),
+            ),
+          ));
+      await tester.pumpWidget(fitted(BoxFit.contain));
+      await pumpUntil(tester, () => find.byKey(marker).evaluate().isNotEmpty);
+      final before = tester.getTopLeft(find.byKey(marker));
+
+      await tester.pumpWidget(fitted(BoxFit.cover));
+      await tester.pump();
+
+      final view = tester.getRect(find.byType(SpriteStudioView));
+      final t = seen!.partTransform(part)!.getTranslation();
+      final at = tester.getTopLeft(find.byKey(marker));
+      expect(at, isNot(before));
       expect(at.dx, closeTo(view.center.dx + t.x, 1e-6));
       expect(at.dy, closeTo(view.center.dy + t.y, 1e-6));
     });
