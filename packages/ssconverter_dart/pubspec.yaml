@@ -28,7 +28,7 @@ dependencies:
   ffi: ^2.2.0
   args: ^2.7.0
   hooks: ^2.2.0
-  code_assets: ^2.1.0
+  code_assets: ^2.2.0
   archive: ^4.6.0
   crypto: ^3.0.8
 
