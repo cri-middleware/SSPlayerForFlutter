@@ -95,7 +95,7 @@ component.player?..setAnimation('attack')..play();
 
 クロックは Flame 側なので `Ticker` はありません —— トランスポート状態はプレイヤーが保持します。
 
-読み込みに失敗しても（アセットキーの誤り、壊れた `.ssab`）例外は投げられません。コンポーネントは何も描かず、`player` は `null` のままで、エラーは `component.loadError` に入ります。
+読み込みに失敗しても（アセットキーの誤り、壊れた `.ssab`）例外は投げられません。コンポーネントは何も描かず、`player` は `null` のままで、エラーは `component.loadError` に入り、`FlutterError.onError` にも届きます。
 
 ## 解放する
 

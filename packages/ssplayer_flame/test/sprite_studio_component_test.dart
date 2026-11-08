@@ -9,8 +9,9 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
-import 'package:flame/components.dart';
 import 'package:flame/game.dart';
+import 'package:flutter/foundation.dart'
+    show FlutterError, FlutterErrorDetails;
 import 'package:flutter/services.dart' show AssetBundle, CachingAssetBundle;
 import 'package:flutter/widgets.dart' show SizedBox;
 import 'package:flutter_test/flutter_test.dart';
@@ -18,6 +19,22 @@ import 'package:ssplayer_flame/ssplayer_flame.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  test('a failed load names the asset and reports the error it keeps', () async {
+    final reported = <FlutterErrorDetails>[];
+    final previous = FlutterError.onError;
+    FlutterError.onError = reported.add;
+    addTearDown(() => FlutterError.onError = previous);
+
+    final component =
+        SpriteStudioComponent.asset('no/such/pack.ssab', bundle: _DiskBundle());
+    await component.onLoad();
+
+    expect(component.player, isNull);
+    expect(component.loadError, isNotNull);
+    expect(reported.single.exception, same(component.loadError));
+    expect(reported.single.context.toString(), contains('no/such/pack.ssab'));
+  });
 
   testWidgets('a component added back after its removal loads again',
       (tester) async {

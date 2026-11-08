@@ -3,7 +3,13 @@ import 'dart:typed_data';
 import 'dart:ui' show Canvas, Offset, Rect;
 
 import 'package:flame/components.dart';
-import 'package:flutter/foundation.dart' show VoidCallback, protected;
+import 'package:flutter/foundation.dart'
+    show
+        ErrorDescription,
+        FlutterError,
+        FlutterErrorDetails,
+        VoidCallback,
+        protected;
 import 'package:flutter/services.dart' show AssetBundle;
 import 'package:ssplayer_flutter/ssplayer_flutter.dart';
 
@@ -223,10 +229,10 @@ class SpriteStudioComponent extends PositionComponent {
 
   /// Why [onLoad] failed, or null if it did not.
   ///
-  /// A load error is captured rather than thrown (see [onLoad]), so this is the
-  /// only place it surfaces: [player] stays null and the component renders
-  /// nothing. Check it after `add`ing if a missing or malformed `.ssab` is a
-  /// case your game needs to react to.
+  /// A load error is captured rather than thrown (see [loadPlayer]) and reported
+  /// through [FlutterError.reportError]: [player] stays null and the component
+  /// renders nothing. Check this after `add`ing if a missing or malformed `.ssab`
+  /// is a case your game needs to react to.
   Object? get loadError => _loadError;
   Object? _loadError;
 
@@ -257,8 +263,8 @@ class SpriteStudioComponent extends PositionComponent {
   /// `isLoaded` false forever; every subsequent lifecycle event on this parent
   /// then returns `block`, and the parent's whole add/remove queue stalls for
   /// the life of the app. A bad asset key must not be able to do that, so the
-  /// failure is caught, the half-built player released, and the error parked in
-  /// [loadError].
+  /// failure is caught, the half-built player released, the error parked in
+  /// [loadError] and reported.
   @protected
   Future<void> loadPlayer() async {
     final serial = ++_loadSerial;
@@ -309,9 +315,18 @@ class SpriteStudioComponent extends PositionComponent {
         ..subFrameEnabled = subFrameEnabled;
       if (autoStart) player.play();
       _player = player;
-    } catch (e) {
-      _loadError = e;
+    } catch (error, stack) {
       player.dispose();
+      // A load that was superseded, or outlived its component, is nobody's.
+      if (serial != _loadSerial || isRemoving || isRemoved) return;
+      _loadError = error;
+      FlutterError.reportError(FlutterErrorDetails(
+        exception: error,
+        stack: stack,
+        library: 'ssplayer_flame',
+        context: ErrorDescription(
+            'while loading ${_assetPath ?? 'a SpriteStudio pack from bytes'}'),
+      ));
     }
   }
 

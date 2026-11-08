@@ -116,7 +116,7 @@ component.player?..setAnimation('attack')..play();
 The clock is Flame's, so there is no `Ticker` — transport state still lives on the player.
 
 A load that fails (a wrong asset key, a malformed `.ssab`) does not throw: the component draws nothing,
-`player` stays `null`, and the error is in `component.loadError`.
+`player` stays `null`, the error is in `component.loadError`, and it goes to `FlutterError.onError`.
 
 ## Releasing it
 
