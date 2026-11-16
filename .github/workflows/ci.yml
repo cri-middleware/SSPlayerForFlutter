@@ -105,7 +105,7 @@ jobs:
       # The web Brain is built with wasm-pack.
       - name: Install wasm-pack
         if: github.event_name != 'pull_request' || steps.brain-cache.outputs.cache-hit != 'true'
-        uses: taiki-e/install-action@86f7a0ffb25f40114606501a311ebcfaf882ea32 # v2.88.0
+        uses: taiki-e/install-action@c509219cf42fba86913069efd0ade2458c59337b # v2.90.1
         with:
           tool: wasm-pack
 
@@ -240,7 +240,7 @@ jobs:
 
       - name: Install wasm-pack
         if: matrix.platform == 'web'
-        uses: taiki-e/install-action@86f7a0ffb25f40114606501a311ebcfaf882ea32 # v2.88.0
+        uses: taiki-e/install-action@c509219cf42fba86913069efd0ade2458c59337b # v2.90.1
         with:
           tool: wasm-pack
 
