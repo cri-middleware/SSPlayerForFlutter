@@ -46,6 +46,7 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  material_ui: ^1.11.1
 
 flutter:
   # NOT an FFI plugin: the native libssruntime is delivered by the ssruntime_dart
