@@ -4,7 +4,7 @@
 // In a file of its own: widget_test.dart ends before its pack's atlas has
 // decoded, and the decode it leaves half done in the shared image cache is one
 // a later load of the same bytes in that isolate would wait on forever.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:ssplayer_flutter_example/main.dart';

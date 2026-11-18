@@ -12,7 +12,7 @@
 
 import 'package:flame/components.dart';
 import 'package:flame/game.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:ssplayer_flame/ssplayer_flame.dart';
 
 Future<void> main() async {

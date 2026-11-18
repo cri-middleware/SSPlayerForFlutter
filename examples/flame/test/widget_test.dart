@@ -5,7 +5,7 @@
 // this only confirms the widget tree constructs and the GameWidget mounts. The
 // adapter itself is unit-tested in the ssplayer_flame package.
 import 'package:flame/game.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:ssplayer_flame_example/main.dart';
