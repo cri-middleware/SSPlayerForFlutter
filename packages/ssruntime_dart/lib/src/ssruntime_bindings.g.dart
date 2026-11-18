@@ -1403,8 +1403,8 @@ external void ss_runtime_set_speed_scale(
   double speed_scale,
 );
 
-/// The strength of `track`: `0` contributes nothing, `1` all of it, and other values
-/// extrapolate. Returns `false` with `InvalidParameter` for a `NaN` or a track that does
+/// The strength of `track`: `0` contributes nothing, `1` all of it, and values above
+/// `1` extrapolate. Returns `false` with `InvalidParameter` for a `NaN` or a track that does
 /// not exist.
 @ffi.Native<ffi.Bool Function(ffi.Pointer<ffi.Void>, ffi.Uint32, ffi.Float)>()
 external bool ss_runtime_set_track_alpha(
@@ -1571,6 +1571,11 @@ external bool ss_runtime_track_just_looped(
 /// Advance by `delta` **milliseconds** and return the frame to pass to
 /// `ss_runtime_get_frame_data`. With animation mixing it advances every track and fade;
 /// the frame returned is track 0's.
+///
+/// `delta` must not be negative. A negative value does not play backwards, and where it
+/// leaves the playhead is unspecified. Clamp it to 0 first: a browser's
+/// `requestAnimationFrame` timestamp can be earlier than the `performance.now()` read
+/// before it.
 @ffi.Native<ffi.Float Function(ffi.Pointer<ffi.Void>, ffi.Float)>()
 external double ss_runtime_update(ffi.Pointer<ffi.Void> context, double delta);
 
