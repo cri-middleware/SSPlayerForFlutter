@@ -66,7 +66,11 @@ command -v dart >/dev/null || {
 # Resolve the converter package deps once (the CLI loads the PREBUILT
 # libssconverter via native assets — hook/build.dart bundles the dylib that
 # build-runtime.sh produces).
-( cd "$CONV_PKG" && dart pub get >/dev/null 2>&1 )
+pub_out="$( cd "$CONV_PKG" && dart pub get 2>&1 )" || {
+  printf '%s\n' "$pub_out" >&2
+  echo "deploy-examples.sh: 'dart pub get' failed in $CONV_PKG" >&2
+  exit 1
+}
 
 # Stage a source project, then convert THAT copy (not the SDK original):
 #  1) SpriteStudio_Source/<stem>/ is the single source of truth the live-reload

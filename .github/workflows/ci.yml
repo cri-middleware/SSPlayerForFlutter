@@ -50,7 +50,7 @@ jobs:
       # version; a key that already exists is not saved again.
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with:
-          flutter-version: 3.47.7
+          flutter-version: 3.50.0
           channel: stable
           cache: true
 
@@ -198,7 +198,7 @@ jobs:
 
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with:
-          flutter-version: 3.47.7
+          flutter-version: 3.50.0
           channel: stable
           cache: true
 
@@ -252,6 +252,13 @@ jobs:
         if: matrix.platform == 'windows'
         shell: pwsh
         run: ./scripts/build-runtime.ps1 platform=windows
+
+      # deploy-examples.sh converts on the host through libssconverter, which
+      # only the desktop builds produce. Without it the converter's build hook
+      # falls back to downloading the SDK release instead of the submodule.
+      - name: Build the host converter
+        if: contains(fromJSON('["android", "ios", "web"]'), matrix.platform)
+        run: bash scripts/build-runtime.sh
 
       - name: Generate the example data
         if: matrix.platform != 'windows'

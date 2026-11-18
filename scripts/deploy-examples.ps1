@@ -70,7 +70,13 @@ if (-not (Get-Command dart -ErrorAction SilentlyContinue)) {
 # libssconverter via native assets — hook/build.dart bundles the dylib that
 # build-runtime.ps1 produces).
 Push-Location $ConvPkg
-try { & dart pub get 2>&1 | Out-Null } finally { Pop-Location }
+try {
+    $pubOut = & dart pub get 2>&1
+    if ($LASTEXITCODE) {
+        $pubOut | Write-Host
+        Write-Error "deploy-examples.ps1: 'dart pub get' failed in $ConvPkg"
+    }
+} finally { Pop-Location }
 
 # Stage a source project, then convert THAT copy (not the SDK original):
 #  1) SpriteStudio_Source/<stem>/ is the single source of truth the live-reload
