@@ -54,8 +54,58 @@ jobs:
       - name: Install dependencies
         run: ./scripts/prepare-docs.sh
 
+      # The demo's Brain comes from the submodule, not the release the hooks pin:
+      # that is pages.yml's to publish with. The key is ci.yml's, so the builds
+      # its weekly run saves are restored here, and only on a miss does this job
+      # compile them, the same two ways ci.yml does. A pull request builds the
+      # docs alone and needs none of it.
+      - name: Name the Brain builds
+        if: github.event_name != 'pull_request'
+        id: brain
+        run: echo "key=brain-${ImageOS}-linux-debug-web-release-$(git rev-parse HEAD:SpriteStudio-SDK)-${{ hashFiles('scripts/build-runtime.sh', '.github/workflows/ci.yml') }}" >> "$GITHUB_OUTPUT"
+
+      - name: Restore the Brain builds
+        if: github.event_name != 'pull_request'
+        id: brain-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            packages/ssruntime_dart/native
+            packages/ssconverter_dart/native
+            packages/ssplayer_flutter/assets/runtime-web/ssruntime.js
+            packages/ssplayer_flutter/assets/runtime-web/ssruntime_bg.wasm
+            packages/ssplayer_flutter/assets/runtime-web/ssruntime_bg.nosimd.wasm
+          key: ${{ steps.brain.outputs.key }}
+
+      - name: Setup Rust toolchain
+        if: github.event_name != 'pull_request' && steps.brain-cache.outputs.cache-hit != 'true'
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
+        with:
+          # Pinned by SHA, so the channel must be named explicitly here.
+          toolchain: stable
+          targets: wasm32-unknown-unknown
+
+      - name: Setup Rust cache
+        if: github.event_name != 'pull_request' && steps.brain-cache.outputs.cache-hit != 'true'
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: SpriteStudio-SDK
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      - name: Install wasm-pack
+        if: github.event_name != 'pull_request' && steps.brain-cache.outputs.cache-hit != 'true'
+        uses: taiki-e/install-action@c509219cf42fba86913069efd0ade2458c59337b # v2.90.1
+        with:
+          tool: wasm-pack
+
+      - name: Build the Brain (host and web)
+        if: github.event_name != 'pull_request' && steps.brain-cache.outputs.cache-hit != 'true'
+        run: |
+          bash scripts/build-runtime.sh
+          bash scripts/build-runtime.sh platform=web build=release
+
+      # sdk=skip takes the Brain the steps above built or restored.
       - name: Build the Pages tree (docs both locales + Web demo)
         env:
           DEMO: ${{ github.event_name == 'pull_request' && 'skip' || 'build' }}
-          SDK: ${{ github.event_name == 'pull_request' && 'skip' || 'download' }}
-        run: ./scripts/build-pages.sh prepare=no docs=yes "demo=$DEMO" "sdk=$SDK" "base=/${{ github.event.repository.name }}/" serve=no
+        run: ./scripts/build-pages.sh prepare=no docs=yes "demo=$DEMO" sdk=skip "base=/${{ github.event.repository.name }}/" serve=no
