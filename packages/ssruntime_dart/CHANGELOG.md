@@ -6,6 +6,8 @@ All notable changes to `ssruntime_dart` are documented here. The format is based
 
 ## [Unreleased]
 
+## [7.0.0-beta.1] - 2026-11-18
+
 ### Added
 - **First release.** `dart:ffi` `@Native` bindings for `libssruntime` (the SpriteStudio-SDK Rust
   runtime), plus the flatc `FrameData` / `EffectDrawPlan` accessors and the `dart:js_interop` web

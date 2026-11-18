@@ -6,6 +6,8 @@ All notable changes to `ssgen_flutter` are documented here. The format is based 
 
 ## [Unreleased]
 
+## [7.0.0-beta.1] - 2026-11-18
+
 ### Added
 - **First release.** Live reload for a running app: save a `.sspj` and see it update. The
   `sswatch` runner watches `SpriteStudio_Source/`, reconverts what went stale and pushes the fresh

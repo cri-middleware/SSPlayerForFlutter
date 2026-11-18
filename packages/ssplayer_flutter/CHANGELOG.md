@@ -6,6 +6,8 @@ All notable changes to `ssplayer_flutter` are documented here. The format is bas
 
 ## [Unreleased]
 
+## [7.0.0-beta.1] - 2026-11-18
+
 ### Added
 - **First release.** The SpriteStudio player for Flutter: `.ssab` loading, playback and part
   control, driving the SpriteStudio-SDK Rust runtime (`libssruntime`) through `ssruntime_dart`.

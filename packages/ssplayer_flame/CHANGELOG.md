@@ -6,6 +6,8 @@ All notable changes to `ssplayer_flame` are documented here. The format is based
 
 ## [Unreleased]
 
+## [7.0.0-beta.1] - 2026-11-18
+
 ### Added
 - **First release.** The Flame adapter for `ssplayer_flutter`: `SpriteStudioComponent`, a Flame
   `PositionComponent` driven by the Flame game loop (external clock) rather than its own ticker.

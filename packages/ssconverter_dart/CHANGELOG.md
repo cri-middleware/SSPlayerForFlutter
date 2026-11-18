@@ -6,6 +6,8 @@ All notable changes to `ssconverter_dart` are documented here. The format is bas
 
 ## [Unreleased]
 
+## [7.0.0-beta.1] - 2026-11-18
+
 ### Added
 - **First release.** `dart:ffi` bindings for `libssconverter` (host-only): the `ssconvert` CLI
   and the `SsConverter` library, which turn `.sspj` / `.ssae` projects into the `.ssab` pack the
