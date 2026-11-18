@@ -26,13 +26,7 @@ done
 git show origin/main:packages/ssruntime_dart/hook/build.dart origin/main:packages/ssconverter_dart/hook/build.dart | grep '^const _sdkVersion'
 ```
 
-A run releases every package whose current version has no Release yet, named or not. So the first release names every package at the version it already has:
-
-```text
-ssruntime_dart@7.0.0-beta.1 ssconverter_dart@7.0.0-beta.1 ssplayer_flutter@7.0.0-beta.1 ssplayer_flame@7.0.0-beta.1 ssgen_dart@7.0.0-beta.1 ssgen_flutter@7.0.0-beta.1
-```
-
-Steps 4 and 5 take the decision in place of their `<versions>`, in quotes, as in `"ssruntime_dart@7.0.0-beta.2 ssplayer_flutter@7.0.0-beta.2"`.
+A run releases every package whose current version has no Release yet, named or not. Steps 4 and 5 take the decision in place of their `<versions>`, in quotes, as in `"ssruntime_dart@7.0.0-beta.2 ssplayer_flutter@7.0.0-beta.2"`.
 
 ### 2. Write the changelog
 
@@ -264,13 +258,7 @@ done
 git show origin/main:packages/ssruntime_dart/hook/build.dart origin/main:packages/ssconverter_dart/hook/build.dart | grep '^const _sdkVersion'
 ```
 
-run は、指定したかどうかに関わらず、現在のバージョンにまだ Release が無いパッケージをすべて出します。そのため初回のリリースでは、全パッケージをいま持っているバージョンのまま指定します。
-
-```text
-ssruntime_dart@7.0.0-beta.1 ssconverter_dart@7.0.0-beta.1 ssplayer_flutter@7.0.0-beta.1 ssplayer_flame@7.0.0-beta.1 ssgen_dart@7.0.0-beta.1 ssgen_flutter@7.0.0-beta.1
-```
-
-手順 4・5 は、決めた組を引用符で囲んで `<versions>` の位置に受け取ります（`"ssruntime_dart@7.0.0-beta.2 ssplayer_flutter@7.0.0-beta.2"` など）。
+run は、指定したかどうかに関わらず、現在のバージョンにまだ Release が無いパッケージをすべて出します。手順 4・5 は、決めた組を引用符で囲んで `<versions>` の位置に受け取ります（`"ssruntime_dart@7.0.0-beta.2 ssplayer_flutter@7.0.0-beta.2"` など）。
 
 ### 2. changelog を書く
 
