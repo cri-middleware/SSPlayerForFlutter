@@ -78,7 +78,7 @@ bool _wasmSupportsSimd() {
     final wasm = globalContext.getProperty('WebAssembly'.toJS) as JSObject;
     final probe = Uint8List.fromList(const [
       0, 97, 115, 109, 1, 0, 0, 0, 1, 5, 1, 96, 0, 1, 123, //
-      3, 2, 1, 0, 10, 10, 1, 8, 0, 65, 0, 253, 15, 26, 11,
+      3, 2, 1, 0, 10, 10, 1, 8, 0, 65, 0, 253, 15, 253, 98, 11,
     ]).toJS;
     return (wasm.callMethod('validate'.toJS, probe) as JSBoolean).toDart;
   } catch (_) {
