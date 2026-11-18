@@ -7,7 +7,7 @@
 // durations, exactly as a human watching the app would judge it.
 import 'dart:io';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ssplayer_flutter/ssplayer_flutter.dart';
 

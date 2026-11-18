@@ -12,7 +12,7 @@
 // The third is an ordinary text button with nothing of SpriteStudio in it: a
 // particle effect is laid over it where it is clicked, played once, and taken
 // away when it finishes. That needs no more than a player and a view.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:ssplayer_flutter/ssplayer_flutter.dart';
 import 'package:ssplayer_flutter/ui.dart';
 

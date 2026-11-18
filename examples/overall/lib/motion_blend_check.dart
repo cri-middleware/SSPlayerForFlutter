@@ -9,7 +9,7 @@
 // a blend or a cut, whether an additive overlay leaves the motion underneath
 // showing — so every track call is on a key, and the state the player reports
 // is printed beside the drawing. The keys are the ones the sibling viewers use.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:ssplayer_flutter/ssplayer_flutter.dart';
 
