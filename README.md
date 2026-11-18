@@ -99,6 +99,15 @@ You need **Flutter 3.47+ / Dart 3.13+**, and a project made in **SpriteStudio 7.
 
    It loads the pack and its textures, loops the animation, and is disposed with the widget.
 
+   On the web, call `await loadSsRuntime()` once before `runApp`; on the other platforms it does nothing:
+
+   ```dart
+   Future<void> main() async {
+     await loadSsRuntime();
+     runApp(const MyApp());
+   }
+   ```
+
 To see a save in SpriteStudio in the running app without converting by hand, use
 [Live Reload](docs/en/guide/live-reload.md) — it watches the same `SpriteStudio_Source/`.
 

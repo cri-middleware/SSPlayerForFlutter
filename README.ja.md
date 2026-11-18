@@ -95,6 +95,15 @@
 
    パックとテクスチャを読み込んでアニメをループ再生し、ウィジェットと一緒に破棄されます。
 
+   Web では、`runApp` の前に一度 `await loadSsRuntime()` を呼びます。ほかのプラットフォームでは何もしません。
+
+   ```dart
+   Future<void> main() async {
+     await loadSsRuntime();
+     runApp(const MyApp());
+   }
+   ```
+
 SpriteStudio での保存を、手で変換せずに実行中のアプリへ反映するには [ライブリロード](docs/ja/guide/live-reload.md) を使います。同じ `SpriteStudio_Source/` を監視します。
 
 SpriteStudio のデータが手元に無くても始められます。[公式のサンプルデータ](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/)がそのまま使えます。キャラクターなら [Ringo](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#ringo) が手頃です。
