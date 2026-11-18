@@ -253,6 +253,13 @@ jobs:
         shell: pwsh
         run: ./scripts/build-runtime.ps1 platform=windows
 
+      # deploy-examples.sh converts on the host through libssconverter, which
+      # only the desktop builds produce. Without it the converter's build hook
+      # falls back to downloading the SDK release instead of the submodule.
+      - name: Build the host converter
+        if: contains(fromJSON('["android", "ios", "web"]'), matrix.platform)
+        run: bash scripts/build-runtime.sh
+
       - name: Generate the example data
         if: matrix.platform != 'windows'
         run: bash scripts/deploy-examples.sh
