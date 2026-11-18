@@ -101,7 +101,9 @@ if ($HOSTBUILD -ne "false" -and $PLATFORM -eq $HOST_PLATFORM -and $ARCH -eq $HOS
     $IS_HOST_BUILD = $true
 }
 Write-Host "Building for $PLATFORM ($ARCH) in $BUILD_MODE mode (host build: $IS_HOST_BUILD)"
-$CargoFlags = if ($BUILD_MODE -eq "release") { @("--release") } else { @() }
+# Wrapped in @(): an if used as a value unrolls a one-element array into a bare
+# string, which @CargoFlags would then splat one character at a time.
+$CargoFlags = @(if ($BUILD_MODE -eq "release") { "--release" })
 
 # The runtime is no_std: a host cdylib needs an allocator + panic handler.
 function Build-Ss {
