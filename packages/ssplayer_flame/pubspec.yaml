@@ -11,6 +11,15 @@ topics:
   - game-development
   - game
 
+# Declared for the same reason as in ssplayer_flutter's pubspec.yaml.
+platforms:
+  android:
+  ios:
+  linux:
+  macos:
+  web:
+  windows:
+
 # Part of the repo-root pub workspace (see ../../pubspec.yaml).
 resolution: workspace
 

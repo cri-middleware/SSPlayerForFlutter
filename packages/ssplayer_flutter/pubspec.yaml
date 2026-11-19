@@ -12,6 +12,17 @@ topics:
   - game-development
   - graphics
 
+# Declared because pub.dev cannot detect them: flutter_gpu imports
+# dart:nativewrappers, which pana's Flutter-native rules do not list, so the
+# detected set would be Web alone.
+platforms:
+  android:
+  ios:
+  linux:
+  macos:
+  web:
+  windows:
+
 # Part of the repo-root pub workspace (see ../../pubspec.yaml).
 resolution: workspace
 
