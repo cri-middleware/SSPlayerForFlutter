@@ -6,6 +6,9 @@ All notable changes to `ssplayer_flame` are documented here. The format is based
 
 ## [Unreleased]
 
+### Fixed
+- pub.dev lists Android, iOS, Linux, macOS, Web and Windows; it had detected Web alone.
+
 ## [7.0.0-beta.1] - 2026-11-18
 
 ### Added
