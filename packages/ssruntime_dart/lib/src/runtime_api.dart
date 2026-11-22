@@ -14,10 +14,10 @@ import 'dart:typed_data';
 ///     it — a stricter rule than the lifetime below, so the backend pays a
 ///     per-frame copy to honour the same contract native does.
 ///
-/// [SsRuntime.instance] resolves to the right backend at compile time via a
-/// conditional export in `ssruntime_dart.dart`. Layer 2 talks only to this API,
-/// so `internal_player.dart` / `render/effect.dart` / `render/instance.dart`
-/// carry no `dart:ffi` and compile for the web.
+/// The `ssRuntime` singleton resolves to the right backend at compile time via
+/// a conditional export in `ssruntime_dart.dart`. Layer 2 talks only to this
+/// API, so `internal_player.dart` / `render/effect.dart` /
+/// `render/instance.dart` carry no `dart:ffi` and compile for the web.
 ///
 /// **Handle & event types are opaque.** [SsContext] / [SsResource] / slot handles
 /// and the two `*EventInfo` tokens are produced by a backend and only ever handed
@@ -495,17 +495,18 @@ abstract interface class SsRuntime {
 
   // --- Part overrides (Override Layer) -----------------------------------
 
-  /// Per-part overrides are applied by the Brain at the seam *after* the
-  /// keyframe mix and *before* `FrameData` is composed, so they beat both the
-  /// keyframes and the blend. The Brain owns the whole table and its lifecycle
-  /// (`setupAnimation` clears all but [Permanent], a new [bindResource] clears
-  /// everything) — **never re-apply them per frame**.
-  ///
-  /// Parts are addressed by index only; the Body resolves names once. `false`
-  /// means the call was rejected (bad index / out-of-range enum / unresolvable
-  /// cell), NOT "the override had no visible effect": a part whose type the
-  /// attribute does not apply to still returns `true` and is ignored at the
-  /// seam.
+  //
+  // Per-part overrides are applied by the Brain at the seam *after* the
+  // keyframe mix and *before* `FrameData` is composed, so they beat both the
+  // keyframes and the blend. The Brain owns the whole table and its lifecycle
+  // ([setupAnimation] clears all but the `Permanent` ones, a new [bindResource]
+  // clears everything) — **never re-apply them per frame**.
+  //
+  // Parts are addressed by index only; the Body resolves names once. `false`
+  // means the call was rejected (bad index / out-of-range enum / unresolvable
+  // cell), NOT "the override had no visible effect": a part whose type the
+  // attribute does not apply to still returns `true` and is ignored at the
+  // seam.
 
   /// Resolves a part name to its index in the current primary animation, or -1
   /// when unknown / before `setupAnimation`. The Body keeps its own pack-level
