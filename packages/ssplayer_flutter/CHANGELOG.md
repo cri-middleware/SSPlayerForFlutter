@@ -6,6 +6,9 @@ All notable changes to `ssplayer_flutter` are documented here. The format is bas
 
 ## [Unreleased]
 
+### Added
+- pub.dev shows an example on the Example tab, and links the documentation from the sidebar.
+
 ### Fixed
 - pub.dev lists Android, iOS, Linux, macOS, Web and Windows; it had detected Web alone.
 
