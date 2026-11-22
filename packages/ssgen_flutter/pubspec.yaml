@@ -5,6 +5,7 @@ description: >-
   dev dependency.
 version: 7.0.0-beta.1
 repository: https://github.com/cri-middleware/SSPlayerForFlutter
+documentation: https://cri-middleware.github.io/SSPlayerForFlutter/guide/live-reload/
 topics:
   - spritestudio
   - hot-reload

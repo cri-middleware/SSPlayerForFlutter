@@ -6,6 +6,11 @@ All notable changes to `ssruntime_dart` are documented here. The format is based
 
 ## [Unreleased]
 
+### Added
+- pub.dev shows an example on the Example tab, and links the documentation from the sidebar.
+- Doc comments for every member of `SsRuntime` and for the `framedata` and `effect_draw_plan`
+  libraries.
+
 ## [7.0.0-beta.1] - 2026-11-18
 
 ### Added

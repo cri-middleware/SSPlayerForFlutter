@@ -6,6 +6,9 @@ All notable changes to `ssconverter_dart` are documented here. The format is bas
 
 ## [Unreleased]
 
+### Added
+- pub.dev shows an example on the Example tab, and links the documentation from the sidebar.
+
 ## [7.0.0-beta.1] - 2026-11-18
 
 ### Added
