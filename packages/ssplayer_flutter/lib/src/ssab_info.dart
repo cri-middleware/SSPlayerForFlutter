@@ -161,11 +161,12 @@ class SsAnimeInfo {
   List<String> get replaceableTextureNames =>
       <String>[...cellmapNames, ...externalTextureNames];
 
-  /// The [textures] registry key for [name], resolving a cellmap name FIRST
-  /// (`common`) then an external-texture file name (`common.png`) — the two hash
-  /// spaces `texture_hash` spans — or null when neither has it. Generalises
-  /// [cellmapTextureHash] across both spaces (ForGodot's `get_cellmap_hash`); the
-  /// pre-baked `name_hash` is returned verbatim (never re-hash on the Dart side).
+  /// The [SpriteStudioPlayer.textures] registry key for [name], resolving a
+  /// cellmap name FIRST (`common`) then an external-texture file name
+  /// (`common.png`) — the two hash spaces `texture_hash` spans — or null when
+  /// neither has it. Generalises [cellmapTextureHash] across both spaces
+  /// (ForGodot's `get_cellmap_hash`); the pre-baked `name_hash` is returned
+  /// verbatim (never re-hash on the Dart side).
   int? textureHashForName(String name) {
     for (final c in _root.cellmaps ?? const <ssab.CellMap>[]) {
       if (c.name == name) return c.nameHash;

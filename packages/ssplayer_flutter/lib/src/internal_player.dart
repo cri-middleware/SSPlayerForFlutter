@@ -30,9 +30,10 @@ import 'texture_registry.dart';
 /// Layer 2 — the Widget-agnostic drawing engine (ports the SDK's
 /// `SSInternalPlayer`).
 ///
-/// Owns the FFI [Context] and a hold on the shared [SsabPack], advances time,
-/// pulls the per-frame `FrameData` + SoA buffers from the Brain, and drives a
-/// [RenderBackend] (Canvas or flutter_gpu) to turn each `DrawBatch` into pixels.
+/// Owns the Brain's [SsContext] and a hold on the shared [SsabPack], advances
+/// time, pulls the per-frame `FrameData` + SoA buffers from the Brain, and
+/// drives a [RenderBackend] (Canvas or flutter_gpu) to turn each `DrawBatch`
+/// into pixels.
 /// It is `dispose`-able and reusable from higher layers (Player) or headless
 /// tests. As [RenderHost] it exposes the per-player data the backend draws from.
 class SpriteStudioInternalPlayer implements InstanceChild, RenderHost {

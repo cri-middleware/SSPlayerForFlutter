@@ -62,7 +62,8 @@ class TextureRegistry {
   /// when [SharedImages] decoded it), so the caller must not re-register a
   /// texture that an already-recorded (but not yet rasterised) picture still
   /// draws with. Load-time registration is always safe; a live
-  /// swap must go through a fresh registry, which is what [reload] does.
+  /// swap must go through a fresh registry, which is what
+  /// [SpriteStudioPlayer.reload] does.
   void register(
     int textureHash,
     ui.Image image, {

@@ -2214,9 +2214,9 @@ class GeometryBuilder {
   /// when it has no *drawable* mesh geometry this frame. Mesh SoA is already
   /// world-space so this is a straight copy — used for the coverage bbox of
   /// a mesh clipping writer. Requires a triangle-bearing index range too, so
-  /// the mask planner reserves a coverage bit only for a writer [_renderCoverage]
-  /// can actually rasterise (else a vertex-only part would fold phantom verts
-  /// into the bbox yet write nothing — an inert bit).
+  /// the mask planner reserves a coverage bit only for a writer
+  /// `_renderCoverage` can actually rasterise (else a vertex-only part would
+  /// fold phantom verts into the bbox yet write nothing — an inert bit).
   ///
   /// [out] is an optional grow-only scratch, with the same aliasing contract as
   /// [shapeWorldOutlineOf]'s.

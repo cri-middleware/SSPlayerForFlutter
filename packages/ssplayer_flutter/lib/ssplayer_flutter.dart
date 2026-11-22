@@ -3,7 +3,7 @@
 /// A dart:ffi "Body" over the SpriteStudio-SDK Rust "Brain" (libssruntime).
 /// Layering (top → bottom): [SpriteStudioView] (L4 adapter) →
 /// [SpriteStudioPlayer] (L3 control) → [SpriteStudioInternalPlayer] (L2 draw
-/// engine) → [SsRuntime] (L1: dart:ffi or wasm).
+/// engine) → `SsRuntime` (L1, `ssruntime_dart`: dart:ffi or wasm).
 library;
 
 // Layer 4 — drawing adapters.
