@@ -375,7 +375,7 @@ class SpriteStudioPlayer extends ChangeNotifier {
   ///
   /// A drawing adapter that must hand [paint] an explicit, finite render box can
   /// size one from this: the flutter_gpu backend renders into an offscreen
-  /// target the size of `dst`, so a zero-sized [SpriteStudioComponent] bounds
+  /// target the size of `dst`, so a zero-sized `SpriteStudioComponent` bounds
   /// its target from the canvas instead of compositing a blank frame (the Canvas
   /// backend needs no size — it draws in unbounded player-local space).
   ui.Size? get canvasSize {

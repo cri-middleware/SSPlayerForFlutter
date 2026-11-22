@@ -10,9 +10,9 @@ import 'ssruntime_bindings.g.dart';
 /// The native (`dart:ffi`) backend of [SsRuntime].
 ///
 /// Wraps the `@Native` libssruntime bindings: handles are `Pointer<Void>`, SoA
-/// buffers are zero-copy `asTypedList` views over the Brain's native heap (valid
-/// until the next [update]). Selected on any platform where `dart:ffi` exists;
-/// the web build picks `web_runtime.dart` instead.
+/// buffers are zero-copy `asTypedList` views over the Brain's native heap
+/// (valid until the next [SsRuntime.update]). Selected on any platform where
+/// `dart:ffi` exists; the web build picks `web_runtime.dart` instead.
 final SsRuntime ssRuntime = _NativeRuntime();
 
 /// No-op on native: the Brain is a native asset the `@Native` bindings resolve
