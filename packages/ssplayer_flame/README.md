@@ -4,6 +4,9 @@
 [`ssplayer_flutter`](https://pub.dev/packages/ssplayer_flutter) — play a **SpriteStudio `.ssab`**
 animation inside a `FlameGame` with a single component.
 
+▶️ **[Live demo](https://cri-middleware.github.io/SSPlayerForFlutter/demo/flame/)** — a
+`SpriteStudioComponent` in a `FlameGame`, running in your browser; tap to play / pause.
+
 `SpriteStudioComponent` plays a `SpriteStudioPlayer` on Flame's game loop: the
 loop supplies the time, and everything else the player does — transport, events,
 instance packs, textures — is the same as in a widget.
@@ -73,7 +76,3 @@ component.player?.seek(0);
   different folder (a shared atlas). Embedded‑texture packs need nothing.
 * **Web:** call `await loadSsRuntime()` once before `runApp`, as with `ssplayer_flutter` (a no-op on
   native); without it nothing draws and nothing fails.
-
-## Example
-
-The [live Web demos](https://cri-middleware.github.io/SSPlayerForFlutter/demo/) include the Flame one.
