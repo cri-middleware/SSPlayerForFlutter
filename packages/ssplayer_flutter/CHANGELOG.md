@@ -8,6 +8,7 @@ All notable changes to `ssplayer_flutter` are documented here. The format is bas
 
 ### Added
 - pub.dev shows an example on the Example tab, and links the documentation from the sidebar.
+- The README opens with a link to the live Web demo.
 
 ### Fixed
 - pub.dev lists Android, iOS, Linux, macOS, Web and Windows; it had detected Web alone.

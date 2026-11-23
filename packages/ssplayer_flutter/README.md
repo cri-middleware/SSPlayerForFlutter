@@ -4,6 +4,10 @@ Play **SpriteStudio** raster animations (`.ssab`) natively in Flutter —
 rigged by an artist in a dedicated editor, drawn straight to the Flutter
 `Canvas`, with no animation code to hand-write.
 
+▶️ **[Live demo](https://cri-middleware.github.io/SSPlayerForFlutter/demo/flutter/)** — this
+package in your browser, playing the SDK's sample projects; the dropdowns pick the project, pack
+and animation.
+
 This is the package most apps depend on: a widget and a controller that play a
 `.ssab`, over the runtime in [`ssruntime_dart`](https://pub.dev/packages/ssruntime_dart).
 
@@ -97,6 +101,5 @@ class _MyState extends State<MyWidget> with SingleTickerProviderStateMixin {
   and as the Agent Skill `skills/ssplayer-flutter-docs/`, which `dart run skills@ get --all` installs
   into your coding agent's skills directory (add `--agent claude`, or another agent, when the
   project has none yet)
-* [Live Web demo](https://cri-middleware.github.io/SSPlayerForFlutter/demo/flutter/) — this API running in a browser
 * [What is and is not supported](https://cri-middleware.github.io/SSPlayerForFlutter/limitations/)
 * [Repository](https://github.com/cri-middleware/SSPlayerForFlutter) · example app under [`examples/overall`](https://github.com/cri-middleware/SSPlayerForFlutter/tree/main/examples/overall)
