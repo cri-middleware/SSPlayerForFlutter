@@ -19,8 +19,7 @@ hand-write. Playback runs through `libssruntime` provided by
 !!! example "Try it in a browser"
     Two [**live Web demos**](demo/) are published beside these pages: the `examples/overall`
     app driving the `ssplayer_flutter` widget, and the `examples/flame` one driving
-    `ssplayer_flame` — both built for the web, both on the same `libssruntime` wasm a Flutter
-    web build loads. The Web target is a developer preview; see
+    `ssplayer_flame`, both built for the web. The Web target is a developer preview; see
     [Limitations & Scope](limitations.md).
 
 ## Table of Contents
@@ -36,7 +35,7 @@ hand-write. Playback runs through `libssruntime` provided by
     - [Buttons & UI States](guide/buttons.md)
     - [Texture Replacement](guide/textures.md)
     - [Flame Integration](guide/flame.md)
-    - [Preparing Assets (`.sspj` → `.ssab`)](guide/conversion.md) (start here for the initial import)
+    - [Preparing Assets (`.sspj` → `.ssab`)](guide/conversion.md)
     - [Live Reload](guide/live-reload.md)
 - [**API Reference**](api.md)
 - [**Limitations & Scope**](limitations.md)
@@ -54,38 +53,6 @@ hand-write. Playback runs through `libssruntime` provided by
 - **Smooth motion — between frames and between animations.** **Sub-frame interpolation** renders each frame at the exact display time, so motion follows your display's refresh rate and playback speed instead of the authored fps. Set `transition` and a change of `animation` [crossfades](guide/motion-blending.md) instead of cutting, and further tracks lay a blink or an aim over what is playing.
 - **A seamless edit-to-runtime loop.** [Live reload](guide/live-reload.md) watches `SpriteStudio_Source/` while the app runs: save in SpriteStudio and only the changed project is re-converted and pushed into the running app — no manual export step.
 
-## Overview
-
-The diagram below shows how data flows from authored assets to on-screen playback.
-
-```mermaid
-graph LR
-    SS[" .sspj / Images<br>(Source Assets) "]
-
-    subgraph Convert ["Conversion"]
-        CLI[[" ssconvert<br>(CLI / CI) "]]
-        WATCH[[" sswatch<br>(live-reload) "]]
-    end
-
-    subgraph App ["Flutter App"]
-        BIN[" .ssab "]
-        VIEW[[ SpriteStudioView / Player ]]
-        RT(" libssruntime<br>(dart:ffi · native assets) ")
-    end
-
-    SS -- "one-shot / CI" --> CLI
-    SS -- "save → push" --> WATCH
-    CLI -. "generate" .-> BIN
-    WATCH -. "push into running app" .-> VIEW
-
-    BIN -- "load()" --> VIEW
-    VIEW -. "drive" .-> RT
-    VIEW -- "drawVertices" --> RENDER{{" Flutter Canvas "}}
-
-    classDef generated stroke-dasharray: 5 5;
-    class BIN generated;
-```
-
 ## Supported Versions
 
 - **Flutter / Dart**: the minimum is on [Installation](./guide/install.md); `flutter pub get` fails if yours is older.
@@ -93,9 +60,9 @@ graph LR
 
 ## Samples
 
-Sample apps live under the `examples/` folder in the repository.
+Sample apps live under the `examples/` folder in the repository; running one from a checkout is in the [Build Guide](development/build.md#build-from-source).
 
-- [overall](https://github.com/cri-middleware/SSPlayerForFlutter/tree/main/examples/overall) — comprehensive validation app. In a clone, `scripts/run-macos.sh` converts the sample projects, generates the runner and launches it; it prints `[ssplayer] OK` once the animation plays.
+- [overall](https://github.com/cri-middleware/SSPlayerForFlutter/tree/main/examples/overall) — comprehensive validation app.
 - [flame](https://github.com/cri-middleware/SSPlayerForFlutter/tree/main/examples/flame) — a `FlameGame` playing an animation via `ssplayer_flame`.
 - [part_following](https://github.com/cri-middleware/SSPlayerForFlutter/tree/main/examples/part_following) — a widget pinned to a part with `SpriteStudioPartAnchor`.
 

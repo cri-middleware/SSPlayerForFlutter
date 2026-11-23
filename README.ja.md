@@ -27,13 +27,6 @@
 - [**AI アシスタント向け**](https://cri-middleware.github.io/SSPlayerForFlutter/ja/llms.txt) — このドキュメントを Markdown で提供します。`llms.txt` はページの目次、`llms-full.txt` は全ページを 1 ファイルにまとめたものです。`ssplayer_flutter` と `ssplayer_flame` は同じページを `doc/` に、Agent Skill として `skills/` にも持っています（[skill の入れ方](https://cri-middleware.github.io/SpriteStudio-Docs/ja/ai/docs/)）
 - [**SpriteStudio Docs（ポータル）**](https://cri-middleware.github.io/SpriteStudio-Docs/ja/) — SDK と全公式 Player の入口。コーディングアシスタントに SpriteStudio を教える[プラグイン](https://cri-middleware.github.io/SpriteStudio-Docs/ja/ai/)もあります
 
-### クイックリンク
-- [インストール](docs/ja/guide/install.md)
-- [クイックスタート](docs/ja/guide/quickstart.md)
-- [Flame 連携](docs/ja/guide/flame.md)
-- [アセットの準備（`.sspj` → `.ssab`）](docs/ja/guide/conversion.md)
-- [制約と適用範囲](docs/ja/limitations.md)
-
 ---
 
 ## 🚀 クイックスタート
@@ -109,7 +102,7 @@ SpriteStudio での保存を、手で変換せずに実行中のアプリへ反�
 SpriteStudio のデータが手元に無くても始められます。[公式のサンプルデータ](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/)がそのまま使えます。キャラクターなら [Ringo](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#ringo) が手頃です。
 
 **次に読む:** [クイックスタート（ガイド）](docs/ja/guide/quickstart.md) · [再生とイベント](docs/ja/guide/playback.md) ·
-[制約と適用範囲](docs/ja/limitations.md)
+[Flame 連携](docs/ja/guide/flame.md) · [制約と適用範囲](docs/ja/limitations.md)
 
 ## 📦 パッケージ
 
@@ -124,13 +117,7 @@ SpriteStudio のデータが手元に無くても始められます。[公式の
 
 ## 🎬 サンプル
 
-[`examples/`](./examples/) にすぐ動かせるアプリがあります。`scripts/run-<platform>.*` を 1 回実行すれば起動します。SDK のテストプロジェクトを各サンプルが読み込む `.ssab` へ変換し、プラットフォームのランナーを生成し、端末を選ぶところまで行います（起動中の端末が無ければエミュレータを起動します）。`git clone --recurse-submodules` で取得してください（テストプロジェクトは `SpriteStudio-SDK` サブモジュールにあります。通常の clone の後は `git submodule update --init --recursive`）。`run-web` は初回のみ Web ランタイムも必要です: `scripts/download-web-runtime.sh`。
-
-```bash
-scripts/run-macos.sh                   # overall。run-linux / run-ios / run-android / run-web も同様
-scripts/run-android.sh example=flame   # 別のサンプル
-scripts\run-windows.ps1                # Windows（run-android.ps1 / run-web.ps1 もあります）
-```
+[`examples/`](./examples/) に動かせるアプリがあります。`overall` と `flame` は [Web デモ](https://cri-middleware.github.io/SSPlayerForFlutter/demo/) でも動きます。チェックアウトから動かす方法は[ビルドガイド](./docs/ja/development/build.md#ソースからビルド)にあります。
 
 - [overall](./examples/overall) — まず開くのはこちら。SDK の `tests/overall` プロジェクトと Ringo・Doll・ParticleEffect を再生し、ドロップダウンでプロジェクト・パック・アニメを切り替えられます。
 - [flame](./examples/flame) — [`ssplayer_flame`](./packages/ssplayer_flame) アダプタのサンプル。`FlameGame` に `SpriteStudioComponent` を 1 つ載せて Ringo を再生し、タップで再生 / 一時停止を切り替えます。

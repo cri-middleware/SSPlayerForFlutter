@@ -35,8 +35,8 @@ plugins:
         プレイヤーの使い方:
           - index.md: "このプレイヤーの概要、主な機能、対応プラットフォーム、`.sspj` から画面に表示されるまでのデータの流れ、サンプルアプリ、ブラウザで動くライブデモ、関連リポジトリ。"
           - guide/install.md: "アプリへの導入。必要な Flutter / Dart と SpriteStudio のバージョン、対応プラットフォーム、`ssplayer_flutter` と `ssconverter_dart` の追加、Flame とライブリロードに必要な追加パッケージ、Web での `loadSsRuntime()`。"
-          - guide/quickstart.md: "`pubspec.yaml` へのアセット宣言と、`SpriteStudioAnimation.asset` での `.ssab` の再生。渡せる引数（`animation`・`transition`・`fit`・`loopCount`・`playing`・`placeholder`・`onLoaded`・`onError`・イベントコールバック・`children`・`backend`）と、`SpriteStudioView` でプレイヤーを自分で持つ方法。"
-          - guide/playback.md: "`SpriteStudioPlayer` の再生制御。`play`・`pause`・`stop`・`seek`、`loopCount`・`speedScale`、逆再生と往復再生、フレームやラベルで区切る部分再生、`flipX`・`flipY`・`offset`・`scale`、アニメの切り替え、クロックの駆動、`onUserData`・`onSignal`・`onAudio` とアニメ終了のイベント。"
+          - guide/quickstart.md: "`ssconvert` で `.sspj` を `assets/spritestudio/` に変換し、そのフォルダを `pubspec.yaml` に宣言して、`SpriteStudioAnimation.asset` で `.ssab` を再生するまで。主な引数（`animation`・`width` / `height`・`loopCount`・`playing`）と、web での `loadSsRuntime()`。"
+          - guide/playback.md: "`SpriteStudioAnimation` のすべての引数（`transition`・`fit`・`placeholder`・`onLoaded`・`onError`・イベントコールバック・`children`・`backend` など）、`SpriteStudioView` でプレイヤーを自分で持つ方法、`SpriteStudioPlayer` の再生制御。`play`・`pause`・`stop`・`seek`、`loopCount`・`speedScale`、逆再生と往復再生、フレームやラベルで区切る部分再生、`flipX`・`flipY`・`offset`・`scale`、アニメの切り替え、クロックの駆動、`onUserData`・`onSignal`・`onAudio` とアニメ終了のイベント。"
           - guide/motion-blending.md: "1 体のキャラクターで複数のアニメを同時に再生する方法。トラックの積み重ね、`SsTrackBlend` の mix と additive によるオーバーレイ、`crossfade` と `fadeTrack`、1 つのトラックに重み付きで載せる複数のアニメ、`SsTrackSync`、トラックごとの速度とループ回数、`setTrackFrame` によるスクラブ、イベントを発火するトラック。"
           - guide/part-following.md: "`SpriteStudioPartAnchor` でウィジェットをパーツに追従させる方法（位置・回転・スケール、hide フレームと反転時の挙動）。`partTransform` で姿勢、`partQuad` で輪郭を読み、`hitTestPart` で点の下にあるパーツを調べること、スキンメッシュのパーツに直接追従できない理由、Flame からの追従。"
           - guide/part-overrides.md: "`setPartColorOverride`・`setPartCellOverride`・`setPartVisibilityOverride` で、パーツの色・セル・表示をコードから強制する方法。`SsBlendOp`、`SsOverridePriority`、`ByIndex` 形式、先にアニメを選択しておく理由。"

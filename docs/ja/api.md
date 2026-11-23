@@ -15,7 +15,7 @@ dart doc --output build/api
 
 - **`SpriteStudioAnimation`** —— アセットキーから、プレイヤーを自分で持たずに置けるウィジェット。[クイックスタート](guide/quickstart.md) を参照。
 - **`SpriteStudioPlayer`** —— トランスポート / イベント。[再生とイベント](guide/playback.md) を参照。
-- **`SpriteStudioView`** —— 自分で持つプレイヤーを描く `RenderBox` ウィジェット。[クイックスタート](guide/quickstart.md#プレイヤーを自分で持つ場合) を参照。
+- **`SpriteStudioView`** —— 自分で持つプレイヤーを描く `RenderBox` ウィジェット。[再生とイベント](guide/playback.md#プレイヤーを自分で持つ場合) を参照。
 - **`SpriteStudioComponent` / `SpriteStudioButtonComponent`**（`ssplayer_flame`）—— Flame アダプタと、それで作るボタン。[Flame 連携](guide/flame.md) を参照。
 - **`SpriteStudioPartAnchor` / `SpriteStudioAnchorHidden` / `SpriteStudioAnchorMirror`** —— パーツにウィジェットを追従させる。[パーツトラッキング](guide/part-following.md) を参照。
 - **`SsPartQuad`** —— 描かれているとおりのパーツの輪郭（`SpriteStudioPlayer.partQuad` / `hitTestPart`）。[パーツトラッキング](guide/part-following.md#パーツの輪郭) を参照。

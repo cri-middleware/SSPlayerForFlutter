@@ -17,7 +17,7 @@ dart doc --output build/api
 - **`SpriteStudioAnimation`** — the widget that owns its player, from an asset key. See [Quick Start](guide/quickstart.md).
 - **`SpriteStudioPlayer`** — transport / events. See [Playback & Events](guide/playback.md).
 - **`SpriteStudioView`** — the `RenderBox` widget over a player you own. See
-  [Quick Start](guide/quickstart.md#owning-the-player-yourself).
+  [Playback & Events](guide/playback.md#owning-the-player-yourself).
 - **`SpriteStudioComponent` / `SpriteStudioButtonComponent`** (`ssplayer_flame`) — Flame adapter, and a button made
   of one. See [Flame Integration](guide/flame.md).
 - **`SpriteStudioPartAnchor` / `SpriteStudioAnchorHidden` / `SpriteStudioAnchorMirror`** — stick a widget to

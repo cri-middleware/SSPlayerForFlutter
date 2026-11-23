@@ -50,7 +50,7 @@ graph LR
     class DEPLOY deploy;
 ```
 
-**README の手順は `ssconvert` です。** `ssconverter_dart` を dev 依存に入れれば、`SpriteStudio_Source/` のプロジェクトを 1 つのコマンドでアプリの `assets/` へ直接変換でき、[ライブリロード](live-reload.md)はアプリの実行中に同じ `SpriteStudio_Source/` を保存のたびに再変換します。ブラウザ・GUI・SDK の CLI はファイルを出力するので、自分で[配置](#ssab-を配置するほかのルート)します。
+**既定の手順は `ssconvert` で、[クイックスタート](quickstart.md)もこれを使います。** `ssconverter_dart` を dev 依存に入れれば、`SpriteStudio_Source/` のプロジェクトを 1 つのコマンドでアプリの `assets/` へ直接変換でき、[ライブリロード](live-reload.md)はアプリの実行中に同じ `SpriteStudio_Source/` を保存のたびに再変換します。ブラウザ・GUI・SDK の CLI はファイルを出力するので、自分で[配置](#ssab-を配置するほかのルート)します。
 
 !!! note "どのファイルが、変換後のどれになるのか"
     `.sspj` / `.ssae` / `.ssce` / `.ssqe` それぞれの役割と変換後の対応は Player 共通なので、ポータルにまとめてあります — [アセットの変換 — プロジェクトの構成と、変換後の対応](https://cri-middleware.github.io/SpriteStudio-Docs/ja/overview/conversion/#プロジェクトの構成と変換後の対応)。
@@ -78,7 +78,7 @@ graph LR
 
 | ルート | 向いている用途 | 入手方法 |
 |---|---|---|
-| [**ssconvert**](#ssconvertdart) | README の手順 —— `SpriteStudio_Source/` を `assets/` へ変換。手元でも CI でも | `flutter pub add --dev ssconverter_dart` |
+| [**ssconvert**](#ssconvertdart) | 既定の手順 —— `SpriteStudio_Source/` を `assets/` へ変換。手元でも CI でも | `flutter pub add --dev ssconverter_dart` |
 | [**ライブリロード**](#ライブリロード) | アプリの実行中に、同じ `SpriteStudio_Source/` から保存のたびに再変換 | `flutter pub add --dev ssgen_flutter`（[ライブリロード](live-reload.md)） |
 | [**ssconverter-web**](#ssconverter-webブラウザ) | ブラウザで単発、インストール不要 | [ブラウザで開く](https://cri-middleware.github.io/SSPlayerForWeb/ssconverter/) |
 | [**SSConverter GUI**](#ssconverter-guiデスクトップ-gui) | デスクトップ GUI（macOS・Windows）—— ドラッグ&ドロップ・バッチ・embedded 切替 | [バイナリをダウンロード](https://github.com/cri-middleware/SSConverterGUI/releases) |
@@ -117,8 +117,7 @@ macOS と Windows 向けのシンプルなデスクトップ GUI です（Linux 
 
 SpriteStudio-SDK が配布するスタンドアロンのネイティブ CLI（同じ `libssconverter`）。Dart 以外のパイプラインに向きます。
 
-- **プリビルドバイナリ** —— [**SpriteStudio-SDK の Release**](https://github.com/cri-middleware/SpriteStudio-SDK/releases) の **Assets** から、`ssconverter-cli-macos.zip`・`ssconverter-cli-windows.zip`（ARM64 は `ssconverter-cli-windows-arm64.zip`）・`ssconverter-cli-linux.zip`（ARM64 は `ssconverter-cli-linux-aarch64.zip`）のいずれかをダウンロードして展開します。以下のコマンドをそのまま使うには、中の `ssconverter-cli` を `PATH` に置きます。
-- **ソースからビルド** —— Rust ツールチェーンで、SDK リポジトリルートで `cargo install --path cli`。
+[**SpriteStudio-SDK の Release**](https://github.com/cri-middleware/SpriteStudio-SDK/releases) の **Assets** から、`ssconverter-cli-macos.zip`・`ssconverter-cli-windows.zip`（ARM64 は `ssconverter-cli-windows-arm64.zip`）・`ssconverter-cli-linux.zip`（ARM64 は `ssconverter-cli-linux-aarch64.zip`）のいずれかをダウンロードして展開します。以下のコマンドをそのまま使うには、中の `ssconverter-cli` を `PATH` に置きます。
 
 ```bash
 ssconverter-cli project.sspj -o ./assets      # 出力ディレクトリ指定で変換

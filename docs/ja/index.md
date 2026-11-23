@@ -12,7 +12,7 @@
 !!! example "ブラウザで試す"
     [**Web デモ**](../demo/) はこのドキュメントの隣に 2 つ公開しています。`ssplayer_flutter`
     のウィジェットを動かす `examples/overall` と、`ssplayer_flame` を動かす `examples/flame`
-    です。いずれも Flutter の Web ビルドが読み込むのと同じ `libssruntime` の wasm 上で動きます。
+    です。いずれも Web 向けにビルドしています。
     Web ターゲットは developer preview です（[制約と適用範囲](limitations.md) を参照）。
 
 ## 目次
@@ -28,7 +28,7 @@
     - [ボタンと UI の状態](guide/buttons.md)
     - [テクスチャ差し替え](guide/textures.md)
     - [Flame との連携](guide/flame.md)
-    - [アセットの準備（`.sspj` → `.ssab`）](guide/conversion.md)（初回の変換はこちら）
+    - [アセットの準備（`.sspj` → `.ssab`）](guide/conversion.md)
     - [ライブリロード](guide/live-reload.md)
 - [**API リファレンス**](api.md)
 - [**制約と適用範囲**](limitations.md)
@@ -46,38 +46,6 @@
 - **フレームの間も、アニメーションの間も滑らかに。** **サブフレーム補間**により、実際の表示タイミングちょうどの位置でフレームを生成します。作成時のフレームレートではなく、ディスプレイのリフレッシュレートや再生速度に追従した滑らかな表示が得られます。`transition` を指定すれば `animation` を変えたときに[クロスフェード](guide/motion-blending.md)し、トラックを重ねれば再生中の動きにまばたきや照準を重ねられます。
 - **エディタから実行画面まで、シームレスな更新。** [ライブリロード](guide/live-reload.md)がアプリ実行中に `SpriteStudio_Source/` を監視します。SpriteStudio で保存するだけで、変更のあったプロジェクトだけが再変換され、実行中のアプリに反映されます。書き出しの手作業は要りません。
 
-## 概要 (Overview)
-
-アセットが画面上の再生に至るまでのデータの流れを以下に示します。
-
-```mermaid
-graph LR
-    SS[" .sspj / 画像<br>(ソースアセット) "]
-
-    subgraph Convert ["変換"]
-        CLI[[" ssconvert<br>(CLI / CI) "]]
-        WATCH[[" sswatch<br>(ライブリロード) "]]
-    end
-
-    subgraph App ["Flutter アプリ"]
-        BIN[" .ssab "]
-        VIEW[[ SpriteStudioView / Player ]]
-        RT(" libssruntime<br>(dart:ffi · native assets) ")
-    end
-
-    SS -- "一括 / CI" --> CLI
-    SS -- "保存 → プッシュ" --> WATCH
-    CLI -. "生成" .-> BIN
-    WATCH -. "実行中アプリへプッシュ" .-> VIEW
-
-    BIN -- "load()" --> VIEW
-    VIEW -. "駆動" .-> RT
-    VIEW -- "drawVertices" --> RENDER{{" Flutter Canvas "}}
-
-    classDef generated stroke-dasharray: 5 5;
-    class BIN generated;
-```
-
 ## 対応バージョン
 
 - **Flutter / Dart**: 下限は[インストール](./guide/install.md)にあります。古いと `flutter pub get` が失敗します。
@@ -85,9 +53,9 @@ graph LR
 
 ## サンプル
 
-リポジトリの `examples/` フォルダにサンプルアプリがあります。
+リポジトリの `examples/` フォルダにサンプルアプリがあります。チェックアウトから動かす方法は[ビルドガイド](development/build.md#ソースからビルド)にあります。
 
-- [overall](https://github.com/cri-middleware/SSPlayerForFlutter/tree/main/examples/overall) — 総合的な検証アプリ。clone した中で `scripts/run-macos.sh` を実行すると、サンプルプロジェクトを変換し、ランナーを生成して起動します。再生できると `[ssplayer] OK` を出力します。
+- [overall](https://github.com/cri-middleware/SSPlayerForFlutter/tree/main/examples/overall) — 総合的な検証アプリ。
 - [flame](https://github.com/cri-middleware/SSPlayerForFlutter/tree/main/examples/flame) — `ssplayer_flame` 経由でアニメーションを再生する `FlameGame`。
 - [part_following](https://github.com/cri-middleware/SSPlayerForFlutter/tree/main/examples/part_following) — `SpriteStudioPartAnchor` でウィジェットをパーツに追従させるサンプル。
 

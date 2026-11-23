@@ -27,13 +27,6 @@ For installation, the asset pipeline, and API references, see the MkDocs documen
 - [**For AI assistants**](https://cri-middleware.github.io/SSPlayerForFlutter/llms.txt) — these docs as Markdown: `llms.txt` indexes the pages and `llms-full.txt` holds all of them in one file; `ssplayer_flutter` and `ssplayer_flame` carry the same pages in their `doc/` folder and as an Agent Skill in `skills/` ([installing the skill](https://cri-middleware.github.io/SpriteStudio-Docs/ai/docs/))
 - [**SpriteStudio Docs (portal)**](https://cri-middleware.github.io/SpriteStudio-Docs/) — the SDK and every official player in one place, with a [plugin](https://cri-middleware.github.io/SpriteStudio-Docs/ai/) that tells your coding assistant about SpriteStudio
 
-### Quick Links
-- [Installation](docs/en/guide/install.md)
-- [Quick Start](docs/en/guide/quickstart.md)
-- [Flame Integration](docs/en/guide/flame.md)
-- [Preparing Assets (`.sspj` → `.ssab`)](docs/en/guide/conversion.md)
-- [Limitations & Scope](docs/en/limitations.md)
-
 ---
 
 ## 🚀 Quick Start
@@ -114,7 +107,7 @@ To see a save in SpriteStudio in the running app without converting by hand, use
 No `.sspj` of your own yet? SpriteStudio's [official sample data](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/) works as-is — the page is in Japanese, the downloads are not. [Ringo](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#ringo) is a good character to start with.
 
 **Read next:** [Quick Start guide](docs/en/guide/quickstart.md) · [Playback & Events](docs/en/guide/playback.md) ·
-[Limitations & Scope](docs/en/limitations.md)
+[Flame Integration](docs/en/guide/flame.md) · [Limitations & Scope](docs/en/limitations.md)
 
 ## 📦 Packages
 
@@ -129,18 +122,9 @@ What you install directly — you need only the first row to play an animation. 
 
 ## 🎬 Samples
 
-Runnable apps under [`examples/`](./examples/). `scripts/run-<platform>.*` starts one in a single
-step: it converts the SDK's test projects into the `.ssab` the example loads, generates the platform
-runner, and picks a device (launching an emulator if none is running). Clone with
-`git clone --recurse-submodules`: the test projects come from the `SpriteStudio-SDK` submodule
-(`git submodule update --init --recursive` after a plain clone). `run-web` also needs the web
-runtime once: `scripts/download-web-runtime.sh`.
-
-```bash
-scripts/run-macos.sh                   # overall; also run-linux / run-ios / run-android / run-web
-scripts/run-android.sh example=flame   # another example
-scripts\run-windows.ps1                # Windows (run-android.ps1 / run-web.ps1 there too)
-```
+Runnable apps under [`examples/`](./examples/); `overall` and `flame` also run in the
+[live Web demos](https://cri-middleware.github.io/SSPlayerForFlutter/demo/). Running one from a
+checkout is in the [Build Guide](./docs/en/development/build.md#build-from-source).
 
 - [overall](./examples/overall) — The one to open. Plays the SDK's `tests/overall` project plus Ringo, Doll and ParticleEffect, with dropdowns to switch project, pack and animation.
 - [flame](./examples/flame) — The [`ssplayer_flame`](./packages/ssplayer_flame) adapter: one `SpriteStudioComponent` in a `FlameGame` playing Ringo, tap to toggle play/pause.
