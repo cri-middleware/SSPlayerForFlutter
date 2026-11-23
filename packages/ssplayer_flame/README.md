@@ -1,8 +1,10 @@
 # ssplayer_flame
 
 [Flame](https://flame-engine.org/) adapter for
-[`ssplayer_flutter`](https://pub.dev/packages/ssplayer_flutter) — play a **SpriteStudio `.ssab`**
-animation inside a `FlameGame` with a single component.
+[`ssplayer_flutter`](https://pub.dev/packages/ssplayer_flutter) — play a **[SpriteStudio](https://www.webtech.co.jp/eng/spritestudio/) `.ssab`**
+animation inside a `FlameGame` with a single component. SpriteStudio is a 2D animation tool: an
+artist adds bones, mesh deformation and effects to their own illustrations, and this component
+plays the result.
 
 ▶️ **[Live demo](https://cri-middleware.github.io/SSPlayerForFlutter/demo/flame/)** — a
 `SpriteStudioComponent` in a `FlameGame`, running in your browser; tap to play / pause.
