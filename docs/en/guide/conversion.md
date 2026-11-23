@@ -52,7 +52,7 @@ graph LR
     class DEPLOY deploy;
 ```
 
-**The README's route is `ssconvert`.** With `ssconverter_dart` as a dev dependency, one command
+**The default route is `ssconvert`, the one the [Quick Start](quickstart.md) takes.** With `ssconverter_dart` as a dev dependency, one command
 converts a project under `SpriteStudio_Source/` straight into your app's `assets/`, and
 [Live Reload](live-reload.md) reconverts the same `SpriteStudio_Source/` on save while the app runs.
 The browser, GUI and SDK CLI hand you files to [deploy](#deploy-the-ssab-other-routes) by hand.
@@ -93,7 +93,7 @@ Every route below runs the same open-source converter and produces the same `.ss
 
 | Route | Best for | Getting it |
 |---|---|---|
-| [**ssconvert**](#ssconvert-dart) | The README's route — convert `SpriteStudio_Source/` into `assets/`, by hand or in CI | `flutter pub add --dev ssconverter_dart` |
+| [**ssconvert**](#ssconvert-dart) | The default route — convert `SpriteStudio_Source/` into `assets/`, by hand or in CI | `flutter pub add --dev ssconverter_dart` |
 | [**Live Reload**](#live-reload) | Reconverting on save while the app runs, from the same `SpriteStudio_Source/` | `flutter pub add --dev ssgen_flutter` ([Live Reload](live-reload.md)) |
 | [**ssconverter-web**](#ssconverter-web-browser) | A quick one-off in the browser, no install | [Open in the browser](https://cri-middleware.github.io/SSPlayerForWeb/ssconverter/) |
 | [**SSConverter GUI**](#ssconverter-gui-desktop-gui) | A desktop GUI (macOS, Windows) — drag & drop, batch, embedded toggle | [Download a binary](https://github.com/cri-middleware/SSConverterGUI/releases) |
@@ -150,12 +150,11 @@ Then [deploy](#deploy-the-ssab-other-routes) the converted `.ssab`.
 The SpriteStudio-SDK distributes a standalone native CLI (the same `libssconverter`) for non-Dart
 pipelines.
 
-- **Prebuilt binary** — from the **Assets** of a
-  [**SpriteStudio-SDK Release**](https://github.com/cri-middleware/SpriteStudio-SDK/releases) download
-  `ssconverter-cli-macos.zip`, `ssconverter-cli-windows.zip` (`ssconverter-cli-windows-arm64.zip` on
-  ARM64) or `ssconverter-cli-linux.zip` (`ssconverter-cli-linux-aarch64.zip` on ARM64), unzip it, and
-  put the `ssconverter-cli` inside on your `PATH` to use the commands below as written.
-- **Build from source** — with a Rust toolchain, `cargo install --path cli` at the SDK repo root.
+From the **Assets** of a
+[**SpriteStudio-SDK Release**](https://github.com/cri-middleware/SpriteStudio-SDK/releases) download
+`ssconverter-cli-macos.zip`, `ssconverter-cli-windows.zip` (`ssconverter-cli-windows-arm64.zip` on
+ARM64) or `ssconverter-cli-linux.zip` (`ssconverter-cli-linux-aarch64.zip` on ARM64), unzip it, and
+put the `ssconverter-cli` inside on your `PATH` to use the commands below as written.
 
 ```bash
 ssconverter-cli project.sspj -o ./assets      # convert with an output directory
