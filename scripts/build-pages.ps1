@@ -320,6 +320,33 @@ try {
         if (Test-Path $out) { Remove-Item -Recurse -Force $out }
         New-Item -ItemType Directory -Force -Path $out | Out-Null
         Copy-Item -Path (Join-Path $src "build/web/*") -Destination $out -Recurse -Force
+        Add-DemoLinks $out "../../"
+    }
+
+    # Puts a fixed "Powered by" box, linking to the docs and the repository, into
+    # every *.html directly in $Dir, ahead of the last </body>. $Root is the path
+    # from those pages to the site root.
+    function Add-DemoLinks {
+        param([string] $Dir, [string] $Root)
+        if (!(Test-Path -LiteralPath $Dir -PathType Container)) { return }
+        $a = 'target="_blank" rel="noopener" style="color:#fff"'
+        $links = '<div id="ss-demo-links" style="position:fixed;left:12px;bottom:12px;z-index:2147483647;padding:4px 10px;border-radius:6px;background:rgba(0,0,0,.65);color:#fff;font:12px/1.6 system-ui,sans-serif">' +
+            "Powered by SpriteStudio Player for Flutter &middot; <a href=`"$Root`" $a>Docs</a>" +
+            " &middot; <a href=`"https://github.com/cri-middleware/SSPlayerForFlutter`" $a>GitHub</a></div>"
+        foreach ($page in Get-ChildItem -LiteralPath $Dir -Filter '*.html' -File) {
+            $text = [IO.File]::ReadAllText($page.FullName)
+            if ($text.Contains('id="ss-demo-links"')) { continue }
+            $at = $text.LastIndexOf('</body>', [StringComparison]::OrdinalIgnoreCase)
+            if ($at -ge 0) {
+                $text = $text.Insert($at, $links)
+            } else {
+                if ($text.Length -gt 0 -and !$text.EndsWith("`n")) { $text += "`n" }
+                $text += $links
+            }
+            if (!$text.EndsWith("`n")) { $text += "`n" }
+            [IO.File]::WriteAllText($page.FullName, $text)
+        }
+        Write-Host "   links to the docs and the repository -> site/$($Dir.Substring($SITE_DIR.Length).TrimStart('/', '\'))/*.html"
     }
 
     # site/demo/ itself is not a Flutter build: with two apps under it, something
@@ -406,6 +433,7 @@ try {
         }
 
         Write-DemoIndex
+        Add-DemoLinks $DEMO_DIR "../"
     } else {
         Write-Host ""
         Write-Host "${APP}: demo=skip -- site/demo is not part of this build"
