@@ -1,13 +1,13 @@
 # 📱 SpriteStudio Player for Flutter
 
-**SpriteStudio** のラスター（スプライト）アニメーション（`.ssab`）を Flutter でそのまま再生します。アーティストが専用エディタでリグを組み、Flutter 自身のレンダラで描画 —— 手書きのアニメーションコードは不要です。再生処理は
+**SpriteStudio** のアニメーション（`.ssab`）を Flutter でそのまま再生します。アーティストが専用エディタでリグを組み、Flutter 自身のレンダラで描画 —— 手書きのアニメーションコードは不要です。再生処理は
 [SpriteStudio-SDK](https://github.com/cri-middleware/SpriteStudio-SDK) が提供する `libssruntime`
 を介して行います。
 
 !!! tip "SpriteStudio を初めて使う方へ"
-    [SpriteStudio](https://www.webtech.co.jp/spritestudio/) はプロ向けの 2D **ラスター**アニメーションエディタです。スプライト素材にボーン・メッシュ変形・パーティクルを載せて、モーションを視覚的に作れます。アーティストが動きを作り、このプレイヤーが完成ファイルを再生します。ベクター系のツールとは用途が異なり、`.gif` や `.mp4` を同梱するより軽量です。手元にデータが無くても始められます —— [公式のサンプルデータ](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/)
+    [SpriteStudio](https://www.webtech.co.jp/spritestudio/) はプロ向けの 2D アニメーションエディタです。手描きの**ラスター**（PNG）素材にボーン・メッシュ変形・パーティクルを載せて、モーションを視覚的に作れます。アーティストが動きを作り、このプレイヤーが完成ファイルを再生します。`.gif` や `.mp4` を同梱するより軽量です。手元にデータが無くても始められます —— [公式のサンプルデータ](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/)
     （[Ringo](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#ringo) /
-    [パーティクル](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#Perticle_sample)）がそのまま使えます。
+    [パーティクル](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#Perticle_sample)）がそのまま使えます。自分のアニメーションを作るには SpriteStudio 本体を使います（[製品サイト](https://www.webtech.co.jp/spritestudio/)）。
 
 !!! example "ブラウザで試す"
     [**Web デモ**](../demo/) はこのドキュメントの隣に 2 つ公開しています。`ssplayer_flutter`

@@ -2,11 +2,11 @@
 
 # SpriteStudio Player for Flutter
 
-**エディタで作り込んだ 2D ラスターアニメーションを、あなたの Flutter アプリへ。アーティストがリグを組み、あなたはウィジェット 1 個で再生。アニメーションコードは一切不要です。**
+**エディタで作り込んだ 2D アニメーションを、あなたの Flutter アプリへ。アーティストがリグを組み、あなたはウィジェット 1 個で再生。アニメーションコードは一切不要です。**
 
 ▶️ **[ライブデモを試す](https://cri-middleware.github.io/SSPlayerForFlutter/demo/)** — Flutter が再生する SpriteStudio アニメをブラウザで見られます。インストールは要りません。
 
-**[SpriteStudio](https://www.webtech.co.jp/spritestudio/)** のアニメーション（`.ssab`）を [Flutter](https://flutter.dev/) でそのまま再生するプレイヤーです。SpriteStudio はプロ向けの 2D **ラスター**（スプライト）アニメーションエディタ —— スプライト素材にボーン・メッシュ変形・パーティクルを載せてモーションを作れます。アーティストが動きを視覚的に作り、プレイヤーは完成ファイルを再生するだけ。Flutter の `Canvas` にネイティブ描画するので、手書きの `AnimationController` も、スプライトシートの切り出しも、動画のデコードも要りません。
+**[SpriteStudio](https://www.webtech.co.jp/spritestudio/)** のアニメーション（`.ssab`）を [Flutter](https://flutter.dev/) でそのまま再生するプレイヤーです。SpriteStudio はプロ向けの 2D アニメーションエディタ —— 手描きの**ラスター**（PNG）素材にボーン・メッシュ変形・パーティクルを載せてモーションを作れます。アーティストが動きを視覚的に作り、プレイヤーは完成ファイルを再生するだけ。Flutter の `Canvas` にネイティブ描画するので、手書きの `AnimationController` も、スプライトシートの切り出しも、動画のデコードも要りません。
 
 ## ✨ SpriteStudio を Flutter で使うメリット
 
@@ -99,7 +99,7 @@
 
 SpriteStudio での保存を、手で変換せずに実行中のアプリへ反映するには [ライブリロード](docs/ja/guide/live-reload.md) を使います。同じ `SpriteStudio_Source/` を監視します。
 
-SpriteStudio のデータが手元に無くても始められます。[公式のサンプルデータ](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/)がそのまま使えます。キャラクターなら [Ringo](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#ringo) が手頃です。
+SpriteStudio のデータが手元に無くても始められます。[公式のサンプルデータ](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/)がそのまま使えます。キャラクターなら [Ringo](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#ringo) が手頃です。自分のアニメーションを作るには SpriteStudio 本体を使います（[製品サイト](https://www.webtech.co.jp/spritestudio/)）。
 
 **次に読む:** [クイックスタート（ガイド）](docs/ja/guide/quickstart.md) · [再生とイベント](docs/ja/guide/playback.md) ·
 [Flame 連携](docs/ja/guide/flame.md) · [制約と適用範囲](docs/ja/limitations.md)

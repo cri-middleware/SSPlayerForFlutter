@@ -2,11 +2,11 @@
 
 # SpriteStudio Player for Flutter
 
-**Give your Flutter app editor-crafted 2D raster animation — rigged by an artist, played with a single widget, and not one line of animation code.**
+**Give your Flutter app editor-crafted 2D animation — rigged by an artist, played with a single widget, and not one line of animation code.**
 
 ▶️ **[Try the live demos](https://cri-middleware.github.io/SSPlayerForFlutter/demo/)** — SpriteStudio animations played by Flutter in your browser, with nothing to install.
 
-A player that renders **[SpriteStudio](https://www.webtech.co.jp/spritestudio/)** animations (`.ssab`) directly in [Flutter](https://flutter.dev/). SpriteStudio is a professional 2D **raster** (sprite) animation editor — bone rigs, mesh deformation, and particle effects over hand-drawn sprite art. Your artist builds the motion visually; this player just plays the finished file, drawing it natively to the Flutter `Canvas` — no `AnimationController` to hand-write, no spritesheet to slice, no video to decode.
+A player that renders **[SpriteStudio](https://www.webtech.co.jp/eng/spritestudio/)** animations (`.ssab`) directly in [Flutter](https://flutter.dev/). SpriteStudio is a professional 2D animation editor — bone rigs, mesh deformation, and particle effects over hand-drawn **raster** (PNG) sprite art. Your artist builds the motion visually; this player just plays the finished file, drawing it natively to the Flutter `Canvas` — no `AnimationController` to hand-write, no spritesheet to slice, no video to decode.
 
 ## ✨ Why use SpriteStudio with Flutter?
 
@@ -104,7 +104,7 @@ You need **Flutter 3.47+ / Dart 3.13+**, and a project made in **SpriteStudio 7.
 To see a save in SpriteStudio in the running app without converting by hand, use
 [Live Reload](docs/en/guide/live-reload.md) — it watches the same `SpriteStudio_Source/`.
 
-No `.sspj` of your own yet? SpriteStudio's [official sample data](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/) works as-is — the page is in Japanese, the downloads are not. [Ringo](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#ringo) is a good character to start with.
+No `.sspj` of your own yet? SpriteStudio's [official sample data](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/) works as-is — the page is in Japanese, the downloads are not. [Ringo](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#ringo) is a good character to start with. To make your own, you use SpriteStudio itself — see [its site](https://www.webtech.co.jp/eng/spritestudio/).
 
 **Read next:** [Quick Start guide](docs/en/guide/quickstart.md) · [Playback & Events](docs/en/guide/playback.md) ·
 [Flame Integration](docs/en/guide/flame.md) · [Limitations & Scope](docs/en/limitations.md)

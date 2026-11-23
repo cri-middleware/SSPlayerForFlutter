@@ -1,8 +1,9 @@
 # ssplayer_flutter
 
-Play **SpriteStudio** raster animations (`.ssab`) natively in Flutter —
-rigged by an artist in a dedicated editor, drawn straight to the Flutter
-`Canvas`, with no animation code to hand-write.
+Play **[SpriteStudio](https://www.webtech.co.jp/eng/spritestudio/)** animations (`.ssab`) natively in Flutter.
+SpriteStudio is a 2D animation tool: an artist adds bones, mesh deformation and
+effects to their own illustrations, and this package draws the result straight
+to the Flutter `Canvas`, with no animation code to hand-write.
 
 ▶️ **[Live demo](https://cri-middleware.github.io/SSPlayerForFlutter/demo/flutter/)** — this
 package in your browser, playing the SDK's sample projects; the dropdowns pick the project, pack
@@ -43,6 +44,12 @@ from the key's own folder (embedded packs too), plays `animation:` — the pack'
 first animation without it — loops it, and disposes everything with the widget.
 `placeholder:` is what to show until the first frame is drawable; `onError:`
 hears about a load that failed.
+
+No `.sspj` of your own yet? SpriteStudio's
+[official sample data](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/) works as-is —
+the page is in Japanese, the downloads are not — and
+[`ssconverter_dart`](https://pub.dev/packages/ssconverter_dart) converts it to `.ssab`. To make your
+own, you use SpriteStudio itself — see [its site](https://www.webtech.co.jp/eng/spritestudio/).
 
 ### Owning the player
 
