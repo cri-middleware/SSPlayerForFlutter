@@ -10,6 +10,8 @@ fresh pack into the running app over the VM Service, where
 app never imports this package, and the runtime stays converter-free: the
 receiving end comes up only in a debug build launched for it.
 
+**Documentation:** <https://cri-middleware.github.io/SSPlayerForFlutter/guide/live-reload/>
+
 ## Install
 
 ```bash

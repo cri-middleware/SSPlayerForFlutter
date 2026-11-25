@@ -14,6 +14,8 @@ what this reconverted into the running app.
 It lives outside [`ssplayer_flutter`](https://pub.dev/packages/ssplayer_flutter) on purpose: the
 runtime an app ships stays converter-free.
 
+**Documentation:** <https://cri-middleware.github.io/SSPlayerForFlutter/guide/live-reload/>
+
 ## Install
 
 ```bash
