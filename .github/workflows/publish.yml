@@ -48,7 +48,7 @@ jobs:
     if: needs.gate.outputs.package == 'ssruntime_dart' && needs.gate.outputs.publish == 'true'
     permissions:
       id-token: write # OIDC: mint a short-lived pub.dev credential (no stored secret)
-    uses: dart-lang/setup-dart/.github/workflows/publish.yml@6afc89df92d6eb3834022f73cd65adc8cdfcb92d # v1.8.1
+    uses: dart-lang/setup-dart/.github/workflows/publish.yml@2286a0c042b44434fe26d292bbce8d34f7ec662b # v1.8.2
     with:
       working-directory: packages/ssruntime_dart
 
@@ -57,7 +57,7 @@ jobs:
     if: needs.gate.outputs.package == 'ssconverter_dart' && needs.gate.outputs.publish == 'true'
     permissions:
       id-token: write
-    uses: dart-lang/setup-dart/.github/workflows/publish.yml@6afc89df92d6eb3834022f73cd65adc8cdfcb92d # v1.8.1
+    uses: dart-lang/setup-dart/.github/workflows/publish.yml@2286a0c042b44434fe26d292bbce8d34f7ec662b # v1.8.2
     with:
       working-directory: packages/ssconverter_dart
 
@@ -66,7 +66,7 @@ jobs:
     if: needs.gate.outputs.package == 'ssgen_dart' && needs.gate.outputs.publish == 'true'
     permissions:
       id-token: write
-    uses: dart-lang/setup-dart/.github/workflows/publish.yml@6afc89df92d6eb3834022f73cd65adc8cdfcb92d # v1.8.1
+    uses: dart-lang/setup-dart/.github/workflows/publish.yml@2286a0c042b44434fe26d292bbce8d34f7ec662b # v1.8.2
     with:
       working-directory: packages/ssgen_dart
 
@@ -75,7 +75,7 @@ jobs:
     if: needs.gate.outputs.package == 'ssgen_flutter' && needs.gate.outputs.publish == 'true'
     permissions:
       id-token: write
-    uses: dart-lang/setup-dart/.github/workflows/publish.yml@6afc89df92d6eb3834022f73cd65adc8cdfcb92d # v1.8.1
+    uses: dart-lang/setup-dart/.github/workflows/publish.yml@2286a0c042b44434fe26d292bbce8d34f7ec662b # v1.8.2
     with:
       working-directory: packages/ssgen_flutter
 
@@ -108,7 +108,7 @@ jobs:
       # on. Its `dart` is then shadowed by the Flutter SDK's below, which is
       # fine and is what the reusable workflow does too -- the credential is in
       # the shared pub config, not in the binary.
-      - uses: dart-lang/setup-dart@6afc89df92d6eb3834022f73cd65adc8cdfcb92d # v1.8.1
+      - uses: dart-lang/setup-dart@2286a0c042b44434fe26d292bbce8d34f7ec662b # v1.8.2
 
       # The reusable workflow installs an unpinned Flutter; this repository pins
       # one, and the package should be published by the toolchain release.yml
@@ -146,6 +146,6 @@ jobs:
     if: needs.gate.outputs.package == 'ssplayer_flame' && needs.gate.outputs.publish == 'true'
     permissions:
       id-token: write
-    uses: dart-lang/setup-dart/.github/workflows/publish.yml@6afc89df92d6eb3834022f73cd65adc8cdfcb92d # v1.8.1
+    uses: dart-lang/setup-dart/.github/workflows/publish.yml@2286a0c042b44434fe26d292bbce8d34f7ec662b # v1.8.2
     with:
       working-directory: packages/ssplayer_flame
