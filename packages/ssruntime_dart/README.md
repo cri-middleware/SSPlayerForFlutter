@@ -15,6 +15,8 @@ The C-API is exposed as top-level `@Native` functions that resolve the
 The hook prefers a locally built `native/`, and otherwise downloads the pinned
 SpriteStudio-SDK release and verifies it against that release's `SHA256SUMS`.
 
+**Documentation:** <https://cri-middleware.github.io/SSPlayerForFlutter/>
+
 ## Install
 
 ```bash

@@ -9,6 +9,8 @@ your machine or in CI; the app ships the `.ssab`. Its native library is
 downloaded by the package build hook, so this works out of the box — **no Rust
 toolchain, no separate binary to install**.
 
+**Documentation:** <https://cri-middleware.github.io/SSPlayerForFlutter/guide/conversion/>
+
 ## Install
 
 ```bash

@@ -5,9 +5,10 @@ SpriteStudio is a 2D animation tool: an artist adds bones, mesh deformation and
 effects to their own illustrations, and this package draws the result straight
 to the Flutter `Canvas`, with no animation code to hand-write.
 
-▶️ **[Live demo](https://cri-middleware.github.io/SSPlayerForFlutter/demo/flutter/)** — this
-package in your browser, playing the SDK's sample projects; the dropdowns pick the project, pack
-and animation.
+- 📖 **[Documentation](https://cri-middleware.github.io/SSPlayerForFlutter/)** — installing, playback, events, part overrides, motion
+  blending, Flame and live reload
+- ▶️ **[Live demo](https://cri-middleware.github.io/SSPlayerForFlutter/demo/flutter/)** — this package in your browser, playing the SDK's
+  sample projects; the dropdowns pick the project, pack and animation
 
 This is the package most apps depend on: a widget and a controller that play a
 `.ssab`, over the runtime in [`ssruntime_dart`](https://pub.dev/packages/ssruntime_dart).
@@ -48,7 +49,8 @@ hears about a load that failed.
 No `.sspj` of your own yet? SpriteStudio's
 [official sample data](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/) works as-is —
 the page is in Japanese, the downloads are not — and
-[`ssconverter_dart`](https://pub.dev/packages/ssconverter_dart) converts it to `.ssab`. To make your
+[`ssconverter_dart`](https://pub.dev/packages/ssconverter_dart) converts it to `.ssab`.
+[Ringo](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#ringo) is a good character to start with. To make your
 own, you use SpriteStudio itself — see [its site](https://www.webtech.co.jp/eng/spritestudio/).
 
 ### Owning the player
