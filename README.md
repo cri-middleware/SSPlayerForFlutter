@@ -104,7 +104,7 @@ You need **Flutter 3.47+ / Dart 3.13+**, and a project made in **SpriteStudio 7.
 To see a save in SpriteStudio in the running app without converting by hand, use
 [Live Reload](docs/en/guide/live-reload.md) — it watches the same `SpriteStudio_Source/`.
 
-No `.sspj` of your own yet? SpriteStudio's [official sample data](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/) works as-is — the page is in Japanese, the downloads are not. [Ringo](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#ringo) is a good character to start with. To make your own, you use SpriteStudio itself — see [its site](https://www.webtech.co.jp/eng/spritestudio/).
+No `.sspj` of your own yet? SpriteStudio's [official sample data](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/) works as-is — the page is in Japanese, the downloads are not. [Ringo](https://www.webtech.co.jp/spritestudio/ss6user/download/OPTPiX_SpriteStudio_Ringo_Sample_20220121.zip) is a good character to start with. To make your own, you use SpriteStudio itself — see [its site](https://www.webtech.co.jp/eng/spritestudio/).
 
 **Read next:** [Quick Start guide](docs/en/guide/quickstart.md) · [Playback & Events](docs/en/guide/playback.md) ·
 [Flame Integration](docs/en/guide/flame.md) · [Limitations & Scope](docs/en/limitations.md)

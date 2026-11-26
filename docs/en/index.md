@@ -12,8 +12,8 @@ hand-write. Playback runs through `libssruntime` provided by
     lighter than shipping a `.gif` or `.mp4`.
     You do not need data of your own to start: the
     [official sample data](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/) works as-is
-    ([Ringo](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#ringo) for a character,
-    [Particle](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#Perticle_sample) for effects),
+    ([Ringo](https://www.webtech.co.jp/spritestudio/ss6user/download/OPTPiX_SpriteStudio_Ringo_Sample_20220121.zip) for a character,
+    [Particle](https://www.webtech.co.jp/spritestudio/ss6user/download/OPTPiX_SpriteStudio_ParticleEffect_Sample_20191025.zip) for effects),
     though that page is Japanese only. To make your own, you use SpriteStudio itself — see
     [its site](https://www.webtech.co.jp/eng/spritestudio/).
 
