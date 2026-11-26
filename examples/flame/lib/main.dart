@@ -1,5 +1,6 @@
 import 'package:flame/components.dart';
 import 'package:flame/game.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:material_ui/material_ui.dart';
 import 'package:ssplayer_flame/ssplayer_flame.dart';
 
@@ -46,7 +47,10 @@ class _FlameExampleAppState extends State<FlameExampleApp> {
               const Align(
                 alignment: Alignment.bottomCenter,
                 child: Padding(
-                  padding: EdgeInsets.all(12),
+                  // On the web the published demo pins a links box to the
+                  // bottom-left corner (scripts/build-pages.sh); keep the hint
+                  // above it.
+                  padding: EdgeInsets.fromLTRB(12, 12, 12, kIsWeb ? 52 : 12),
                   child: Text('tap to play / pause'),
                 ),
               ),

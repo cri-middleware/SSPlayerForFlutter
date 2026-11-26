@@ -702,7 +702,9 @@ class _PlayerPageState extends State<PlayerPage>
               ),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+              // On the web the published demo pins a links box to the bottom-left
+              // corner (scripts/build-pages.sh); keep the footer above it.
+              padding: const EdgeInsets.fromLTRB(8, 0, 8, kIsWeb ? 44 : 8),
               child: Column(
                 children: [
                   Text(_status),
