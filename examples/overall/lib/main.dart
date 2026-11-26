@@ -103,6 +103,7 @@ class _PlayerPageState extends State<PlayerPage>
   // kept in sync with what `scripts/deploy-examples.sh` converts. Each dir's
   // stem matches its `.sspj` (see the deploy script / SsProjectSync convention).
   static const _bundledSources = <String, List<String>>{
+    'assets/spritestudio/Ringo': <String>['Ringo', 'Ringo_tyu'],
     'assets/spritestudio/overall': <String>[
       'Shape',
       'Instance',
@@ -121,14 +122,16 @@ class _PlayerPageState extends State<PlayerPage>
       'Signal',
       'Sound',
     ],
-    'assets/spritestudio/Ringo': <String>['Ringo', 'Ringo_tyu'],
     // Instance and effect parts on one rig: both body packs mount `Eye`'s
     // `Wait` out of a different animation pack, and Action02_Body authors EFCT
     // keys beside them. `Eye` is listed too — it is the pack the instance parts
     // reach into, and playing it alone is how to see what they mount.
     'assets/spritestudio/Doll': <String>['Action01_Body', 'Action02_Body', 'Eye'],
   };
-  static const _defaultSource = 'assets/spritestudio/overall';
+  static const _defaultSource = 'assets/spritestudio/Ringo';
+  // Ringo's idle loop, which the demo opens on. A pack without it starts on its
+  // first animation.
+  static const _preferredAnimation = 'wait1';
 
   AssetBundle _bundle = rootBundle;
   String _assetDir = _defaultSource;
@@ -190,12 +193,18 @@ class _PlayerPageState extends State<PlayerPage>
   @override
   void initState() {
     super.initState();
-    // Web deep-link: `?pack=Effect` opens straight on that pack (used by the
-    // docs "live preview" pages and for per-pack render checks). Native ignores
-    // it. Falls back to the default first pack when absent/unknown.
+    // Web deep-link: `?pack=Effect` opens straight on that pack, in whichever
+    // bundled source has it (per-pack render checks). Native ignores it. Falls
+    // back to the default source when absent/unknown.
     if (kIsWeb) {
       final wanted = Uri.base.queryParameters['pack'];
-      if (wanted != null && _packs.contains(wanted)) _pack = wanted;
+      for (final MapEntry(key: dir, value: packs) in _bundledSources.entries) {
+        if (wanted == null || !packs.contains(wanted)) continue;
+        _assetDir = dir;
+        _packs = packs;
+        _pack = wanted;
+        break;
+      }
     }
     // ignore: avoid_print
     print('[ssplayer] $_backendReport');
@@ -286,7 +295,9 @@ class _PlayerPageState extends State<PlayerPage>
       if (!mounted || _pack != pack) return;
       // Enumerate the pack's animations and start on the first one.
       final anims = _player.animationNames;
-      final animName = anims.isNotEmpty ? anims.first : null;
+      final animName = anims.contains(_preferredAnimation)
+          ? _preferredAnimation
+          : (anims.isNotEmpty ? anims.first : null);
       if (animName != null) _player.setAnimation(animName);
       _player
         ..loopCount = -1
