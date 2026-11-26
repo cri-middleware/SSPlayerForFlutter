@@ -373,6 +373,77 @@ class _PlayerPageState extends State<PlayerPage>
     }
   }
 
+  // Handle a drop that carries no filesystem path (the web): read the folder,
+  // or the one .ssab, into memory and play from there. It has to be read here,
+  // inside onDrop — the browser releases the dropped content afterwards. A lone
+  // .ssab brings no sibling textures, so only an embedded export draws whole.
+  Future<void> _openDroppedItem(DropItem item) async {
+    setState(() => _dragging = false);
+    try {
+      final files = <String, Uint8List>{};
+      final String dir;
+      String? selected;
+      switch (item) {
+        case DropDirectoryItem(:final name, :final directory):
+          dir = name;
+          await _readDropped(directory, dir, files);
+        case DropFileItem(:final name, :final file):
+          dir = 'dropped';
+          files['$dir/$name'] = await file.readAsBytes();
+          if (name.toLowerCase().endsWith('.ssab')) {
+            selected = name.substring(0, name.length - '.ssab'.length);
+          }
+        case DropStringItem():
+          return;
+      }
+
+      final packs = [
+        for (final key in files.keys)
+          if (key.toLowerCase().endsWith('.ssab') &&
+              !key.substring(dir.length + 1).contains('/'))
+            key.substring(dir.length + 1, key.length - '.ssab'.length),
+      ]..sort();
+      if (packs.isEmpty) {
+        setState(() => _status = 'no .ssab found in $dir');
+        return;
+      }
+      final chosen =
+          (selected != null && packs.contains(selected)) ? selected : packs.first;
+      setState(() {
+        _bundle = _MemoryBundle(files);
+        _assetDir = dir;
+        _dropped = true;
+        _packs = packs;
+        _pack = chosen;
+        _animations = const <String>[];
+        _anim = null;
+      });
+      await _load(chosen);
+    } catch (e) {
+      if (mounted) setState(() => _status = 'drop failed: $e');
+    }
+  }
+
+  // Reads every file under [directory] into [files], keyed by its path below
+  // [prefix] with '/' separators — the keys loadAsset asks the bundle for.
+  static Future<void> _readDropped(
+    XDirectory directory,
+    String prefix,
+    Map<String, Uint8List> files,
+  ) async {
+    await for (final entity in directory.list()) {
+      if (entity is XFile) {
+        final name = await entity.name();
+        if (name != null) files['$prefix/$name'] = await entity.readAsBytes();
+      } else if (entity is XDirectory) {
+        // cross_file gives a directory no name; desktop_drop's web directories
+        // end their URI with it, percent-encoded.
+        final name = Uri.decodeComponent(entity.uri.split('/').last);
+        await _readDropped(entity, '$prefix/$name', files);
+      }
+    }
+  }
+
   static List<String> _scanPacks(String dir) => Directory(dir)
       .listSync()
       .whereType<File>()
@@ -549,7 +620,11 @@ class _PlayerPageState extends State<PlayerPage>
                   })
               .nonNulls
               .firstOrNull;
-          if (path != null) await _openDropped(path);
+          if (path != null) return _openDropped(path);
+          // A browser's drop has no filesystem path: read the item itself.
+          final item =
+              details.items.where((i) => i is! DropStringItem).firstOrNull;
+          if (item != null) return _openDroppedItem(item);
         },
         child: Column(
           children: [
@@ -701,6 +776,21 @@ class _FileBundle extends CachingAssetBundle {
   @override
   Future<ByteData> load(String key) async {
     final bytes = await File(key).readAsBytes();
+    return ByteData.sublistView(bytes);
+  }
+}
+
+/// AssetBundle over a folder dropped in a browser, read into memory and keyed
+/// as `<folder>/<path>`: the web's counterpart of [_FileBundle].
+class _MemoryBundle extends CachingAssetBundle {
+  _MemoryBundle(this._files);
+
+  final Map<String, Uint8List> _files;
+
+  @override
+  Future<ByteData> load(String key) async {
+    final bytes = _files[key];
+    if (bytes == null) throw FlutterError('$key is not in the dropped folder');
     return ByteData.sublistView(bytes);
   }
 }
