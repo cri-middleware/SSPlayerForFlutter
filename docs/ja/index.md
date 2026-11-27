@@ -53,7 +53,7 @@
 
 ## サンプル
 
-リポジトリの `examples/` フォルダにサンプルアプリがあります。チェックアウトから動かす方法は[ビルドガイド](development/build.md#ソースからビルド)にあります。
+リポジトリの `examples/` フォルダにサンプルアプリがあります。チェックアウトから動かす方法は[ビルドガイド](development/build.md#チェックアウトから動かす)にあります。
 
 - [overall](https://github.com/cri-middleware/SSPlayerForFlutter/tree/main/examples/overall) — 総合的な検証アプリ。
 - [flame](https://github.com/cri-middleware/SSPlayerForFlutter/tree/main/examples/flame) — `ssplayer_flame` 経由でアニメーションを再生する `FlameGame`。

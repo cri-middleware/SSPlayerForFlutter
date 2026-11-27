@@ -117,7 +117,7 @@ SpriteStudio のデータが手元に無くても始められます。[公式の
 
 ## 🎬 サンプル
 
-[`examples/`](./examples/) に動かせるアプリがあります。`overall` と `flame` は [Web デモ](https://cri-middleware.github.io/SSPlayerForFlutter/demo/) でも動きます。チェックアウトから動かす方法は[ビルドガイド](./docs/ja/development/build.md#ソースからビルド)にあります。
+[`examples/`](./examples/) に動かせるアプリがあります。`overall` と `flame` は [Web デモ](https://cri-middleware.github.io/SSPlayerForFlutter/demo/) でも動きます。チェックアウトから動かす方法は[ビルドガイド](./docs/ja/development/build.md#チェックアウトから動かす)にあります。
 
 - [overall](./examples/overall) — まず開くのはこちら。SDK の `tests/overall` プロジェクトと Ringo・Doll・ParticleEffect を再生し、ドロップダウンでプロジェクト・パック・アニメを切り替えられます。
 - [flame](./examples/flame) — [`ssplayer_flame`](./packages/ssplayer_flame) アダプタのサンプル。`FlameGame` に `SpriteStudioComponent` を 1 つ載せて Ringo を再生し、タップで再生 / 一時停止を切り替えます。

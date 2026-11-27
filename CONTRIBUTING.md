@@ -51,16 +51,17 @@ If you find a bug, please open a GitHub Issue and include:
 
 For the complete build guide, see [docs/en/development/build.md](./docs/en/development/build.md). It also says how to use a changed player in an app and how to check what the suites do not cover.
 
-### Build from source
+### Build and run
 ```bash
-# 1. Build the native libraries + copy the C headers (Requires Rust)
-scripts/build-runtime.sh
-
-# 2. Generate the example assets (the tests below read them too)
+# 1. Generate the example assets (the tests below read them too)
 scripts/deploy-examples.sh
 
-# 3. Run the example; its platform runner is generated if missing
+# 2. Run the example; its platform runner is generated if missing
 scripts/run-macos.sh      # or run-linux.sh, run-windows.ps1, ...; expect [ssplayer] OK
+```
+Neither needs Rust: the build hooks download the native libraries from the SDK release the packages pin. Only to change the Brain, build them from the submodule instead (requires Rust):
+```bash
+scripts/build-runtime.sh  # the native libraries + the C headers ffigen reads
 ```
 Windows uses the `.ps1` variant of each script. After a C-API change, run `scripts/build-runtime.sh` (it refreshes the headers ffigen reads), then regenerate the bindings with `scripts/generate-ffigen-code.sh` and commit; after a `.fbs` change, run `scripts/generate-fbs-code.sh`.
 
@@ -189,16 +190,17 @@ SSPlayerForFlutter にご関心をお寄せいただき、ありがとうござ�
 
 完全なビルド手順については、[docs/ja/development/build.md](./docs/ja/development/build.md) を参照してください。変更したプレイヤーをアプリで使う方法と、スイートでは確かめられないものの確かめ方もそこにあります。
 
-### ソースからのビルド
+### ビルドと実行
 ```bash
-# 1. ネイティブライブラリのビルド + C ヘッダのコピー（Rust 環境が必要です）
-scripts/build-runtime.sh
-
-# 2. アセット生成（下のテストも読みます）
+# 1. アセット生成（下のテストも読みます）
 scripts/deploy-examples.sh
 
-# 3. example を起動（プラットフォームのランナーが無ければ生成）
+# 2. example を起動（プラットフォームのランナーが無ければ生成）
 scripts/run-macos.sh      # run-linux.sh・run-windows.ps1 なども。[ssplayer] OK を確認
+```
+どちらも Rust は要りません。build hook がパッケージの固定した SDK リリースからネイティブライブラリをダウンロードします。Brain を変えるときだけ、代わりにサブモジュールからビルドします（Rust 環境が必要です）。
+```bash
+scripts/build-runtime.sh  # ネイティブライブラリ + ffigen が読む C ヘッダ
 ```
 Windows は各スクリプトの `.ps1` を使います。C-API を変えたら、`scripts/build-runtime.sh`（ffigen が読むヘッダーを更新します）のあとに `scripts/generate-ffigen-code.sh` でバインディングを再生成してコミット、`.fbs` を変えたら `scripts/generate-fbs-code.sh` を実行してください。
 

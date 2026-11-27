@@ -61,7 +61,7 @@ hand-write. Playback runs through `libssruntime` provided by
 
 ## Samples
 
-Sample apps live under the `examples/` folder in the repository; running one from a checkout is in the [Build Guide](development/build.md#build-from-source).
+Sample apps live under the `examples/` folder in the repository; running one from a checkout is in the [Build Guide](development/build.md#running-from-a-checkout).
 
 - [overall](https://github.com/cri-middleware/SSPlayerForFlutter/tree/main/examples/overall) — comprehensive validation app.
 - [flame](https://github.com/cri-middleware/SSPlayerForFlutter/tree/main/examples/flame) — a `FlameGame` playing an animation via `ssplayer_flame`.

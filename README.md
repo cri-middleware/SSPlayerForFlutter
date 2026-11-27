@@ -124,7 +124,7 @@ What you install directly — you need only the first row to play an animation. 
 
 Runnable apps under [`examples/`](./examples/); `overall` and `flame` also run in the
 [live Web demos](https://cri-middleware.github.io/SSPlayerForFlutter/demo/). Running one from a
-checkout is in the [Build Guide](./docs/en/development/build.md#build-from-source).
+checkout is in the [Build Guide](./docs/en/development/build.md#running-from-a-checkout).
 
 - [overall](./examples/overall) — The one to open. Plays the SDK's `tests/overall` project plus Ringo, Doll and ParticleEffect, with dropdowns to switch project, pack and animation.
 - [flame](./examples/flame) — The [`ssplayer_flame`](./packages/ssplayer_flame) adapter: one `SpriteStudioComponent` in a `FlameGame` playing Ringo, tap to toggle play/pause.
