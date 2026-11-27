@@ -21,28 +21,38 @@
 git submodule update --init --recursive
 ```
 
-## ソースからビルド
+## チェックアウトから動かす
+
+チェックアウトに Rust は要りません。バインディングパッケージの `native/libs/` にそのターゲットのライブラリが無ければ、build hook がパッケージの固定した SDK リリースからダウンロードし（[ネイティブランタイム](native-runtime.md)）、例のアセットもそのビルド済みの `libssconverter` で変換します。
 
 ```bash
-# ネイティブをビルド + C ヘッダを各バインディングパッケージの native/include/ へコピー
-scripts/build-runtime.sh              # 例: build-runtime.sh platform=macos build=release
-
 # overall を起動（アセットとプラットフォームのランナーが無ければ生成）
 scripts/run-macos.sh                  # [ssplayer] OK ＋ 画面にアニメーションが出れば成功
 ```
 
 `run-linux.sh`・`run-ios.sh`・`run-android.sh`・`run-web.sh` も同じことを各ターゲットで行い、`example=<name>`・`--gpu`・`--watch`（後ろの 2 つは `overall` だけ）と `flutter run` の引数を受け付けます（一覧は `scripts/run-example.sh` のヘッダー）。
-Windows は各スクリプトの `.ps1` を使います（起動は `run-windows.ps1`）。android・ios・universal の macOS（`arch=universal`）は `SpriteStudio-SDK/scripts/release-*` に委譲し、ホストターゲットと web の wasm は `build-runtime` 自身がビルドします。
+Windows は各スクリプトの `.ps1` を使います（起動は `run-windows.ps1`）。web ターゲットには build hook が無いので、先にランタイムを用意します（[Web](#web開発者プレビュー)）。
+
+## ソースからビルド
+
+Brain 自体を変えるときだけです。`build-runtime` はサブモジュールからネイティブライブラリをビルドして各バインディングパッケージの `native/libs/` に置き、build hook はダウンロードの代わりにそれを使います。
+
+```bash
+# ネイティブをビルド + C ヘッダを各バインディングパッケージの native/include/ へコピー
+scripts/build-runtime.sh              # 例: build-runtime.sh platform=macos build=release
+```
+
+android・ios・universal の macOS（`arch=universal`）は `SpriteStudio-SDK/scripts/release-*` に委譲し、ホストターゲットと web の wasm は `build-runtime` 自身がビルドします。
 
 ## Web（開発者プレビュー）
 
 web ターゲットは **`dart:ffi` も Native Assets も無い**ため、Brain を dylib として同梱できません。代わりに SDK の wasm-bindgen `web` ビルド（`.wasm` ＋ JS グルー）を作り、素の Flutter **アセット**として同梱し、Dart から `dart:js_interop` で駆動します。
 
-**セットアップ — wasm ランタイムを用意**（ビルドするなら `wasm-pack` ＋ `wasm32-unknown-unknown` ターゲットが必要。固定リリースをダウンロードするなら Rust も `wasm-pack` も不要）:
+**セットアップ — wasm ランタイムを用意**（固定リリースをダウンロードするなら Rust も `wasm-pack` も不要。ビルドするなら `wasm-pack` ＋ `wasm32-unknown-unknown` ターゲットが必要）:
 
 ```bash
-scripts/build-runtime.sh platform=web        # 既定は build=debug（build=release も指定できます）
-scripts/download-web-runtime.sh              # または固定リリース。Rust 不要
+scripts/download-web-runtime.sh              # 固定リリース。Rust 不要
+scripts/build-runtime.sh platform=web        # またはビルド。既定は build=debug（build=release も指定できます）
 # → packages/ssplayer_flutter/assets/runtime-web/
 #     {ssruntime.js, ssruntime_bg.wasm, ssruntime_bg.nosimd.wasm}
 ```

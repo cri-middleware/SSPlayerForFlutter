@@ -7,7 +7,8 @@
 # live-reload watcher (`sswatch`) reconverts on save, so the initial assets and
 # the live output come from the same place.
 # It loads the PREBUILT libssconverter over dart:ffi, so this needs NO Rust
-# toolchain — build the native libs via scripts/build-runtime.sh.
+# toolchain: the build hook takes scripts/build-runtime.sh's output when there
+# is one, and otherwise downloads the pinned SDK release.
 # All the sibling players share this "Rust-free for customizers" philosophy.
 # Output lands in examples/overall/assets/spritestudio/<stem>/ (the SsProjectSync
 # convention — <stem> is the .sspj filename, so it matches what live-reload
@@ -23,7 +24,8 @@ usage () {
 Usage: ${HELP_APP} [--help]
   Stage the SDK's bundled test projects into examples/overall/SpriteStudio_Source/
   and convert those copies into examples/overall/assets/spritestudio/.
-  Needs the Dart SDK and the native libs from build-runtime.
+  Needs the Dart SDK; no Rust (the converter library is downloaded unless
+  build-runtime has put one in the checkout).
 USAGE
 }
 
@@ -64,8 +66,8 @@ command -v dart >/dev/null || {
 }
 
 # Resolve the converter package deps once (the CLI loads the PREBUILT
-# libssconverter via native assets — hook/build.dart bundles the dylib that
-# build-runtime.sh produces).
+# libssconverter via native assets — hook/build.dart bundles build-runtime.sh's
+# dylib, or the pinned release's).
 pub_out="$( cd "$CONV_PKG" && dart pub get 2>&1 )" || {
   printf '%s\n' "$pub_out" >&2
   echo "deploy-examples.sh: 'dart pub get' failed in $CONV_PKG" >&2

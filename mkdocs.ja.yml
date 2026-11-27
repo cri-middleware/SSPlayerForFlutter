@@ -49,7 +49,7 @@ plugins:
           - limitations.md: "描画されないもの（テキストパーツ・9 スライスパーツ）、プラットフォームと Web プレビューの制約、描画バックエンドごとの合成モードの再現度、アニメ 1 つで同時に使えるマスクの上限、パーツトラッキングの制約、再生機能の制約（シークとイベント、逆再生のオーディオ、`independent` なインスタンスパーツ）。"
           - packages.md: "このリポジトリがリリースするパッケージとそれぞれの用途。多くのアプリが依存する `ssplayer_flutter` から、コンバータとライブリロードのツールまで。Web のライブデモへのリンク。"
         Player・SDK 開発者向けガイド:
-          - development/build.md: "プレイヤーをソースからビルドする手順。前提ツール、`scripts/build-runtime.sh`、Web の wasm ランタイム、ffigen と FlatBuffers のコードの再生成、パッケージごとのテスト、変更したプレイヤーを `dependency_overrides` でアプリに使う方法、テストでは確かめられないこと。"
+          - development/build.md: "チェックアウトからプレイヤーに手を入れる手順。前提ツール、Rust なしで例を動かす方法、`scripts/build-runtime.sh` によるネイティブライブラリのソースからのビルド、Web の wasm ランタイム、ffigen と FlatBuffers のコードの再生成、パッケージごとのテスト、変更したプレイヤーを `dependency_overrides` でアプリに使う方法、テストでは確かめられないこと。"
           - development/architecture.md: "FFI バインディングからウィジェット・Flame アダプタまでのレイヤー、`SpriteStudioInternalPlayer` の直接利用、ライブリロードのデータの流れ、描画バックエンドと `DrawBatch` の振り分け、パーツの姿勢と反転をこう扱っている理由。"
           - development/native-runtime.md: "ネイティブライブラリがアプリに届く仕組み。Native Assets と `hook/build.dart`、解決順、`hooks.user_defines` で差し込む自前の dylib、プラットフォームごとの同梱、純 Dart からの `ssruntime_dart` の利用。"
         ライセンス:

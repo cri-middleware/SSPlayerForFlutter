@@ -23,12 +23,13 @@ Clone with submodules — the SDK (the Brain's source, see
 git submodule update --init --recursive
 ```
 
-## Build from source
+## Running from a checkout
+
+A checkout needs no Rust. When a binding package's `native/libs/` has no library for the target, its
+build hook downloads it from the SDK release the packages pin ([Native Runtime](native-runtime.md)),
+and the example assets are converted with that prebuilt `libssconverter`.
 
 ```bash
-# Build the native libs + copy the C headers into each binding package's native/include/
-scripts/build-runtime.sh              # e.g. build-runtime.sh platform=macos build=release
-
 # Run the overall example; its assets and platform runner are generated if missing
 scripts/run-macos.sh                  # expect [ssplayer] OK + on-screen animation
 ```
@@ -37,7 +38,20 @@ scripts/run-macos.sh                  # expect [ssplayer] OK + on-screen animati
 take `example=<name>`, `--gpu` and `--watch` (the last two for `overall` only) and any `flutter run`
 argument — the header of
 `scripts/run-example.sh` lists them. Windows uses the `.ps1` variant of each script
-(`run-windows.ps1` for the run). Android, iOS and a universal macOS build (`arch=universal`) are
+(`run-windows.ps1` for the run). The web target has no build hook, so get its runtime first
+([Web](#web-developer-preview)).
+
+## Build from source
+
+Only when you change the Brain itself. `build-runtime` builds the native libraries from the submodule
+into each binding package's `native/libs/`, and the build hooks take them instead of the download.
+
+```bash
+# Build the native libs + copy the C headers into each binding package's native/include/
+scripts/build-runtime.sh              # e.g. build-runtime.sh platform=macos build=release
+```
+
+Android, iOS and a universal macOS build (`arch=universal`) are
 delegated to `SpriteStudio-SDK/scripts/release-*`; `build-runtime` builds the host target and the web
 wasm itself.
 
@@ -47,12 +61,12 @@ The web target has **no `dart:ffi` and no native assets**, so the Brain cannot s
 Instead it is built as the SDK's wasm-bindgen `web` build (a `.wasm` + JS glue) and bundled as a plain
 Flutter **asset**, then driven from Dart over `dart:js_interop`.
 
-**Setup — get the wasm runtime.** Build it (needs `wasm-pack` and the `wasm32-unknown-unknown`
-target) or download the pinned release (needs neither Rust nor `wasm-pack`):
+**Setup — get the wasm runtime.** Download the pinned release (needs neither Rust nor `wasm-pack`)
+or build it (needs `wasm-pack` and the `wasm32-unknown-unknown` target):
 
 ```bash
-scripts/build-runtime.sh platform=web        # builds debug unless you add build=release
-scripts/download-web-runtime.sh              # or: the pinned release, no Rust
+scripts/download-web-runtime.sh              # the pinned release, no Rust
+scripts/build-runtime.sh platform=web        # or: build it; debug unless you add build=release
 # → packages/ssplayer_flutter/assets/runtime-web/
 #     {ssruntime.js, ssruntime_bg.wasm, ssruntime_bg.nosimd.wasm}
 ```
