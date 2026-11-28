@@ -6,7 +6,7 @@ inside a `FlameGame`. It owns an **externally-clocked** `SpriteStudioPlayer` (no
 game loop drives time (`update(dt)` → `advance`, `render` → paint). It is a separate package so the
 core never pulls in `flame`, and it re-exports the whole `ssplayer_flutter` API.
 
-The [live Flame demo](../demo/flame/) is `examples/flame` built for the web: one
+The [live Flame demo](https://cri-middleware.github.io/SSPlayerForFlutter/demo/flame/) is `examples/flame` built for the web: one
 `SpriteStudioComponent` playing Ringo, tap to play / pause.
 
 ## Add the dependency

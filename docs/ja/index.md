@@ -10,7 +10,7 @@
     [パーティクル](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#Perticle_sample)）がそのまま使えます。自分のアニメーションを作るには SpriteStudio 本体を使います（[製品サイト](https://www.webtech.co.jp/spritestudio/)）。
 
 !!! example "ブラウザで試す"
-    [**Web デモ**](../demo/) はこのドキュメントの隣に 2 つ公開しています。`ssplayer_flutter`
+    [**Web デモ**](https://cri-middleware.github.io/SSPlayerForFlutter/demo/) はこのドキュメントの隣に 2 つ公開しています。`ssplayer_flutter`
     のウィジェットを動かす `examples/overall` と、`ssplayer_flame` を動かす `examples/flame`
     です。いずれも Web 向けにビルドしています。
     Web ターゲットは developer preview です（[制約と適用範囲](limitations.md) を参照）。

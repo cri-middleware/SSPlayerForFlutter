@@ -3,7 +3,7 @@
 このモノレポは以下のパッケージをリリースしています（[インストール](guide/install.md)参照）。多くのアプリが依存するのは `ssplayer_flutter` で、残りは推移的に取り込まれるか、特定の用途で使います。
 
 どちらのプレイヤーもブラウザで動くデモがあります —— ウィジェット版は
-[demo/flutter/](../demo/flutter/)、Flame 版は [demo/flame/](../demo/flame/) です。
+[demo/flutter/](https://cri-middleware.github.io/SSPlayerForFlutter/demo/flutter/)、Flame 版は [demo/flame/](https://cri-middleware.github.io/SSPlayerForFlutter/demo/flame/) です。
 
 | 目的 | パッケージ | 種別 |
 |---|---|---|
