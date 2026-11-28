@@ -44,24 +44,24 @@
 
 ソースプロジェクトは `SpriteStudio_Source/<project>/` に置きます。`sswatch` は、実行したディレクトリ（アプリのルート）を基準に動き、`SpriteStudio_Source/` を監視して `assets/spritestudio/<project>/` に書き出します。別のフォルダを使うときは、そこに `spritestudio.yaml`（`source:`・`output:`・`embedded:`）を置くか、`--project-root=<dir>` で別のルートを指定します。実際の編集を保存してください（`touch` は同一バイトで見た目が変わらない上、watcher が拾わないこともあります）。
 
-!!! tip "バイト列から読み込んだプレイヤーや、リロードに反応したい画面"
-    ダウンロードや実行時に選んだファイルなど、バイト列から読み込んだプレイヤーには、見つけてもらうためのアセットキーがありません。所有する `State` に `SsLiveReload` を mix-in して、パックを指定してください。同じ mixin で、リロードに合わせて画面を更新したり、`sswatch` の管理外のものを表示している間は止めたりもできます。自分で登録したプレイヤーと同じものを指定した場合は、mixin のほうが使われます。
+> [!TIP] バイト列から読み込んだプレイヤーや、リロードに反応したい画面
+> ダウンロードや実行時に選んだファイルなど、バイト列から読み込んだプレイヤーには、見つけてもらうためのアセットキーがありません。所有する `State` に `SsLiveReload` を mix-in して、パックを指定してください。同じ mixin で、リロードに合わせて画面を更新したり、`sswatch` の管理外のものを表示している間は止めたりもできます。自分で登録したプレイヤーと同じものを指定した場合は、mixin のほうが使われます。
+>
+> ```dart
+> class _MyPageState extends State<MyPage>
+>     with SingleTickerProviderStateMixin, SsLiveReload<MyPage> {
+>   @override SpriteStudioPlayer get ssPlayer => _player;
+>   @override String get ssAssetDir => 'assets/spritestudio/overall'; // 現パックの出力 dir
+>   @override String get ssPack => _pack;                             // 現パック（.ssab stem）
+>   @override void ssOnLiveReloaded() => setState(() {});             // 任意（UI 更新）
+> }
+> ```
 
-    ```dart
-    class _MyPageState extends State<MyPage>
-        with SingleTickerProviderStateMixin, SsLiveReload<MyPage> {
-      @override SpriteStudioPlayer get ssPlayer => _player;
-      @override String get ssAssetDir => 'assets/spritestudio/overall'; // 現パックの出力 dir
-      @override String get ssPack => _pack;                             // 現パック（.ssab stem）
-      @override void ssOnLiveReloaded() => setState(() {});             // 任意（UI 更新）
-    }
-    ```
-
-!!! warning "macOS デスクトップ: App Sandbox が file push を止めます"
-    `file` push はコンテナ外のホストパスをアプリに渡すため、サンドボックス有効のデバッグビルドでは読めず、エラーも出ないまま `reloaded 0 player(s)` になります。
-    `macos/Runner/DebugProfile.entitlements` の `com.apple.security.app-sandbox` を
-    `false` にしてください（デバッグのみ。Release はサンドボックス有効のまま）。
-    `--device` はバイトを VM Service で送るので影響ありません。
+> [!WARNING] macOS デスクトップ: App Sandbox が file push を止めます
+> `file` push はコンテナ外のホストパスをアプリに渡すため、サンドボックス有効のデバッグビルドでは読めず、エラーも出ないまま `reloaded 0 player(s)` になります。
+> `macos/Runner/DebugProfile.entitlements` の `com.apple.security.app-sandbox` を
+> `false` にしてください（デバッグのみ。Release はサンドボックス有効のまま）。
+> `--device` はバイトを VM Service で送るので影響ありません。
 
 ## プラットフォーム状況
 

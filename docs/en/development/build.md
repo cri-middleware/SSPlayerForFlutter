@@ -86,21 +86,21 @@ scripts/run-web.sh             # default CanvasKit renderer
 scripts/run-web.sh --wasm      # Skwasm renderer (WebAssembly build mode)
 ```
 
-!!! warning "Developer preview"
-    For the web **runtime backend**, the runtime API is the seam: a conditional export picks its
-    `dart:ffi` backend or its `dart:js_interop` backend, so Layer 2 compiles without `dart:ffi`.
-    `flutter build web` / `flutter run -d chrome` build and render — every render kind
-    (Normal / Shape / Mesh / Effect / Instance), the shader paths (PartColor / mask), framebuffer
-    blend, and the timeline event callbacks (UserData / Signal / Audio) are verified on CanvasKit.
-    On the web every frame goes through the **Canvas (`drawVertices`) backend** — `flutter_gpu` is
-    not available there — with the SIMD / nosimd wasm auto-selected at load. The native-assets build hooks
-    no-op cleanly on web (nothing to configure).
+> [!WARNING] Developer preview
+> For the web **runtime backend**, the runtime API is the seam: a conditional export picks its
+> `dart:ffi` backend or its `dart:js_interop` backend, so Layer 2 compiles without `dart:ffi`.
+> `flutter build web` / `flutter run -d chrome` build and render — every render kind
+> (Normal / Shape / Mesh / Effect / Instance), the shader paths (PartColor / mask), framebuffer
+> blend, and the timeline event callbacks (UserData / Signal / Audio) are verified on CanvasKit.
+> On the web every frame goes through the **Canvas (`drawVertices`) backend** — `flutter_gpu` is
+> not available there — with the SIMD / nosimd wasm auto-selected at load. The native-assets build hooks
+> no-op cleanly on web (nothing to configure).
 
-!!! note "First macOS runner"
-    `scripts/run-macos.sh` generates `examples/overall/macos/` when it is missing. To make it by hand,
-    run `bash examples/overall/scripts/setup-macos.sh`: besides `flutter create` it adds the entitlements
-    the example needs (drag-and-drop, and a debug-only sandbox-off for the live-reload push), which a
-    bare `flutter create --platforms=macos .` leaves out.
+> [!NOTE] First macOS runner
+> `scripts/run-macos.sh` generates `examples/overall/macos/` when it is missing. To make it by hand,
+> run `bash examples/overall/scripts/setup-macos.sh`: besides `flutter create` it adds the entitlements
+> the example needs (drag-and-drop, and a debug-only sandbox-off for the live-reload push), which a
+> bare `flutter create --platforms=macos .` leaves out.
 
 ## Code generation (committed; regenerate on change)
 

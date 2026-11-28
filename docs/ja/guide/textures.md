@@ -60,8 +60,8 @@ final names = _player.replaceableTextureNames; // セルマップ ＋ TextureCha
 
 `setCellmapTexture` は、`load()` 前・不明な名前・差し替えが無い名前を復元しようとした場合に `false`、差し替えを設定した / 実際に解除した場合に `true` を返します。
 
-!!! note "低レベル API からも同じように使えます"
-    `SpriteStudioPlayer` の下にある描画エンジン `SpriteStudioInternalPlayer` にも同じ呼び出しがあります。ヘッドレス実行や独自の描画アダプタから使う場合は、[プレイヤーの構成](../development/architecture.md#driving-l2-directly)を参照してください。
+> [!NOTE] 低レベル API からも同じように使えます
+> `SpriteStudioPlayer` の下にある描画エンジン `SpriteStudioInternalPlayer` にも同じ呼び出しがあります。ヘッドレス実行や独自の描画アダプタから使う場合は、[プレイヤーの構成](../development/architecture.md#driving-l2-directly)を参照してください。
 
 ## 注意点
 

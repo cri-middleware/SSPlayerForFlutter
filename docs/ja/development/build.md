@@ -71,16 +71,16 @@ scripts/run-web.sh             # 既定 CanvasKit レンダラ
 scripts/run-web.sh --wasm      # Skwasm レンダラ（WebAssembly ビルドモード）
 ```
 
-!!! warning "開発者プレビュー"
-    web の**ランタイムバックエンド**の継ぎ目はランタイムの API で、`dart:ffi` のバックエンドと `dart:js_interop` のバックエンドを条件付き export で切り替えるため、Layer 2 は `dart:ffi` 無しでコンパイルできます。`flutter build web` / `flutter run -d chrome` はビルド・描画まで通り、全描画
-    kind（Normal / Shape / Mesh / Effect / Instance）、シェーダ経路（PartColor / マスク）、framebuffer
-    ブレンド、タイムラインイベントのコールバック（UserData / Signal / Audio）を CanvasKit 上で確認済みです。
-    web では常に **Canvas（`drawVertices`）バックエンド**で描画し（`flutter_gpu` は web では使えません）、
-    SIMD / nosimd の wasm はロード時に自動選択されます。Native Assets の build hook は web で正しく no-op
-    します（設定不要）。
+> [!WARNING] 開発者プレビュー
+> web の**ランタイムバックエンド**の継ぎ目はランタイムの API で、`dart:ffi` のバックエンドと `dart:js_interop` のバックエンドを条件付き export で切り替えるため、Layer 2 は `dart:ffi` 無しでコンパイルできます。`flutter build web` / `flutter run -d chrome` はビルド・描画まで通り、全描画
+> kind（Normal / Shape / Mesh / Effect / Instance）、シェーダ経路（PartColor / マスク）、framebuffer
+> ブレンド、タイムラインイベントのコールバック（UserData / Signal / Audio）を CanvasKit 上で確認済みです。
+> web では常に **Canvas（`drawVertices`）バックエンド**で描画し（`flutter_gpu` は web では使えません）、
+> SIMD / nosimd の wasm はロード時に自動選択されます。Native Assets の build hook は web で正しく no-op
+> します（設定不要）。
 
-!!! note "初回の macOS ランナー"
-    `examples/overall/macos/` が無ければ `scripts/run-macos.sh` が生成します。手で作るなら `bash examples/overall/scripts/setup-macos.sh` を使ってください。`flutter create` に加えて、example に必要な entitlement（ドラッグ＆ドロップと、ライブリロードの push のためのデバッグ限定のサンドボックス解除）を足します。素の `flutter create --platforms=macos .` には含まれません。
+> [!NOTE] 初回の macOS ランナー
+> `examples/overall/macos/` が無ければ `scripts/run-macos.sh` が生成します。手で作るなら `bash examples/overall/scripts/setup-macos.sh` を使ってください。`flutter create` に加えて、example に必要な entitlement（ドラッグ＆ドロップと、ライブリロードの push のためのデバッグ限定のサンドボックス解除）を足します。素の `flutter create --platforms=macos .` には含まれません。
 
 ## コード生成（コミット済み・変更時に再生成）
 

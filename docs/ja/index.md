@@ -4,16 +4,16 @@
 [SpriteStudio-SDK](https://github.com/cri-middleware/SpriteStudio-SDK) が提供する `libssruntime`
 を介して行います。
 
-!!! tip "SpriteStudio を初めて使う方へ"
-    [SpriteStudio](https://www.webtech.co.jp/spritestudio/) はプロ向けの 2D アニメーションエディタです。手描きの**ラスター**（PNG）素材にボーン・メッシュ変形・パーティクルを載せて、モーションを視覚的に作れます。アーティストが動きを作り、このプレイヤーが完成ファイルを再生します。`.gif` や `.mp4` を同梱するより軽量です。手元にデータが無くても始められます —— [公式のサンプルデータ](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/)
-    （[Ringo](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#ringo) /
-    [パーティクル](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#Perticle_sample)）がそのまま使えます。自分のアニメーションを作るには SpriteStudio 本体を使います（[製品サイト](https://www.webtech.co.jp/spritestudio/)）。
+> [!TIP] SpriteStudio を初めて使う方へ
+> [SpriteStudio](https://www.webtech.co.jp/spritestudio/) はプロ向けの 2D アニメーションエディタです。手描きの**ラスター**（PNG）素材にボーン・メッシュ変形・パーティクルを載せて、モーションを視覚的に作れます。アーティストが動きを作り、このプレイヤーが完成ファイルを再生します。`.gif` や `.mp4` を同梱するより軽量です。手元にデータが無くても始められます —— [公式のサンプルデータ](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/)
+> （[Ringo](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#ringo) /
+> [パーティクル](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#Perticle_sample)）がそのまま使えます。自分のアニメーションを作るには SpriteStudio 本体を使います（[製品サイト](https://www.webtech.co.jp/spritestudio/)）。
 
-!!! example "ブラウザで試す"
-    [**Web デモ**](https://cri-middleware.github.io/SSPlayerForFlutter/demo/) はこのドキュメントの隣に 2 つ公開しています。`ssplayer_flutter`
-    のウィジェットを動かす `examples/overall` と、`ssplayer_flame` を動かす `examples/flame`
-    です。いずれも Web 向けにビルドしています。
-    Web ターゲットは developer preview です（[制約と適用範囲](limitations.md) を参照）。
+> [!EXAMPLE] ブラウザで試す
+> [**Web デモ**](https://cri-middleware.github.io/SSPlayerForFlutter/demo/) はこのドキュメントの隣に 2 つ公開しています。`ssplayer_flutter`
+> のウィジェットを動かす `examples/overall` と、`ssplayer_flame` を動かす `examples/flame`
+> です。いずれも Web 向けにビルドしています。
+> Web ターゲットは developer preview です（[制約と適用範囲](limitations.md) を参照）。
 
 ## 目次
 

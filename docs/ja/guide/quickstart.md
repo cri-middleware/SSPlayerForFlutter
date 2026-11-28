@@ -28,9 +28,9 @@ my_app/
 
 ほかの変換方法は [アセットの準備（`.sspj` → `.ssab`）](conversion.md) にあります。
 
-!!! tip "SpriteStudio のデータが手元に無くても始められます"
-    [公式のサンプルデータ](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/)がそのまま使えます。
-    キャラクターなら [Ringo](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#ringo) が手頃です。
+> [!TIP] SpriteStudio のデータが手元に無くても始められます
+> [公式のサンプルデータ](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/)がそのまま使えます。
+> キャラクターなら [Ringo](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#ringo) が手頃です。
 
 ## 2. アセットを登録する
 
@@ -74,8 +74,8 @@ Future<void> main() async {
 
 すべての引数と、変更がプレイヤーに届く仕組みは [再生とイベント](playback.md#ウィジェットの引数) にあります。
 
-!!! tip "テクスチャ: embedded と reference"
-    どちらのモードも追加引数なしで解決します。**embedded** な `.ssab`（`ssconvert -e` で生成）は画像を内包し、**reference** な `.ssab` は同じフォルダの画像ファイルを参照して `loadAsset` がキー自身のフォルダから解決します。→ [アセットの準備](conversion.md)。
+> [!TIP] テクスチャ: embedded と reference
+> どちらのモードも追加引数なしで解決します。**embedded** な `.ssab`（`ssconvert -e` で生成）は画像を内包し、**reference** な `.ssab` は同じフォルダの画像ファイルを参照して `loadAsset` がキー自身のフォルダから解決します。→ [アセットの準備](conversion.md)。
 
 サブフレーム補間は**既定でオン**なので、フレームレートに関係なく滑らかに動きます。
 

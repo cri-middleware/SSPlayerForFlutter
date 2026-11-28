@@ -57,16 +57,16 @@ converts a project under `SpriteStudio_Source/` straight into your app's `assets
 [Live Reload](live-reload.md) reconverts the same `SpriteStudio_Source/` on save while the app runs.
 The browser, GUI and SDK CLI hand you files to [deploy](#deploy-the-ssab-other-routes) by hand.
 
-!!! note "Which file becomes which"
-    The roles of `.sspj` / `.ssae` / `.ssce` / `.ssqe` and how they map to the output are the same for
-    every Player, so they are documented in the portal —
-    [Asset Conversion — How a project's files map to the output](https://cri-middleware.github.io/SpriteStudio-Docs/overview/conversion/#how-a-projects-files-map-to-the-output).
-
-    Two points matter. **One `.ssae` becomes one `.ssab`**, and **cell positions are baked from the
-    `.ssce` into the `.ssab`**. Because of the latter, whenever you add, move or resize cells, or change
-    the image size, **rebuild the `.ssab` and ship it alongside the image** — swapping the image alone
-    leaves the old source rectangles in place and the artwork shifts. (With an embedded export there is
-    only the one `.ssab` to replace.)
+> [!NOTE] Which file becomes which
+> The roles of `.sspj` / `.ssae` / `.ssce` / `.ssqe` and how they map to the output are the same for
+> every Player, so they are documented in the portal —
+> [Asset Conversion — How a project's files map to the output](https://cri-middleware.github.io/SpriteStudio-Docs/overview/conversion/#how-a-projects-files-map-to-the-output).
+>
+> Two points matter. **One `.ssae` becomes one `.ssab`**, and **cell positions are baked from the
+> `.ssce` into the `.ssab`**. Because of the latter, whenever you add, move or resize cells, or change
+> the image size, **rebuild the `.ssab` and ship it alongside the image** — swapping the image alone
+> leaves the old source rectangles in place and the artwork shifts. (With an embedded export there is
+> only the one `.ssab` to replace.)
 
 ## Reference-texture vs. embedded
 
@@ -84,12 +84,12 @@ key's own folder, and an embedded `.ssab` carries its own. See [Quick Start](qui
 
 Every route below runs the same open-source converter and produces the same `.ssab`.
 
-!!! tip "No `.sspj` of your own yet?"
-    The [official SpriteStudio sample data](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/) works as-is
-    (that page is only available in Japanese; the downloads themselves are language-neutral).
-    [Ringo](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#ringo) is a good character sample, and
-    [Particle](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#Perticle_sample) is a good one if you want
-    effects. The downloaded project feeds any of the routes below as-is.
+> [!TIP] No `.sspj` of your own yet?
+> The [official SpriteStudio sample data](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/) works as-is
+> (that page is only available in Japanese; the downloads themselves are language-neutral).
+> [Ringo](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#ringo) is a good character sample, and
+> [Particle](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#Perticle_sample) is a good one if you want
+> effects. The downloaded project feeds any of the routes below as-is.
 
 | Route | Best for | Getting it |
 |---|---|---|
@@ -116,9 +116,9 @@ Then list the folder in `pubspec.yaml` (step 2 of [Deploy the `.ssab`](#deploy-t
 Because it is a plain `dart run`, it drops into any Dart/Flutter CI job. The same engine is available
 programmatically via `SsConverter` (from `package:ssconverter_dart`) for custom Dart tooling.
 
-!!! tip "The sources stay out of the app"
-    Only the folders listed under `flutter: assets:` are bundled, so `SpriteStudio_Source/` never
-    ships with the app.
+> [!TIP] The sources stay out of the app
+> Only the folders listed under `flutter: assets:` are bundled, so `SpriteStudio_Source/` never
+> ships with the app.
 
 ## Live Reload
 
@@ -132,10 +132,10 @@ Convert a `.sspj` in the browser and download the result — no install. It runs
 of the converter client-side, and the ZIP holds one folder named after the `.sspj`. Then
 [deploy](#deploy-the-ssab-other-routes) it.
 
-!!! note "Dropping a folder needs a Chromium browser"
-    It is hosted on GitHub Pages: <https://cri-middleware.github.io/SSPlayerForWeb/ssconverter/>.
-    Dropping a folder uses the **File System Access API**, so it needs a
-    **Chromium-based browser (Chrome / Edge)**; in other browsers, pick the folder with **Browse...**.
+> [!NOTE] Dropping a folder needs a Chromium browser
+> It is hosted on GitHub Pages: <https://cri-middleware.github.io/SSPlayerForWeb/ssconverter/>.
+> Dropping a folder uses the **File System Access API**, so it needs a
+> **Chromium-based browser (Chrome / Edge)**; in other browsers, pick the folder with **Browse...**.
 
 ## SSConverter GUI (desktop GUI)
 

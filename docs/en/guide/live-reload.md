@@ -68,28 +68,28 @@ directory you run it in — your app's root: it watches `SpriteStudio_Source/` a
 `output:`, `embedded:`), or point at another root with `--project-root=<dir>`. Save a real edit (a `touch` produces
 identical bytes — and may not even trip the watcher).
 
-!!! tip "A player loaded from bytes, or a screen that reacts to the reload"
-    A player that loaded bytes — a download, a file picked at runtime — has no asset key to be found
-    by. Mix `SsLiveReload` into the `State` that owns it and name the pack. The same mixin lets a
-    screen react to a reload, and turn it off while it shows something the watcher does not own.
-    Where it names a player that also joined by itself, the mixin is the one used.
+> [!TIP] A player loaded from bytes, or a screen that reacts to the reload
+> A player that loaded bytes — a download, a file picked at runtime — has no asset key to be found
+> by. Mix `SsLiveReload` into the `State` that owns it and name the pack. The same mixin lets a
+> screen react to a reload, and turn it off while it shows something the watcher does not own.
+> Where it names a player that also joined by itself, the mixin is the one used.
+>
+> ```dart
+> class _MyPageState extends State<MyPage>
+>     with SingleTickerProviderStateMixin, SsLiveReload<MyPage> {
+>   @override SpriteStudioPlayer get ssPlayer => _player;
+>   @override String get ssAssetDir => 'assets/spritestudio/overall'; // current pack's output dir
+>   @override String get ssPack => _pack;                             // current pack (.ssab stem)
+>   @override void ssOnLiveReloaded() => setState(() {});             // optional UI refresh
+> }
+> ```
 
-    ```dart
-    class _MyPageState extends State<MyPage>
-        with SingleTickerProviderStateMixin, SsLiveReload<MyPage> {
-      @override SpriteStudioPlayer get ssPlayer => _player;
-      @override String get ssAssetDir => 'assets/spritestudio/overall'; // current pack's output dir
-      @override String get ssPack => _pack;                             // current pack (.ssab stem)
-      @override void ssOnLiveReloaded() => setState(() {});             // optional UI refresh
-    }
-    ```
-
-!!! warning "macOS desktop: the App Sandbox blocks the file push"
-    A `file` push hands the app a host path outside its container, so a sandboxed debug build
-    cannot read it and the push reports `reloaded 0 player(s)` with no error. Set
-    `com.apple.security.app-sandbox` to `false` in `macos/Runner/DebugProfile.entitlements`
-    (debug only — Release keeps the sandbox on). `--device` is unaffected: those bytes travel
-    over the VM Service.
+> [!WARNING] macOS desktop: the App Sandbox blocks the file push
+> A `file` push hands the app a host path outside its container, so a sandboxed debug build
+> cannot read it and the push reports `reloaded 0 player(s)` with no error. Set
+> `com.apple.security.app-sandbox` to `false` in `macos/Runner/DebugProfile.entitlements`
+> (debug only — Release keeps the sandbox on). `--device` is unaffected: those bytes travel
+> over the VM Service.
 
 ## Platform status
 

@@ -5,23 +5,23 @@ an artist in a dedicated editor, drawn through Flutter's own renderer, with no a
 hand-write. Playback runs through `libssruntime` provided by
 [SpriteStudio-SDK](https://github.com/cri-middleware/SpriteStudio-SDK).
 
-!!! tip "New to SpriteStudio?"
-    [SpriteStudio](https://www.webtech.co.jp/eng/spritestudio/) is a professional 2D animation
-    editor: bone rigs, mesh deformation, and particle effects applied to **raster** (PNG) sprite
-    art. Your artist authors the motion visually; this player plays the finished file. It is
-    lighter than shipping a `.gif` or `.mp4`.
-    You do not need data of your own to start: the
-    [official sample data](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/) works as-is
-    ([Ringo](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#ringo) for a character,
-    [Particle](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#Perticle_sample) for effects),
-    though that page is Japanese only. To make your own, you use SpriteStudio itself — see
-    [its site](https://www.webtech.co.jp/eng/spritestudio/).
+> [!TIP] New to SpriteStudio?
+> [SpriteStudio](https://www.webtech.co.jp/eng/spritestudio/) is a professional 2D animation
+> editor: bone rigs, mesh deformation, and particle effects applied to **raster** (PNG) sprite
+> art. Your artist authors the motion visually; this player plays the finished file. It is
+> lighter than shipping a `.gif` or `.mp4`.
+> You do not need data of your own to start: the
+> [official sample data](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/) works as-is
+> ([Ringo](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#ringo) for a character,
+> [Particle](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#Perticle_sample) for effects),
+> though that page is Japanese only. To make your own, you use SpriteStudio itself — see
+> [its site](https://www.webtech.co.jp/eng/spritestudio/).
 
-!!! example "Try it in a browser"
-    Two [**live Web demos**](https://cri-middleware.github.io/SSPlayerForFlutter/demo/) are published beside these pages: the `examples/overall`
-    app driving the `ssplayer_flutter` widget, and the `examples/flame` one driving
-    `ssplayer_flame`, both built for the web. The Web target is a developer preview; see
-    [Limitations & Scope](limitations.md).
+> [!EXAMPLE] Try it in a browser
+> Two [**live Web demos**](https://cri-middleware.github.io/SSPlayerForFlutter/demo/) are published beside these pages: the `examples/overall`
+> app driving the `ssplayer_flutter` widget, and the `examples/flame` one driving
+> `ssplayer_flame`, both built for the web. The Web target is a developer preview; see
+> [Limitations & Scope](limitations.md).
 
 ## Table of Contents
 
