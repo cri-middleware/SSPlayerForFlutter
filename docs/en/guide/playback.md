@@ -190,23 +190,23 @@ _player.flipX = velocity.dx < 0;
 They apply to the whole tree including instance children, survive `reload()`, and notify listeners, so
 the view repaints on its own.
 
-!!! question "Why not just wrap the view in `Transform.flip`?"
-    Because that mirrors the **whole** wrapped subtree, which becomes a problem as soon as
-    [part following](part-following.md) is in play.
+> [!QUESTION] Why not just wrap the view in `Transform.flip`?
+> Because that mirrors the **whole** wrapped subtree, which becomes a problem as soon as
+> [part following](part-following.md) is in play.
+>
+> | Approach | Result |
+> |---|---|
+> | Wrap the whole `Stack` in `Transform.flip` | The anchored widgets — icons, text — come out mirrored too |
+> | Wrap only the `SpriteStudioView` | The anchors are left behind at the unflipped positions |
+> | **`player.flipX`** | The animation mirrors, the anchors travel with it, and their own children can stay upright |
+>
+> Without part following, wrapping in `Transform.flip` is perfectly sufficient.
+>
+> See [Part Following](part-following.md) for what a flipped player does to a follower.
 
-    | Approach | Result |
-    |---|---|
-    | Wrap the whole `Stack` in `Transform.flip` | The anchored widgets — icons, text — come out mirrored too |
-    | Wrap only the `SpriteStudioView` | The anchors are left behind at the unflipped positions |
-    | **`player.flipX`** | The animation mirrors, the anchors travel with it, and their own children can stay upright |
-
-    Without part following, wrapping in `Transform.flip` is perfectly sufficient.
-
-    See [Part Following](part-following.md) for what a flipped player does to a follower.
-
-!!! note "On the Flame adapter"
-    `SpriteStudioComponent` is a Flame `PositionComponent` and already has `flipHorizontally()` and
-    friends, so it takes no flip parameter of its own.
+> [!NOTE] On the Flame adapter
+> `SpriteStudioComponent` is a Flame `PositionComponent` and already has `flipHorizontally()` and
+> friends, so it takes no flip parameter of its own.
 
 ## Switching animations
 

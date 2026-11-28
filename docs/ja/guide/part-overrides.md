@@ -17,13 +17,13 @@ _player.clearPartColorOverride(partName);
 _player.clearAllPartOverrides();
 ```
 
-!!! warning "アニメーションを選択してから設定する"
-    オーバーライドはランタイムがパーツ数ぶんのテーブルとして保持しますが、そのテーブルが確保されるのは
-    **`setAnimation()`（または `load(animationName: ...)`）を実行した時点**です。それ以前はすべての呼び出しが `false` で拒否されます。`SpriteStudioAnimation` では `onLoaded` で呼んでください。`onPlayerCreated` はパックを読み込む前に呼ばれます。
-
-    ややこしいのは、**パーツ名の解決だけは先に成功する**ことです（パーツ名は `.ssab` から読むため）。「`findPartIndex()` は有効な値を返すのに `set` が失敗する」場合は、まずこれを疑ってください。
-
-    さらに `setAnimation()` は `Permanent` 以外のオーバーライドを**解除**します。したがってオーバーライドは常に**アニメーション選択の後**に設定してください。すでに選択中のアニメを指定した `setAnimation()` は何もしないので何も解除せず（解除は `clearAllPartOverrides()`）、track 0 の `crossfade` と `setTrackAnimation` も何も解除しません。
+> [!WARNING] アニメーションを選択してから設定する
+> オーバーライドはランタイムがパーツ数ぶんのテーブルとして保持しますが、そのテーブルが確保されるのは
+> **`setAnimation()`（または `load(animationName: ...)`）を実行した時点**です。それ以前はすべての呼び出しが `false` で拒否されます。`SpriteStudioAnimation` では `onLoaded` で呼んでください。`onPlayerCreated` はパックを読み込む前に呼ばれます。
+>
+> ややこしいのは、**パーツ名の解決だけは先に成功する**ことです（パーツ名は `.ssab` から読むため）。「`findPartIndex()` は有効な値を返すのに `set` が失敗する」場合は、まずこれを疑ってください。
+>
+> さらに `setAnimation()` は `Permanent` 以外のオーバーライドを**解除**します。したがってオーバーライドは常に**アニメーション選択の後**に設定してください。すでに選択中のアニメを指定した `setAnimation()` は何もしないので何も解除せず（解除は `clearAllPartOverrides()`）、track 0 の `crossfade` と `setTrackAnimation` も何も解除しません。
 
 ## メソッド
 
@@ -43,14 +43,14 @@ _player.clearAllPartOverrides();
 
 各メソッドは**パーツ名**を取り、末尾に `ByIndex` が付いた版が**パーツインデックス**を取ります。インデックスは `findPartIndex` で引いて得る最適化であって、既定ではありません。パーツが不明な場合やランタイムが受け付けなかった場合は `false` を返します。
 
-!!! tip "パーツインデックスの使い方について"
-    パーツインデックスは同一パック（同じ `.ssab`）内では安定しているので、頻繁にオーバーライドするなら
-    `findPartIndex()` で一度パーツ名を解決し、そのインデックスを使い回すことを推奨します。
+> [!TIP] パーツインデックスの使い方について
+> パーツインデックスは同一パック（同じ `.ssab`）内では安定しているので、頻繁にオーバーライドするなら
+> `findPartIndex()` で一度パーツ名を解決し、そのインデックスを使い回すことを推奨します。
 
 オーバーライドはプレイヤーの次の tick から反映されます。`SpriteStudioPlayer` は設定・解除が成功するとリスナーへ通知し、一時停止中なら次のフレームで 0 秒の tick を 1 回実行します。
 
-!!! note "低レベル API からも同じように使えます"
-    `SpriteStudioPlayer` の下にある描画エンジン `SpriteStudioInternalPlayer` にも同じ呼び出しがあります。ヘッドレス実行や独自の描画アダプタから使う場合は、[プレイヤーの構成](../development/architecture.md#driving-l2-directly)を参照してください。
+> [!NOTE] 低レベル API からも同じように使えます
+> `SpriteStudioPlayer` の下にある描画エンジン `SpriteStudioInternalPlayer` にも同じ呼び出しがあります。ヘッドレス実行や独自の描画アダプタから使う場合は、[プレイヤーの構成](../development/architecture.md#driving-l2-directly)を参照してください。
 
 セルオーバーライドに指定できるセルマップ名 / セル名は、プレイヤーから列挙できます。
 
@@ -104,8 +104,8 @@ _player.setPartColorOverride(partName, Colors.red, blendOp: SsBlendOp.mul);
 - インスタンスパーツ**配下**のパーツには届きません（子アニメーションは別のプレイヤーとして動作するため）。インスタンスパーツ自体を強制非表示にした場合は、その配下もまとめて描画されなくなります。
 - `cascade` はオーバーライド由来の非表示だけを伝播します。キーフレームの `hide` はパーツ単位で、子孫には波及しません。この非対称性は意図的なものです。
 
-!!! note "一時停止中でも反映されます"
-    オーバーライドはフレーム番号を変えずに描画結果を変えるため、他のプレイヤー実装では停止中に設定しても画面が更新されないことがあります。オーバーライドは次の tick から反映され、一時停止中の `SpriteStudioPlayer` はそのために次のフレームで 0 秒の tick を 1 回実行するので、描画とパーツの読み取りが同時に変わります。追加の操作は不要です。
+> [!NOTE] 一時停止中でも反映されます
+> オーバーライドはフレーム番号を変えずに描画結果を変えるため、他のプレイヤー実装では停止中に設定しても画面が更新されないことがあります。オーバーライドは次の tick から反映され、一時停止中の `SpriteStudioPlayer` はそのために次のフレームで 0 秒の tick を 1 回実行するので、描画とパーツの読み取りが同時に変わります。追加の操作は不要です。
 
 ## Flame から使う
 

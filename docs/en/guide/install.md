@@ -32,13 +32,13 @@ What else to add depends on what you use:
 | [Flame Integration](flame.md) | `flutter pub add flame ssplayer_flame` |
 | [Live Reload](live-reload.md) | `flutter pub add --dev ssgen_flutter` |
 
-!!! note "The web target"
-    The web runtime ships inside `ssplayer_flutter`. Call `await loadSsRuntime()` once before
-    `runApp`; on the other platforms it does nothing.
+> [!NOTE] The web target
+> The web runtime ships inside `ssplayer_flutter`. Call `await loadSsRuntime()` once before
+> `runApp`; on the other platforms it does nothing.
 
-!!! tip "Developing the core?"
-    Building `libssruntime` from Rust source, or hacking on the Player itself, is covered separately
-    in the [Build Guide](../development/build.md) — app users never need it.
+> [!TIP] Developing the core?
+> Building `libssruntime` from Rust source, or hacking on the Player itself, is covered separately
+> in the [Build Guide](../development/build.md) — app users never need it.
 
 ## Verify
 

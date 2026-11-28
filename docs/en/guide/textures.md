@@ -70,10 +70,10 @@ These are methods on `SpriteStudioPlayer`.
 `setCellmapTexture` returns `false` before `load()`, for an unknown name, or when restoring a name
 that had no override; `true` when a replacement was set or actually cleared.
 
-!!! note "The same calls exist on the low-level API"
-    `SpriteStudioInternalPlayer`, the drawing engine beneath `SpriteStudioPlayer`, has them too, for a
-    headless run or a drawing adapter of your own: see
-    [How the Player Is Put Together](../development/architecture.md#driving-l2-directly).
+> [!NOTE] The same calls exist on the low-level API
+> `SpriteStudioInternalPlayer`, the drawing engine beneath `SpriteStudioPlayer`, has them too, for a
+> headless run or a drawing adapter of your own: see
+> [How the Player Is Put Together](../development/architecture.md#driving-l2-directly).
 
 ## Notes
 

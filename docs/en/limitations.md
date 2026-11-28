@@ -6,13 +6,13 @@ guides.
 
 ## Not Yet Implemented
 
-!!! warning
-    - **Text parts** — not drawn on either backend. The runtime supplies the authored string (and a
-      bitmap font's glyph atlas) and keeps the part's place in the draw order; glyph layout and
-      rasterization are the player's job, and the player has no Flutter text pass yet.
-    - **9-slice parts** — not drawn on either backend. The runtime computes the stretched grid, but
-      the player does not draw it yet, so the part renders as nothing rather than as a stretched
-      cell.
+> [!WARNING]
+> - **Text parts** — not drawn on either backend. The runtime supplies the authored string (and a
+>   bitmap font's glyph atlas) and keeps the part's place in the draw order; glyph layout and
+>   rasterization are the player's job, and the player has no Flutter text pass yet.
+> - **9-slice parts** — not drawn on either backend. The runtime computes the stretched grid, but
+>   the player does not draw it yet, so the part renders as nothing rather than as a stretched
+>   cell.
 
 Both part types still occupy their place in the draw order, so an animation that uses them plays
 with those parts missing rather than failing. They are also skipped as mask writers: a text or
@@ -69,13 +69,13 @@ debug builds.
 
 ## Masks
 
-!!! warning
-    - **At most 96 masks at once in one animation**, counting both mask parts and parts that write a
-      clipping mask (`writeMask`), and counting the animations it plays through instance parts. An
-      instance's masks count again every time the instance is placed; a hidden mask, or one whose mask
-      value is 0, does not count. Past 96 the rest are ignored and a warning is printed once —
-      restructure the data rather than raising the count.
-    - **Effect parts are not clipped by masks.**
+> [!WARNING]
+> - **At most 96 masks at once in one animation**, counting both mask parts and parts that write a
+>   clipping mask (`writeMask`), and counting the animations it plays through instance parts. An
+>   instance's masks count again every time the instance is placed; a hidden mask, or one whose mask
+>   value is 0, does not count. Past 96 the rest are ignored and a warning is printed once —
+>   restructure the data rather than raising the count.
+> - **Effect parts are not clipped by masks.**
 
 Neither backend uses a stencil buffer: the player draws every mask of an animation — its instances
 included — into one offscreen bitmap, one bit per mask, and each masked part tests that bitmap. Up to
@@ -107,18 +107,18 @@ to every official player, so the full explanations and the rest of the shared co
 (embedded mode, unvalidated `.ssab` input, and so on) live in the portal:
 **[Shared Limitations](https://cri-middleware.github.io/SpriteStudio-Docs/sdk/limitations/)**.
 
-!!! warning
-    - **`independent = true` parts (Instance / Effect) do not reverse or seek correctly.** Only
-      forward playback (including forward frame-skips) is correct.
-    - **Seeking does not fire the events it skips over.** Only the destination frame's
-      `UserData` / `Signal` / `Audio` events fire.
-    - **No reverse audio.** A sound key crossed while the effective direction is backward (a reverse
-      direction, or a ping-pong return leg) is not meant to sound. This player **reports** audio
-      rather than playing it, so it does not drop those keys — `onAudio` still fires and the gate is
-      yours: read `isPlayingForward` and return early. (A negative speed is not one of those cases:
-      speed is a multiplier, and a negative one stops the playhead rather than turning it around, as
-      does `0`.) See [Playback & Events](guide/playback.md#example-play-an-audio-trigger).
-    - **Motion blending does not reach Instance / Effect children.** The tracks blend the character
-      whose player you hold; a child runs its own playback from the character's frame. Which key
-      drives a child across a crossfade on track 0 is outside motion blending too. See
-      [Motion Blending](guide/motion-blending.md#limits).
+> [!WARNING]
+> - **`independent = true` parts (Instance / Effect) do not reverse or seek correctly.** Only
+>   forward playback (including forward frame-skips) is correct.
+> - **Seeking does not fire the events it skips over.** Only the destination frame's
+>   `UserData` / `Signal` / `Audio` events fire.
+> - **No reverse audio.** A sound key crossed while the effective direction is backward (a reverse
+>   direction, or a ping-pong return leg) is not meant to sound. This player **reports** audio
+>   rather than playing it, so it does not drop those keys — `onAudio` still fires and the gate is
+>   yours: read `isPlayingForward` and return early. (A negative speed is not one of those cases:
+>   speed is a multiplier, and a negative one stops the playhead rather than turning it around, as
+>   does `0`.) See [Playback & Events](guide/playback.md#example-play-an-audio-trigger).
+> - **Motion blending does not reach Instance / Effect children.** The tracks blend the character
+>   whose player you hold; a child runs its own playback from the character's frame. Which key
+>   drives a child across a crossfade on track 0 is outside motion blending too. See
+>   [Motion Blending](guide/motion-blending.md#limits).

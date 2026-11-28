@@ -166,22 +166,22 @@ _player.flipX = velocity.dx < 0;
 
 インスタンスパーツの子アニメーションを含むツリー全体に適用され、`reload()` をまたいでも保持されます。変更するとリスナーへ通知されるため、ビューは自動で再描画されます。
 
-!!! question "`Transform.flip` でビューを包むのとの違い"
-    包む方法は、包んだサブツリー**全体**を反転します。[パーツトラッキング](part-following.md) を併用していると、これが問題になります。
+> [!QUESTION] `Transform.flip` でビューを包むのとの違い
+> 包む方法は、包んだサブツリー**全体**を反転します。[パーツトラッキング](part-following.md) を併用していると、これが問題になります。
+>
+> | やり方 | 結果 |
+> |---|---|
+> | `Stack` 全体を `Transform.flip` で包む | アンカーした子ウィジェット（アイコンや文字）まで鏡像になる |
+> | `SpriteStudioView` だけを包む | アンカーが反転前の位置に取り残される |
+> | **`player.flipX`** | アニメーションが反転し、アンカーも一緒に移動する。子ウィジェット自身は正立させたままにもできる |
+>
+> パーツトラッキングを使っていないなら `Transform.flip` で包む方法で十分です。
+>
+> 反転したプレイヤーにウィジェットを追従させるときの詳細は
+> [パーツトラッキング](part-following.md) を参照してください。
 
-    | やり方 | 結果 |
-    |---|---|
-    | `Stack` 全体を `Transform.flip` で包む | アンカーした子ウィジェット（アイコンや文字）まで鏡像になる |
-    | `SpriteStudioView` だけを包む | アンカーが反転前の位置に取り残される |
-    | **`player.flipX`** | アニメーションが反転し、アンカーも一緒に移動する。子ウィジェット自身は正立させたままにもできる |
-
-    パーツトラッキングを使っていないなら `Transform.flip` で包む方法で十分です。
-
-    反転したプレイヤーにウィジェットを追従させるときの詳細は
-    [パーツトラッキング](part-following.md) を参照してください。
-
-!!! note "Flame アダプタでは"
-    `SpriteStudioComponent` は Flame の `PositionComponent` として `flipHorizontally()` などを既に持つため、反転用の引数は持ちません。
+> [!NOTE] Flame アダプタでは
+> `SpriteStudioComponent` は Flame の `PositionComponent` として `flipHorizontally()` などを既に持つため、反転用の引数は持ちません。
 
 ## アニメを切り替える
 

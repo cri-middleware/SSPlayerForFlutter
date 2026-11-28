@@ -37,24 +37,24 @@ Stack(
 )
 ```
 
-!!! warning "Put the anchor in the same coordinate space as the view"
-    The view fits the animation into **its own box**, measured from that box's centre, and the pose the anchor reads carries the fit; the anchor applies the matching centring from **its own constraints**.
-    The two agree only when the anchor covers the view's exact box.
-    So make it a `Positioned.fill` sibling of the `SpriteStudioView` inside one `Stack`, and apply any nudge or scale to that `Stack` as a whole so both move together.
-    Given a different box, the child lands off the part by exactly half the difference. On an
-    unbounded axis the anchor has no box to centre in and falls back to `0`.
+> [!WARNING] Put the anchor in the same coordinate space as the view
+> The view fits the animation into **its own box**, measured from that box's centre, and the pose the anchor reads carries the fit; the anchor applies the matching centring from **its own constraints**.
+> The two agree only when the anchor covers the view's exact box.
+> So make it a `Positioned.fill` sibling of the `SpriteStudioView` inside one `Stack`, and apply any nudge or scale to that `Stack` as a whole so both move together.
+> Given a different box, the child lands off the part by exactly half the difference. On an
+> unbounded axis the anchor has no box to centre in and falls back to `0`.
 
-!!! warning "Mesh (skinned) parts cannot be followed directly"
-    A **bone-bound mesh part** (a deforming part such as a hand or a face) has its vertices drawn by
-    bone skinning, while the part's *own* transform stays at its setup node position — usually near the
-    character root. So targeting such a part makes the follower snap near the root rather than onto the
-    visible art.
-
-    To follow the position of a mesh part, add a **NULL part (a bone-point / empty part)** at that spot
-    in SpriteStudio and target that part's name instead. A bone (armature) or joint part works the same
-    way. A *rigid* (deform-only) mesh follows correctly and needs none of this — only skinned parts
-    diverge. `isPartSkinnedMesh(name)` reports whether a part is one of these so you can warn or dim it
-    in a follow-target picker; it is a **hint only** and never blocks following.
+> [!WARNING] Mesh (skinned) parts cannot be followed directly
+> A **bone-bound mesh part** (a deforming part such as a hand or a face) has its vertices drawn by
+> bone skinning, while the part's *own* transform stays at its setup node position — usually near the
+> character root. So targeting such a part makes the follower snap near the root rather than onto the
+> visible art.
+>
+> To follow the position of a mesh part, add a **NULL part (a bone-point / empty part)** at that spot
+> in SpriteStudio and target that part's name instead. A bone (armature) or joint part works the same
+> way. A *rigid* (deform-only) mesh follows correctly and needs none of this — only skinned parts
+> diverge. `isPartSkinnedMesh(name)` reports whether a part is one of these so you can warn or dim it
+> in a follow-target picker; it is a **hint only** and never blocks following.
 
 ## Properties
 
@@ -105,17 +105,17 @@ SpriteStudioPartAnchor(
 )
 ```
 
-!!! info "`cancel` is exact, and leaves no residue"
-    It undoes a ±1 diagonal this library applied itself, so the position stays exact and no stray
-    rotation is left behind.
+> [!INFO] `cancel` is exact, and leaves no residue
+> It undoes a ±1 diagonal this library applied itself, so the position stays exact and no stray
+> rotation is left behind.
+>
+> Either way, mirroring the **artist** authored on the part (a negative scale on it or an ancestor)
+> always reaches the child — that one is part of the animation. `cancel` only takes back the
+> player's own `flipX` / `flipY`.
 
-    Either way, mirroring the **artist** authored on the part (a negative scale on it or an ancestor)
-    always reaches the child — that one is part of the animation. `cancel` only takes back the
-    player's own `flipX` / `flipY`.
-
-!!! tip "Choosing the anchor point"
-    The child's top-left is what lands on the part. To attach a different point of it, wrap the child.
-    `FractionalTranslation(translation: Offset(-0.5, -0.5), child: ...)` centres the child on the part instead.
+> [!TIP] Choosing the anchor point
+> The child's top-left is what lands on the part. To attach a different point of it, wrap the child.
+> `FractionalTranslation(translation: Offset(-0.5, -0.5), child: ...)` centres the child on the part instead.
 
 ## Reading a pose without the widget
 
@@ -150,8 +150,8 @@ if (pose != null && !_player.isPartHiddenByIndex(partIndex)) {
 | `hitTestPart(point, {parts})` | Index of the front-most part whose outline holds `point`, among the parts named in `parts` (every part when omitted), or `-1` |
 | `hitTestPartByIndex(point, {parts})` | `hitTestPart` with `parts` given as indices |
 
-!!! tip "One-shot reads need no anchor"
-    When you only want the part's position at a single moment — a projectile spawn point, for example — rather than continuous following, calling `partTransform()` directly is simpler than mounting a `SpriteStudioPartAnchor`.
+> [!TIP] One-shot reads need no anchor
+> When you only want the part's position at a single moment — a projectile spawn point, for example — rather than continuous following, calling `partTransform()` directly is simpler than mounting a `SpriteStudioPartAnchor`.
 
 ### What the matrix carries
 
@@ -182,16 +182,16 @@ Two mirrorings **cancel**, returning the determinant to positive. So neither "I 
 mirrored" nor "I did not flip, therefore it is not" holds. When you need the sign, read it off the
 matrix you are actually holding, with `determinant()`.
 
-!!! tip "With every axis followed, nothing is decomposed"
-    With `position`, `rotation` and `scale` all on, the pose reaches a `Transform` widget as a whole
-    `Matrix4`, so a reflection rides along without loss. With any of them off, the anchor rebuilds the
-    pose from the axes it follows, taking a player flip out first so that the child is not turned
-    over.
-
-    Decompose it **yourself**, though, and the rotation you extract from a mirrored matrix is not well
-    defined (a horizontal flip leaves an extra 180°): check the sign of
-    `determinant()` before reading a rotation out of the matrix. The translation
-    (`storage[12]` / `storage[13]`) is exact whatever the sign.
+> [!TIP] With every axis followed, nothing is decomposed
+> With `position`, `rotation` and `scale` all on, the pose reaches a `Transform` widget as a whole
+> `Matrix4`, so a reflection rides along without loss. With any of them off, the anchor rebuilds the
+> pose from the axes it follows, taking a player flip out first so that the child is not turned
+> over.
+>
+> Decompose it **yourself**, though, and the rotation you extract from a mirrored matrix is not well
+> defined (a horizontal flip leaves an extra 180°): check the sign of
+> `determinant()` before reading a rotation out of the matrix. The translation
+> (`storage[12]` / `storage[13]`) is exact whatever the sign.
 
 ### A part's outline
 
@@ -211,10 +211,10 @@ vertices, which is where it is drawn even when bones bind it. A Shape gives its 
 Null, bone, Instance and Effect parts draw nothing of their own and have no outline, and neither does a
 hidden part; a part drawn at alpha 0 still has one.
 
-!!! note "The same reads exist on the low-level API"
-    `SpriteStudioInternalPlayer`, the drawing engine beneath `SpriteStudioPlayer`, has them too, for a
-    headless run or a drawing adapter of your own: see
-    [How the Player Is Put Together](../development/architecture.md#driving-l2-directly).
+> [!NOTE] The same reads exist on the low-level API
+> `SpriteStudioInternalPlayer`, the drawing engine beneath `SpriteStudioPlayer`, has them too, for a
+> headless run or a drawing adapter of your own: see
+> [How the Player Is Put Together](../development/architecture.md#driving-l2-directly).
 
 ## Timing and accuracy
 

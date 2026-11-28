@@ -30,12 +30,12 @@ flutter pub add --dev ssconverter_dart
 | [Flame 連携](flame.md) | `flutter pub add flame ssplayer_flame` |
 | [ライブリロード](live-reload.md) | `flutter pub add --dev ssgen_flutter` |
 
-!!! note "Web ターゲット"
-    Web のランタイムは `ssplayer_flutter` に同梱されています。`runApp` の前に一度 `await loadSsRuntime()` を呼んでください。ほかのプラットフォームでは何もしません。
+> [!NOTE] Web ターゲット
+> Web のランタイムは `ssplayer_flutter` に同梱されています。`runApp` の前に一度 `await loadSsRuntime()` を呼んでください。ほかのプラットフォームでは何もしません。
 
-!!! tip "コアを開発する場合"
-    `libssruntime` を Rust ソースからビルドしたり Player 本体に手を入れる作業は、
-    [ビルドガイド](../development/build.md) にまとめてあります —— アプリ利用者には不要です。
+> [!TIP] コアを開発する場合
+> `libssruntime` を Rust ソースからビルドしたり Player 本体に手を入れる作業は、
+> [ビルドガイド](../development/build.md) にまとめてあります —— アプリ利用者には不要です。
 
 ## 動作確認
 

@@ -19,20 +19,20 @@ _player.clearPartColorOverride(partName);
 _player.clearAllPartOverrides();
 ```
 
-!!! warning "Select an animation first"
-    The runtime holds overrides in a table sized to the part count, and that table is only allocated
-    when you call **`setAnimation()`** (or `load(animationName: ...)`). Before that, every call is
-    rejected and returns `false`. With `SpriteStudioAnimation`, make these calls from `onLoaded`:
-    `onPlayerCreated` comes before the pack loads.
-
-    What makes this easy to miss: **part-name resolution already works** beforehand, because names are
-    read from the `.ssab`. If `findPartIndex()` returns a valid index but `set` keeps failing, this is
-    almost certainly why.
-
-    Note also that `setAnimation()` **clears** every override that is not `Permanent` — so always
-    apply overrides *after* selecting the animation, never before. Selecting the animation that is
-    already selected does nothing, so it clears nothing (`clearAllPartOverrides()` does), and a
-    `crossfade` or `setTrackAnimation` on track 0 clears nothing either.
+> [!WARNING] Select an animation first
+> The runtime holds overrides in a table sized to the part count, and that table is only allocated
+> when you call **`setAnimation()`** (or `load(animationName: ...)`). Before that, every call is
+> rejected and returns `false`. With `SpriteStudioAnimation`, make these calls from `onLoaded`:
+> `onPlayerCreated` comes before the pack loads.
+>
+> What makes this easy to miss: **part-name resolution already works** beforehand, because names are
+> read from the `.ssab`. If `findPartIndex()` returns a valid index but `set` keeps failing, this is
+> almost certainly why.
+>
+> Note also that `setAnimation()` **clears** every override that is not `Permanent` — so always
+> apply overrides *after* selecting the animation, never before. Selecting the animation that is
+> already selected does nothing, so it clears nothing (`clearAllPartOverrides()` does), and a
+> `crossfade` or `setTrackAnimation` on track 0 clears nothing either.
 
 ## Methods
 
@@ -53,17 +53,17 @@ These are methods on `SpriteStudioPlayer`.
 Each method takes a **part name**; the `ByIndex`-suffixed form takes a **part index**, which is the optimisation for a caller that cached one from `findPartIndex`, not the default. Both return
 `false` when the part is unknown or the runtime rejected the call.
 
-!!! tip "Working with part indices"
-    Part indices are stable within one pack (the same `.ssab`), so if you override frequently, resolve
-    the name once with `findPartIndex()` and reuse the index.
+> [!TIP] Working with part indices
+> Part indices are stable within one pack (the same `.ssab`), so if you override frequently, resolve
+> the name once with `findPartIndex()` and reuse the index.
 
 An override shows from the player's next tick: `SpriteStudioPlayer` notifies its listeners when a set
 or clear succeeds, and a paused one runs one zero-length tick on the next frame.
 
-!!! note "The same calls exist on the low-level API"
-    `SpriteStudioInternalPlayer`, the drawing engine beneath `SpriteStudioPlayer`, has them too, for a
-    headless run or a drawing adapter of your own: see
-    [How the Player Is Put Together](../development/architecture.md#driving-l2-directly).
+> [!NOTE] The same calls exist on the low-level API
+> `SpriteStudioInternalPlayer`, the drawing engine beneath `SpriteStudioPlayer`, has them too, for a
+> headless run or a drawing adapter of your own: see
+> [How the Player Is Put Together](../development/architecture.md#driving-l2-directly).
 
 The cellmap / cell names a cell override accepts can be enumerated from the player:
 
@@ -125,11 +125,11 @@ _player.setPartColorOverride(partName, Colors.red, blendOp: SsBlendOp.mul);
 - `cascade` propagates only override-driven hiding. A keyframe `hide` is per-part and does *not*
   cascade to descendants; that asymmetry is deliberate.
 
-!!! note "Takes effect even while paused"
-    An override changes what is drawn without changing the frame number, so in other player
-    implementations setting one while stopped may not update the screen. An override shows from the
-    next tick, and a paused `SpriteStudioPlayer` runs one zero-length tick on the next frame for it,
-    so the drawing and the part reads change together. No extra step is needed.
+> [!NOTE] Takes effect even while paused
+> An override changes what is drawn without changing the frame number, so in other player
+> implementations setting one while stopped may not update the screen. An override shows from the
+> next tick, and a paused `SpriteStudioPlayer` runs one zero-length tick on the next frame for it,
+> so the drawing and the part reads change together. No extra step is needed.
 
 ## Using it from Flame
 

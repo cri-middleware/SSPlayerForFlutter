@@ -52,10 +52,10 @@ graph LR
 
 **既定の手順は `ssconvert` で、[クイックスタート](quickstart.md)もこれを使います。** `ssconverter_dart` を dev 依存に入れれば、`SpriteStudio_Source/` のプロジェクトを 1 つのコマンドでアプリの `assets/` へ直接変換でき、[ライブリロード](live-reload.md)はアプリの実行中に同じ `SpriteStudio_Source/` を保存のたびに再変換します。ブラウザ・GUI・SDK の CLI はファイルを出力するので、自分で[配置](#ssab-を配置するほかのルート)します。
 
-!!! note "どのファイルが、変換後のどれになるのか"
-    `.sspj` / `.ssae` / `.ssce` / `.ssqe` それぞれの役割と変換後の対応は Player 共通なので、ポータルにまとめてあります — [アセットの変換 — プロジェクトの構成と、変換後の対応](https://cri-middleware.github.io/SpriteStudio-Docs/ja/overview/conversion/#プロジェクトの構成と変換後の対応)。
-
-    要点は 2 つです。**`.ssae` 1 本が `.ssab` 1 本**になること、そして**セルの切り出し位置は `.ssce` から `.ssab` へ焼き込まれる**こと。後者があるため、セルを追加・移動・リサイズしたり画像サイズを変えたりしたときは、**画像だけでなく `.ssab` も作り直して一緒に配置**してください。画像だけを差し替えると、古い切り出し位置のまま描画されて絵がずれます（embedded で出力していれば `.ssab` 1 つの差し替えで済みます）。
+> [!NOTE] どのファイルが、変換後のどれになるのか
+> `.sspj` / `.ssae` / `.ssce` / `.ssqe` それぞれの役割と変換後の対応は Player 共通なので、ポータルにまとめてあります — [アセットの変換 — プロジェクトの構成と、変換後の対応](https://cri-middleware.github.io/SpriteStudio-Docs/ja/overview/conversion/#プロジェクトの構成と変換後の対応)。
+>
+> 要点は 2 つです。**`.ssae` 1 本が `.ssab` 1 本**になること、そして**セルの切り出し位置は `.ssce` から `.ssab` へ焼き込まれる**こと。後者があるため、セルを追加・移動・リサイズしたり画像サイズを変えたりしたときは、**画像だけでなく `.ssab` も作り直して一緒に配置**してください。画像だけを差し替えると、古い切り出し位置のまま描画されて絵がずれます（embedded で出力していれば `.ssab` 1 つの差し替えで済みます）。
 
 ## 参照テクスチャ形式 vs embedded
 
@@ -72,9 +72,9 @@ graph LR
 
 以下のルートはどれも同じオープンソースのコンバータを使い、同じ `.ssab` を生成します。
 
-!!! tip "手元に `.sspj` がまだ無いときは"
-    [SpriteStudio 公式のサンプルデータ](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/)がそのまま使えます。キャラクターなら [Ringo](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#ringo)、エフェクトを含むものなら
-    [パーティクル](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#Perticle_sample) が手頃です。ダウンロードした `.sspj` は、以下のどのルートにもそのまま渡せます。
+> [!TIP] 手元に `.sspj` がまだ無いときは
+> [SpriteStudio 公式のサンプルデータ](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/)がそのまま使えます。キャラクターなら [Ringo](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#ringo)、エフェクトを含むものなら
+> [パーティクル](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#Perticle_sample) が手頃です。ダウンロードした `.sspj` は、以下のどのルートにもそのまま渡せます。
 
 | ルート | 向いている用途 | 入手方法 |
 |---|---|---|
@@ -95,8 +95,8 @@ dart run ssconverter_dart:ssconvert -e -o assets/spritestudio/Ringo_emb/ SpriteS
 
 そのあとフォルダを `pubspec.yaml` に登録します（[`.ssab` を配置する](#ssab-を配置するほかのルート)の手順 2）。素の `dart run` なので、任意の Dart/Flutter CI に組み込めます。同じエンジンは `SsConverter`（`package:ssconverter_dart`）としてプログラムからも使え、Dart 製の独自ツールに組み込めます。
 
-!!! tip "ソースはアプリに入らない"
-    アプリに同梱されるのは `flutter: assets:` に並べたフォルダだけなので、`SpriteStudio_Source/` はアプリに入りません。
+> [!TIP] ソースはアプリに入らない
+> アプリに同梱されるのは `flutter: assets:` に並べたフォルダだけなので、`SpriteStudio_Source/` はアプリに入りません。
 
 ## ライブリロード
 
@@ -106,8 +106,8 @@ SpriteStudio で保存すると、実行中のアプリが再変換して更新�
 
 ブラウザで `.sspj` を変換して結果をダウンロード —— インストール不要。コンバータの WebAssembly ビルドをクライアント側で実行し、ZIP には `.sspj` の名前のフォルダが 1 つ入っています。その後、[配置](#ssab-を配置するほかのルート)します。
 
-!!! note "フォルダのドロップには Chromium 系ブラウザが必要"
-    GitHub Pages でホストしています（<https://cri-middleware.github.io/SSPlayerForWeb/ssconverter/>）。フォルダのドロップには **File System Access API** を使うため、**Chromium 系ブラウザ**（Chrome / Edge）が必要です。ほかのブラウザでは **Browse...** でフォルダを選択してください。
+> [!NOTE] フォルダのドロップには Chromium 系ブラウザが必要
+> GitHub Pages でホストしています（<https://cri-middleware.github.io/SSPlayerForWeb/ssconverter/>）。フォルダのドロップには **File System Access API** を使うため、**Chromium 系ブラウザ**（Chrome / Edge）が必要です。ほかのブラウザでは **Browse...** でフォルダを選択してください。
 
 ## SSConverter GUI（デスクトップ GUI）
 

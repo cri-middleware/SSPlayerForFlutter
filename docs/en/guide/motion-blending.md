@@ -55,10 +55,10 @@ and the per-track settings create the track instead. None of them throws. A refu
 call, the track or source, the animation name it was given and the runtime's reason — so a misspelt
 name does not leave the previous animation playing in silence.
 
-!!! warning "`setAnimation` folds the stack"
-    Switching track 0 with `setAnimation` takes every overlay, fade and [source](#sources) with it, and resets
-    every track's alpha, blend and sync. Lay overlays again after it — or switch with a
-    [crossfade](#crossfade), which keeps them.
+> [!WARNING] `setAnimation` folds the stack
+> Switching track 0 with `setAnimation` takes every overlay, fade and [source](#sources) with it, and resets
+> every track's alpha, blend and sync. Lay overlays again after it — or switch with a
+> [crossfade](#crossfade), which keeps them.
 
 ## Fading rather than cutting { #crossfade }
 
@@ -95,10 +95,10 @@ Everything the track was playing fades out together, keeping its proportions. A 
 during a fade takes the fade in flight over as it stands, so the pose does not jump — nor does one
 after `cancelTrackFade`, or from a track mixing several animations.
 
-!!! note "The instance and effect parts carry on"
-    A crossfade is a fade rather than a switch, so the instance children and effects keep running
-    under the incoming animation. Which key drives them from the handover on is outside motion
-    blending (see [Limits](#limits)).
+> [!NOTE] The instance and effect parts carry on
+> A crossfade is a fade rather than a switch, so the instance children and effects keep running
+> under the incoming animation. Which key drives them from the handover on is outside motion
+> blending (see [Limits](#limits)).
 
 ### With `SpriteStudioAnimation`
 
@@ -234,10 +234,10 @@ one from the moment the fade begins. Each decoded event names the source that fi
   track's `setTrackOutgoingEventThreshold`. The default, infinity, silences it the moment the fade
   begins; `0.5` keeps it firing for the first half.
 
-!!! warning "If you count events"
-    A crossfade on track 0 hands the events over when it begins: the outgoing animation stops firing,
-    and the incoming one fires from its first frame. Code that counted on the outgoing animation firing
-    to the end of the fade needs `setTrackOutgoingEventThreshold`.
+> [!WARNING] If you count events
+> A crossfade on track 0 hands the events over when it begins: the outgoing animation stops firing,
+> and the incoming one fires from its first frame. Code that counted on the outgoing animation firing
+> to the end of the fade needs `setTrackOutgoingEventThreshold`.
 
 ## A worked shape
 

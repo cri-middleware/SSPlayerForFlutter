@@ -30,10 +30,10 @@ my_app/
 
 The other ways to convert are on [Preparing Assets (`.sspj` → `.ssab`)](conversion.md).
 
-!!! tip "No SpriteStudio data of your own yet?"
-    The [official sample data](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/) works as-is — that page is
-    Japanese only, but the downloads themselves are language-neutral.
-    [Ringo](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#ringo) is a good character sample.
+> [!TIP] No SpriteStudio data of your own yet?
+> The [official sample data](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/) works as-is — that page is
+> Japanese only, but the downloads themselves are language-neutral.
+> [Ringo](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#ringo) is a good character sample.
 
 ## 2. Add the asset
 
@@ -83,10 +83,10 @@ Future<void> main() async {
 
 Every parameter, and how a change reaches the player, is on [Playback & Events](playback.md#widget-parameters).
 
-!!! tip "Textures: embedded vs. reference"
-    Both texture modes resolve with no extra argument: an **embedded** `.ssab` (built with
-    `ssconvert -e`) carries its images, and a **reference** `.ssab` points at sibling files that
-    `loadAsset` resolves from the key's own folder. See [Preparing Assets](conversion.md).
+> [!TIP] Textures: embedded vs. reference
+> Both texture modes resolve with no extra argument: an **embedded** `.ssab` (built with
+> `ssconvert -e`) carries its images, and a **reference** `.ssab` points at sibling files that
+> `loadAsset` resolves from the key's own folder. See [Preparing Assets](conversion.md).
 
 Sub-frame interpolation is **on by default**, so motion stays smooth regardless of frame rate.
 
