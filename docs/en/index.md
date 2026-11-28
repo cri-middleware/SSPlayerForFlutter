@@ -18,7 +18,7 @@ hand-write. Playback runs through `libssruntime` provided by
     [its site](https://www.webtech.co.jp/eng/spritestudio/).
 
 !!! example "Try it in a browser"
-    Two [**live Web demos**](demo/) are published beside these pages: the `examples/overall`
+    Two [**live Web demos**](https://cri-middleware.github.io/SSPlayerForFlutter/demo/) are published beside these pages: the `examples/overall`
     app driving the `ssplayer_flutter` widget, and the `examples/flame` one driving
     `ssplayer_flame`, both built for the web. The Web target is a developer preview; see
     [Limitations & Scope](limitations.md).

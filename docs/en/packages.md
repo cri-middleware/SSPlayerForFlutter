@@ -5,7 +5,7 @@ This monorepo releases the following packages (see [Installation](guide/install.
 specific needs.
 
 Both players have a live demo you can open in a browser: the widget one at
-[demo/flutter/](demo/flutter/) and the Flame one at [demo/flame/](demo/flame/).
+[demo/flutter/](https://cri-middleware.github.io/SSPlayerForFlutter/demo/flutter/) and the Flame one at [demo/flame/](https://cri-middleware.github.io/SSPlayerForFlutter/demo/flame/).
 
 | Purpose | Package | Kind |
 |---|---|---|

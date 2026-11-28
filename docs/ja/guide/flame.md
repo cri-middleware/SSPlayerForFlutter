@@ -5,7 +5,7 @@
 `PositionComponent` です。**外部クロック**の `SpriteStudioPlayer`（`Ticker` なし）を内部に持ち、Flame
 のゲームループが時間を駆動します（`update(dt)` → `advance`、`render` → paint）。コアが `flame` を巻き込まないよう別パッケージになっており、`ssplayer_flutter` の API 全体を re-export します。
 
-[Flame デモ](../../demo/flame/) は `examples/flame` を Web 向けにビルドしたものです。`SpriteStudioComponent` 1 つで Ringo を再生し、タップで再生 / 一時停止します。
+[Flame デモ](https://cri-middleware.github.io/SSPlayerForFlutter/demo/flame/) は `examples/flame` を Web 向けにビルドしたものです。`SpriteStudioComponent` 1 つで Ringo を再生し、タップで再生 / 一時停止します。
 
 ## 依存を追加する
 
